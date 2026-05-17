@@ -1,36 +1,118 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# 学マス コンテスト戦績トラッカー
 
-## Getting Started
+学園アイドルマスター（学マス）コンテスト向けの非公式戦績分析ツールです。
 
-First, run the development server:
+公開URL：  
+https://gakumas-contest-tracker.vercel.app/
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+---
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 概要
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+コンテスト戦績を記録・分析するためのツールです。
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+ガチ勢向けに、対戦入力の省力化と長期分析を重視しています。
 
-## Learn More
+主な用途：
 
-To learn more about Next.js, take a look at the following resources:
+- 戦績管理
+- 個別アイドル分析
+- 勝率分析
+- 順位分析
+- 安定度分析
+- 環境確認
+- 長期メタ分析
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 主な機能
 
-## Deploy on Vercel
+### 対戦入力
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- 自分編成保存
+- 相手編成入力
+- OCR対応
+- 自動順位計算
+- 自動勝敗判定
+- 相手未入力保存対応
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+### 分析
+
+各アイドルごとに以下を確認可能です。
+
+- 勝率
+- 平均素点
+- 平均順位
+- 1位率
+- 順位分布
+- 安定度
+
+分析期間指定対応（デフォルト17日）
+
+---
+
+### グラフ
+
+- 勝率推移
+- 順位推移
+- メタ分析
+
+---
+
+### データ保護
+
+保存先：
+
+- ブラウザ LocalStorage
+- Google Sheets 同期
+
+バックアップ機能：
+
+- JSON書き出し
+- JSON復元
+
+---
+
+## 対応環境
+
+PC推奨
+
+動作確認：
+
+- Chrome
+- Edge
+- スマートフォンブラウザ
+
+---
+
+## 更新方針
+
+アイドル追加・名称変更時は手動更新予定です。
+
+更新時は Vercel に自動反映されます。
+
+---
+
+## 注意事項
+
+本ツールは非公式ツールです。
+
+データはユーザー環境へ保存されます。  
+バックアップ利用を推奨します。
+
+本ツール利用による損害等について作者は責任を負いません。
+
+---
+
+## 開発
+
+Next.js  
+Vercel  
+GitHub
+
+---
+
+学マス コンテスト戦績トラッカー  
+https://gakumas-contest-tracker.vercel.app/
