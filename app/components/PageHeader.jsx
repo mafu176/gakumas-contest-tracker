@@ -7,7 +7,7 @@ export default function PageHeader({
 }) {
   return (
     <section className="rounded-3xl bg-white p-6 shadow">
-      <h1 className="text-2xl font-bold md:text-3xl">
+      <h1 className="text-2xl font-bold md:text-3xl text-zinc-900">
         学マス コンテスト戦績トラッカー
       </h1>
 
@@ -16,7 +16,7 @@ export default function PageHeader({
       </p>
 
       {saveStatus && (
-        <p className="mt-3 text-sm text-zinc-500">{saveStatus}</p>
+        <p className="mt-3 text-sm text-zinc-600">{saveStatus}</p>
       )}
 
       {!shareStatsConsentAsked && (
@@ -33,7 +33,7 @@ export default function PageHeader({
             />
             <span>
               <span className="font-semibold">匿名統計に協力する</span>
-              <span className="mt-1 block text-xs text-zinc-500">
+              <span className="mt-1 block text-xs text-zinc-600">
                 ONにすると、保存時に匿名化した戦績だけを統計用に送信します。
                 自分側・相手側のアイドル名と内部IDは、全体使用率や得点傾向の匿名統計用に送信します。
                 個人メモ・編成テンプレ名は送信しません。

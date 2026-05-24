@@ -34,13 +34,13 @@ export default function DeveloperPanel({
         className="flex w-full items-center justify-between text-left"
       >
         <div>
-          <h2 className="text-xl font-semibold">詳細設定：アイドル追加</h2>
-          <p className="mt-1 text-sm text-zinc-500">
+          <h2 className="text-xl font-semibold text-zinc-900">詳細設定：アイドル追加</h2>
+          <p className="mt-1 text-sm text-zinc-600">
             通常は管理者が登録した公式DBを使います。未登録Pアイドルだけ、必要に応じて追加できます。
           </p>
         </div>
 
-        <span className="text-sm text-zinc-500">
+        <span className="text-sm text-zinc-600">
           {showIdolManager ? "閉じる" : "開く"}
         </span>
       </button>
@@ -107,23 +107,23 @@ export default function DeveloperPanel({
           <div className="rounded-2xl bg-zinc-50 p-4">
             <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-3">
               <div>
-                <div className="text-xs text-zinc-500">登録合計</div>
+                <div className="text-xs text-zinc-600">登録合計</div>
                 <div className="text-xl font-bold">{idolDbSummary.total}</div>
               </div>
               <div>
-                <div className="text-xs text-zinc-500">公式DB</div>
+                <div className="text-xs text-zinc-600">公式DB</div>
                 <div className="text-xl font-bold">{idolDbSummary.officialCount}</div>
               </div>
               <div>
-                <div className="text-xs text-zinc-500">追加分</div>
+                <div className="text-xs text-zinc-600">追加分</div>
                 <div className="text-xl font-bold">{idolDbSummary.customCount}</div>
               </div>
               <div>
-                <div className="text-xs text-zinc-500">画像あり</div>
+                <div className="text-xs text-zinc-600">画像あり</div>
                 <div className="text-xl font-bold">{idolDbSummary.withImage}</div>
               </div>
               <div>
-                <div className="text-xs text-zinc-500">画像なし</div>
+                <div className="text-xs text-zinc-600">画像なし</div>
                 <div className="text-xl font-bold">{idolDbSummary.withoutImage}</div>
               </div>
             </div>
@@ -131,7 +131,7 @@ export default function DeveloperPanel({
 
           <div className="rounded-2xl border p-4">
             <div className="font-semibold">登録チェック</div>
-            <p className="mt-1 text-xs text-zinc-500">
+            <p className="mt-1 text-xs text-zinc-600">
               確認したいキャラ名を改行区切りで入力すると、登録有無を確認できます。新アイドル追加時の確認用です。
             </p>
 
@@ -174,13 +174,13 @@ export default function DeveloperPanel({
               アイドルを追加 / 更新
             </button>
 
-            <p className="text-xs text-zinc-500">
+            <p className="text-xs text-zinc-600">
               URLに頼らず、画像ファイルを直接登録できます。内部IDは「アイドル名＋種類」から自動生成します。
             </p>
           </div>
 
           {customIdols.length === 0 ? (
-            <p className="text-sm text-zinc-500">
+            <p className="text-sm text-zinc-600">
               追加アイドルはまだありません。
             </p>
           ) : (
@@ -202,7 +202,7 @@ export default function DeveloperPanel({
                             }}
                           />
                         ) : (
-                          <div className="flex h-full w-full items-center justify-center text-xs text-zinc-500">
+                          <div className="flex h-full w-full items-center justify-center text-xs text-zinc-600">
                             No Image
                           </div>
                         )}
@@ -212,7 +212,7 @@ export default function DeveloperPanel({
                         <div className="truncate font-semibold">
                           {getIdolDisplayName(idol)}
                         </div>
-                        <div className="mt-1 truncate text-xs text-zinc-500">
+                        <div className="mt-1 truncate text-xs text-zinc-600">
                           {idolId}
                         </div>
                         <div

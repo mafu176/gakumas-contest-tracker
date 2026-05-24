@@ -28,8 +28,8 @@ export default function SeasonManagementForm({
     <>
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
-          <h2 className="text-xl font-semibold">シーズン管理</h2>
-          <p className="mt-1 text-sm text-zinc-500">
+          <h2 className="text-xl font-semibold text-zinc-900">シーズン管理</h2>
+          <p className="mt-1 text-sm text-zinc-600">
             シーズンごとに期間とメモを保存できます。分析対象シーズンを選ぶと、その期間だけで集計します。
           </p>
         </div>
@@ -111,7 +111,7 @@ export default function SeasonManagementForm({
           {stages.map((stage) => (
             <label
               key={stage}
-              className="text-xs font-semibold text-zinc-500"
+              className="text-xs font-semibold text-zinc-600"
             >
               ステージ{stage}タイプ
               <select

@@ -5,8 +5,8 @@ export default function PositionSummaryPanel({
   return (
         <section className={`${visible ? "" : "hidden"} rounded-3xl bg-white p-6 shadow`}>
           <div className="mb-4">
-            <h2 className="text-xl font-semibold">位置別サマリー</h2>
-            <p className="mt-1 text-sm text-zinc-500">
+            <h2 className="text-xl font-semibold text-zinc-900">位置別サマリー</h2>
+            <p className="mt-1 text-sm text-zinc-600">
               上殴り / 中殴り / 下殴りごとの勝率と試合数を確認できます。
             </p>
           </div>
@@ -24,7 +24,7 @@ export default function PositionSummaryPanel({
                   </div>
                 </div>
 
-                <div className="mt-2 text-xs text-zinc-500">
+                <div className="mt-2 text-xs text-zinc-600">
                   {summary.winCount}勝 {summary.loseCount}敗
                 </div>
               </div>

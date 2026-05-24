@@ -13,7 +13,7 @@ function IdolNameWithIcon({ idolName, idolImageMap = {} }) {
           }}
         />
       ) : (
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-zinc-200 bg-zinc-100 text-[10px] font-bold text-zinc-400">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-zinc-200 bg-zinc-100 text-[10px] font-bold text-zinc-600">
           NO IMG
         </div>
       )}
@@ -44,11 +44,11 @@ export default function MetaStatsPanel({
         <section className={`${visible ? "" : "hidden"} rounded-3xl bg-white p-6 shadow`}>
           <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <h2 className="text-xl font-semibold">相手メタ分析</h2>
-              <p className="mt-1 text-sm text-zinc-500">
+              <h2 className="text-xl font-semibold text-zinc-900">相手メタ分析</h2>
+              <p className="mt-1 text-sm text-zinc-600">
                 相手編成に登場したPアイドルをステージ別に確認できます。
               </p>
-              <p className="mt-1 text-xs text-zinc-500">
+              <p className="mt-1 text-xs text-zinc-600">
                 遭遇率は「対象対戦数に対して、そのPアイドルを何回見たか」で計算しています。
               </p>
             </div>
@@ -92,22 +92,22 @@ export default function MetaStatsPanel({
 
           <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
             <div className="rounded-2xl bg-zinc-100 p-4">
-              <div className="text-xs text-zinc-500">表示件数</div>
+              <div className="text-xs text-zinc-600">表示件数</div>
               <div className="mt-1 text-2xl font-bold">{metaStats.length}</div>
             </div>
 
             <div className="rounded-2xl bg-zinc-100 p-4">
-              <div className="text-xs text-zinc-500">最多遭遇</div>
+              <div className="text-xs text-zinc-600">最多遭遇</div>
               <div className="mt-1 text-lg font-bold">
                 {metaStats[0]?.idolName || "-"}
               </div>
-              <div className="mt-1 text-xs text-zinc-500">
+              <div className="mt-1 text-xs text-zinc-600">
                 {metaStats[0] ? `${metaStats[0].count}回` : ""}
               </div>
             </div>
 
             <div className="rounded-2xl bg-zinc-100 p-4">
-              <div className="text-xs text-zinc-500">対象条件</div>
+              <div className="text-xs text-zinc-600">対象条件</div>
               <div className="mt-1 text-lg font-bold">
                 {metaPosition} / {metaDays ? `直近${metaDays}日` : "全期間"}
               </div>
@@ -115,7 +115,7 @@ export default function MetaStatsPanel({
           </div>
 
           {metaStats.length === 0 ? (
-            <div className="rounded-2xl border bg-zinc-50 p-5 text-sm text-zinc-500">
+            <div className="rounded-2xl border bg-zinc-50 p-5 text-sm text-zinc-600">
               この条件の相手編成データがまだありません。
             </div>
           ) : (
@@ -141,14 +141,14 @@ export default function MetaStatsPanel({
                     </div>
 
                     {shownStageMetaStats.length === 0 ? (
-                      <div className="rounded-xl bg-white p-4 text-sm text-zinc-500">
+                      <div className="rounded-xl bg-white p-4 text-sm text-zinc-600">
                         データなし
                       </div>
                     ) : (
                       <div className="overflow-x-auto rounded-xl bg-white">
                         <table className="w-full min-w-[760px] text-sm">
                           <thead>
-                            <tr className="border-b text-left text-xs text-zinc-500">
+                            <tr className="border-b text-left text-xs text-zinc-600">
                               <th className="px-3 py-2">順位</th>
                               <th className="px-3 py-2">相手Pアイドル</th>
                               <th className="px-3 py-2 text-right">ステージ遭遇</th>
@@ -163,7 +163,7 @@ export default function MetaStatsPanel({
                           <tbody>
                             {shownStageMetaStats.map((stat, index) => (
                               <tr key={`${stage}-${stat.idolName}`} className="border-b last:border-b-0">
-                                <td className="px-3 py-2 text-xs text-zinc-500">
+                                <td className="px-3 py-2 text-xs text-zinc-600">
                                   #{index + 1}
                                 </td>
                                 <td className="px-3 py-2">

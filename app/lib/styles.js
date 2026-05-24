@@ -9,5 +9,5 @@ export function resultClass(result) {
   if (result === "勝ち") return "bg-emerald-100 text-emerald-700";
   if (result === "負け") return "bg-rose-100 text-rose-700";
   if (result === "引き分け") return "bg-zinc-100 text-zinc-700";
-  return "bg-zinc-100 text-zinc-500";
+  return "bg-zinc-100 text-zinc-600";
 }

@@ -44,7 +44,7 @@ export default function SeasonListPanel({
       </div>
 
       {filteredSeasonPresets.length === 0 ? (
-        <div className="rounded-2xl border bg-zinc-50 p-4 text-sm text-zinc-500">
+        <div className="rounded-2xl border bg-zinc-50 p-4 text-sm text-zinc-600">
           条件に一致するシーズンはありません。
         </div>
       ) : (
@@ -58,12 +58,12 @@ export default function SeasonListPanel({
           >
             <div>
               <div className="font-semibold">{season.name}</div>
-              <div className="mt-1 text-xs text-zinc-500">
+              <div className="mt-1 text-xs text-zinc-600">
                 {season.startDate} ～ {season.endDate}
               </div>
             </div>
 
-            <div className="shrink-0 text-sm font-semibold text-zinc-500">
+            <div className="shrink-0 text-sm font-semibold text-zinc-600">
               {collapsedSeasonIds.includes(season.id) ? "▶" : "▼"}
             </div>
           </button>
@@ -92,7 +92,7 @@ export default function SeasonListPanel({
               </div>
 
               {(season.finalPoint || season.finalRank) && (
-                <div className="mt-1 text-xs text-zinc-500">
+                <div className="mt-1 text-xs text-zinc-600">
                   {season.finalPoint ? `${season.finalPoint}pt` : "pt未入力"} /{" "}
                   {season.finalRank ? `${season.finalRank}位` : "順位未入力"}
                 </div>

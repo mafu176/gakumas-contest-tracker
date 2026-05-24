@@ -11,17 +11,17 @@ export default function DailyBattleHistoryPanel({
       <div className="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
         <div>
           <div className="font-semibold">日別戦績</div>
-          <div className="mt-1 text-xs text-zinc-400">
+          <div className="mt-1 text-xs text-zinc-600">
             シーズン内の対戦を日付ごとに集計します。
           </div>
         </div>
-        <div className="text-xs font-semibold text-zinc-400">
+        <div className="text-xs font-semibold text-zinc-600">
           {seasonDailySummaries.length}日分
         </div>
       </div>
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-black/20 p-3">
-        <div className="text-xs font-semibold text-zinc-300">
+        <div className="text-xs font-semibold text-zinc-200">
           各日の戦績の下に、その日の最後に記録した自分編成を表示できます。
         </div>
 
@@ -46,32 +46,32 @@ export default function DailyBattleHistoryPanel({
           >
             <div className="grid grid-cols-2 gap-3 text-xs md:grid-cols-7">
               <div>
-                <div className="text-zinc-500">日付</div>
+                <div className="text-zinc-600">日付</div>
                 <div className="mt-1 font-semibold text-white">
                   {summary.date}
                 </div>
               </div>
               <div>
-                <div className="text-zinc-500">試合</div>
+                <div className="text-zinc-600">試合</div>
                 <div className="mt-1 font-semibold text-zinc-200">
                   {summary.totalMatches}
                 </div>
               </div>
               <div>
-                <div className="text-zinc-500">勝敗</div>
+                <div className="text-zinc-600">勝敗</div>
                 <div className="mt-1 font-semibold text-zinc-200">
                   {summary.winCount}-{summary.loseCount}
                 </div>
               </div>
               <div>
-                <div className="text-zinc-500">pt</div>
+                <div className="text-zinc-600">pt</div>
                 <div className="mt-1 font-semibold text-zinc-200">
                   {summary.totalPoint.toLocaleString()}
                 </div>
               </div>
               {stages.map((stage) => (
                 <div key={stage}>
-                  <div className="text-zinc-500">S{stage}勝敗</div>
+                  <div className="text-zinc-600">S{stage}勝敗</div>
                   <div className="mt-1 font-semibold text-zinc-200">
                     {summary.stageWinCounts[stage] || 0}-
                     {summary.stageLoseCounts[stage] || 0}
@@ -86,7 +86,7 @@ export default function DailyBattleHistoryPanel({
                   <div className="text-sm font-semibold text-white">
                     その日の最終使用編成
                   </div>
-                  <div className="text-xs text-zinc-400">
+                  <div className="text-xs text-zinc-600">
                     最後に記録した対戦の自分編成です
                   </div>
                 </div>
@@ -108,13 +108,13 @@ export default function DailyBattleHistoryPanel({
                             }}
                           />
                         ) : (
-                          <div className="flex h-full w-full items-center justify-center text-[10px] text-zinc-500">
+                          <div className="flex h-full w-full items-center justify-center text-[10px] text-zinc-600">
                             No Image
                           </div>
                         )}
                       </div>
 
-                      <div className="mt-1 text-[10px] font-semibold text-zinc-400">
+                      <div className="mt-1 text-[10px] font-semibold text-zinc-600">
                         S{slot.stage}-{slot.member}
                       </div>
                       <div className="mt-0.5 line-clamp-2 text-[10px] font-semibold leading-tight text-white">

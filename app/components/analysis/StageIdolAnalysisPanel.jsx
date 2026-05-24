@@ -31,7 +31,7 @@ function IdolNameWithIcon({ stat, idolImageMap, onClick }) {
           }}
         />
       ) : (
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-zinc-200 bg-zinc-100 text-[10px] font-bold text-zinc-400">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-zinc-200 bg-zinc-100 text-[10px] font-bold text-zinc-600">
           NO IMG
         </div>
       )}
@@ -74,8 +74,8 @@ export default function StageIdolAnalysisPanel({
         <section className={`${visible ? "" : "hidden"} rounded-3xl bg-white p-6 shadow`}>
           <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <h2 className="text-xl font-semibold">ステージ別アイドル分析</h2>
-              <p className="mt-1 text-sm text-zinc-500">
+              <h2 className="text-xl font-semibold text-zinc-900">ステージ別アイドル分析</h2>
+              <p className="mt-1 text-sm text-zinc-600">
                 現在の対象：{analysisPosition} /{" "}
                 {analysisStartDate || analysisEndDate
                   ? `${analysisStartDate || "開始未指定"}～${analysisEndDate || "終了未指定"} / `
@@ -90,7 +90,7 @@ export default function StageIdolAnalysisPanel({
                   : Math.max(0, toNumber(analysisMinCount) || 0)}{" "}
                 / {analysisRecords.length}戦
               </p>
-              <p className="mt-1 text-xs text-zinc-500">
+              <p className="mt-1 text-xs text-zinc-600">
                 アイドル名を押すと、勝率・平均素点・平均順位・1位率を確認できます。
               </p>
             </div>
@@ -219,10 +219,10 @@ export default function StageIdolAnalysisPanel({
           <div className="space-y-6">
             {stages.map((stage) => (
               <div key={stage} className="rounded-2xl border p-4">
-                <h3 className="mb-3 font-semibold">ステージ{stage}</h3>
+                <h3 className="mb-3 font-semibold text-zinc-800">ステージ{stage}</h3>
 
                 {stageStats[stage].length === 0 ? (
-                  <div className="text-sm text-zinc-500">
+                  <div className="text-sm text-zinc-600">
                     この条件のスコア・順位付き戦績がまだありません。
                   </div>
                 ) : (
@@ -243,7 +243,7 @@ export default function StageIdolAnalysisPanel({
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div>
-                              <div className="text-xs text-zinc-500">
+                              <div className="text-xs text-zinc-600">
                                 #{index + 1}
                               </div>
                               <IdolNameWithIcon
@@ -253,14 +253,14 @@ export default function StageIdolAnalysisPanel({
                               />
                             </div>
 
-                            <div className="text-right text-xs text-zinc-500">
+                            <div className="text-right text-xs text-zinc-600">
                               採用 {stat.count}
                             </div>
                           </div>
 
                           <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
                             <div className="rounded-xl bg-white/80 p-3">
-                              <div className="text-xs text-zinc-500">
+                              <div className="text-xs text-zinc-600">
                                 平均素点
                               </div>
                               <div className="font-semibold">
@@ -269,7 +269,7 @@ export default function StageIdolAnalysisPanel({
                             </div>
 
                             <div className="rounded-xl bg-white/80 p-3">
-                              <div className="text-xs text-zinc-500">
+                              <div className="text-xs text-zinc-600">
                                 平均順位
                               </div>
                               <div className="font-semibold">
@@ -278,7 +278,7 @@ export default function StageIdolAnalysisPanel({
                             </div>
 
                             <div className="rounded-xl bg-white/80 p-3">
-                              <div className="text-xs text-zinc-500">
+                              <div className="text-xs text-zinc-600">
                                 1位率
                               </div>
                               <div className="font-semibold">
@@ -287,7 +287,7 @@ export default function StageIdolAnalysisPanel({
                             </div>
 
                             <div className="rounded-xl bg-white/80 p-3">
-                              <div className="text-xs text-zinc-500">
+                              <div className="text-xs text-zinc-600">
                                 採用時勝率
                               </div>
                               <div className="font-semibold">
@@ -302,7 +302,7 @@ export default function StageIdolAnalysisPanel({
                     <div className="hidden overflow-x-auto md:block">
                       <table className="w-full text-sm">
                         <thead>
-                          <tr className="border-b text-left text-zinc-500">
+                          <tr className="border-b text-left text-zinc-600">
                             <th className="py-2">アイドル</th>
                             <th>採用数</th>
                             <th>勝利</th>

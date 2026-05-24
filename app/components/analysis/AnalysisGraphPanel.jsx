@@ -14,11 +14,11 @@ export default function AnalysisGraphPanel({
         <section className={`${visible ? "" : "hidden"} rounded-3xl bg-white p-6 shadow`}>
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
-              <h2 className="text-xl font-semibold">勝率三角図</h2>
-              <p className="mt-1 text-sm text-zinc-500">
+              <h2 className="text-xl font-semibold text-zinc-900">勝率三角図</h2>
+              <p className="mt-1 text-sm text-zinc-600">
                 ステージ1/2/3の勝率を三角形で比較します。中央は全体勝率です。
               </p>
-              <p className="mt-1 text-xs text-zinc-500">
+              <p className="mt-1 text-xs text-zinc-600">
                 対象：{analysisStartDate || analysisEndDate
                   ? `${analysisStartDate || "開始未指定"}～${analysisEndDate || "終了未指定"}`
                   : analysisDays
@@ -64,7 +64,7 @@ export default function AnalysisGraphPanel({
                     </div>
                   </div>
 
-                  <div className="mt-2 text-xs text-zinc-500">
+                  <div className="mt-2 text-xs text-zinc-600">
                     {summary.winCount}勝 {summary.loseCount}敗
                   </div>
                 </div>

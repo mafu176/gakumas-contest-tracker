@@ -3783,11 +3783,11 @@ const metaStats = useMemo(() => {
         </section>
 
         <section className={`${showTab("settings") ? "" : "hidden"} rounded-3xl bg-white p-6 shadow`}>
-          <h2 className="text-xl font-semibold">設定</h2>
+          <h2 className="text-xl font-semibold text-zinc-900">設定</h2>
           <div className="mt-4 space-y-4">
             <label className="block rounded-2xl border bg-zinc-50 p-4 text-sm">
               <span className="font-semibold">プレイヤー名（任意）</span>
-              <span className="mt-1 block text-xs text-zinc-500">
+              <span className="mt-1 block text-xs text-zinc-600">
                 共有カード表示名・運営確認用
                 未入力でも利用できます
               </span>
@@ -3810,7 +3810,7 @@ const metaStats = useMemo(() => {
               />
               <span>
                 <span className="font-semibold">統計データ送信を有効にする</span>
-                <span className="mt-1 block text-xs text-zinc-500">
+                <span className="mt-1 block text-xs text-zinc-600">
                   保存時に環境分析・利用状況確認・運営改善用データを送信します。いつでもここで切り替えできます。
                 </span>
               </span>
@@ -3825,7 +3825,7 @@ const metaStats = useMemo(() => {
               />
               <span>
                 <span className="font-semibold">開発者向け機能を表示</span>
-                <span className="mt-1 block text-xs text-zinc-500">
+                <span className="mt-1 block text-xs text-zinc-600">
                   OCR開発モード、回帰テスト、アイドル追加などを表示します。
                 </span>
               </span>
@@ -3984,17 +3984,17 @@ const metaStats = useMemo(() => {
                 </div>
               )}
 
-              <div className="mt-4 text-xs text-zinc-400">
+              <div className="mt-4 text-xs text-zinc-600">
                 アイドル画像は /public/idols/アイドルID.png またはアイドルDBの image 項目で表示できます。相手側入力は匿名統計用データとして活用します。
               </div>
 
               <div className="hidden">
                 <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div>
-                    <div className="text-sm font-semibold text-zinc-500">
+                    <div className="text-sm font-semibold text-zinc-600">
                       共有用プレビュー
                     </div>
-                    <div className="text-xs text-zinc-400">
+                    <div className="text-xs text-zinc-600">
                       次版でこのカードをPNG保存できるようにします
                     </div>
                   </div>
@@ -4026,7 +4026,7 @@ const metaStats = useMemo(() => {
                 </div>
 
                 {shareImageStatus && (
-                  <p className="mb-3 text-xs text-zinc-500">
+                  <p className="mb-3 text-xs text-zinc-600">
                     {shareImageStatus}
                   </p>
                 )}

@@ -9,50 +9,50 @@ export default function SeasonSummaryPanel({
     <>
               <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                 <div>
-                  <div className="text-sm text-zinc-400">シーズンサマリー</div>
-                  <h3 className="mt-1 text-2xl font-bold">{selectedSeason.name}</h3>
-                  <p className="mt-1 text-sm text-zinc-300">
+                  <div className="text-sm text-zinc-600">シーズンサマリー</div>
+                  <h3 className="mt-1 text-2xl font-bold text-zinc-800">{selectedSeason.name}</h3>
+                  <p className="mt-1 text-sm text-zinc-200">
                     {selectedSeason.startDate} ～ {selectedSeason.endDate}
                   </p>
                 </div>
 
                 <div className="rounded-2xl bg-white/10 px-4 py-3 text-right">
-                  <div className="text-xs text-zinc-300">勝率</div>
+                  <div className="text-xs text-zinc-200">勝率</div>
                   <div className="text-3xl font-bold">{seasonSummary.winRate}%</div>
                 </div>
               </div>
 
               <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3">
                 <div className="rounded-2xl bg-white/10 p-4">
-                  <div className="text-xs text-zinc-300">対戦数</div>
+                  <div className="text-xs text-zinc-200">対戦数</div>
                   <div className="mt-1 text-2xl font-bold">
                     {seasonSummary.totalMatches}
                   </div>
                 </div>
 
                 <div className="rounded-2xl bg-white/10 p-4">
-                  <div className="text-xs text-zinc-300">勝利</div>
+                  <div className="text-xs text-zinc-200">勝利</div>
                   <div className="mt-1 text-2xl font-bold">
                     {seasonSummary.winCount}
                   </div>
                 </div>
 
                 <div className="rounded-2xl bg-white/10 p-4">
-                  <div className="text-xs text-zinc-300">敗北</div>
+                  <div className="text-xs text-zinc-200">敗北</div>
                   <div className="mt-1 text-2xl font-bold">
                     {seasonSummary.loseCount}
                   </div>
                 </div>
 
                 <div className="rounded-2xl bg-white/10 p-4">
-                  <div className="text-xs text-zinc-300">最終pt</div>
+                  <div className="text-xs text-zinc-200">最終pt</div>
                   <div className="mt-1 text-2xl font-bold">
                     {selectedSeason.finalPoint || "-"}
                   </div>
                 </div>
 
                 <div className="rounded-2xl bg-white/10 p-4">
-                  <div className="text-xs text-zinc-300">最終順位</div>
+                  <div className="text-xs text-zinc-200">最終順位</div>
                   <div className="mt-1 text-2xl font-bold">
                     {selectedSeason.finalRank ? `${selectedSeason.finalRank}位` : "-"}
                   </div>
@@ -61,42 +61,42 @@ export default function SeasonSummaryPanel({
 
               <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
                 <div className="rounded-2xl bg-white/10 p-4">
-                  <div className="text-xs text-zinc-300">記録日数</div>
+                  <div className="text-xs text-zinc-200">記録日数</div>
                   <div className="mt-1 text-2xl font-bold">
                     {seasonExtraStats.playedDays}
                   </div>
                 </div>
 
                 <div className="rounded-2xl bg-white/10 p-4">
-                  <div className="text-xs text-zinc-300">最大連勝</div>
+                  <div className="text-xs text-zinc-200">最大連勝</div>
                   <div className="mt-1 text-2xl font-bold">
                     {seasonExtraStats.longestWinStreak}
                   </div>
                 </div>
 
                 <div className="rounded-2xl bg-white/10 p-4">
-                  <div className="text-xs text-zinc-300">最高pt</div>
+                  <div className="text-xs text-zinc-200">最高pt</div>
                   <div className="mt-1 text-2xl font-bold">
                     {seasonExtraStats.highestPoint
                       ? seasonExtraStats.highestPoint.toLocaleString()
                       : "-"}
                   </div>
                   {seasonExtraStats.highestPointDate && (
-                    <div className="mt-1 text-xs text-zinc-400">
+                    <div className="mt-1 text-xs text-zinc-600">
                       {seasonExtraStats.highestPointDate}
                     </div>
                   )}
                 </div>
 
                 <div className="rounded-2xl bg-white/10 p-4">
-                  <div className="text-xs text-zinc-300">最高日別pt</div>
+                  <div className="text-xs text-zinc-200">最高日別pt</div>
                   <div className="mt-1 text-2xl font-bold">
                     {seasonExtraStats.bestPointDayTotal
                       ? seasonExtraStats.bestPointDayTotal.toLocaleString()
                       : "-"}
                   </div>
                   {seasonExtraStats.bestPointDay && (
-                    <div className="mt-1 text-xs text-zinc-400">
+                    <div className="mt-1 text-xs text-zinc-600">
                       {seasonExtraStats.bestPointDay}
                     </div>
                   )}
@@ -109,7 +109,7 @@ export default function SeasonSummaryPanel({
                 <div className="rounded-2xl bg-white/10 p-4">
                   <div>
                     <div className="font-semibold">平均素点TOP</div>
-                    <div className="mt-1 text-xs text-zinc-400">
+                    <div className="mt-1 text-xs text-zinc-600">
                       このシーズン内の自分編成で、各ステージごとに個人素点平均が最も高いアイドルを表示します。
                     </div>
                   </div>
@@ -125,7 +125,7 @@ export default function SeasonSummaryPanel({
                             <div className="text-xs font-bold text-amber-200">
                               STAGE{slot.stage}
                             </div>
-                            <div className="text-[10px] text-zinc-500">
+                            <div className="text-[10px] text-zinc-600">
                               メンバー{slot.member}
                             </div>
                           </div>
@@ -142,7 +142,7 @@ export default function SeasonSummaryPanel({
                                   }}
                                 />
                               ) : (
-                                <div className="flex h-full w-full items-center justify-center text-[10px] text-zinc-500">
+                                <div className="flex h-full w-full items-center justify-center text-[10px] text-zinc-600">
                                   No Image
                                 </div>
                               )}
@@ -161,7 +161,7 @@ export default function SeasonSummaryPanel({
                       ))}
                     </div>
                   ) : (
-                    <p className="mt-3 text-sm text-zinc-400">
+                    <p className="mt-3 text-sm text-zinc-600">
                       スコア付きの対戦記録がまだありません。
                     </p>
                   )}
@@ -170,7 +170,7 @@ export default function SeasonSummaryPanel({
                 <div className="rounded-2xl bg-white/10 p-4">
                   <div>
                     <div className="font-semibold">平均順位TOP</div>
-                    <div className="mt-1 text-xs text-zinc-400">
+                    <div className="mt-1 text-xs text-zinc-600">
                       このシーズン内の自分編成で、各ステージごとに平均順位が最も高いアイドルを表示します。
                     </div>
                   </div>
@@ -186,7 +186,7 @@ export default function SeasonSummaryPanel({
                             <div className="text-xs font-bold text-emerald-200">
                               STAGE{slot.stage}
                             </div>
-                            <div className="text-[10px] text-zinc-500">
+                            <div className="text-[10px] text-zinc-600">
                               メンバー{slot.member}
                             </div>
                           </div>
@@ -203,7 +203,7 @@ export default function SeasonSummaryPanel({
                                   }}
                                 />
                               ) : (
-                                <div className="flex h-full w-full items-center justify-center text-[10px] text-zinc-500">
+                                <div className="flex h-full w-full items-center justify-center text-[10px] text-zinc-600">
                                   No Image
                                 </div>
                               )}
@@ -222,7 +222,7 @@ export default function SeasonSummaryPanel({
                       ))}
                     </div>
                   ) : (
-                    <p className="mt-3 text-sm text-zinc-400">
+                    <p className="mt-3 text-sm text-zinc-600">
                       順位付きの対戦記録がまだありません。
                     </p>
                   )}

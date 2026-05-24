@@ -24,8 +24,8 @@ export default function SharePanel({
     <section className={`${visible ? "" : "hidden"} rounded-3xl bg-white p-6 shadow`}>
       <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <h2 className="text-xl font-semibold">共有カード</h2>
-          <p className="mt-1 text-sm text-zinc-500">
+          <h2 className="text-xl font-semibold text-zinc-900">共有カード</h2>
+          <p className="mt-1 text-sm text-zinc-600">
             シーズンの振り返りカードをPNG保存、コピー、X投稿用テキスト作成できます。
           </p>
         </div>
@@ -85,10 +85,10 @@ export default function SharePanel({
       </div>
 
       {shareImageStatus && (
-        <p className="mb-3 text-xs text-zinc-500">{shareImageStatus}</p>
+        <p className="mb-3 text-xs text-zinc-600">{shareImageStatus}</p>
       )}
 
-      <p className="mb-3 text-xs text-zinc-500">
+      <p className="mb-3 text-xs text-zinc-600">
         PNG保存またはPNGコピー後、X投稿画面で画像を添付してください。
       </p>
 
@@ -123,7 +123,7 @@ export default function SharePanel({
           />
         </div>
       ) : (
-        <div className="rounded-2xl border bg-zinc-50 p-5 text-sm text-zinc-500">
+        <div className="rounded-2xl border bg-zinc-50 p-5 text-sm text-zinc-600">
           シーズンタブでシーズンを作成してから、共有するシーズンを選択してください。
         </div>
       )}

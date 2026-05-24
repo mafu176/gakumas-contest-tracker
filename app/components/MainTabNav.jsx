@@ -10,7 +10,7 @@ export default function MainTabNav({ tabItems, activeTab, setActiveTab }) {
             className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold ${
               activeTab === tab.id
                 ? "bg-zinc-900 text-white"
-                : "border bg-white text-zinc-700"
+                : "border bg-white text-zinc-800"
             }`}
           >
             {tab.label}

@@ -9,7 +9,7 @@ export default function SaveConfirmModal({
   return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="max-h-[80vh] w-full max-w-xl overflow-y-auto rounded-3xl bg-white p-6 shadow-xl">
-            <h2 className="text-xl font-bold">保存前チェック</h2>
+            <h2 className="text-xl font-bold text-zinc-900">保存前チェック</h2>
 
             <p className="mt-2 text-sm text-zinc-600">
               入力漏れ・スコア異常の可能性があります。このまま保存することもできます。

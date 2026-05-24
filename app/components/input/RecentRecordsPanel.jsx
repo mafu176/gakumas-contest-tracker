@@ -26,7 +26,7 @@ export default function RecentRecordsPanel({
         <section className={`${visible ? "" : "hidden"} rounded-3xl bg-white p-6 shadow`}>
           <div className="mb-4 flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <h2 className="text-xl font-semibold">最近の対戦</h2>
+              <h2 className="text-xl font-semibold text-zinc-900">最近の対戦</h2>
 
               <span className="rounded-full bg-zinc-100 px-3 py-1 text-sm font-semibold text-zinc-600">
                 {filteredRecentRecords.length}件
@@ -34,7 +34,7 @@ export default function RecentRecordsPanel({
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-sm text-zinc-500">日以内</span>
+              <span className="text-sm text-zinc-600">日以内</span>
 
               <input
                 type="number"
@@ -63,7 +63,7 @@ export default function RecentRecordsPanel({
           </div>
 
           {filteredRecentRecords.length === 0 ? (
-            <div className="text-zinc-500">まだ保存された対戦はありません。</div>
+            <div className="text-zinc-600">まだ保存された対戦はありません。</div>
           ) : (
             <>
               <div className="space-y-4 md:hidden">
@@ -79,7 +79,7 @@ export default function RecentRecordsPanel({
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-600">
                             <span>{record.id || `#${index + 1}`}</span>
                             {isEditingDirty && (
                               <span className="rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-800">
@@ -90,7 +90,7 @@ export default function RecentRecordsPanel({
                           <div className="font-semibold">
                             {record.opponent || "相手未入力"}
                           </div>
-                          <div className="mt-1 text-xs text-zinc-500">
+                          <div className="mt-1 text-xs text-zinc-600">
                             位置：{normalizePosition(record.position)} / pt：
                             {record.point || "-"}
                           </div>
@@ -183,13 +183,13 @@ export default function RecentRecordsPanel({
                                     <div className="font-semibold">
                                       ステージ{stage}
                                     </div>
-                                    <div className="text-xs text-zinc-500">
+                                    <div className="text-xs text-zinc-600">
                                       差分：{(myTotal - enemyTotal).toLocaleString()}
                                     </div>
                                   </div>
 
                                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                    <label className="text-xs font-semibold text-zinc-500">
+                                    <label className="text-xs font-semibold text-zinc-600">
                                       自分素点合計
                                       <input
                                         className="mt-1 w-full rounded-xl border bg-white px-3 py-2 text-sm text-zinc-900"
@@ -204,7 +204,7 @@ export default function RecentRecordsPanel({
                                       />
                                     </label>
 
-                                    <label className="text-xs font-semibold text-zinc-500">
+                                    <label className="text-xs font-semibold text-zinc-600">
                                       相手素点合計
                                       <input
                                         className="mt-1 w-full rounded-xl border bg-white px-3 py-2 text-sm text-zinc-900"
@@ -219,7 +219,7 @@ export default function RecentRecordsPanel({
                                       />
                                     </label>
 
-                                    <label className="text-xs font-semibold text-zinc-500">
+                                    <label className="text-xs font-semibold text-zinc-600">
                                       自分プラス点
                                       <input
                                         className="mt-1 w-full rounded-xl border bg-white px-3 py-2 text-sm text-zinc-900"
@@ -234,7 +234,7 @@ export default function RecentRecordsPanel({
                                       />
                                     </label>
 
-                                    <label className="text-xs font-semibold text-zinc-500">
+                                    <label className="text-xs font-semibold text-zinc-600">
                                       相手プラス点
                                       <input
                                         className="mt-1 w-full rounded-xl border bg-white px-3 py-2 text-sm text-zinc-900"
@@ -251,7 +251,7 @@ export default function RecentRecordsPanel({
                                   </div>
 
                                   <div className="mt-5 space-y-4">
-                                    <div className="text-xs font-bold tracking-wide text-zinc-500">
+                                    <div className="text-xs font-bold tracking-wide text-zinc-600">
                                       個人スコア / 順位
                                     </div>
 
@@ -271,7 +271,7 @@ export default function RecentRecordsPanel({
                                           </div>
 
                                           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                            <label className="text-xs font-semibold text-zinc-500">
+                                            <label className="text-xs font-semibold text-zinc-600">
                                               自分スコア
                                               <input
                                                 className="mt-1 w-full rounded-xl border bg-white px-3 py-2 text-sm text-zinc-900"
@@ -286,7 +286,7 @@ export default function RecentRecordsPanel({
                                               />
                                             </label>
 
-                                            <label className="text-xs font-semibold text-zinc-500">
+                                            <label className="text-xs font-semibold text-zinc-600">
                                               相手スコア
                                               <input
                                                 className="mt-1 w-full rounded-xl border bg-white px-3 py-2 text-sm text-zinc-900"
@@ -301,7 +301,7 @@ export default function RecentRecordsPanel({
                                               />
                                             </label>
 
-                                            <label className="text-xs font-semibold text-zinc-500">
+                                            <label className="text-xs font-semibold text-zinc-600">
                                               自分順位
                                               <input
                                                 className="mt-1 w-full rounded-xl border bg-white px-3 py-2 text-sm text-zinc-900"
@@ -316,7 +316,7 @@ export default function RecentRecordsPanel({
                                               />
                                             </label>
 
-                                            <label className="text-xs font-semibold text-zinc-500">
+                                            <label className="text-xs font-semibold text-zinc-600">
                                               相手順位
                                               <input
                                                 className="mt-1 w-full rounded-xl border bg-white px-3 py-2 text-sm text-zinc-900"
@@ -336,7 +336,7 @@ export default function RecentRecordsPanel({
                                     })}
                                   </div>
 
-                                  <div className="mt-4 text-xs text-zinc-500">
+                                  <div className="mt-4 text-xs text-zinc-600">
                                     表示合計：自分 {myTotal.toLocaleString()} / 相手 {enemyTotal.toLocaleString()}
                                   </div>
                                 </div>
@@ -368,7 +368,7 @@ export default function RecentRecordsPanel({
 
                             <div className="grid grid-cols-2 gap-2 text-sm">
                               <div>
-                                <div className="text-xs text-zinc-500">
+                                <div className="text-xs text-zinc-600">
                                   自分合計
                                 </div>
                                 <div className="font-semibold">
@@ -377,7 +377,7 @@ export default function RecentRecordsPanel({
                               </div>
 
                               <div>
-                                <div className="text-xs text-zinc-500">
+                                <div className="text-xs text-zinc-600">
                                   相手合計
                                 </div>
                                 <div className="font-semibold">
@@ -386,7 +386,7 @@ export default function RecentRecordsPanel({
                               </div>
 
                               <div>
-                                <div className="text-xs text-zinc-500">
+                                <div className="text-xs text-zinc-600">
                                   差分
                                 </div>
                                 <div className="font-semibold">
@@ -435,7 +435,7 @@ export default function RecentRecordsPanel({
               <div className="hidden overflow-x-auto md:block">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b text-left text-zinc-500">
+                    <tr className="border-b text-left text-zinc-600">
                       <th className="py-2">対戦</th>
                       <th>結果</th>
                       <th>ステージ1</th>
@@ -475,7 +475,7 @@ export default function RecentRecordsPanel({
                               )}
                             </div>
 
-                            <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+                            <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-600">
                               <span>{record.id}</span>
                               <span>{normalizePosition(record.position)}</span>
                               {record.point && <span>{record.point}pt</span>}
@@ -576,7 +576,7 @@ export default function RecentRecordsPanel({
                                 相手 {summary?.enemyTotal.toLocaleString() || "0"}
                               </div>
                               {editingId === record.id && (
-                                <div className="mt-1 rounded-lg bg-zinc-50 px-2 py-1 text-[11px] text-zinc-500">
+                                <div className="mt-1 rounded-lg bg-zinc-50 px-2 py-1 text-[11px] text-zinc-600">
                                   詳細は下の編集欄で変更
                                 </div>
                               )}
@@ -642,14 +642,14 @@ export default function RecentRecordsPanel({
 
                                 <div className="grid grid-cols-2 gap-2 text-xs">
                                   <div className="rounded-xl bg-zinc-50 p-2">
-                                    <div className="text-zinc-500">自分合計</div>
+                                    <div className="text-zinc-600">自分合計</div>
                                     <div className="mt-1 text-sm font-bold text-zinc-900">
                                       {item.myTotal.toLocaleString()}
                                     </div>
                                   </div>
 
                                   <div className="rounded-xl bg-zinc-50 p-2">
-                                    <div className="text-zinc-500">相手合計</div>
+                                    <div className="text-zinc-600">相手合計</div>
                                     <div className="mt-1 text-sm font-bold text-zinc-900">
                                       {item.enemyTotal.toLocaleString()}
                                     </div>
@@ -657,7 +657,7 @@ export default function RecentRecordsPanel({
                                 </div>
 
                                 <div className="mt-2 flex items-center justify-between rounded-xl border bg-white px-2 py-1 text-xs">
-                                  <span className="font-semibold text-zinc-500">
+                                  <span className="font-semibold text-zinc-600">
                                     差分
                                   </span>
                                   <span
@@ -689,11 +689,11 @@ export default function RecentRecordsPanel({
                                   <div className="text-base font-semibold">
                                     対戦詳細を編集
                                   </div>
-                                  <div className="text-xs text-zinc-500">
+                                  <div className="text-xs text-zinc-600">
                                     ステージ別の合計、プラス点、個人スコア、順位を編集できます。
                                   </div>
                                 </div>
-                                <div className="text-xs text-zinc-500">
+                                <div className="text-xs text-zinc-600">
                                   ID: {record.id}
                                 </div>
                               </div>
@@ -721,13 +721,13 @@ export default function RecentRecordsPanel({
                                         <div className="text-lg font-semibold">
                                           ステージ{stage}
                                         </div>
-                                        <div className="text-sm text-zinc-500">
+                                        <div className="text-sm text-zinc-600">
                                           差分：{(myTotal - enemyTotal).toLocaleString()}
                                         </div>
                                       </div>
 
                                       <div className="grid grid-cols-4 gap-3">
-                                        <label className="text-xs font-semibold text-zinc-500">
+                                        <label className="text-xs font-semibold text-zinc-600">
                                           自分素点合計
                                           <input
                                             className="mt-1 w-full rounded-xl border bg-white px-3 py-2 text-sm text-zinc-900"
@@ -742,7 +742,7 @@ export default function RecentRecordsPanel({
                                           />
                                         </label>
 
-                                        <label className="text-xs font-semibold text-zinc-500">
+                                        <label className="text-xs font-semibold text-zinc-600">
                                           相手素点合計
                                           <input
                                             className="mt-1 w-full rounded-xl border bg-white px-3 py-2 text-sm text-zinc-900"
@@ -757,7 +757,7 @@ export default function RecentRecordsPanel({
                                           />
                                         </label>
 
-                                        <label className="text-xs font-semibold text-zinc-500">
+                                        <label className="text-xs font-semibold text-zinc-600">
                                           自分プラス点
                                           <input
                                             className="mt-1 w-full rounded-xl border bg-white px-3 py-2 text-sm text-zinc-900"
@@ -772,7 +772,7 @@ export default function RecentRecordsPanel({
                                           />
                                         </label>
 
-                                        <label className="text-xs font-semibold text-zinc-500">
+                                        <label className="text-xs font-semibold text-zinc-600">
                                           相手プラス点
                                           <input
                                             className="mt-1 w-full rounded-xl border bg-white px-3 py-2 text-sm text-zinc-900"
@@ -805,7 +805,7 @@ export default function RecentRecordsPanel({
                                               </div>
 
                                               <div className="grid grid-cols-2 gap-2">
-                                                <label className="text-xs font-semibold text-zinc-500">
+                                                <label className="text-xs font-semibold text-zinc-600">
                                                   自分スコア
                                                   <input
                                                     className="mt-1 w-full rounded-xl border bg-white px-2 py-2 text-sm text-zinc-900"
@@ -820,7 +820,7 @@ export default function RecentRecordsPanel({
                                                   />
                                                 </label>
 
-                                                <label className="text-xs font-semibold text-zinc-500">
+                                                <label className="text-xs font-semibold text-zinc-600">
                                                   相手スコア
                                                   <input
                                                     className="mt-1 w-full rounded-xl border bg-white px-2 py-2 text-sm text-zinc-900"
@@ -835,7 +835,7 @@ export default function RecentRecordsPanel({
                                                   />
                                                 </label>
 
-                                                <label className="text-xs font-semibold text-zinc-500">
+                                                <label className="text-xs font-semibold text-zinc-600">
                                                   自分順位
                                                   <input
                                                     className="mt-1 w-full rounded-xl border bg-white px-2 py-2 text-sm text-zinc-900"
@@ -850,7 +850,7 @@ export default function RecentRecordsPanel({
                                                   />
                                                 </label>
 
-                                                <label className="text-xs font-semibold text-zinc-500">
+                                                <label className="text-xs font-semibold text-zinc-600">
                                                   相手順位
                                                   <input
                                                     className="mt-1 w-full rounded-xl border bg-white px-2 py-2 text-sm text-zinc-900"
@@ -870,7 +870,7 @@ export default function RecentRecordsPanel({
                                         })}
                                       </div>
 
-                                      <div className="mt-3 text-xs text-zinc-500">
+                                      <div className="mt-3 text-xs text-zinc-600">
                                         表示合計：自分 {myTotal.toLocaleString()} / 相手{" "}
                                         {enemyTotal.toLocaleString()}
                                       </div>

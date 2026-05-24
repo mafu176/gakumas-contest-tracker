@@ -12,13 +12,13 @@ export default function FinalFormationPanel({
         <section className={`${visible ? "" : "hidden"} rounded-3xl bg-white p-6 shadow`}>
           <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
             <div>
-              <h2 className="text-xl font-semibold">最終編成</h2>
-              <p className="mt-1 text-sm text-zinc-500">
+              <h2 className="text-xl font-semibold text-zinc-900">最終編成</h2>
+              <p className="mt-1 text-sm text-zinc-600">
                 分析対象内で最後に記録した自分編成と、その平均素点・平均順位を表示します。
               </p>
             </div>
 
-            <div className="text-xs text-zinc-500">
+            <div className="text-xs text-zinc-600">
               対象：{analysisStartDate || analysisEndDate
                 ? `${analysisStartDate || "開始未指定"}～${analysisEndDate || "終了未指定"}`
                 : analysisDays
@@ -30,7 +30,7 @@ export default function FinalFormationPanel({
           </div>
 
           {seasonSummary.finalFormation.length === 0 ? (
-            <div className="rounded-2xl border bg-zinc-50 p-5 text-sm text-zinc-500">
+            <div className="rounded-2xl border bg-zinc-50 p-5 text-sm text-zinc-600">
               最終編成を表示できる対戦データがまだありません。
             </div>
           ) : (
@@ -74,7 +74,7 @@ export default function FinalFormationPanel({
                                 }}
                               />
                             ) : (
-                              <div className="flex h-full w-full items-center justify-center text-[10px] text-zinc-400">
+                              <div className="flex h-full w-full items-center justify-center text-[10px] text-zinc-600">
                                 No Image
                               </div>
                             )}
@@ -84,7 +84,7 @@ export default function FinalFormationPanel({
                             {slot.idol || "未登録"}
                           </div>
 
-                          <div className="mt-1 space-y-0.5 text-[11px] text-zinc-500">
+                          <div className="mt-1 space-y-0.5 text-[11px] text-zinc-600">
                             <div>
                               素点 {slot.averageBaseScore ? slot.averageBaseScore.toLocaleString() : "-"}
                             </div>

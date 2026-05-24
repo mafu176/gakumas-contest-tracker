@@ -48,7 +48,7 @@ function FavoriteButton({ active, onClick }) {
       className={`absolute right-2 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-full border text-lg shadow-sm ${
         active
           ? "border-amber-300 bg-amber-100 text-amber-600"
-          : "border-zinc-200 bg-white/90 text-zinc-400"
+          : "border-zinc-200 bg-white/90 text-zinc-600"
       }`}
     >
       {active ? "★" : "☆"}
@@ -100,7 +100,7 @@ function IdolCard({
             }}
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center px-2 text-center text-xs text-zinc-500">
+          <div className="flex h-full w-full items-center justify-center px-2 text-center text-xs text-zinc-600">
             {idol?.short || idol?.name || "No Image"}
           </div>
         )}
@@ -143,7 +143,7 @@ function IdolSection({
       <div className="flex items-end justify-between gap-3">
         <div>
           <h3 className="text-sm font-bold text-zinc-900">{title}</h3>
-          {note && <p className="mt-0.5 text-xs text-zinc-500">{note}</p>}
+          {note && <p className="mt-0.5 text-xs text-zinc-600">{note}</p>}
         </div>
       </div>
 
@@ -266,7 +266,7 @@ export default function IdolSelectModal({
               <h2 className="mt-1 text-lg font-bold text-zinc-900">
                 アイドル選択
               </h2>
-              <p className="mt-1 text-xs text-zinc-500">
+              <p className="mt-1 text-xs text-zinc-600">
                 選択中: {selectedSlot}
               </p>
               {hasRecommendedPlan && (
@@ -292,7 +292,7 @@ export default function IdolSelectModal({
                 <label className="flex cursor-pointer items-center justify-between gap-3 text-sm font-semibold text-zinc-800">
                   <span>
                     {recommendedPlan}のみ表示
-                    <span className="ml-2 text-xs font-normal text-zinc-500">
+                    <span className="ml-2 text-xs font-normal text-zinc-600">
                       OFFで全タイプ表示
                     </span>
                   </span>
@@ -397,7 +397,7 @@ export default function IdolSelectModal({
             />
 
             {filteredIdols.length === 0 && (
-              <div className="rounded-2xl border border-dashed border-amber-200 bg-white/70 p-6 text-center text-sm text-zinc-500">
+              <div className="rounded-2xl border border-dashed border-amber-200 bg-white/70 p-6 text-center text-sm text-zinc-600">
                 条件に合うアイドルが見つかりません。
               </div>
             )}

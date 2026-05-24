@@ -69,7 +69,7 @@ export default function SeasonWinTriangle({
     <div className="relative h-full w-full overflow-visible bg-transparent text-white">
       <div className="absolute left-0 right-0 top-0 flex items-start justify-between gap-3">
         <div>
-          <div className="text-[10px] font-black tracking-[0.22em] text-zinc-400">
+          <div className="text-[10px] font-black tracking-[0.22em] text-white/80">
             STAGE WIN RATE
           </div>
           <div className="mt-1 text-sm font-black text-white">
@@ -78,7 +78,7 @@ export default function SeasonWinTriangle({
         </div>
 
         <div className="rounded-2xl bg-black/30 px-4 py-3 text-right">
-          <div className="text-[10px] font-black text-zinc-400">全体</div>
+          <div className="text-[10px] font-black text-white/80">全体</div>
           <div className="mt-1 text-lg font-black text-white">
             {formatRate(totalWinRate)}
           </div>
@@ -189,7 +189,7 @@ export default function SeasonWinTriangle({
           />
 
           <div className="absolute left-1/2 top-[57%] flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full bg-black/80 shadow-2xl ring-1 ring-white/10">
-            <div className="text-[9px] font-black tracking-[0.16em] text-zinc-400">
+            <div className="text-[9px] font-black tracking-[0.16em] text-white/80">
               TOTAL
             </div>
             <div className="mt-1 text-lg font-black text-white">

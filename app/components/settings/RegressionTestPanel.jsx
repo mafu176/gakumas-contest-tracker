@@ -11,22 +11,22 @@ export default function RegressionTestPanel({
             onClick={() => setShowRegressionTest(!showRegressionTest)}
             className="flex w-full items-center justify-between text-left"
           >
-            <h2 className="text-xl font-semibold">回帰テスト確認</h2>
+            <h2 className="text-xl font-semibold text-zinc-900">回帰テスト確認</h2>
 
-            <span className="text-sm text-zinc-500">
+            <span className="text-sm text-zinc-600">
               {showRegressionTest ? "閉じる" : "開く"}
             </span>
           </button>
 
           {showRegressionTest && !developerMode && (
-            <p className="mt-4 text-sm text-zinc-500">
+            <p className="mt-4 text-sm text-zinc-600">
               回帰テスト確認は開発者向けです。スクショ取り込み欄の「OCR開発モードを表示」をONにしてください。
             </p>
           )}
 
           {developerMode && showRegressionTest && (
             <div className="mt-4 space-y-4">
-              <p className="text-sm text-zinc-500">
+              <p className="text-sm text-zinc-600">
                 regression-test/current の画像を順番にOCRして、expected の正解値と見比べてください。
               </p>
 

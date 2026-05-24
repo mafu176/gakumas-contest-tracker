@@ -30,7 +30,7 @@ export default function BattleInputPanel({
   return (
     <div className="w-full space-y-6 rounded-3xl bg-white p-6 shadow">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <h2 className="text-xl font-semibold">対戦入力</h2>
+        <h2 className="text-xl font-semibold text-zinc-900">対戦入力</h2>
 
         {loadedRecordId && (
           <button
@@ -134,7 +134,7 @@ export default function BattleInputPanel({
       </div>
 
       <section className={`${visible ? "" : "hidden"} rounded-3xl border bg-zinc-50 p-4`}>
-        <h3 className="mb-3 font-semibold">ステージ勝敗</h3>
+        <h3 className="mb-3 font-semibold text-zinc-800">ステージ勝敗</h3>
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           {stageResults.map((item) => (
@@ -156,7 +156,7 @@ export default function BattleInputPanel({
 
               <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
                 <div className="rounded-xl bg-zinc-50 p-3">
-                  <div className="text-xs font-semibold text-zinc-500">
+                  <div className="text-xs font-semibold text-zinc-600">
                     自分合計
                   </div>
                   <div className="mt-1 text-lg font-bold text-zinc-900">
@@ -165,7 +165,7 @@ export default function BattleInputPanel({
                 </div>
 
                 <div className="rounded-xl bg-zinc-50 p-3">
-                  <div className="text-xs font-semibold text-zinc-500">
+                  <div className="text-xs font-semibold text-zinc-600">
                     相手合計
                   </div>
                   <div className="mt-1 text-lg font-bold text-zinc-900">
@@ -175,7 +175,7 @@ export default function BattleInputPanel({
               </div>
 
               <div className="mt-3 flex items-center justify-between rounded-xl border bg-white px-3 py-2 text-sm">
-                <span className="font-semibold text-zinc-500">差分</span>
+                <span className="font-semibold text-zinc-600">差分</span>
                 <span
                   className={`font-bold ${
                     item.diff > 0
@@ -190,7 +190,7 @@ export default function BattleInputPanel({
                 </span>
               </div>
 
-              <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-zinc-500">
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-zinc-600">
                 <div>
                   自分 素点 {item.myBaseTotal.toLocaleString()}
                 </div>
@@ -212,7 +212,7 @@ export default function BattleInputPanel({
       {children}
 
       <section className={`${visible ? "" : "hidden"} rounded-3xl border bg-zinc-50 p-4`}>
-        <h3 className="mb-4 font-semibold">スコア・順位入力</h3>
+        <h3 className="mb-4 font-semibold text-zinc-800">スコア・順位入力</h3>
 
         <div className="space-y-5">
           {stages.map((stage) => (
@@ -254,7 +254,7 @@ export default function BattleInputPanel({
                                   }}
                                 />
                               ) : (
-                                <div className="flex h-full w-full items-center justify-center text-[9px] text-zinc-400">
+                                <div className="flex h-full w-full items-center justify-center text-[9px] text-zinc-600">
                                   No Image
                                 </div>
                               )}
@@ -265,7 +265,7 @@ export default function BattleInputPanel({
                                 {idol ? idol.short : "アイドル未選択"}
                               </div>
                               {idol?.plan && (
-                                <div className="truncate text-xs text-zinc-500">
+                                <div className="truncate text-xs text-zinc-600">
                                   {idol.plan}
                                 </div>
                               )}
@@ -274,7 +274,7 @@ export default function BattleInputPanel({
 
                           <div className="space-y-2">
                             <label className="block">
-                              <span className="mb-1 block text-xs font-semibold text-zinc-500">
+                              <span className="mb-1 block text-xs font-semibold text-zinc-600">
                                 スコア
                               </span>
                               <input
@@ -293,7 +293,7 @@ export default function BattleInputPanel({
                             </label>
 
                             <label className="block">
-                              <span className="mb-1 block text-xs font-semibold text-zinc-500">
+                              <span className="mb-1 block text-xs font-semibold text-zinc-600">
                                 順位
                               </span>
                               <input
@@ -367,7 +367,7 @@ export default function BattleInputPanel({
                                   }}
                                 />
                               ) : (
-                                <div className="flex h-full w-full items-center justify-center text-[9px] text-zinc-400">
+                                <div className="flex h-full w-full items-center justify-center text-[9px] text-zinc-600">
                                   No Image
                                 </div>
                               )}
@@ -378,7 +378,7 @@ export default function BattleInputPanel({
                                 {idol ? idol.short : "アイドル未選択"}
                               </div>
                               {idol?.plan && (
-                                <div className="truncate text-xs text-zinc-500">
+                                <div className="truncate text-xs text-zinc-600">
                                   {idol.plan}
                                 </div>
                               )}
@@ -387,7 +387,7 @@ export default function BattleInputPanel({
 
                           <div className="space-y-2">
                             <label className="block">
-                              <span className="mb-1 block text-xs font-semibold text-zinc-500">
+                              <span className="mb-1 block text-xs font-semibold text-zinc-600">
                                 スコア
                               </span>
                               <input
@@ -407,7 +407,7 @@ export default function BattleInputPanel({
                             </label>
 
                             <label className="block">
-                              <span className="mb-1 block text-xs font-semibold text-zinc-500">
+                              <span className="mb-1 block text-xs font-semibold text-zinc-600">
                                 順位
                               </span>
                               <input

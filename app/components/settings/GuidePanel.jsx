@@ -5,11 +5,11 @@ export default function GuidePanel({ visible, showGuide, setShowGuide }) {
         onClick={() => setShowGuide(!showGuide)}
         className="flex w-full items-center justify-between text-left"
       >
-        <h2 className="text-xl font-semibold">
+        <h2 className="text-xl font-semibold text-zinc-900">
           学マス コンテスト戦績トラッカー ご利用ガイド
         </h2>
 
-        <span className="text-sm text-zinc-500">
+        <span className="text-sm text-zinc-600">
           {showGuide ? "閉じる" : "開く"}
         </span>
       </button>

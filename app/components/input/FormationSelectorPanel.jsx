@@ -23,7 +23,7 @@ export default function FormationSelectorPanel({
   return (
     <>
       <section className={`${formationVisible ? "" : "hidden"} rounded-3xl border bg-zinc-50 p-4`}>
-        <h3 className="font-semibold">自分編成テンプレ</h3>
+        <h3 className="font-semibold text-zinc-800">自分編成テンプレ</h3>
 
         <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto]">
           <input
@@ -42,7 +42,7 @@ export default function FormationSelectorPanel({
         </div>
 
         {formationTemplates.length === 0 ? (
-          <div className="mt-4 text-sm text-zinc-500">
+          <div className="mt-4 text-sm text-zinc-600">
             保存済みの編成テンプレはまだありません。
           </div>
         ) : (
@@ -54,7 +54,7 @@ export default function FormationSelectorPanel({
               >
                 <div className="font-semibold">{template.name}</div>
 
-                <div className="mt-2 text-xs text-zinc-500">
+                <div className="mt-2 text-xs text-zinc-600">
                   {mySlots
                     .map((slot) => template.slots?.[slot])
                     .filter(Boolean)
@@ -87,7 +87,7 @@ export default function FormationSelectorPanel({
           .filter((group) => activeTab !== "formation" || group.slots === mySlots)
           .map((group) => (
           <div key={group.title} className="rounded-3xl border p-4">
-            <h3 className="mb-3 font-semibold">{group.title}</h3>
+            <h3 className="mb-3 font-semibold text-zinc-800">{group.title}</h3>
 
             <div className="space-y-3">
               {group.slots.map((slot) => {
@@ -101,7 +101,7 @@ export default function FormationSelectorPanel({
                       selectedSlot === slot ? "ring-2 ring-zinc-900" : ""
                     }`}
                   >
-                    <div className="text-sm text-zinc-500">{slot}</div>
+                    <div className="text-sm text-zinc-600">{slot}</div>
 
                     {idol ? (
                       <div className="mt-2 flex items-center gap-3">
@@ -116,7 +116,7 @@ export default function FormationSelectorPanel({
                               }}
                             />
                           ) : (
-                            <div className="flex h-full w-full items-center justify-center text-[10px] text-zinc-400">
+                            <div className="flex h-full w-full items-center justify-center text-[10px] text-zinc-600">
                               No Image
                             </div>
                           )}
@@ -126,13 +126,13 @@ export default function FormationSelectorPanel({
                           <div className="truncate font-semibold">
                             {idol.name}
                           </div>
-                          <div className="truncate text-sm text-zinc-500">
+                          <div className="truncate text-sm text-zinc-600">
                             {idol.short} / {idol.plan}
                           </div>
                         </div>
                       </div>
                     ) : (
-                      <div className="mt-1 text-zinc-400">未選択</div>
+                      <div className="mt-1 text-zinc-600">未選択</div>
                     )}
                   </button>
                 );
@@ -143,9 +143,9 @@ export default function FormationSelectorPanel({
       </div>
 
       <div className="hidden">
-        <h2 className="text-xl font-semibold">アイドル選択</h2>
+        <h2 className="text-xl font-semibold text-zinc-900">アイドル選択</h2>
 
-        <p className="mt-1 text-sm text-zinc-500">
+        <p className="mt-1 text-sm text-zinc-600">
           選択中：{selectedSlot}
         </p>
 
@@ -182,7 +182,7 @@ export default function FormationSelectorPanel({
                 {getIdolDisplayName(idol)}
               </div>
 
-              <div className="mt-1 text-xs text-zinc-500">
+              <div className="mt-1 text-xs text-zinc-600">
                 {idol.character}
               </div>
 

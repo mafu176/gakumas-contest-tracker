@@ -11,8 +11,8 @@ export default function AnalysisPresetPanel({
     <section className={`${visible ? "" : "hidden"} rounded-3xl bg-white p-6 shadow`}>
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
-          <h2 className="text-xl font-semibold">分析条件保存</h2>
-          <p className="mt-1 text-sm text-zinc-500">
+          <h2 className="text-xl font-semibold text-zinc-900">分析条件保存</h2>
+          <p className="mt-1 text-sm text-zinc-600">
             日数・最低採用数・ソート・位置フィルタを保存できます。日数未入力なら全期間です。
           </p>
         </div>
@@ -35,7 +35,7 @@ export default function AnalysisPresetPanel({
       </div>
 
       {analysisPresets.length === 0 ? (
-        <div className="mt-4 text-sm text-zinc-500">
+        <div className="mt-4 text-sm text-zinc-600">
           保存済みの分析条件はまだありません。
         </div>
       ) : (
@@ -44,7 +44,7 @@ export default function AnalysisPresetPanel({
             <div key={preset.id} className="rounded-2xl border bg-zinc-50 p-4">
               <div className="font-semibold">{preset.name}</div>
 
-              <div className="mt-2 text-xs text-zinc-500">
+              <div className="mt-2 text-xs text-zinc-600">
                 {preset.analysisPosition || "全体"} / 直近
                 {preset.analysisDays ? `${preset.analysisDays}日` : "全期間"} / 最低採用
                 {preset.analysisMinCount === "" ? "なし" : preset.analysisMinCount} /{" "}
