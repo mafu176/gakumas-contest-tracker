@@ -1,0 +1,8 @@
+stage1_self=490885
+stage1_enemy=584249
+
+stage2_self=419764
+stage2_enemy=429432
+
+stage3_self=716315
+stage3_enemy=354228

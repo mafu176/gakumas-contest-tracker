@@ -1,0 +1,10 @@
+stage1_self=420101
+stage1_enemy=309748
+
+stage2_self=832971
+stage2_enemy=905569
+
+stage3_self=346909
+stage3_enemy=347982
+
+correction=pattern4

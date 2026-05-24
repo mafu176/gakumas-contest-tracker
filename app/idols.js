@@ -7,7 +7,7 @@ export const idolDb = [
     "title": "Fighting My Way",
     "plan": "センス",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/1.png"
+    "image": "/idols/1.png"
   },
   {
     "id": "花海_咲季_古今東西ちょちょいのちょい",
@@ -17,7 +17,7 @@ export const idolDb = [
     "title": "古今東西ちょちょいのちょい",
     "plan": "センス",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/2.png"
+    "image": "/idols/2.png"
   },
   {
     "id": "花海_咲季_Campus_mode",
@@ -27,7 +27,7 @@ export const idolDb = [
     "title": "Campus mode!!",
     "plan": "センス",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/3.png"
+    "image": "/idols/3.png"
   },
   {
     "id": "月村_手毬_Luna_say_maybe",
@@ -35,9 +35,9 @@ export const idolDb = [
     "short": "Luna s…手毬",
     "character": "月村手毬",
     "title": "Luna say maybe",
-    "plan": "ロジック",
+    "plan": "センス",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/4.png"
+    "image": "/idols/4.png"
   },
   {
     "id": "月村_手毬_Campus_mode",
@@ -45,9 +45,9 @@ export const idolDb = [
     "short": "Campus手毬",
     "character": "月村手毬",
     "title": "Campus mode!!",
-    "plan": "ロジック",
+    "plan": "センス",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/5.png"
+    "image": "/idols/5.png"
   },
   {
     "id": "月村_手毬_雨上がりのアイリス",
@@ -55,9 +55,9 @@ export const idolDb = [
     "short": "雨上がりのア…手毬",
     "character": "月村手毬",
     "title": "雨上がりのアイリス",
-    "plan": "ロジック",
+    "plan": "センス",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/6.png"
+    "image": "/idols/6.png"
   },
   {
     "id": "藤田_ことね_Yellow_Big_Bang",
@@ -67,7 +67,7 @@ export const idolDb = [
     "title": "Yellow Big Bang！",
     "plan": "センス",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/7.png"
+    "image": "/idols/7.png"
   },
   {
     "id": "藤田_ことね_自己肯定感爆上げしゅきしゅきソング",
@@ -77,7 +77,7 @@ export const idolDb = [
     "title": "自己肯定感爆上げ↑↑しゅきしゅきソング",
     "plan": "センス",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/8.png"
+    "image": "/idols/8.png"
   },
   {
     "id": "藤田_ことね_がむしゃらに行こう",
@@ -87,7 +87,7 @@ export const idolDb = [
     "title": "がむしゃらに行こう！",
     "plan": "センス",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/9.png"
+    "image": "/idols/9.png"
   },
   {
     "id": "有村_麻央_Fluorite",
@@ -97,7 +97,7 @@ export const idolDb = [
     "title": "Fluorite",
     "plan": "センス",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/10.png"
+    "image": "/idols/10.png"
   },
   {
     "id": "有村_麻央_キミとセミブルー",
@@ -107,7 +107,7 @@ export const idolDb = [
     "title": "キミとセミブルー",
     "plan": "センス",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/11.png"
+    "image": "/idols/11.png"
   },
   {
     "id": "有村_麻央_見て",
@@ -117,7 +117,7 @@ export const idolDb = [
     "title": "見て",
     "plan": "センス",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/12.png"
+    "image": "/idols/12.png"
   },
   {
     "id": "葛城_リーリヤ_冠菊",
@@ -125,9 +125,9 @@ export const idolDb = [
     "short": "冠菊",
     "character": "葛城リーリヤ",
     "title": "冠菊",
-    "plan": "ロジック",
+    "plan": "センス",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/13.png"
+    "image": "/idols/13.png"
   },
   {
     "id": "葛城_リーリヤ_Campus_mode",
@@ -135,9 +135,9 @@ export const idolDb = [
     "short": "Campusリヤ",
     "character": "葛城リーリヤ",
     "title": "Campus mode!!",
-    "plan": "ロジック",
+    "plan": "センス",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/14.png"
+    "image": "/idols/14.png"
   },
   {
     "id": "葛城_リーリヤ_ときめきエモーション",
@@ -145,9 +145,9 @@ export const idolDb = [
     "short": "ときめきエモ…リヤ",
     "character": "葛城リーリヤ",
     "title": "ときめきエモーション",
-    "plan": "ロジック",
+    "plan": "センス",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/15.png"
+    "image": "/idols/15.png"
   },
   {
     "id": "倉本_千奈_日々_発見的ステップ",
@@ -155,9 +155,9 @@ export const idolDb = [
     "short": "日々、発見的…千奈",
     "character": "倉本千奈",
     "title": "日々、発見的ステップ！",
-    "plan": "ロジック",
+    "plan": "センス",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/16.png"
+    "image": "/idols/16.png"
   },
   {
     "id": "倉本_千奈_ようこそ初星温泉",
@@ -165,9 +165,9 @@ export const idolDb = [
     "short": "ようこそ初星温泉",
     "character": "倉本千奈",
     "title": "ようこそ初星温泉",
-    "plan": "ロジック",
+    "plan": "センス",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/17.png"
+    "image": "/idols/17.png"
   },
   {
     "id": "倉本_千奈_仮装狂騒曲",
@@ -175,9 +175,9 @@ export const idolDb = [
     "short": "仮装狂騒曲",
     "character": "倉本千奈",
     "title": "仮装狂騒曲",
-    "plan": "ロジック",
+    "plan": "センス",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/18.png"
+    "image": "/idols/18.png"
   },
   {
     "id": "倉本_千奈_空と約束",
@@ -185,9 +185,9 @@ export const idolDb = [
     "short": "空と約束",
     "character": "倉本千奈",
     "title": "空と約束",
-    "plan": "ロジック",
+    "plan": "センス",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/19.png"
+    "image": "/idols/19.png"
   },
   {
     "id": "倉本_千奈_みちなるひろがる",
@@ -195,9 +195,9 @@ export const idolDb = [
     "short": "みちなるひろがる",
     "character": "倉本千奈",
     "title": "みちなるひろがる",
-    "plan": "ロジック",
+    "plan": "センス",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/20.png"
+    "image": "/idols/20.png"
   },
   {
     "id": "紫雲_清夏_Tame_Lie_One_Step",
@@ -207,7 +207,7 @@ export const idolDb = [
     "title": "Tame-Lie-One-Step",
     "plan": "センス",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/21.png"
+    "image": "/idols/21.png"
   },
   {
     "id": "紫雲_清夏_桜フォトグラフ",
@@ -217,7 +217,7 @@ export const idolDb = [
     "title": "桜フォトグラフ",
     "plan": "センス",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/22.png"
+    "image": "/idols/22.png"
   },
   {
     "id": "紫雲_清夏_Love_Joy",
@@ -227,7 +227,7 @@ export const idolDb = [
     "title": "Love & Joy",
     "plan": "センス",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/23.png"
+    "image": "/idols/23.png"
   },
   {
     "id": "篠澤_広_コントラスト",
@@ -235,9 +235,9 @@ export const idolDb = [
     "short": "コントラスト",
     "character": "篠澤広",
     "title": "コントラスト",
-    "plan": "ロジック",
+    "plan": "センス",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/24.png"
+    "image": "/idols/24.png"
   },
   {
     "id": "篠澤_広_仮装狂騒曲",
@@ -245,9 +245,9 @@ export const idolDb = [
     "short": "仮装狂騒曲",
     "character": "篠澤広",
     "title": "仮装狂騒曲",
-    "plan": "ロジック",
+    "plan": "センス",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/25.png"
+    "image": "/idols/25.png"
   },
   {
     "id": "姫崎_莉波_clumsy_trick",
@@ -257,7 +257,7 @@ export const idolDb = [
     "title": "clumsy trick",
     "plan": "センス",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/26.png"
+    "image": "/idols/26.png"
   },
   {
     "id": "姫崎_莉波_キミとセミブルー",
@@ -267,7 +267,7 @@ export const idolDb = [
     "title": "キミとセミブルー",
     "plan": "センス",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/27.png"
+    "image": "/idols/27.png"
   },
   {
     "id": "姫崎_莉波_Howling_over_the_World",
@@ -277,7 +277,7 @@ export const idolDb = [
     "title": "Howling over the World",
     "plan": "センス",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/28.png"
+    "image": "/idols/28.png"
   },
   {
     "id": "姫崎_莉波_ガラクタロード",
@@ -287,7 +287,7 @@ export const idolDb = [
     "title": "ガラクタロード",
     "plan": "センス",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/29.png"
+    "image": "/idols/29.png"
   },
   {
     "id": "花海_佑芽_White_Night_White_Wish",
@@ -295,9 +295,9 @@ export const idolDb = [
     "short": "White …佑芽",
     "character": "花海佑芽",
     "title": "White Night! White Wish!",
-    "plan": "ロジック",
+    "plan": "センス",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/30.png"
+    "image": "/idols/30.png"
   },
   {
     "id": "花海_佑芽_ENDLESS_DANCE",
@@ -305,9 +305,9 @@ export const idolDb = [
     "short": "ENDLES…佑芽",
     "character": "花海佑芽",
     "title": "ENDLESS DANCE",
-    "plan": "ロジック",
+    "plan": "センス",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/31.png"
+    "image": "/idols/31.png"
   },
   {
     "id": "十王_星南_Campus_mode",
@@ -315,9 +315,9 @@ export const idolDb = [
     "short": "Campus星南",
     "character": "十王星南",
     "title": "Campus mode!!",
-    "plan": "アノマリー",
+    "plan": "センス",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/32.png"
+    "image": "/idols/32.png"
   },
   {
     "id": "秦谷_美鈴_Star_mine",
@@ -325,9 +325,9 @@ export const idolDb = [
     "short": "Star-m…美鈴",
     "character": "秦谷美鈴",
     "title": "Star-mine",
-    "plan": "アノマリー",
+    "plan": "センス",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/33.png"
+    "image": "/idols/33.png"
   },
   {
     "id": "雨夜_燕_Campus_mode",
@@ -335,9 +335,9 @@ export const idolDb = [
     "short": "Campus夜燕",
     "character": "雨夜燕",
     "title": "Campus mode!!",
-    "plan": "アノマリー",
+    "plan": "センス",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/34.png"
+    "image": "/idols/34.png"
   },
   {
     "id": "花海_咲季_Boom_Boom_Pow",
@@ -345,9 +345,9 @@ export const idolDb = [
     "short": "Boom B…咲季",
     "character": "花海咲季",
     "title": "Boom Boom Pow",
-    "plan": "センス",
+    "plan": "ロジック",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/35.png"
+    "image": "/idols/35.png"
   },
   {
     "id": "花海_咲季_冠菊",
@@ -355,9 +355,9 @@ export const idolDb = [
     "short": "冠菊",
     "character": "花海咲季",
     "title": "冠菊",
-    "plan": "センス",
+    "plan": "ロジック",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/36.png"
+    "image": "/idols/36.png"
   },
   {
     "id": "花海_咲季_雨上がりのアイリス",
@@ -365,9 +365,9 @@ export const idolDb = [
     "short": "雨上がりのア…咲季",
     "character": "花海咲季",
     "title": "雨上がりのアイリス",
-    "plan": "センス",
+    "plan": "ロジック",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/37.png"
+    "image": "/idols/37.png"
   },
   {
     "id": "花海_咲季_Wildest_Flower",
@@ -375,9 +375,9 @@ export const idolDb = [
     "short": "Wildes…咲季",
     "character": "花海咲季",
     "title": "Wildest Flower",
-    "plan": "センス",
+    "plan": "ロジック",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/38.png"
+    "image": "/idols/38.png"
   },
   {
     "id": "月村_手毬_アイヴイ",
@@ -387,7 +387,7 @@ export const idolDb = [
     "title": "アイヴイ",
     "plan": "ロジック",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/39.png"
+    "image": "/idols/39.png"
   },
   {
     "id": "月村_手毬_仮装狂騒曲",
@@ -397,7 +397,7 @@ export const idolDb = [
     "title": "仮装狂騒曲",
     "plan": "ロジック",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/40.png"
+    "image": "/idols/40.png"
   },
   {
     "id": "月村_手毬_がむしゃらに行こう",
@@ -407,7 +407,7 @@ export const idolDb = [
     "title": "がむしゃらに行こう！",
     "plan": "ロジック",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/41.png"
+    "image": "/idols/41.png"
   },
   {
     "id": "月村_手毬_ガラクタロード",
@@ -417,7 +417,7 @@ export const idolDb = [
     "title": "ガラクタロード",
     "plan": "ロジック",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/42.png"
+    "image": "/idols/42.png"
   },
   {
     "id": "藤田_ことね_世界一可愛い私",
@@ -425,9 +425,9 @@ export const idolDb = [
     "short": "世界一可愛い私",
     "character": "藤田ことね",
     "title": "世界一可愛い私",
-    "plan": "センス",
+    "plan": "ロジック",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/43.png"
+    "image": "/idols/43.png"
   },
   {
     "id": "藤田_ことね_冠菊",
@@ -435,9 +435,9 @@ export const idolDb = [
     "short": "冠菊",
     "character": "藤田ことね",
     "title": "冠菊",
-    "plan": "センス",
+    "plan": "ロジック",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/44.png"
+    "image": "/idols/44.png"
   },
   {
     "id": "藤田_ことね_White_Night_White_Wish",
@@ -445,9 +445,9 @@ export const idolDb = [
     "short": "White …とね",
     "character": "藤田ことね",
     "title": "White Night! White Wish!",
-    "plan": "センス",
+    "plan": "ロジック",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/45.png"
+    "image": "/idols/45.png"
   },
   {
     "id": "藤田_ことね_Campus_mode",
@@ -455,9 +455,9 @@ export const idolDb = [
     "short": "Campusとね",
     "character": "藤田ことね",
     "title": "Campus mode!!",
-    "plan": "センス",
+    "plan": "ロジック",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/46.png"
+    "image": "/idols/46.png"
   },
   {
     "id": "有村_麻央_Feel_Jewel_Dream",
@@ -465,9 +465,9 @@ export const idolDb = [
     "short": "Feel J…麻央",
     "character": "有村麻央",
     "title": "Feel Jewel Dream",
-    "plan": "センス",
+    "plan": "ロジック",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/47.png"
+    "image": "/idols/47.png"
   },
   {
     "id": "有村_麻央_ミラクルナナウﾟ_ﾟ",
@@ -475,9 +475,9 @@ export const idolDb = [
     "short": "ミラクルナナ…麻央",
     "character": "有村麻央",
     "title": "ミラクルナナウ(ﾟ∀ﾟ)！",
-    "plan": "センス",
+    "plan": "ロジック",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/48.png"
+    "image": "/idols/48.png"
   },
   {
     "id": "葛城_リーリヤ_白線",
@@ -487,7 +487,7 @@ export const idolDb = [
     "title": "白線",
     "plan": "ロジック",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/49.png"
+    "image": "/idols/49.png"
   },
   {
     "id": "葛城_リーリヤ_White_Night_White_Wish",
@@ -497,7 +497,7 @@ export const idolDb = [
     "title": "White Night! White Wish!",
     "plan": "ロジック",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/50.png"
+    "image": "/idols/50.png"
   },
   {
     "id": "葛城_リーリヤ_Howling_over_the_World",
@@ -507,7 +507,7 @@ export const idolDb = [
     "title": "Howling over the World",
     "plan": "ロジック",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/51.png"
+    "image": "/idols/51.png"
   },
   {
     "id": "倉本_千奈_Wonder_Scale",
@@ -517,7 +517,7 @@ export const idolDb = [
     "title": "Wonder Scale",
     "plan": "ロジック",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/52.png"
+    "image": "/idols/52.png"
   },
   {
     "id": "倉本_千奈_Campus_mode",
@@ -527,7 +527,7 @@ export const idolDb = [
     "title": "Campus mode!!",
     "plan": "ロジック",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/53.png"
+    "image": "/idols/53.png"
   },
   {
     "id": "倉本_千奈_雪解けに",
@@ -537,7 +537,7 @@ export const idolDb = [
     "title": "雪解けに",
     "plan": "ロジック",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/54.png"
+    "image": "/idols/54.png"
   },
   {
     "id": "紫雲_清夏_キミとセミブルー",
@@ -545,9 +545,9 @@ export const idolDb = [
     "short": "キミとセミブルー",
     "character": "紫雲清夏",
     "title": "キミとセミブルー",
-    "plan": "センス",
+    "plan": "ロジック",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/55.png"
+    "image": "/idols/55.png"
   },
   {
     "id": "紫雲_清夏_Campus_mode",
@@ -555,9 +555,9 @@ export const idolDb = [
     "short": "Campus清夏",
     "character": "紫雲清夏",
     "title": "Campus mode!!",
-    "plan": "センス",
+    "plan": "ロジック",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/56.png"
+    "image": "/idols/56.png"
   },
   {
     "id": "紫雲_清夏_ミラクルナナウﾟ_ﾟ",
@@ -565,9 +565,9 @@ export const idolDb = [
     "short": "ミラクルナナ…清夏",
     "character": "紫雲清夏",
     "title": "ミラクルナナウ(ﾟ∀ﾟ)！",
-    "plan": "センス",
+    "plan": "ロジック",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/57.png"
+    "image": "/idols/57.png"
   },
   {
     "id": "篠澤_広_光景",
@@ -577,7 +577,7 @@ export const idolDb = [
     "title": "光景",
     "plan": "ロジック",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/58.png"
+    "image": "/idols/58.png"
   },
   {
     "id": "篠澤_広_Campus_mode",
@@ -587,7 +587,7 @@ export const idolDb = [
     "title": "Campus mode!!",
     "plan": "ロジック",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/59.png"
+    "image": "/idols/59.png"
   },
   {
     "id": "篠澤_広_みちなるひろがる",
@@ -597,7 +597,7 @@ export const idolDb = [
     "title": "みちなるひろがる",
     "plan": "ロジック",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/60.png"
+    "image": "/idols/60.png"
   },
   {
     "id": "姫崎_莉波_ようこそ初星温泉",
@@ -605,9 +605,9 @@ export const idolDb = [
     "short": "ようこそ初星温泉",
     "character": "姫崎莉波",
     "title": "ようこそ初星温泉",
-    "plan": "センス",
+    "plan": "ロジック",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/61.png"
+    "image": "/idols/61.png"
   },
   {
     "id": "姫崎_莉波_L_U_V",
@@ -615,9 +615,9 @@ export const idolDb = [
     "short": "L.U.V",
     "character": "姫崎莉波",
     "title": "L.U.V",
-    "plan": "センス",
+    "plan": "ロジック",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/62.png"
+    "image": "/idols/62.png"
   },
   {
     "id": "姫崎_莉波_36_U_B_U",
@@ -625,9 +625,9 @@ export const idolDb = [
     "short": "36℃ U・…莉波",
     "character": "姫崎莉波",
     "title": "36℃ U・B・U",
-    "plan": "センス",
+    "plan": "ロジック",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/63.png"
+    "image": "/idols/63.png"
   },
   {
     "id": "花海_佑芽_The_Rolling_Riceball",
@@ -637,7 +637,7 @@ export const idolDb = [
     "title": "The Rolling Riceball",
     "plan": "ロジック",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/64.png"
+    "image": "/idols/64.png"
   },
   {
     "id": "花海_佑芽_Star_mine",
@@ -647,7 +647,7 @@ export const idolDb = [
     "title": "Star-mine",
     "plan": "ロジック",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/65.png"
+    "image": "/idols/65.png"
   },
   {
     "id": "花海_佑芽_真っ白いページと水彩の主人公",
@@ -657,7 +657,7 @@ export const idolDb = [
     "title": "真っ白いページと水彩の主人公",
     "plan": "ロジック",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/66.png"
+    "image": "/idols/66.png"
   },
   {
     "id": "十王_星南_ハッピーミルフィーユ",
@@ -665,9 +665,9 @@ export const idolDb = [
     "short": "ハッピーミル…星南",
     "character": "十王星南",
     "title": "ハッピーミルフィーユ",
-    "plan": "アノマリー",
+    "plan": "ロジック",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/67.png"
+    "image": "/idols/67.png"
   },
   {
     "id": "十王_星南_Our_Chant",
@@ -675,9 +675,9 @@ export const idolDb = [
     "short": "Our Ch…星南",
     "character": "十王星南",
     "title": "Our Chant",
-    "plan": "アノマリー",
+    "plan": "ロジック",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/68.png"
+    "image": "/idols/68.png"
   },
   {
     "id": "十王_星南_赤裸々",
@@ -685,9 +685,9 @@ export const idolDb = [
     "short": "赤裸々",
     "character": "十王星南",
     "title": "赤裸々",
-    "plan": "アノマリー",
+    "plan": "ロジック",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/69.png"
+    "image": "/idols/69.png"
   },
   {
     "id": "秦谷_美鈴_Campus_mode",
@@ -695,9 +695,9 @@ export const idolDb = [
     "short": "Campus美鈴",
     "character": "秦谷美鈴",
     "title": "Campus mode!!",
-    "plan": "アノマリー",
+    "plan": "ロジック",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/70.png"
+    "image": "/idols/70.png"
   },
   {
     "id": "秦谷_美鈴_Superlative",
@@ -705,9 +705,9 @@ export const idolDb = [
     "short": "Superl…美鈴",
     "character": "秦谷美鈴",
     "title": "Superlative",
-    "plan": "アノマリー",
+    "plan": "ロジック",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/71.png"
+    "image": "/idols/71.png"
   },
   {
     "id": "秦谷_美鈴_ENDLESS_DANCE",
@@ -715,9 +715,9 @@ export const idolDb = [
     "short": "ENDLES…美鈴",
     "character": "秦谷美鈴",
     "title": "ENDLESS DANCE",
-    "plan": "アノマリー",
+    "plan": "ロジック",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/72.png"
+    "image": "/idols/72.png"
   },
   {
     "id": "雨夜_燕_理論武装して",
@@ -725,9 +725,9 @@ export const idolDb = [
     "short": "理論武装して",
     "character": "雨夜燕",
     "title": "理論武装して",
-    "plan": "アノマリー",
+    "plan": "ロジック",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/73.png"
+    "image": "/idols/73.png"
   },
   {
     "id": "花海_咲季_桜フォトグラフ",
@@ -735,9 +735,9 @@ export const idolDb = [
     "short": "桜フォトグラフ",
     "character": "花海咲季",
     "title": "桜フォトグラフ",
-    "plan": "センス",
+    "plan": "アノマリー",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/74.png"
+    "image": "/idols/74.png"
   },
   {
     "id": "花海_咲季_がむしゃらに行こう",
@@ -745,9 +745,9 @@ export const idolDb = [
     "short": "がむしゃらに…咲季",
     "character": "花海咲季",
     "title": "がむしゃらに行こう！",
-    "plan": "センス",
+    "plan": "アノマリー",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/75.png"
+    "image": "/idols/75.png"
   },
   {
     "id": "月村_手毬_雪解けに",
@@ -755,9 +755,9 @@ export const idolDb = [
     "short": "雪解けに",
     "character": "月村手毬",
     "title": "雪解けに",
-    "plan": "ロジック",
+    "plan": "アノマリー",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/76.png"
+    "image": "/idols/76.png"
   },
   {
     "id": "月村_手毬_一体いつから",
@@ -765,9 +765,9 @@ export const idolDb = [
     "short": "一体いつから",
     "character": "月村手毬",
     "title": "一体いつから",
-    "plan": "ロジック",
+    "plan": "アノマリー",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/77.png"
+    "image": "/idols/77.png"
   },
   {
     "id": "藤田_ことね_雨上がりのアイリス",
@@ -775,9 +775,9 @@ export const idolDb = [
     "short": "雨上がりのア…とね",
     "character": "藤田ことね",
     "title": "雨上がりのアイリス",
-    "plan": "センス",
+    "plan": "アノマリー",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/78.png"
+    "image": "/idols/78.png"
   },
   {
     "id": "有村_麻央_Campus_mode",
@@ -785,9 +785,9 @@ export const idolDb = [
     "short": "Campus麻央",
     "character": "有村麻央",
     "title": "Campus mode!!",
-    "plan": "センス",
+    "plan": "アノマリー",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/79.png"
+    "image": "/idols/79.png"
   },
   {
     "id": "有村_麻央_雪解けに",
@@ -795,9 +795,9 @@ export const idolDb = [
     "short": "雪解けに",
     "character": "有村麻央",
     "title": "雪解けに",
-    "plan": "センス",
+    "plan": "アノマリー",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/80.png"
+    "image": "/idols/80.png"
   },
   {
     "id": "葛城_リーリヤ_極光",
@@ -805,9 +805,9 @@ export const idolDb = [
     "short": "極光",
     "character": "葛城リーリヤ",
     "title": "極光",
-    "plan": "ロジック",
+    "plan": "アノマリー",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/81.png"
+    "image": "/idols/81.png"
   },
   {
     "id": "葛城_リーリヤ_桜フォトグラフ",
@@ -815,9 +815,9 @@ export const idolDb = [
     "short": "桜フォトグラフ",
     "character": "葛城リーリヤ",
     "title": "桜フォトグラフ",
-    "plan": "ロジック",
+    "plan": "アノマリー",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/82.png"
+    "image": "/idols/82.png"
   },
   {
     "id": "葛城_リーリヤ_Atmosphere",
@@ -825,9 +825,9 @@ export const idolDb = [
     "short": "Atmosp…リヤ",
     "character": "葛城リーリヤ",
     "title": "Atmosphere",
-    "plan": "ロジック",
+    "plan": "アノマリー",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/83.png"
+    "image": "/idols/83.png"
   },
   {
     "id": "倉本_千奈_Howling_over_the_World",
@@ -835,9 +835,9 @@ export const idolDb = [
     "short": "Howlin…千奈",
     "character": "倉本千奈",
     "title": "Howling over the World",
-    "plan": "ロジック",
+    "plan": "アノマリー",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/84.png"
+    "image": "/idols/84.png"
   },
   {
     "id": "紫雲_清夏_カクシタワタシ",
@@ -845,9 +845,9 @@ export const idolDb = [
     "short": "カクシタワタシ",
     "character": "紫雲清夏",
     "title": "カクシタワタシ",
-    "plan": "センス",
+    "plan": "アノマリー",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/85.png"
+    "image": "/idols/85.png"
   },
   {
     "id": "紫雲_清夏_ときめきエモーション",
@@ -855,9 +855,9 @@ export const idolDb = [
     "short": "ときめきエモ…清夏",
     "character": "紫雲清夏",
     "title": "ときめきエモーション",
-    "plan": "センス",
+    "plan": "アノマリー",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/86.png"
+    "image": "/idols/86.png"
   },
   {
     "id": "篠澤_広_ハッピーミルフィーユ",
@@ -865,9 +865,9 @@ export const idolDb = [
     "short": "ハッピーミル…澤広",
     "character": "篠澤広",
     "title": "ハッピーミルフィーユ",
-    "plan": "ロジック",
+    "plan": "アノマリー",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/87.png"
+    "image": "/idols/87.png"
   },
   {
     "id": "篠澤_広_サンフェーデッド",
@@ -875,9 +875,9 @@ export const idolDb = [
     "short": "サンフェーデッド",
     "character": "篠澤広",
     "title": "サンフェーデッド",
-    "plan": "ロジック",
+    "plan": "アノマリー",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/88.png"
+    "image": "/idols/88.png"
   },
   {
     "id": "篠澤_広_ミラクルナナウﾟ_ﾟ",
@@ -885,9 +885,9 @@ export const idolDb = [
     "short": "ミラクルナナ…澤広",
     "character": "篠澤広",
     "title": "ミラクルナナウ(ﾟ∀ﾟ)！",
-    "plan": "ロジック",
+    "plan": "アノマリー",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/89.png"
+    "image": "/idols/89.png"
   },
   {
     "id": "姫崎_莉波_Campus_mode",
@@ -895,9 +895,9 @@ export const idolDb = [
     "short": "Campus莉波",
     "character": "姫崎莉波",
     "title": "Campus mode!!",
-    "plan": "センス",
+    "plan": "アノマリー",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/90.png"
+    "image": "/idols/90.png"
   },
   {
     "id": "姫崎_莉波_ハッピーミルフィーユ",
@@ -905,9 +905,9 @@ export const idolDb = [
     "short": "ハッピーミル…莉波",
     "character": "姫崎莉波",
     "title": "ハッピーミルフィーユ",
-    "plan": "センス",
+    "plan": "アノマリー",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/91.png"
+    "image": "/idols/91.png"
   },
   {
     "id": "花海_佑芽_Campus_mode",
@@ -915,9 +915,9 @@ export const idolDb = [
     "short": "Campus佑芽",
     "character": "花海佑芽",
     "title": "Campus mode!!",
-    "plan": "ロジック",
+    "plan": "アノマリー",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/92.png"
+    "image": "/idols/92.png"
   },
   {
     "id": "花海_佑芽_グースーピー",
@@ -925,9 +925,9 @@ export const idolDb = [
     "short": "グースーピー",
     "character": "花海佑芽",
     "title": "グースーピー",
-    "plan": "ロジック",
+    "plan": "アノマリー",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/93.png"
+    "image": "/idols/93.png"
   },
   {
     "id": "十王_星南_小さな野望",
@@ -937,7 +937,7 @@ export const idolDb = [
     "title": "小さな野望",
     "plan": "アノマリー",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/94.png"
+    "image": "/idols/94.png"
   },
   {
     "id": "十王_星南_Star_mine",
@@ -947,7 +947,7 @@ export const idolDb = [
     "title": "Star-mine",
     "plan": "アノマリー",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/95.png"
+    "image": "/idols/95.png"
   },
   {
     "id": "十王_星南_ENDLESS_DANCE",
@@ -957,7 +957,7 @@ export const idolDb = [
     "title": "ENDLESS DANCE",
     "plan": "アノマリー",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/96.png"
+    "image": "/idols/96.png"
   },
   {
     "id": "秦谷_美鈴_ツキノカメ",
@@ -967,7 +967,7 @@ export const idolDb = [
     "title": "ツキノカメ",
     "plan": "アノマリー",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/97.png"
+    "image": "/idols/97.png"
   },
   {
     "id": "秦谷_美鈴_VEIL",
@@ -977,6 +977,6 @@ export const idolDb = [
     "title": "VEIL",
     "plan": "アノマリー",
     "rarity": "SSR",
-    "image": "https://gkimg.ris.moe/idols/98.png"
+    "image": "/idols/98.png"
   }
 ];

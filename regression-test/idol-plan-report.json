@@ -1,0 +1,373 @@
+{
+  "wikiCards": 136,
+  "dbCards": 98,
+  "changed": [
+    {
+      "title": "Luna say maybe",
+      "character": "月村手毬",
+      "from": "ロジック",
+      "to": "センス"
+    },
+    {
+      "title": "Campus mode!!",
+      "character": "月村手毬",
+      "from": "ロジック",
+      "to": "センス"
+    },
+    {
+      "title": "雨上がりのアイリス",
+      "character": "月村手毬",
+      "from": "ロジック",
+      "to": "センス"
+    },
+    {
+      "title": "冠菊",
+      "character": "葛城リーリヤ",
+      "from": "ロジック",
+      "to": "センス"
+    },
+    {
+      "title": "Campus mode!!",
+      "character": "葛城リーリヤ",
+      "from": "ロジック",
+      "to": "センス"
+    },
+    {
+      "title": "ときめきエモーション",
+      "character": "葛城リーリヤ",
+      "from": "ロジック",
+      "to": "センス"
+    },
+    {
+      "title": "日々、発見的ステップ！",
+      "character": "倉本千奈",
+      "from": "ロジック",
+      "to": "センス"
+    },
+    {
+      "title": "ようこそ初星温泉",
+      "character": "倉本千奈",
+      "from": "ロジック",
+      "to": "センス"
+    },
+    {
+      "title": "仮装狂騒曲",
+      "character": "倉本千奈",
+      "from": "ロジック",
+      "to": "センス"
+    },
+    {
+      "title": "空と約束",
+      "character": "倉本千奈",
+      "from": "ロジック",
+      "to": "センス"
+    },
+    {
+      "title": "みちなるひろがる",
+      "character": "倉本千奈",
+      "from": "ロジック",
+      "to": "センス"
+    },
+    {
+      "title": "コントラスト",
+      "character": "篠澤広",
+      "from": "ロジック",
+      "to": "センス"
+    },
+    {
+      "title": "仮装狂騒曲",
+      "character": "篠澤広",
+      "from": "ロジック",
+      "to": "センス"
+    },
+    {
+      "title": "White Night! White Wish!",
+      "character": "花海佑芽",
+      "from": "ロジック",
+      "to": "センス"
+    },
+    {
+      "title": "ENDLESS DANCE",
+      "character": "花海佑芽",
+      "from": "ロジック",
+      "to": "センス"
+    },
+    {
+      "title": "Campus mode!!",
+      "character": "十王星南",
+      "from": "アノマリー",
+      "to": "センス"
+    },
+    {
+      "title": "Star-mine",
+      "character": "秦谷美鈴",
+      "from": "アノマリー",
+      "to": "センス"
+    },
+    {
+      "title": "Campus mode!!",
+      "character": "雨夜燕",
+      "from": "アノマリー",
+      "to": "センス"
+    },
+    {
+      "title": "Boom Boom Pow",
+      "character": "花海咲季",
+      "from": "センス",
+      "to": "ロジック"
+    },
+    {
+      "title": "冠菊",
+      "character": "花海咲季",
+      "from": "センス",
+      "to": "ロジック"
+    },
+    {
+      "title": "雨上がりのアイリス",
+      "character": "花海咲季",
+      "from": "センス",
+      "to": "ロジック"
+    },
+    {
+      "title": "Wildest Flower",
+      "character": "花海咲季",
+      "from": "センス",
+      "to": "ロジック"
+    },
+    {
+      "title": "世界一可愛い私",
+      "character": "藤田ことね",
+      "from": "センス",
+      "to": "ロジック"
+    },
+    {
+      "title": "冠菊",
+      "character": "藤田ことね",
+      "from": "センス",
+      "to": "ロジック"
+    },
+    {
+      "title": "White Night! White Wish!",
+      "character": "藤田ことね",
+      "from": "センス",
+      "to": "ロジック"
+    },
+    {
+      "title": "Campus mode!!",
+      "character": "藤田ことね",
+      "from": "センス",
+      "to": "ロジック"
+    },
+    {
+      "title": "Feel Jewel Dream",
+      "character": "有村麻央",
+      "from": "センス",
+      "to": "ロジック"
+    },
+    {
+      "title": "ミラクルナナウ(ﾟ∀ﾟ)！",
+      "character": "有村麻央",
+      "from": "センス",
+      "to": "ロジック"
+    },
+    {
+      "title": "キミとセミブルー",
+      "character": "紫雲清夏",
+      "from": "センス",
+      "to": "ロジック"
+    },
+    {
+      "title": "Campus mode!!",
+      "character": "紫雲清夏",
+      "from": "センス",
+      "to": "ロジック"
+    },
+    {
+      "title": "ミラクルナナウ(ﾟ∀ﾟ)！",
+      "character": "紫雲清夏",
+      "from": "センス",
+      "to": "ロジック"
+    },
+    {
+      "title": "ようこそ初星温泉",
+      "character": "姫崎莉波",
+      "from": "センス",
+      "to": "ロジック"
+    },
+    {
+      "title": "L.U.V",
+      "character": "姫崎莉波",
+      "from": "センス",
+      "to": "ロジック"
+    },
+    {
+      "title": "36℃ U・B・U",
+      "character": "姫崎莉波",
+      "from": "センス",
+      "to": "ロジック"
+    },
+    {
+      "title": "ハッピーミルフィーユ",
+      "character": "十王星南",
+      "from": "アノマリー",
+      "to": "ロジック"
+    },
+    {
+      "title": "Our Chant",
+      "character": "十王星南",
+      "from": "アノマリー",
+      "to": "ロジック"
+    },
+    {
+      "title": "赤裸々",
+      "character": "十王星南",
+      "from": "アノマリー",
+      "to": "ロジック"
+    },
+    {
+      "title": "Campus mode!!",
+      "character": "秦谷美鈴",
+      "from": "アノマリー",
+      "to": "ロジック"
+    },
+    {
+      "title": "Superlative",
+      "character": "秦谷美鈴",
+      "from": "アノマリー",
+      "to": "ロジック"
+    },
+    {
+      "title": "ENDLESS DANCE",
+      "character": "秦谷美鈴",
+      "from": "アノマリー",
+      "to": "ロジック"
+    },
+    {
+      "title": "理論武装して",
+      "character": "雨夜燕",
+      "from": "アノマリー",
+      "to": "ロジック"
+    },
+    {
+      "title": "桜フォトグラフ",
+      "character": "花海咲季",
+      "from": "センス",
+      "to": "アノマリー"
+    },
+    {
+      "title": "がむしゃらに行こう！",
+      "character": "花海咲季",
+      "from": "センス",
+      "to": "アノマリー"
+    },
+    {
+      "title": "雪解けに",
+      "character": "月村手毬",
+      "from": "ロジック",
+      "to": "アノマリー"
+    },
+    {
+      "title": "一体いつから",
+      "character": "月村手毬",
+      "from": "ロジック",
+      "to": "アノマリー"
+    },
+    {
+      "title": "雨上がりのアイリス",
+      "character": "藤田ことね",
+      "from": "センス",
+      "to": "アノマリー"
+    },
+    {
+      "title": "Campus mode!!",
+      "character": "有村麻央",
+      "from": "センス",
+      "to": "アノマリー"
+    },
+    {
+      "title": "雪解けに",
+      "character": "有村麻央",
+      "from": "センス",
+      "to": "アノマリー"
+    },
+    {
+      "title": "極光",
+      "character": "葛城リーリヤ",
+      "from": "ロジック",
+      "to": "アノマリー"
+    },
+    {
+      "title": "桜フォトグラフ",
+      "character": "葛城リーリヤ",
+      "from": "ロジック",
+      "to": "アノマリー"
+    },
+    {
+      "title": "Atmosphere",
+      "character": "葛城リーリヤ",
+      "from": "ロジック",
+      "to": "アノマリー"
+    },
+    {
+      "title": "Howling over the World",
+      "character": "倉本千奈",
+      "from": "ロジック",
+      "to": "アノマリー"
+    },
+    {
+      "title": "カクシタワタシ",
+      "character": "紫雲清夏",
+      "from": "センス",
+      "to": "アノマリー"
+    },
+    {
+      "title": "ときめきエモーション",
+      "character": "紫雲清夏",
+      "from": "センス",
+      "to": "アノマリー"
+    },
+    {
+      "title": "ハッピーミルフィーユ",
+      "character": "篠澤広",
+      "from": "ロジック",
+      "to": "アノマリー"
+    },
+    {
+      "title": "サンフェーデッド",
+      "character": "篠澤広",
+      "from": "ロジック",
+      "to": "アノマリー"
+    },
+    {
+      "title": "ミラクルナナウ(ﾟ∀ﾟ)！",
+      "character": "篠澤広",
+      "from": "ロジック",
+      "to": "アノマリー"
+    },
+    {
+      "title": "Campus mode!!",
+      "character": "姫崎莉波",
+      "from": "センス",
+      "to": "アノマリー"
+    },
+    {
+      "title": "ハッピーミルフィーユ",
+      "character": "姫崎莉波",
+      "from": "センス",
+      "to": "アノマリー"
+    },
+    {
+      "title": "Campus mode!!",
+      "character": "花海佑芽",
+      "from": "ロジック",
+      "to": "アノマリー"
+    },
+    {
+      "title": "グースーピー",
+      "character": "花海佑芽",
+      "from": "ロジック",
+      "to": "アノマリー"
+    }
+  ],
+  "missing": []
+}

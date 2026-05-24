@@ -1,0 +1,57 @@
+﻿{
+  "version": 2,
+  "exportedAt": "2026-05-19T00:00:00.000Z",
+  "records": [
+    {
+      "id": "Mpngtest",
+      "date": "2026-05-17T12:00:00.000Z",
+      "opponent": "",
+      "position": "上",
+      "result": "勝ち",
+      "point": "120",
+      "s1_my_base_total": 490885,
+      "s1_enemy_base_total": 584249,
+      "s1_my_bonus": "59680",
+      "s1_enemy_bonus": "",
+      "s2_my_base_total": 419764,
+      "s2_enemy_base_total": 429432,
+      "s2_my_bonus": "48899",
+      "s2_enemy_bonus": "",
+      "s3_my_base_total": 716315,
+      "s3_enemy_base_total": 354228,
+      "s3_my_bonus": "66170",
+      "s3_enemy_bonus": "",
+      "s1_my1_idol": "Fighting My Way 花海咲季",
+      "s1_my1_idol_id": "花海_咲季_Fighting_My_Way",
+      "s1_my1_score": "242,490",
+      "s1_my1_rank": "2",
+      "s1_my2_idol": "Campus mode!! 花海咲季",
+      "s1_my2_idol_id": "花海_咲季_Campus_mode",
+      "s1_my2_score": "104,579",
+      "s1_my2_rank": "6",
+      "s1_my3_idol": "Boom Boom Pow 花海咲季",
+      "s1_my3_idol_id": "花海_咲季_Boom_Boom_Pow",
+      "s1_my3_score": "143,816",
+      "s1_my3_rank": "3"
+    }
+  ],
+  "formationTemplates": [],
+  "customIdols": [],
+  "idolChecklistText": "",
+  "analysisPresets": [],
+  "seasonPresets": [
+    {
+      "id": "test-season-png",
+      "name": "PNG確認用シーズン",
+      "startDate": "2026-05-01",
+      "endDate": "2026-05-17",
+      "finalPoint": "7620",
+      "finalRank": "123",
+      "memo": "PNG出力確認用の一時データです。",
+      "createdAt": "2026-05-19T00:00:00.000Z"
+    }
+  ],
+  "shareStatsEnabled": false,
+  "sharePlayerName": "PNG Tester",
+  "shareCardLayout": "vertical"
+}
