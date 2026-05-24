@@ -66,7 +66,7 @@ export default function OcrImportPanel({
         </select>
 
         <p className="mt-2 text-xs text-zinc-600">
-          iPhoneアプリ版が正式対応です。PCブラウザ版は参考実装（保証外）です。公開版ではOCRのみ表示し、開発機能は隠します。
+          iPhoneアプリ版が正式対応です。PCブラウザ版は参考対応（保証外）です。
         </p>
       </div>
 
