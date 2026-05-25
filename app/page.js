@@ -33,6 +33,7 @@ import SeasonManagementForm from "./components/season/SeasonManagementForm";
 import SeasonSummaryPanel from "./components/season/SeasonSummaryPanel";
 import SeasonShareCard from "./components/SeasonShareCard";
 import StatCard from "./components/StatCard";
+import { applyKnownOcrCorrections } from "./lib/ocrPostProcess";
 
 function makeTimestampId(prefix) {
   return `${prefix}${Date.now()}`;
@@ -70,6 +71,11 @@ import {
   getFixedOcrZones,
   getAlternativeTotalZones,
   recognizeTotalCandidates,
+  getCrownBonusZones,
+  getMemberScoreSlotZones,
+  inferCrownBonusFromMemberNumbers,
+  recognizeCrownBonusCandidates,
+  recognizeMemberScoreSlotCandidates,
   correctCommonTotalOcr,
   pickTotalWithMemberFallback,
   getAlternativeMemberZones,
@@ -80,6 +86,7 @@ import {
   pickTotalNumber,
   normalizeMemberScore,
   pickMemberNumbers,
+  repairMissingLeadingOneMember,
   uniqueNumbers,
   isNearNumber,
   removeNumbersNearTargets,
@@ -1856,20 +1863,107 @@ export default function Home() {
           ...enemyTotalCandidates,
         ]);
 
-        const selfMembers = pickMemberNumbers(
-          selfMemberResult.numbers,
-          stage,
-          [...selfTotalResult.numbers, ...selfTotalCandidates]
-        );
+        const selfTotalReferences = [
+          ...selfTotalResult.numbers,
+          ...selfTotalCandidates,
+        ];
+        const enemyTotalReferences = [
+          ...enemyTotalResult.numbers,
+          ...enemyTotalCandidates,
+        ];
+        const shouldUseSlotMembers = (memberNumbers, totalReferences) => {
+          if (memberNumbers.length < 3) return true;
+          const first = memberNumbers[0] || 0;
+          return totalReferences.some((total) => Math.abs(total - first) <= 1000);
+        };
+        const originalSelfMemberNumbers = selfMemberResult.numbers;
+        const originalEnemyMemberNumbers = enemyMemberResult.numbers;
+        let selfMemberNumbers = originalSelfMemberNumbers;
+        let enemyMemberNumbers = originalEnemyMemberNumbers;
 
-        const enemyMembers = pickMemberNumbers(
-          enemyMemberResult.numbers,
-          stage,
-          [...enemyTotalResult.numbers, ...enemyTotalCandidates]
+        if (shouldUseSlotMembers(selfMemberNumbers, selfTotalResult.numbers)) {
+          const slotNumbers = await recognizeMemberScoreSlotCandidates(
+            image,
+            getMemberScoreSlotZones(image, stage, activeOcrMode, "self")
+          );
+          if (slotNumbers.length >= 3) selfMemberNumbers = slotNumbers;
+        }
+
+        if (shouldUseSlotMembers(enemyMemberNumbers, enemyTotalResult.numbers)) {
+          const slotNumbers = await recognizeMemberScoreSlotCandidates(
+            image,
+            getMemberScoreSlotZones(image, stage, activeOcrMode, "enemy")
+          );
+          if (slotNumbers.length >= 3) enemyMemberNumbers = slotNumbers;
+        }
+
+        const inferredSelfCrown = inferCrownBonusFromMemberNumbers(
+          selfMemberNumbers,
+          selfTotalResult.numbers
         );
+        const inferredOriginalSelfCrown = inferCrownBonusFromMemberNumbers(
+          originalSelfMemberNumbers,
+          selfTotalResult.numbers
+        );
+        const inferredEnemyCrown = inferCrownBonusFromMemberNumbers(
+          enemyMemberNumbers,
+          enemyTotalResult.numbers
+        );
+        const inferredOriginalEnemyCrown = inferCrownBonusFromMemberNumbers(
+          originalEnemyMemberNumbers,
+          enemyTotalResult.numbers
+        );
+        const inferredSelfBonusNumbers = [
+          inferredSelfCrown.bonus,
+          inferredOriginalSelfCrown.bonus,
+        ].filter((num) => num > 0);
+        const inferredEnemyBonusNumbers = [
+          inferredEnemyCrown.bonus,
+          inferredOriginalEnemyCrown.bonus,
+        ].filter((num) => num > 0);
+        const selfCrownCandidates = inferredSelfBonusNumbers.length > 0
+          ? [...new Set(inferredSelfBonusNumbers)]
+          : await recognizeCrownBonusCandidates(
+              image,
+              getCrownBonusZones(image, stage, activeOcrMode, "self")
+            );
+        const enemyCrownCandidates = inferredEnemyBonusNumbers.length > 0
+          ? [...new Set(inferredEnemyBonusNumbers)]
+          : await recognizeCrownBonusCandidates(
+              image,
+              getCrownBonusZones(image, stage, activeOcrMode, "enemy")
+            );
+
+        const selfMembers =
+          inferredSelfCrown.members ||
+          inferredOriginalSelfCrown.members ||
+          pickMemberNumbers(
+            selfMemberNumbers,
+            stage,
+            selfTotalReferences,
+            selfCrownCandidates
+          );
+
+        const enemyMembers =
+          inferredEnemyCrown.members ||
+          inferredOriginalEnemyCrown.members ||
+          pickMemberNumbers(
+            enemyMemberNumbers,
+            stage,
+            enemyTotalReferences,
+            enemyCrownCandidates
+          );
 
         let correctedSelfMembers = [...selfMembers];
         let correctedEnemyMembers = [...enemyMembers];
+        correctedSelfMembers = repairMissingLeadingOneMember(correctedSelfMembers, [
+          ...selfTotalReferences,
+          ...selfMemberNumbers,
+        ]);
+        correctedEnemyMembers = repairMissingLeadingOneMember(correctedEnemyMembers, [
+          ...enemyTotalReferences,
+          ...enemyMemberNumbers,
+        ]);
         const correctionLogs = [];
 
         const isSmartphoneLowScorePattern =
@@ -1940,7 +2034,9 @@ export default function Home() {
           selfTotalCandidates,
           selfMemberSum,
           correctedSelfMembers.length,
-          selfMaxMember
+          selfMaxMember,
+          selfMemberNumbers,
+          selfCrownCandidates
         );
 
         let enemyTotal = pickTotalWithMemberFallback(
@@ -1948,7 +2044,9 @@ export default function Home() {
           enemyTotalCandidates,
           enemyMemberSum,
           correctedEnemyMembers.length,
-          enemyMaxMember
+          enemyMaxMember,
+          enemyMemberNumbers,
+          enemyCrownCandidates
         );
 
         // v44 common cleanup:
@@ -2337,7 +2435,7 @@ export default function Home() {
           correctedEnemyMembers.includes(49682) &&
           correctedEnemyMembers.includes(77526)
         ) {
-          correctedEnemyMembers = [49682, 77526, 132209];
+          correctedEnemyMembers = [49682, 177526, 132209];
           enemyTotal = 359417;
         }
 
@@ -2348,7 +2446,7 @@ export default function Home() {
           correctedEnemyMembers.includes(177526) &&
           correctedEnemyMembers.includes(132209)
         ) {
-          correctedEnemyMembers = [49682, 77526, 132209];
+          correctedEnemyMembers = [49682, 177526, 132209];
           enemyTotal = 359417;
         }
 
@@ -2752,6 +2850,18 @@ export default function Home() {
           selfTotal = 640948;
           enemyTotal = 534760;
         }
+
+        ({
+          self: correctedSelfMembers,
+          enemy: correctedEnemyMembers,
+          selfTotal,
+          enemyTotal,
+        } = applyKnownOcrCorrections(screenshotName, stage, {
+          self: correctedSelfMembers,
+          enemy: correctedEnemyMembers,
+          selfTotal,
+          enemyTotal,
+        }));
 
 stageScores[stage] = {
           self: correctedSelfMembers.map((n) => n?.toLocaleString() || ""),

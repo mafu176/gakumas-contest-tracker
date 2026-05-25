@@ -1,50 +1,36 @@
-# OCRテストレポート
+# OCR test report
 
-生成日時: 2026-05-24T02:51:12.056Z
+Generated: 2026-05-25T03:09:21.028Z
 
-## 概要
+## Summary
 
-- 対象画像は 13 件。期待値ありは 8 件、期待値との不一致は 0 件。
-- high-score: 4 件、期待値あり 4 件、不一致 0 件、怪しい箇所あり 4 件。
-- next-screen: 5 件、期待値あり 0 件、不一致 0 件、怪しい箇所あり 0 件。
-- normal-result: 4 件、期待値あり 4 件、不一致 0 件、怪しい箇所あり 4 件。
-- high-score は 4 件で怪しい箇所があり、高スコア帯の誤読傾向確認が必要。
-- next-screen は今回の怪しい箇所検出では安定。
-- 目立つ傾向: 王冠差分込みの表示合計を合計として拾う、メンバー欄に合計値が混入する、低スコア帯で桁補正が過剰になる。
-- 7桁候補は正常値として扱う。除外候補は順位数字、王冠差分、総合力、詳細ボタン由来、重複連結値、8桁以上候補に限定。
+- images: 1, expected: 1, failed: 0
+- high-score: total 1, expected 1, failed 0, suspicious 1
+- high-score suspicious: 1
+- next-screen suspicious: 0
+- suspicious values include member sum mismatches, raw power values, crown-like raw values, and missing totals.
+- 7-digit totals are allowed. 8+ digit candidates remain abnormal.
 
-## 結果一覧
+## Results
 
-| ファイル名 | カテゴリ | S1 自分 | S1 相手 | S2 自分 | S2 相手 | S3 自分 | S3 相手 | 自分合計 | 相手合計 | 失敗箇所 | 怪しい箇所 |
+| file | category | S1 self | S1 enemy | S2 self | S2 enemy | S3 self | S3 enemy | self total | enemy total | failures | suspicious |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| high-score/high1.png | high-score | 534,463 | 614,217 | 953,048 | 1,378,829 | 820,824 | 724,742 | 2,308,335 | 2,717,788 | なし | S1 相手: 合計OCR rawなし<br>S1 相手: 王冠差分候補 73,014<br>S2 自分: 合計OCR rawなし<br>S2 相手: 王冠差分候補 100,709<br>S3 自分: 合計OCR rawなし<br>S3 相手: 合計OCR rawなし<br>S3 相手: 王冠差分候補 76,497 |
-| high-score/high2.png | high-score | 689,390 | 359,417 | 933,524 | 783,708 | 1,075,396 | 1,060,979 | 2,698,310 | 2,204,104 | なし | S1 自分: 王冠差分候補 77,330<br>S1 相手: 合計OCR rawなし<br>S2 自分: 王冠差分候補 104,128, 104,128<br>S3 自分: 合計OCR rawなし<br>S3 相手: 合計OCR rawなし |
-| high-score/high3.png | high-score | 546,760 | 507,170 | 1,140,183 | 1,096,426 | 836,204 | 841,196 | 2,523,147 | 2,444,792 | なし | S2 自分: 合計OCR rawなし<br>S2 相手: 王冠差分候補 85,760, 85,760<br>S3 自分: 合計OCR rawなし<br>S3 相手: 合計OCR rawなし |
-| high-score/high4.png | high-score | 561,722 | 550,038 | 869,661 | 984,004 | 1,159,137 | 1,207,044 | 2,590,520 | 2,741,086 | なし | S1 自分: 王冠差分候補 47,824<br>S2 自分: 合計OCR rawなし<br>S2 相手: 王冠差分候補 77,548, 77,548<br>S3 自分: 合計OCR rawなし<br>S3 相手: 合計OCR rawなし<br>S3 相手: 王冠差分候補 100,337 |
-| next-screen/next1.png | next-screen |  |  |  |  |  |  |  |  | unsupported/skipped | 次へ画面はOCR対象外です。通常の結果画面またはハイスコア画面を使用してください。 |
-| next-screen/next2.png | next-screen |  |  |  |  |  |  |  |  | unsupported/skipped | 次へ画面はOCR対象外です。通常の結果画面またはハイスコア画面を使用してください。 |
-| next-screen/next3.png | next-screen |  |  |  |  |  |  |  |  | unsupported/skipped | 次へ画面はOCR対象外です。通常の結果画面またはハイスコア画面を使用してください。 |
-| next-screen/next4.jpg | next-screen |  |  |  |  |  |  |  |  | unsupported/skipped | 次へ画面はOCR対象外です。通常の結果画面またはハイスコア画面を使用してください。 |
-| next-screen/next5.png | next-screen |  |  |  |  |  |  |  |  | unsupported/skipped | 次へ画面はOCR対象外です。通常の結果画面またはハイスコア画面を使用してください。 |
-| normal-result/normal1.jpg | normal-result | 250,204 | 65,559 | 138,451 | 95,056 | 204,741 | 84,591 | 593,396 | 245,206 | なし | S1 自分: 王冠差分候補 21,316<br>S2 自分: 王冠差分候補 11,937<br>S3 自分: 合計OCR rawなし<br>S3 自分: 王冠差分候補 23,400<br>S3 相手: 合計OCR rawなし |
-| normal-result/normal2.jpg | normal-result | 225,149 | 51,675 | 155,110 | 83,067 | 188,741 | 128,848 | 569,000 | 263,590 | なし | S1 自分: 合計OCR rawなし<br>S2 自分: 王冠差分候補 18,487, 18,487<br>S3 自分: 合計OCR rawなし<br>S3 自分: 王冠差分候補 16,501 |
-| normal-result/normal3.png | normal-result | 367,757 | 832,000 | 615,529 | 697,625 | 686,660 | 740,535 | 1,669,946 | 2,270,160 | なし | S2 自分: 合計OCR rawなし<br>S3 自分: 合計OCR rawなし<br>S3 相手: 合計OCR rawなし<br>S3 相手: 王冠差分候補 56,814 |
-| normal-result/normal4.png | normal-result | 490,885 | 524,569 | 370,865 | 429,432 | 650,145 | 354,228 | 1,511,895 | 1,308,229 | なし | S2 自分: 王冠差分候補 48,899, 48,899<br>S3 自分: 合計OCR rawなし<br>S3 自分: 王冠差分候補 66,170<br>S3 相手: 合計OCR rawなし |
+| high-score/high2.png | high-score | 766,720 | 359,417 | 1,037,652 | 783,708 | 1,075,396 | 1,158,564 | 2,879,768 | 2,301,689 | none | S1 self: member sum mismatch 689,390 != 766,720<br>S1 self: crown-like raw 77,330<br>S1 enemy: total OCR raw missing<br>S2 self: member sum mismatch 933,524 != 1,037,652<br>S2 self: crown-like raw 104,128, 104,128<br>S3 self: total OCR raw missing<br>S3 enemy: member sum mismatch 1,060,979 != 1,158,564<br>S3 enemy: total OCR raw missing |
 
-## 改善候補
+## Improvement notes
 
-- high-score は100万超の合計が普通に出るため、7桁候補を除外しない。
-- 王冠差分は合計値ではなく加算表示として扱い、メンバー合計との分離を検討する。
-- 総合力付近の5桁が合計候補に入る箇所は、合計欄の切り抜き高さと下方向の混入を確認する。
-- 重複連結値や8桁以上候補が出る場合は、OCR前処理後の二値画像を保存して結合原因を確認する。
-- next-screen は背景ぼかしと背景色変動の影響が大きいため、結果画面とは別レイアウト候補を検討する。
-- normal-result は低スコア帯の5桁を有効値として残し、総合力や王冠差分との区別を優先する。
+- High-score images keep 7-digit totals valid.
+- Crown bonus values are treated as bonus values, not member scores.
+- Total power values are excluded from score candidates.
+- 8+ digit joined values are treated as abnormal candidates.
+- Next-screen images are unsupported/skipped.
+- Normal-result images keep 5-digit member scores valid.
 
-## 誤読パターン
+## Known misread patterns
 
-- 順位数字: 1-6のカード左下順位。単独では現在の抽出範囲外だが、連結誤読の一部になり得る。
-- 王冠差分: +80377、+159255、+131052、+48899、+100709 など。合計値やメンバー値に混ざる。
-- 総合力: 68298、68595、67668、69303、64533 など。合計欄候補に入ったら警告。
-- 詳細ボタン: OCR対象外。切り抜きが下に広い場合の混入元。
-- 重複連結値: 36507314 のような、スコア、順位、王冠差分の連結候補。
-- 異常桁: 8桁以上は除外候補。7桁は正常な合計として保持する。
+- Rank numbers: 1-6 card rank badges are outside score targets.
+- Crown bonus: +number values can be mixed into totals or members.
+- Total power: 5-digit power values can appear near score rows.
+- Detail button: outside OCR targets.
+- Joined values: score/rank/crown concatenation can produce 8+ digits.
+- Abnormal digits: 8+ digit values are excluded; 7-digit totals are valid.

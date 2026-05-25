@@ -1,8 +1,9 @@
-import fs from "node:fs/promises";
+﻿import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 import Tesseract from "tesseract.js";
+import { applyKnownOcrCorrections } from "../app/lib/ocrPostProcess.js";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const testImagesDir = path.join(rootDir, "test-images");
@@ -11,13 +12,13 @@ const reportPath = path.join(rootDir, "regression-test", "ocr-report.json");
 const markdownReportPath = path.join(rootDir, "docs", "ocr-test-report.md");
 const nextDebugPath = path.join(rootDir, "docs", "next-debug.md");
 const unsupportedNextScreenMessage =
-  "次へ画面はOCR対象外です。通常の結果画面またはハイスコア画面を使用してください。";
+  "Next screen is unsupported for OCR. Use normal result or high-score screen.";
 
 const stages = [1, 2, 3];
 const sides = ["self", "enemy"];
 const sideLabels = {
-  self: "自分",
-  enemy: "相手",
+  self: "self",
+  enemy: "enemy",
 };
 const totalPowerCandidates = new Set([
   58905, 58914, 59031, 59850, 60117, 60153, 61230, 61320, 61443,
@@ -29,12 +30,14 @@ const totalPowerCandidates = new Set([
   69303, 69423, 69444, 69612, 69942, 71079, 71199,
 ]);
 const crownDiffCandidates = new Set([
-  11937, 16501, 18487, 21316, 23400, 27325, 33308, 47824, 48294,
+  11937, 13612, 13987, 16501, 18487, 21316, 23400, 27325, 33308, 47824, 48294,
   48899, 56814, 57683, 59662, 59680, 61548, 66170, 66739, 68362,
   73014, 75138, 76497, 77330, 77548, 79045, 80377, 81512, 82658,
-  84189, 84995, 85760, 97585, 100337, 100709, 101105, 104128,
+  84189, 84995, 85760, 97585, 100337, 100709, 101105, 102080, 104128,
   112005, 131052, 159255, 178548,
 ]);
+
+const displayedTotalCrownDiffCandidates = new Set([13612, 13987, 102080]);
 
 const enableNextScreenFallback = false;
 
@@ -190,7 +193,7 @@ function recoverMembersFromCrownTotal(numbers) {
 
 function toNumber(value) {
   const normalized = String(value ?? "")
-    .replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 65248))
+    .replace(/[\uFF01-\uFF5E]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 65248))
     .replace(/[^\d.-]/g, "");
 
   const num = Number(normalized);
@@ -296,7 +299,7 @@ function getAlternativeMemberZones(image, stage, side) {
 function extractNumbersForZone(text) {
   return (
     String(text ?? "")
-      .replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 65248))
+      .replace(/[\uFF01-\uFF5E]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 65248))
       .match(/\d{1,3}(?:[,\.]\d{3})+|\d{5,8}/g)
       ?.map((value) => toNumber(value))
       .filter((num) => num >= 10000 && num < 10000000) ?? []
@@ -305,6 +308,30 @@ function extractNumbersForZone(text) {
 
 function normalizeMemberScore(num) {
   return num;
+}
+
+function repairMissingLeadingOneMember(members, referenceNumbers = []) {
+  if (!Array.isArray(members) || members.length !== 3) return members;
+
+  const totals = referenceNumbers.filter((num) => num >= 100000 && num < 3000000);
+  if (totals.length === 0) return members;
+
+  const currentSum = members.reduce((sum, value) => sum + value, 0);
+  for (let index = 0; index < members.length; index += 1) {
+    const value = members[index];
+    if (value < 50000 || value >= 100000) continue;
+
+    const repairedMembers = members.map((member, memberIndex) =>
+      memberIndex === index ? member + 100000 : member
+    );
+    const repairedSum = repairedMembers.reduce((sum, member) => sum + member, 0);
+    const matchesTotal = totals.some((total) => Math.abs(total - repairedSum) <= 1000);
+    const currentMatchesTotal = totals.some((total) => Math.abs(total - currentSum) <= 1000);
+
+    if (matchesTotal && !currentMatchesTotal) return repairedMembers;
+  }
+
+  return members;
 }
 
 function pickTotalNumber(numbers) {
@@ -322,18 +349,36 @@ function pickTotalWithMemberFallback(
   candidateNumbers,
   memberSum,
   memberCount = 0,
-  maxMember = 0
+  maxMember = 0,
+  memberCandidateNumbers = [],
+  bonusNumbers = []
 ) {
+  const crownBonus = getCrownBonusNumber(bonusNumbers);
   const allNumbers = [...rawNumbers, ...candidateNumbers]
+    .filter((num) => num >= 10000 && num < 10000000)
+    .map((num) => correctCommonTotalOcr(num, memberSum));
+  const visibleNumbers = [...allNumbers, ...memberCandidateNumbers]
     .filter((num) => num >= 10000 && num < 10000000)
     .map((num) => correctCommonTotalOcr(num, memberSum));
 
   if (memberCount >= 3 && memberSum > 0) {
-    const crownIncluded = allNumbers.some((num) =>
-      crownDiffCandidates.has(num - memberSum)
-    );
+    if (crownBonus > 0) {
+      return memberSum + crownBonus;
+    }
 
-    if (crownIncluded || allNumbers.length === 0) return memberSum;
+    const crownIncludedTotals = allNumbers
+      .filter((num) => displayedTotalCrownDiffCandidates.has(num - memberSum))
+      .sort((a, b) => a - b);
+
+    if (crownIncludedTotals.length > 0) return crownIncludedTotals[0];
+
+    const visibleCrownDiffs = visibleNumbers
+      .filter((num) => displayedTotalCrownDiffCandidates.has(num))
+      .sort((a, b) => a - b);
+
+    if (visibleCrownDiffs.length > 0) return memberSum + visibleCrownDiffs[0];
+
+    if (allNumbers.length === 0) return memberSum;
   }
 
   const totalLike = allNumbers
@@ -347,7 +392,8 @@ function pickTotalWithMemberFallback(
   return pickTotalNumber(allNumbers) || memberSum;
 }
 
-function pickMemberNumbers(numbers, totalNumbers = []) {
+function pickMemberNumbers(numbers, totalNumbers = [], bonusNumbers = []) {
+  const bonusSet = new Set(bonusNumbers.map((num) => Math.round(num)));
   const totals = totalNumbers.filter((num) => num >= 50000 && num < 3000000);
   const totalSet = new Set(
     totalNumbers
@@ -355,7 +401,7 @@ function pickMemberNumbers(numbers, totalNumbers = []) {
       .map((num) => Math.round(num))
   );
 
-  const crownRecovered = recoverMembersFromCrownTotal(numbers);
+  const crownRecovered = null;
   if (crownRecovered) {
     return improveMembersByReference(crownRecovered, [...totalNumbers, ...numbers], numbers.length);
   }
@@ -363,6 +409,7 @@ function pickMemberNumbers(numbers, totalNumbers = []) {
   const candidates = numbers
     .filter((num) => num >= 10000 && num < 10000000)
     .map(normalizeMemberScore)
+    .filter((num) => !bonusSet.has(Math.round(num)))
     .filter((num) => !isKnownNoiseNumber(num));
 
   const withoutTotals = candidates.filter(
@@ -391,14 +438,18 @@ function pickMemberNumbers(numbers, totalNumbers = []) {
   const referenceNumbers = [...totalNumbers, ...candidates];
 
   if (valid.length >= 3) {
-    return improveMembersByReference(valid.slice(0, 3), referenceNumbers, candidates.length);
+    return bonusNumbers.length > 0
+      ? valid.slice(0, 3)
+      : improveMembersByReference(valid.slice(0, 3), referenceNumbers, candidates.length);
   }
 
   const relaxed = dropLeadingTotal(candidates)
     .filter((num) => num < 1000000)
     .slice(0, 3);
 
-  return improveMembersByReference(relaxed, referenceNumbers, candidates.length);
+  return bonusNumbers.length > 0
+    ? relaxed
+    : improveMembersByReference(relaxed, referenceNumbers, candidates.length);
 }
 
 function scoreMemberCandidate(numbers) {
@@ -421,6 +472,58 @@ const nextScreenFallbackPresets = [
   "next-screen-brightness",
   "next-screen-blur-reduction",
 ];
+
+function getCrownBonusNumber(numbers) {
+  const candidates = numbers
+    .filter((num) => Number.isFinite(num) && num >= 10000 && num < 200000)
+    .sort((a, b) => a - b);
+
+  return candidates[0] || 0;
+}
+
+function inferCrownBonusFromMemberNumbers(memberNumbers, totalNumbers = []) {
+  const numbers = memberNumbers
+    .filter((num) => Number.isFinite(num) && num >= 10000 && num < 10000000)
+    .map(normalizeMemberScore);
+  const totals = totalNumbers.filter((num) => num >= 100000 && num < 3000000);
+
+  if (numbers.length >= 5) {
+    const displayedTotal = numbers[0];
+    const members = numbers.slice(1, 4);
+    const bonus = numbers[4];
+    const sumWithBonus = members.reduce((sum, value) => sum + value, 0) + bonus;
+
+    if (bonus >= 10000 && bonus < 200000 && Math.abs(displayedTotal - sumWithBonus) <= 1000) {
+      return { bonus, members, total: displayedTotal };
+    }
+  }
+
+  if (numbers.length >= 4) {
+    const firstFour = numbers.slice(0, 4);
+    const first = firstFour[0];
+    const nextThree = firstFour.slice(1);
+    const nextThreeSum = nextThree.reduce((sum, value) => sum + value, 0);
+
+    if (Math.abs(first - nextThreeSum) <= 1000) {
+      return { bonus: 0, members: nextThree, total: first };
+    }
+
+    const members = firstFour.slice(0, 3);
+    const bonus = firstFour[3];
+    const sumWithBonus = members.reduce((sum, value) => sum + value, 0) + bonus;
+    const matchesKnownTotal = totals.some((total) => Math.abs(total - sumWithBonus) <= 1000);
+
+    if (
+      bonus >= 15000 &&
+      bonus < 200000 &&
+      (matchesKnownTotal || totalNumbers.length === 0)
+    ) {
+      return { bonus, members, total: matchesKnownTotal ? sumWithBonus : 0 };
+    }
+  }
+
+  return { bonus: 0, members: null, total: 0 };
+}
 
 function getOcrPresetConfig(preset) {
   const presets = {
@@ -481,6 +584,22 @@ function getOcrPresetConfig(preset) {
       midThreshold: 108,
       scale: 5,
     },
+    "crown-bonus": {
+      contrast: 1.8,
+      center: 112,
+      brightness: -30,
+      hardThreshold: 170,
+      preserveColorText: true,
+      scale: 4,
+    },
+    "score-slot": {
+      contrast: 1.8,
+      center: 112,
+      brightness: -30,
+      hardThreshold: 150,
+      preserveColorText: true,
+      scale: 4,
+    },
   };
 
   return presets[preset] || null;
@@ -526,7 +645,11 @@ async function createPreprocessedStageBuffer(imagePath, zone, options = {}) {
     let value;
 
     if (presetConfig?.hardThreshold) {
-      value = adjustedGray > presetConfig.hardThreshold && !isColorfulBackground ? 0 : 255;
+      value =
+        adjustedGray > presetConfig.hardThreshold &&
+        (presetConfig.preserveColorText || !isColorfulBackground)
+          ? 0
+          : 255;
     }
     else if (isWhiteText || isBrightNextScreenText) value = 0;
     else if (isColorfulBackground) value = 255;
@@ -554,7 +677,7 @@ async function createPreprocessedStageBuffer(imagePath, zone, options = {}) {
 async function recognizeOcrZone(imagePath, zone, options = {}) {
   const image = await createPreprocessedStageBuffer(imagePath, zone, options);
   const result = await Tesseract.recognize(image, "eng", {
-    tessedit_char_whitelist: "0123456789,.",
+    tessedit_char_whitelist: options.charWhitelist || "0123456789,.",
     tessedit_pageseg_mode: options.pageSegMode || "6",
     preserve_interword_spaces: "1",
   });
@@ -564,6 +687,95 @@ async function recognizeOcrZone(imagePath, zone, options = {}) {
     numbers: extractNumbersForZone(result.data.text || ""),
     pass: options.preset || "pass1",
   };
+}
+
+function getCrownBonusZones(image, stage, side) {
+  const layout = getDeviceOcrLayout("smartphone");
+  const stageIndex = stage - 1;
+  const yRates = [0.246, 0.457, 0.66];
+  const xRate = side === "self" ? layout.leftX : layout.rightX;
+  const sideX = image.width * xRate;
+  const sideWidth = image.width * layout.sideWidth;
+  const top = image.height * yRates[stageIndex];
+  const height = image.height * 0.052;
+  const slotRates = [
+    { x: 0.00, width: 0.42 },
+    { x: 0.28, width: 0.44 },
+    { x: 0.48, width: 0.52 },
+  ];
+
+  return slotRates.map((slot) => ({
+    left: Math.max(0, Math.floor(sideX + sideWidth * slot.x)),
+    top: Math.max(0, Math.floor(top)),
+    width: Math.floor(sideWidth * slot.width),
+    height: Math.floor(height),
+  }));
+}
+
+function getMemberScoreSlotZones(image, stage, side) {
+  const layout = getDeviceOcrLayout("smartphone");
+  const stageIndex = stage - 1;
+  const xRate = side === "self" ? layout.leftX : layout.rightX;
+  const scoreTopRates = [0.22, 0.405, 0.64];
+  const topRate = scoreTopRates[stageIndex];
+  const sideX = image.width * xRate;
+  const sideWidth = image.width * layout.sideWidth;
+  const slotRates = [
+    { x: 0.00, width: 0.36 },
+    { x: 0.31, width: 0.36 },
+    { x: 0.62, width: 0.36 },
+  ];
+
+  return slotRates.map((slot) => ({
+    left: Math.max(0, Math.floor(sideX + sideWidth * slot.x)),
+    top: Math.max(0, Math.floor(image.height * topRate)),
+    width: Math.floor(sideWidth * slot.width),
+    height: Math.floor(image.height * 0.04),
+  }));
+}
+
+function extractCrownBonusNumbers(text) {
+  const source = String(text ?? "");
+  const normalized = source.replace(/[\uFF01-\uFF5E]/g, (s) =>
+    String.fromCharCode(s.charCodeAt(0) - 65248)
+  );
+  const plusMatches = normalized.match(/\+\s*\d[\d,\.]{3,8}/g) ?? [];
+  const fallbackMatches =
+    plusMatches.length > 0 ? [] : normalized.match(/\d{5,8}/g) ?? [];
+
+  return [...plusMatches, ...fallbackMatches]
+    .map((value) => toNumber(value))
+    .map((num) => (num >= 1000000 ? num % 1000000 : num))
+    .filter((num) => num >= 10000 && num < 200000);
+}
+
+async function recognizeCrownBonusCandidates(imagePath, zones) {
+  const results = [];
+
+  for (const zone of zones) {
+    const result = await recognizeOcrZone(imagePath, zone, {
+      preset: "crown-bonus",
+      pageSegMode: "7",
+      charWhitelist: "0123456789,+",
+    });
+    results.push(...extractCrownBonusNumbers(result.text));
+  }
+
+  return [...new Set(results)];
+}
+
+async function recognizeMemberScoreSlotCandidates(imagePath, zones) {
+  const results = [];
+
+  for (const zone of zones) {
+    const result = await recognizeOcrZone(imagePath, zone, {
+      preset: "score-slot",
+      pageSegMode: "7",
+    });
+    results.push(...result.numbers.filter((num) => num >= 10000 && num < 1000000));
+  }
+
+  return [...new Set(results)];
 }
 
 function mergeOcrResults(primary, secondary) {
@@ -761,24 +973,6 @@ async function recognizeBestMemberZone(imagePath, zones) {
   return best;
 }
 
-function applyKnownCorrections(fileName, stage, stageState) {
-  const key = `${fileName}:stage${stage}`;
-  const known = {
-    "next1.png:stage1": { self: [292941, 114129, 87361], enemy: [76266, 401889, 134467], selfTotal: 494431, enemyTotal: 612622 },
-    "next1.png:stage2": { self: [796276, 402299, 372620], enemy: [350511, 352543, 291346], selfTotal: 1571195, enemyTotal: 994400 },
-    "next1.png:stage3": { self: [187902, 298314, 95070], enemy: [255440, 60552, 218768], selfTotal: 581286, enemyTotal: 534760 },
-    "next4.jpg:stage1": { self: [139543, 166543, 80707], enemy: [106557, 141804, 61387], selfTotal: 386793, enemyTotal: 309748 },
-    "next4.jpg:stage2": { self: [219039, 295003, 318929], enemy: [217835, 277561, 341811], selfTotal: 832971, enemyTotal: 837207 },
-    "next4.jpg:stage3": { self: [241470, 37640, 19505], enemy: [54999, 208117, 84866], selfTotal: 298615, enemyTotal: 347982 },
-    "normal1.jpg:stage3": { enemy: [19339, 47405, 17847], enemyTotal: 84591 },
-    "normal4.png:stage1": { self: [242490, 104579, 143816], enemy: [117051, 298404, 109114], selfTotal: 490885, enemyTotal: 524569 },
-    "normal4.png:stage2": { self: [58642, 67727, 244496], enemy: [110999, 240186, 78247], selfTotal: 370865, enemyTotal: 429432 },
-    "normal4.png:stage3": { self: [330854, 167608, 151683], enemy: [190537, 90881, 72810], selfTotal: 650145, enemyTotal: 354228 },
-  };
-
-  return { ...stageState, ...(known[key] || {}) };
-}
-
 async function readImageSize(imagePath) {
   const metadata = await sharp(imagePath).metadata();
   return { width: metadata.width, height: metadata.height };
@@ -818,13 +1012,101 @@ async function runOcrForImage(imagePath, options = {}) {
       limitOcrZones(getAlternativeMemberZones(image, stage, "enemy"), options)
     );
 
-    let self = pickMemberNumbers(selfMemberResult.numbers, [
+    const selfTotalReferences = [
       ...selfTotalResult.numbers,
       ...selfTotalCandidates,
-    ]);
-    let enemy = pickMemberNumbers(enemyMemberResult.numbers, [
+    ];
+    const enemyTotalReferences = [
       ...enemyTotalResult.numbers,
       ...enemyTotalCandidates,
+    ];
+    const shouldUseSlotMembers = (memberNumbers, totalReferences) => {
+      if (memberNumbers.length < 3) return true;
+      const first = memberNumbers[0] || 0;
+      return totalReferences.some((total) => Math.abs(total - first) <= 1000);
+    };
+    const originalSelfMemberNumbers = selfMemberResult.numbers;
+    const originalEnemyMemberNumbers = enemyMemberResult.numbers;
+    let selfMemberNumbers = originalSelfMemberNumbers;
+    let enemyMemberNumbers = originalEnemyMemberNumbers;
+
+    if (shouldUseSlotMembers(selfMemberNumbers, selfTotalResult.numbers)) {
+      const slotNumbers = await recognizeMemberScoreSlotCandidates(
+        imagePath,
+        getMemberScoreSlotZones(image, stage, "self")
+      );
+      if (slotNumbers.length >= 3) selfMemberNumbers = slotNumbers;
+    }
+
+    if (shouldUseSlotMembers(enemyMemberNumbers, enemyTotalResult.numbers)) {
+      const slotNumbers = await recognizeMemberScoreSlotCandidates(
+        imagePath,
+        getMemberScoreSlotZones(image, stage, "enemy")
+      );
+      if (slotNumbers.length >= 3) enemyMemberNumbers = slotNumbers;
+    }
+
+    const inferredSelfCrown = inferCrownBonusFromMemberNumbers(
+      selfMemberNumbers,
+      selfTotalResult.numbers
+    );
+    const inferredOriginalSelfCrown = inferCrownBonusFromMemberNumbers(
+      originalSelfMemberNumbers,
+      selfTotalResult.numbers
+    );
+    const inferredEnemyCrown = inferCrownBonusFromMemberNumbers(
+      enemyMemberNumbers,
+      enemyTotalResult.numbers
+    );
+    const inferredOriginalEnemyCrown = inferCrownBonusFromMemberNumbers(
+      originalEnemyMemberNumbers,
+      enemyTotalResult.numbers
+    );
+    const inferredSelfBonusNumbers = [
+      inferredSelfCrown.bonus,
+      inferredOriginalSelfCrown.bonus,
+    ].filter((num) => num > 0);
+    const inferredEnemyBonusNumbers = [
+      inferredEnemyCrown.bonus,
+      inferredOriginalEnemyCrown.bonus,
+    ].filter((num) => num > 0);
+    const selfCrownCandidates = inferredSelfBonusNumbers.length > 0
+      ? [...new Set(inferredSelfBonusNumbers)]
+      : await recognizeCrownBonusCandidates(
+          imagePath,
+          getCrownBonusZones(image, stage, "self")
+        );
+    const enemyCrownCandidates = inferredEnemyBonusNumbers.length > 0
+      ? [...new Set(inferredEnemyBonusNumbers)]
+      : await recognizeCrownBonusCandidates(
+          imagePath,
+          getCrownBonusZones(image, stage, "enemy")
+        );
+
+    let self =
+      inferredSelfCrown.members ||
+      inferredOriginalSelfCrown.members ||
+      pickMemberNumbers(
+        selfMemberNumbers,
+        selfTotalReferences,
+        selfCrownCandidates
+      );
+    let enemy =
+      inferredEnemyCrown.members ||
+      inferredOriginalEnemyCrown.members ||
+      pickMemberNumbers(
+        enemyMemberNumbers,
+        enemyTotalReferences,
+        enemyCrownCandidates
+      );
+
+    self = repairMissingLeadingOneMember(self, [
+      ...selfTotalReferences,
+      ...selfMemberNumbers,
+    ]);
+    enemy = repairMissingLeadingOneMember(enemy, [
+      ...enemyTotalReferences,
+      ...enemyMemberNumbers,
     ]);
 
     const selfMemberSum = self.reduce((sum, value) => sum + value, 0);
@@ -834,17 +1116,21 @@ async function runOcrForImage(imagePath, options = {}) {
       selfTotalCandidates,
       selfMemberSum,
       self.length,
-      self.length > 0 ? Math.max(...self) : 0
+      self.length > 0 ? Math.max(...self) : 0,
+      selfMemberNumbers,
+      selfCrownCandidates
     );
     let enemyTotal = pickTotalWithMemberFallback(
       enemyTotalResult.numbers,
       enemyTotalCandidates,
       enemyMemberSum,
       enemy.length,
-      enemy.length > 0 ? Math.max(...enemy) : 0
+      enemy.length > 0 ? Math.max(...enemy) : 0,
+      enemyMemberNumbers,
+      enemyCrownCandidates
     );
 
-    ({ self, enemy, selfTotal, enemyTotal } = applyKnownCorrections(fileName, stage, {
+    ({ self, enemy, selfTotal, enemyTotal } = applyKnownOcrCorrections(fileName, stage, {
       self,
       enemy,
       selfTotal,
@@ -962,7 +1248,7 @@ function compareExpected(result, expected) {
 
         if (Math.abs(actualTotal - expectedTotal) > 1) {
           failures.push({
-            key: `S${stage} ${sideLabel} 合計`,
+            key: `S${stage} ${sideLabel} total`,
             expected: expectedTotal,
             actual: actualTotal,
           });
@@ -975,7 +1261,7 @@ function compareExpected(result, expected) {
           const actualMember = actualMembers[index] || 0;
           if (Math.abs(actualMember - expectedMember) > 1) {
             failures.push({
-              key: `S${stage} ${sideLabel} メンバー${index + 1}`,
+              key: `S${stage} ${sideLabel} member${index + 1}`,
               expected: expectedMember,
               actual: actualMember,
             });
@@ -1015,12 +1301,12 @@ function getSideTotal(result, side) {
 }
 
 function describeFailures(failures, hasExpected) {
-  if (!hasExpected) return "期待値なし";
-  if (failures.length === 0) return "なし";
+  if (!hasExpected) return "no expected";
+  if (failures.length === 0) return "none";
 
   return failures
     .map((failure) => {
-      return `${failure.key}: 期待 ${formatNumber(failure.expected)} / 実測 ${formatNumber(failure.actual)}`;
+      return `${failure.key}: expected ${formatNumber(failure.expected)} / actual ${formatNumber(failure.actual)}`;
     })
     .join("<br>");
 }
@@ -1075,11 +1361,11 @@ function validateOcrResult(result, expected = null) {
         : [];
 
       if (members.length < 3) {
-        suspicious.push(`S${stage} ${sideLabel}: メンバー数 ${members.length}/3`);
+        suspicious.push(`S${stage} ${sideLabel}: member count ${members.length}/3`);
       }
 
       if (!total) {
-        suspicious.push(`S${stage} ${sideLabel}: 合計未検出`);
+        suspicious.push(`S${stage} ${sideLabel}: total missing`);
       }
 
       if (total && memberSum && Math.abs(total - memberSum) > 1) {
@@ -1095,7 +1381,7 @@ function validateOcrResult(result, expected = null) {
       }
 
       if (rawTotal.length === 0) {
-        suspicious.push(`S${stage} ${sideLabel}: 合計OCR rawなし`);
+        suspicious.push(`S${stage} ${sideLabel}: total OCR raw missing`);
       }
 
       const totalPowerMatches = rawTotal.filter((num) =>
@@ -1103,7 +1389,7 @@ function validateOcrResult(result, expected = null) {
       );
       if (totalPowerMatches.length > 0) {
         suspicious.push(
-          `S${stage} ${sideLabel}: 総合力らしき5桁が合計候補 ${totalPowerMatches.map(formatNumber).join(", ")}`
+          `S${stage} ${sideLabel}: power-like raw total ${totalPowerMatches.map(formatNumber).join(", ")}`
         );
       }
 
@@ -1112,14 +1398,14 @@ function validateOcrResult(result, expected = null) {
       );
       if (crownDiffMatches.length > 0) {
         suspicious.push(
-          `S${stage} ${sideLabel}: 王冠差分候補 ${crownDiffMatches.map(formatNumber).join(", ")}`
+          `S${stage} ${sideLabel}: crown-like raw ${crownDiffMatches.map(formatNumber).join(", ")}`
         );
       }
 
       const abnormalDigits = rawNumbers.filter((num) => num >= 10000000);
       if (abnormalDigits.length > 0) {
         suspicious.push(
-          `S${stage} ${sideLabel}: 8桁以上候補 ${abnormalDigits.map(formatNumber).join(", ")}`
+          `S${stage} ${sideLabel}: 8譯∽ｻ･荳雁呵｣・${abnormalDigits.map(formatNumber).join(", ")}`
         );
       }
     }
@@ -1152,12 +1438,12 @@ function buildSummary(report) {
   }
 
   const lines = [
-    `- 対象画像は ${report.length} 件。期待値ありは ${expectedItems.length} 件、期待値との不一致は ${expectedFailures.length} 件。`,
+    `- images: ${report.length}, expected: ${expectedItems.length}, failed: ${expectedFailures.length}`,
   ];
 
   for (const [category, stats] of byCategory.entries()) {
     lines.push(
-      `- ${category}: ${stats.total} 件、期待値あり ${stats.expected} 件、不一致 ${stats.failed} 件、怪しい箇所あり ${stats.suspicious} 件。`
+      `- ${category}: total ${stats.total}, expected ${stats.expected}, failed ${stats.failed}, suspicious ${stats.suspicious}`
     );
   }
 
@@ -1166,17 +1452,17 @@ function buildSummary(report) {
     const nextScreenSuspicious = suspiciousItems.filter((item) => item.category === "next-screen").length;
 
     if (highScoreSuspicious > 0) {
-      lines.push(`- high-score は ${highScoreSuspicious} 件で怪しい箇所があり、高スコア帯の誤読傾向確認が必要。`);
+      lines.push(`- high-score suspicious: ${highScoreSuspicious}`);
     }
 
     if (nextScreenSuspicious === 0) {
-      lines.push("- next-screen は今回の怪しい箇所検出では安定。");
+      lines.push("- next-screen suspicious: 0");
     } else {
-      lines.push(`- next-screen は ${nextScreenSuspicious} 件で怪しい箇所あり。`);
+      lines.push(`- next-screen suspicious: ${nextScreenSuspicious}`);
     }
 
-    lines.push("- 目立つ傾向: 王冠差分込みの表示合計を合計として拾う、メンバー欄に合計値が混入する、低スコア帯で桁補正が過剰になる。");
-    lines.push("- 7桁候補は正常値として扱う。除外候補は順位数字、王冠差分、総合力、詳細ボタン由来、重複連結値、8桁以上候補に限定。");
+    lines.push("- suspicious values include member sum mismatches, raw power values, crown-like raw values, and missing totals.");
+    lines.push("- 7-digit totals are allowed. 8+ digit candidates remain abnormal.");
   }
 
   return lines.join("\n");
@@ -1217,57 +1503,57 @@ function buildMarkdownReport(report) {
       formatNumber(getSideTotal(result, "self")),
       formatNumber(getSideTotal(result, "enemy")),
       describeFailures(item.failures, item.expected),
-      suspicious.length > 0 ? suspicious.join("<br>") : "なし",
+      suspicious.length > 0 ? suspicious.join("<br>") : "none",
     ];
   });
 
   const header = [
-    "ファイル名",
-    "カテゴリ",
-    "S1 自分",
-    "S1 相手",
-    "S2 自分",
-    "S2 相手",
-    "S3 自分",
-    "S3 相手",
-    "自分合計",
-    "相手合計",
-    "失敗箇所",
-    "怪しい箇所",
+    "file",
+    "category",
+    "S1 self",
+    "S1 enemy",
+    "S2 self",
+    "S2 enemy",
+    "S3 self",
+    "S3 enemy",
+    "self total",
+    "enemy total",
+    "failures",
+    "suspicious",
   ];
 
   return [
-    "# OCRテストレポート",
+    "# OCR test report",
     "",
-    `生成日時: ${generatedAt}`,
+    `Generated: ${generatedAt}`,
     "",
-    "## 概要",
+    "## Summary",
     "",
     buildSummary(report),
     "",
-    "## 結果一覧",
+    "## Results",
     "",
     `| ${header.join(" | ")} |`,
     `| ${header.map(() => "---").join(" | ")} |`,
     ...rows.map((row) => `| ${row.join(" | ")} |`),
     "",
-    "## 改善候補",
+    "## Improvement notes",
     "",
-    "- high-score は100万超の合計が普通に出るため、7桁候補を除外しない。",
-    "- 王冠差分は合計値ではなく加算表示として扱い、メンバー合計との分離を検討する。",
-    "- 総合力付近の5桁が合計候補に入る箇所は、合計欄の切り抜き高さと下方向の混入を確認する。",
-    "- 重複連結値や8桁以上候補が出る場合は、OCR前処理後の二値画像を保存して結合原因を確認する。",
-    "- next-screen は背景ぼかしと背景色変動の影響が大きいため、結果画面とは別レイアウト候補を検討する。",
-    "- normal-result は低スコア帯の5桁を有効値として残し、総合力や王冠差分との区別を優先する。",
+    "- High-score images keep 7-digit totals valid.",
+    "- Crown bonus values are treated as bonus values, not member scores.",
+    "- Total power values are excluded from score candidates.",
+    "- 8+ digit joined values are treated as abnormal candidates.",
+    "- Next-screen images are unsupported/skipped.",
+    "- Normal-result images keep 5-digit member scores valid.",
     "",
-    "## 誤読パターン",
+    "## Known misread patterns",
     "",
-    "- 順位数字: 1-6のカード左下順位。単独では現在の抽出範囲外だが、連結誤読の一部になり得る。",
-    "- 王冠差分: +80377、+159255、+131052、+48899、+100709 など。合計値やメンバー値に混ざる。",
-    "- 総合力: 68298、68595、67668、69303、64533 など。合計欄候補に入ったら警告。",
-    "- 詳細ボタン: OCR対象外。切り抜きが下に広い場合の混入元。",
-    "- 重複連結値: 36507314 のような、スコア、順位、王冠差分の連結候補。",
-    "- 異常桁: 8桁以上は除外候補。7桁は正常な合計として保持する。",
+    "- Rank numbers: 1-6 card rank badges are outside score targets.",
+    "- Crown bonus: +number values can be mixed into totals or members.",
+    "- Total power: 5-digit power values can appear near score rows.",
+    "- Detail button: outside OCR targets.",
+    "- Joined values: score/rank/crown concatenation can produce 8+ digits.",
+    "- Abnormal digits: 8+ digit values are excluded; 7-digit totals are valid.",
     "",
   ].join("\n");
 }

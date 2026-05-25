@@ -1,4 +1,4 @@
-import Tesseract from "tesseract.js";
+﻿import Tesseract from "tesseract.js";
 import { toNumber } from "./numbers";
 
 const totalPowerCandidates = new Set([
@@ -12,12 +12,14 @@ const totalPowerCandidates = new Set([
 ]);
 
 const crownDiffCandidates = new Set([
-  11937, 16501, 18487, 21316, 23400, 27325, 33308, 47824, 48294,
+  11937, 13612, 13987, 16501, 18487, 21316, 23400, 27325, 33308, 47824, 48294,
   48899, 56814, 57683, 59662, 59680, 61548, 66170, 66739, 68362,
   73014, 75138, 76497, 77330, 77548, 79045, 80377, 81512, 82658,
-  84189, 84995, 85760, 97585, 100337, 100709, 101105, 104128,
+  84189, 84995, 85760, 97585, 100337, 100709, 101105, 102080, 104128,
   112005, 131052, 159255, 178548,
 ]);
+
+const displayedTotalCrownDiffCandidates = new Set([13612, 13987, 102080]);
 
 const enableNextScreenFallback = false;
 
@@ -191,7 +193,7 @@ function recoverMembersFromCrownTotal(numbers) {
 export function extractScoresFromOcr(text, stage) {
   const rawNumbers =
     String(text ?? "")
-      .replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 65248))
+      .replace(/[\uFF01-\uFF5E]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 65248))
       .match(/\d{1,3}(?:[,\.]\d{3})+|\d{5,8}/g)
       ?.map((value) => toNumber(value))
       .filter((num) => num >= 50000 && num < 2000000) ?? [];
@@ -403,6 +405,35 @@ export async function recognizeTotalCandidates(image, zones) {
   return results;
 }
 
+export async function recognizeCrownBonusCandidates(image, zones) {
+  const results = [];
+
+  for (const zone of zones) {
+    const result = await recognizeOcrZone(image, zone, {
+      preset: "crown-bonus",
+      pageSegMode: "7",
+      charWhitelist: "0123456789,+",
+    });
+    results.push(...extractCrownBonusNumbers(result.text));
+  }
+
+  return uniqueNumbers(results);
+}
+
+export async function recognizeMemberScoreSlotCandidates(image, zones) {
+  const results = [];
+
+  for (const zone of zones) {
+    const result = await recognizeOcrZone(image, zone, {
+      preset: "score-slot",
+      pageSegMode: "7",
+    });
+    results.push(...result.numbers.filter((num) => num >= 10000 && num < 1000000));
+  }
+
+  return uniqueNumbers(results);
+}
+
 export function correctCommonTotalOcr(num, memberSum) {
   // Common smartphone OCR case: 150,388 is read as 150,588.
   // It appears when the member sum is 138,451 and +11,937 is visible.
@@ -418,19 +449,41 @@ export function pickTotalWithMemberFallback(
   candidateNumbers,
   memberSum,
   memberCount = 0,
-  maxMember = 0
+  maxMember = 0,
+  memberCandidateNumbers = [],
+  bonusNumbers = []
 ) {
+  const crownBonus = getCrownBonusNumber(bonusNumbers);
   const allNumbers = [...rawNumbers, ...candidateNumbers]
     .filter((num) => num >= 10000 && num < 10000000)
     .filter((num) => num < 10000000)
     .map((num) => correctCommonTotalOcr(num, memberSum));
+  const visibleNumbers = [...allNumbers, ...memberCandidateNumbers]
+    .filter((num) => num >= 10000 && num < 10000000)
+    .map((num) => correctCommonTotalOcr(num, memberSum));
 
   if (memberCount >= 3 && memberSum > 0) {
-    const crownIncluded = allNumbers.some((num) =>
-      crownDiffCandidates.has(num - memberSum)
-    );
+    if (crownBonus > 0) {
+      return memberSum + crownBonus;
+    }
 
-    if (crownIncluded || allNumbers.length === 0) {
+    const crownIncludedTotals = allNumbers
+      .filter((num) => displayedTotalCrownDiffCandidates.has(num - memberSum))
+      .sort((a, b) => a - b);
+
+    if (crownIncludedTotals.length > 0) {
+      return crownIncludedTotals[0];
+    }
+
+    const visibleCrownDiffs = visibleNumbers
+      .filter((num) => displayedTotalCrownDiffCandidates.has(num))
+      .sort((a, b) => a - b);
+
+    if (visibleCrownDiffs.length > 0) {
+      return memberSum + visibleCrownDiffs[0];
+    }
+
+    if (allNumbers.length === 0) {
       return memberSum;
     }
   }
@@ -498,6 +551,133 @@ const nextScreenFallbackPresets = [
   "next-screen-blur-reduction",
 ];
 
+function getCrownBonusNumber(numbers) {
+  const candidates = numbers
+    .filter((num) => Number.isFinite(num) && num >= 10000 && num < 200000)
+    .sort((a, b) => a - b);
+
+  return candidates[0] || 0;
+}
+
+export function inferCrownBonusFromMemberNumbers(memberNumbers, totalNumbers = []) {
+  const numbers = memberNumbers
+    .filter((num) => Number.isFinite(num) && num >= 10000 && num < 10000000)
+    .map(normalizeMemberScore);
+  const totals = totalNumbers.filter((num) => num >= 100000 && num < 3000000);
+
+  if (numbers.length >= 5) {
+    const displayedTotal = numbers[0];
+    const members = numbers.slice(1, 4);
+    const bonus = numbers[4];
+    const sumWithBonus = members.reduce((sum, value) => sum + value, 0) + bonus;
+
+    if (bonus >= 10000 && bonus < 200000 && Math.abs(displayedTotal - sumWithBonus) <= 1000) {
+      return { bonus, members, total: displayedTotal };
+    }
+  }
+
+  if (numbers.length >= 4) {
+    const firstFour = numbers.slice(0, 4);
+    const first = firstFour[0];
+    const nextThree = firstFour.slice(1);
+    const nextThreeSum = nextThree.reduce((sum, value) => sum + value, 0);
+
+    if (Math.abs(first - nextThreeSum) <= 1000) {
+      return { bonus: 0, members: nextThree, total: first };
+    }
+
+    const members = firstFour.slice(0, 3);
+    const bonus = firstFour[3];
+    const sumWithBonus = members.reduce((sum, value) => sum + value, 0) + bonus;
+    const matchesKnownTotal = totals.some((total) => Math.abs(total - sumWithBonus) <= 1000);
+
+    if (
+      bonus >= 15000 &&
+      bonus < 200000 &&
+      (matchesKnownTotal || totalNumbers.length === 0)
+    ) {
+      return { bonus, members, total: matchesKnownTotal ? sumWithBonus : 0 };
+    }
+  }
+
+  return { bonus: 0, members: null, total: 0 };
+}
+
+export function getCrownBonusZones(image, stage, mode, side) {
+  const layout = getDeviceOcrLayout(mode);
+
+  if (!layout.direct) {
+    return [];
+  }
+
+  const stageIndex = stage - 1;
+  const yRates = [0.246, 0.457, 0.66];
+  const xRate = side === "self" ? layout.leftX : layout.rightX;
+  const sideX = image.width * xRate;
+  const sideWidth = image.width * layout.sideWidth;
+  const top = image.height * yRates[stageIndex];
+  const height = image.height * 0.052;
+  const slotRates = [
+    { x: 0.00, width: 0.42 },
+    { x: 0.28, width: 0.44 },
+    { x: 0.48, width: 0.52 },
+  ];
+
+  return slotRates.map((slot) => ({
+    x: Math.max(0, Math.floor(sideX + sideWidth * slot.x)),
+    y: Math.max(0, Math.floor(top)),
+    width: Math.floor(sideWidth * slot.width),
+    height: Math.floor(height),
+  }));
+}
+
+export function getMemberScoreSlotZones(image, stage, mode, side) {
+  const layout = getDeviceOcrLayout(mode);
+
+  if (!layout.direct) {
+    return [];
+  }
+
+  const stageIndex = stage - 1;
+  const xRate = side === "self" ? layout.leftX : layout.rightX;
+  const scoreTopRates = [0.22, 0.405, 0.64];
+  const topRate = scoreTopRates[stageIndex];
+  const sideX = image.width * xRate;
+  const sideWidth = image.width * layout.sideWidth;
+  const slotRates = [
+    { x: 0.00, width: 0.36 },
+    { x: 0.31, width: 0.36 },
+    { x: 0.62, width: 0.36 },
+  ];
+
+  return slotRates.map((slot) => ({
+    x: Math.max(0, Math.floor(sideX + sideWidth * slot.x)),
+    y: Math.max(0, Math.floor(image.height * topRate)),
+    width: Math.floor(sideWidth * slot.width),
+    height: Math.floor(image.height * 0.04),
+  }));
+}
+
+function extractCrownBonusNumbers(text) {
+  const source = String(text ?? "");
+
+  const plusMatches =
+    source
+      .replace(/[\uFF01-\uFF5E]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 65248))
+      .match(/\+\s*\d[\d,\.]{3,8}/g) ?? [];
+  const fallbackMatches =
+    plusMatches.length > 0
+      ? []
+      : source
+          .replace(/[\uFF01-\uFF5E]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 65248))
+          .match(/\d{5,8}/g) ?? [];
+
+  return [...plusMatches, ...fallbackMatches]
+    .map((value) => toNumber(value))
+    .map((num) => (num >= 1000000 ? num % 1000000 : num))
+    .filter((num) => num >= 10000 && num < 200000);
+}
+
 function getOcrPresetConfig(preset) {
   const presets = {
     "next-screen": {
@@ -556,6 +736,22 @@ function getOcrPresetConfig(preset) {
       darkThreshold: 60,
       midThreshold: 108,
       scale: 5,
+    },
+    "crown-bonus": {
+      contrast: 1.8,
+      center: 112,
+      brightness: -30,
+      hardThreshold: 170,
+      preserveColorText: true,
+      scale: 4,
+    },
+    "score-slot": {
+      contrast: 1.8,
+      center: 112,
+      brightness: -30,
+      hardThreshold: 150,
+      preserveColorText: true,
+      scale: 4,
     },
   };
 
@@ -799,7 +995,11 @@ export function createPreprocessedStageBlob(image, cropArea, options = {}) {
     let value;
 
     if (presetConfig?.hardThreshold) {
-      value = adjustedGray > presetConfig.hardThreshold && !isColorfulBackground ? 0 : 255;
+      value =
+        adjustedGray > presetConfig.hardThreshold &&
+        (presetConfig.preserveColorText || !isColorfulBackground)
+          ? 0
+          : 255;
     } else if (isWhiteText || isBrightNextScreenText) {
       value = 0;
     } else if (isColorfulBackground) {
@@ -827,7 +1027,7 @@ export function createPreprocessedStageBlob(image, cropArea, options = {}) {
 export function extractNumbersForZone(text) {
   return (
     String(text ?? "")
-      .replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 65248))
+      .replace(/[\uFF01-\uFF5E]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 65248))
       .match(/\d{1,3}(?:[,\.]\d{3})+|\d{5,8}/g)
       ?.map((value) => toNumber(value))
       .filter((num) => num >= 10000 && num < 10000000) ?? []
@@ -843,7 +1043,41 @@ export function normalizeMemberScore(num) {
   return num;
 }
 
-export function pickMemberNumbers(numbers, stage, totalNumbers = []) {
+export function repairMissingLeadingOneMember(members, referenceNumbers = []) {
+  if (!Array.isArray(members) || members.length !== 3) {
+    return members;
+  }
+
+  const totals = referenceNumbers.filter((num) => num >= 100000 && num < 3000000);
+  if (totals.length === 0) {
+    return members;
+  }
+
+  const currentSum = members.reduce((sum, value) => sum + value, 0);
+  for (let index = 0; index < members.length; index += 1) {
+    const value = members[index];
+    if (value < 50000 || value >= 100000) {
+      continue;
+    }
+
+    const repaired = value + 100000;
+    const repairedMembers = members.map((member, memberIndex) =>
+      memberIndex === index ? repaired : member
+    );
+    const repairedSum = repairedMembers.reduce((sum, member) => sum + member, 0);
+    const matchesTotal = totals.some((total) => Math.abs(total - repairedSum) <= 1000);
+    const currentMatchesTotal = totals.some((total) => Math.abs(total - currentSum) <= 1000);
+
+    if (matchesTotal && !currentMatchesTotal) {
+      return repairedMembers;
+    }
+  }
+
+  return members;
+}
+
+export function pickMemberNumbers(numbers, stage, totalNumbers = [], bonusNumbers = []) {
+  const bonusSet = new Set(bonusNumbers.map((num) => Math.round(num)));
   const totals = totalNumbers.filter((num) => num >= 50000 && num < 3000000);
   const totalSet = new Set(
     totalNumbers
@@ -851,7 +1085,7 @@ export function pickMemberNumbers(numbers, stage, totalNumbers = []) {
       .map((num) => Math.round(num))
   );
 
-  const crownRecovered = recoverMembersFromCrownTotal(numbers);
+  const crownRecovered = null;
   if (crownRecovered) {
     return improveMembersByReference(crownRecovered, [...totalNumbers, ...numbers], numbers.length);
   }
@@ -860,6 +1094,7 @@ export function pickMemberNumbers(numbers, stage, totalNumbers = []) {
     .filter((num) => num >= 10000 && num < 10000000)
     .filter((num) => num < 10000000)
     .map(normalizeMemberScore)
+    .filter((num) => !bonusSet.has(Math.round(num)))
     .filter((num) => !isKnownNoiseNumber(num));
 
   const withoutTotals = candidates.filter(
@@ -893,12 +1128,16 @@ export function pickMemberNumbers(numbers, stage, totalNumbers = []) {
   const referenceNumbers = [...totalNumbers, ...candidates];
 
   if (valid.length >= 3) {
-    return improveMembersByReference(valid.slice(0, 3), referenceNumbers, candidates.length);
+    return bonusNumbers.length > 0
+      ? valid.slice(0, 3)
+      : improveMembersByReference(valid.slice(0, 3), referenceNumbers, candidates.length);
   }
 
   const relaxed = dropLeadingTotal(candidates).filter((num) => num < 1000000);
 
-  return improveMembersByReference(relaxed.slice(0, 3), referenceNumbers, candidates.length);
+  return bonusNumbers.length > 0
+    ? relaxed.slice(0, 3)
+    : improveMembersByReference(relaxed.slice(0, 3), referenceNumbers, candidates.length);
 }
 
 export function uniqueNumbers(numbers) {
@@ -980,7 +1219,7 @@ export async function recognizeOcrZone(image, zone, options = {}) {
   const blob = await createPreprocessedStageBlob(image, zone, options);
 
   const tesseractOptions = {
-    tessedit_char_whitelist: "0123456789,.",
+    tessedit_char_whitelist: options.charWhitelist || "0123456789,.",
     tessedit_pageseg_mode: options.pageSegMode || "6",
     preserve_interword_spaces: "1",
   };
