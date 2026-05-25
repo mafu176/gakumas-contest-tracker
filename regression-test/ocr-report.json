@@ -5,7 +5,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 68700,
+    "elapsedMs": 60343,
     "expectedData": {
       "stage1": {
         "selfTotal": 534463,
@@ -156,7 +156,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 68192,
+    "elapsedMs": 58532,
     "expectedData": {
       "stage1": {
         "selfTotal": 766720,
@@ -308,7 +308,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 68734,
+    "elapsedMs": 68590,
     "expectedData": {
       "stage1": {
         "selfTotal": 546760,
@@ -460,7 +460,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 66373,
+    "elapsedMs": 79219,
     "expectedData": {
       "stage1": {
         "selfTotal": 609546,
@@ -679,7 +679,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 68238,
+    "elapsedMs": 75102,
     "expectedData": {
       "stage1": {
         "selfTotal": 271520,
@@ -832,7 +832,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 69385,
+    "elapsedMs": 91767,
     "expectedData": {
       "stage1": {
         "selfTotal": 252674,
@@ -985,7 +985,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 67993,
+    "elapsedMs": 86552,
     "expectedData": {
       "stage1": {
         "selfTotal": 367757,
@@ -1138,7 +1138,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 68446,
+    "elapsedMs": 66488,
     "expectedData": {
       "stage1": {
         "selfTotal": 490885,
@@ -1289,7 +1289,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 67893,
+    "elapsedMs": 66319,
     "expectedData": {
       "stage1": {
         "selfTotal": 184319,
@@ -1443,7 +1443,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 67897,
+    "elapsedMs": 66267,
     "expectedData": {
       "stage1": {
         "selfTotal": 281949,
@@ -1595,7 +1595,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 68492,
+    "elapsedMs": 68258,
     "expectedData": {
       "stage1": {
         "selfTotal": 298072,
@@ -1743,7 +1743,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 67804,
+    "elapsedMs": 66915,
     "expectedData": {
       "stage1": {
         "selfTotal": 264506,
@@ -1897,7 +1897,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 68641,
+    "elapsedMs": 61646,
     "expectedData": {
       "stage1": {
         "selfTotal": 364692,
@@ -2051,7 +2051,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 72175,
+    "elapsedMs": 58631,
     "expectedData": {
       "stage1": {
         "selfTotal": 380140,
@@ -2203,7 +2203,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 95629,
+    "elapsedMs": 62860,
     "expectedData": {
       "stage1": {
         "selfTotal": 263148,
@@ -2351,7 +2351,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 82809,
+    "elapsedMs": 62626,
     "expectedData": {
       "stage1": {
         "selfTotal": 254224,
@@ -2498,7 +2498,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 85283,
+    "elapsedMs": 59428,
     "expectedData": {
       "stage1": {
         "selfTotal": 426041,
