@@ -37,8 +37,7 @@ export function getIdolDisplayName(idol) {
 }
 
 export function getIdolImage(idol) {
-  if (!idol) return "";
-  return idol.image || idol.imageUrl || idol.icon || idol.thumbnail || "";
+  return resolveIdolImage(idol);
 }
 
 export function buildFallbackImagePath(idolId) {
@@ -46,15 +45,101 @@ export function buildFallbackImagePath(idolId) {
   return `/idols/${idolId}.png`;
 }
 
+function normalizeIdolIdentifier(value) {
+  return String(value ?? "").trim();
+}
+
+function collectIdolIdentifiers(idol) {
+  if (!idol) return [];
+
+  return [
+    idol.idol_db_id,
+    idol.idolDbId,
+    idol.id,
+    idol.key,
+    idol.name,
+    idol.displayName,
+    idol.short,
+    idol.title && idol.character ? `${idol.title} ${idol.character}` : "",
+    getIdolDisplayName(idol),
+  ]
+    .map(normalizeIdolIdentifier)
+    .filter(Boolean);
+}
+
+function getStoredCustomIdols() {
+  if (typeof window === "undefined") return [];
+
+  try {
+    const raw = window.localStorage?.getItem("gakumasCustomIdols");
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function getDefaultIdolSources() {
+  return [...idolDb, ...getStoredCustomIdols()];
+}
+
+function findMatchingIdol(idol, idolSources = getDefaultIdolSources()) {
+  const identifiers = new Set(collectIdolIdentifiers(idol));
+  if (identifiers.size === 0) return null;
+
+  return idolSources.find((candidate) =>
+    collectIdolIdentifiers(candidate).some((identifier) =>
+      identifiers.has(identifier)
+    )
+  ) || null;
+}
+
+export function resolveIdolImage(idol, idolSources = getDefaultIdolSources()) {
+  if (!idol) return "";
+
+  const directImage =
+    idol.image ||
+    idol.imageUrl ||
+    idol.image_url ||
+    idol.icon ||
+    idol.thumbnail ||
+    "";
+
+  if (directImage) return directImage;
+
+  const matchedIdol = findMatchingIdol(idol, idolSources);
+  if (!matchedIdol || matchedIdol === idol) return "";
+
+  return (
+    matchedIdol.image ||
+    matchedIdol.imageUrl ||
+    matchedIdol.image_url ||
+    matchedIdol.icon ||
+    matchedIdol.thumbnail ||
+    ""
+  );
+}
+
 export function resolveRecordIdolImage(record, stage, member, side = "my") {
+  const prefix = `s${stage}_${side}${member}`;
   const image =
-    record[`s${stage}_${side}${member}_idol_image`] ||
-    record[`s${stage}_${side}${member}_idol_image_url`] ||
+    record[`${prefix}_idol_image`] ||
+    record[`${prefix}_idol_image_url`] ||
     "";
 
   if (image) return image;
 
-  const idolId = record[`s${stage}_${side}${member}_idol_id`];
+  const resolvedImage = resolveIdolImage({
+    idol_db_id: record[`${prefix}_idol_db_id`],
+    id: record[`${prefix}_idol_id`],
+    name: record[`${prefix}_idol_name`] || record[`${prefix}_idol`],
+    displayName: record[`${prefix}_idol`],
+    short: record[`${prefix}_idol_variant`],
+  });
+
+  if (resolvedImage) return resolvedImage;
+
+  const idolId = record[`${prefix}_idol_id`];
 
   return buildFallbackImagePath(idolId);
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import { formatSeasonTypeLabel } from "../lib/seasonTypes";
+
 function formatRate(value) {
   const num = Number(value);
   return Number.isFinite(num) ? `${num.toFixed(1)}%` : "0.0%";
@@ -21,7 +23,7 @@ function pointBetween(center, vertex, rate) {
 }
 
 function getStageType(stageTypes, stage) {
-  return stageTypes?.[stage] || stageTypes?.[String(stage)] || "未設定";
+  return formatSeasonTypeLabel(stageTypes?.[stage] || stageTypes?.[String(stage)]);
 }
 
 function StageLabel({ className = "", title, rate, type }) {

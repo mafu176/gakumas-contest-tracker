@@ -40,3 +40,220 @@ textarea:disabled {
   color: #a1a1aa;
   opacity: 1;
 }
+
+.app-root {
+  --season-summary-label-color: #52525b;
+  --season-summary-title-color: #18181b;
+  --season-summary-date-color: #e4e4e7;
+}
+
+.app-root[data-theme="soft"],
+.app-root.theme-soft {
+  --season-summary-title-color: #18181b;
+}
+
+.app-root[data-theme="dark-analytics"],
+.app-root.theme-dark-analytics {
+  --season-summary-label-color: #bae6fd;
+  --season-summary-title-color: #f8fafc;
+  --season-summary-date-color: #cbd5e1;
+  background:
+    radial-gradient(circle at 15% 0%, rgba(34, 211, 238, 0.16), transparent 34rem),
+    radial-gradient(circle at 82% 12%, rgba(245, 158, 11, 0.12), transparent 30rem),
+    linear-gradient(135deg, #071225 0%, #08152b 46%, #0b1730 100%);
+  color: #e5edf9;
+}
+
+.app-root[data-theme="dark-analytics"] .season-summary-title,
+.app-root.theme-dark-analytics .season-summary-title {
+  text-shadow: 0 0 18px rgba(125, 211, 252, 0.2);
+}
+
+.app-root[data-theme="dark-analytics"] nav,
+.app-root.theme-dark-analytics nav {
+  background: rgba(13, 27, 51, 0.92);
+  border-color: rgba(120, 170, 255, 0.18);
+  box-shadow: 0 18px 42px rgba(7, 18, 37, 0.3);
+}
+
+.app-root[data-theme="dark-analytics"] nav button:not([class*="bg-zinc-900"]),
+.app-root.theme-dark-analytics nav button:not([class*="bg-zinc-900"]) {
+  background: rgba(16, 32, 58, 0.9) !important;
+  border-color: rgba(120, 170, 255, 0.18) !important;
+  color: #dbeafe !important;
+}
+
+.app-root[data-theme="dark-analytics"] :where(section, div, label)[class~="bg-white"]:not(#season-share-card *):not(#season-share-card-hidden *),
+.app-root.theme-dark-analytics :where(section, div, label)[class~="bg-white"]:not(#season-share-card *):not(#season-share-card-hidden *),
+.app-root[data-theme="dark-analytics"] :where(section, div, label)[class~="bg-zinc-50"]:not(#season-share-card *):not(#season-share-card-hidden *),
+.app-root.theme-dark-analytics :where(section, div, label)[class~="bg-zinc-50"]:not(#season-share-card *):not(#season-share-card-hidden *),
+.app-root[data-theme="dark-analytics"] :where(section, div, label)[class~="bg-zinc-100"]:not(#season-share-card *):not(#season-share-card-hidden *),
+.app-root.theme-dark-analytics :where(section, div, label)[class~="bg-zinc-100"]:not(#season-share-card *):not(#season-share-card-hidden *),
+.app-root[data-theme="dark-analytics"] :where(div)[class~="bg-white/80"]:not(#season-share-card *):not(#season-share-card-hidden *),
+.app-root.theme-dark-analytics :where(div)[class~="bg-white/80"]:not(#season-share-card *):not(#season-share-card-hidden *) {
+  background: #10203a !important;
+  border-color: rgba(120, 170, 255, 0.18) !important;
+  color: #e5edf9;
+  box-shadow: 0 18px 48px rgba(7, 18, 37, 0.24);
+}
+
+.app-root[data-theme="dark-analytics"] section[class~="bg-white"]:not(#season-share-card *):not(#season-share-card-hidden *),
+.app-root.theme-dark-analytics section[class~="bg-white"]:not(#season-share-card *):not(#season-share-card-hidden *),
+.app-root[data-theme="dark-analytics"] div[class~="bg-zinc-950"]:not(#season-share-card *):not(#season-share-card-hidden *),
+.app-root.theme-dark-analytics div[class~="bg-zinc-950"]:not(#season-share-card *):not(#season-share-card-hidden *) {
+  background: #0d1b33 !important;
+  border-color: rgba(120, 170, 255, 0.18) !important;
+  color: #e5edf9;
+}
+
+.app-root[data-theme="dark-analytics"] :where(div, label)[class~="bg-white/80"]:not(#season-share-card *):not(#season-share-card-hidden *),
+.app-root.theme-dark-analytics :where(div, label)[class~="bg-white/80"]:not(#season-share-card *):not(#season-share-card-hidden *) {
+  background: #132542 !important;
+}
+
+.app-root[data-theme="dark-analytics"] :where(input, select, textarea),
+.app-root.theme-dark-analytics :where(input, select, textarea) {
+  background-color: #132542 !important;
+  border-color: rgba(120, 170, 255, 0.22) !important;
+  color: #f8fafc !important;
+}
+
+.app-root[data-theme="dark-analytics"] :where(input, select, textarea)::placeholder,
+.app-root.theme-dark-analytics :where(input, select, textarea)::placeholder {
+  color: #94a3b8;
+}
+
+.app-root[data-theme="dark-analytics"]
+  :where(h1, h2, h3, h4, p, span, div, label)[class~="text-zinc-900"]:not(#season-share-card *):not(#season-share-card-hidden *),
+.app-root.theme-dark-analytics
+  :where(h1, h2, h3, h4, p, span, div, label)[class~="text-zinc-900"]:not(#season-share-card *):not(#season-share-card-hidden *),
+.app-root[data-theme="dark-analytics"]
+  :where(h1, h2, h3, h4, p, span, div, label)[class~="text-zinc-800"]:not(#season-share-card *):not(#season-share-card-hidden *),
+.app-root.theme-dark-analytics
+  :where(h1, h2, h3, h4, p, span, div, label)[class~="text-zinc-800"]:not(#season-share-card *):not(#season-share-card-hidden *) {
+  color: #f8fafc !important;
+}
+
+.app-root[data-theme="dark-analytics"]
+  :where(p, span, div, label)[class~="text-zinc-600"]:not(#season-share-card *):not(#season-share-card-hidden *),
+.app-root.theme-dark-analytics
+  :where(p, span, div, label)[class~="text-zinc-600"]:not(#season-share-card *):not(#season-share-card-hidden *) {
+  color: #b6c6dc !important;
+}
+
+.app-root[data-theme="dark-analytics"]
+  :where(p, span, div, label)[class~="text-zinc-500"]:not(#season-share-card *):not(#season-share-card-hidden *),
+.app-root.theme-dark-analytics
+  :where(p, span, div, label)[class~="text-zinc-500"]:not(#season-share-card *):not(#season-share-card-hidden *) {
+  color: #94a3b8 !important;
+}
+
+.app-root[data-theme="dark-analytics"] .top-score-row,
+.app-root.theme-dark-analytics .top-score-row {
+  background:
+    linear-gradient(90deg, rgba(250, 204, 21, 0.18), #10203a 34%, #0f2038 100%) !important;
+  border-color: rgba(250, 204, 21, 0.42) !important;
+  box-shadow:
+    inset 4px 0 0 rgba(250, 204, 21, 0.92),
+    0 10px 30px rgba(2, 6, 23, 0.22);
+  color: #f8fafc;
+}
+
+.app-root[data-theme="dark-analytics"] .top-rank-row,
+.app-root.theme-dark-analytics .top-rank-row {
+  background:
+    linear-gradient(90deg, rgba(34, 211, 238, 0.18), #10203a 34%, #0f2038 100%) !important;
+  border-color: rgba(34, 211, 238, 0.42) !important;
+  box-shadow:
+    inset 4px 0 0 rgba(34, 211, 238, 0.92),
+    0 10px 30px rgba(2, 6, 23, 0.22);
+  color: #f8fafc;
+}
+
+.app-root[data-theme="dark-analytics"] .top-dual-row,
+.app-root.theme-dark-analytics .top-dual-row {
+  background:
+    linear-gradient(90deg, rgba(250, 204, 21, 0.28), rgba(34, 211, 238, 0.24) 42%, #0f2038 78%) !important;
+  border-color: rgba(125, 211, 252, 0.5) !important;
+  box-shadow:
+    inset 4px 0 0 rgba(250, 204, 21, 0.95),
+    inset 8px 0 0 rgba(34, 211, 238, 0.95),
+    0 12px 34px rgba(2, 6, 23, 0.28);
+  color: #f8fafc;
+}
+
+.app-root[data-theme="dark-analytics"] :where(.top-score-row, .top-rank-row, .top-dual-row) :where(td, div, span, button),
+.app-root.theme-dark-analytics :where(.top-score-row, .top-rank-row, .top-dual-row) :where(td, div, span, button) {
+  color: #f8fafc;
+}
+
+.app-root[data-theme="dark-analytics"] .top-score-badge,
+.app-root.theme-dark-analytics .top-score-badge {
+  background: rgba(250, 204, 21, 0.18) !important;
+  border: 1px solid rgba(250, 204, 21, 0.42);
+  color: #fde68a !important;
+}
+
+.app-root[data-theme="dark-analytics"] .top-rank-badge,
+.app-root.theme-dark-analytics .top-rank-badge {
+  background: rgba(34, 211, 238, 0.16) !important;
+  border: 1px solid rgba(34, 211, 238, 0.42);
+  color: #a5f3fc !important;
+}
+
+.app-root[data-theme="dark-analytics"] .top-dual-badge,
+.app-root.theme-dark-analytics .top-dual-badge {
+  background: linear-gradient(90deg, rgba(250, 204, 21, 0.28), rgba(34, 211, 238, 0.24)) !important;
+  border: 1px solid rgba(125, 211, 252, 0.48);
+  color: #f8fafc !important;
+}
+
+.app-root[data-theme="dark-analytics"] table,
+.app-root.theme-dark-analytics table {
+  color: #e5edf9;
+}
+
+.app-root[data-theme="dark-analytics"] tr,
+.app-root.theme-dark-analytics tr {
+  border-color: rgba(120, 170, 255, 0.18);
+}
+
+.app-root[data-theme="dark-analytics"] section:has(> div h2),
+.app-root.theme-dark-analytics section:has(> div h2) {
+  border: 1px solid rgba(120, 170, 255, 0.18);
+}
+
+.app-root[data-theme="dark-analytics"] section:has(h2) > div[class*="grid"] > div[class~="bg-zinc-100"],
+.app-root.theme-dark-analytics section:has(h2) > div[class*="grid"] > div[class~="bg-zinc-100"] {
+  background:
+    linear-gradient(145deg, #10203a, #0d1b33) !important;
+  border: 1px solid rgba(120, 170, 255, 0.18);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 16px 38px rgba(2, 6, 23, 0.24);
+}
+
+.app-root[data-theme="dark-analytics"] section:has(h2) > div[class*="space-y-4"] > div[class~="bg-zinc-50"],
+.app-root.theme-dark-analytics section:has(h2) > div[class*="space-y-4"] > div[class~="bg-zinc-50"],
+.app-root[data-theme="dark-analytics"] section:has(h2) div[class~="overflow-x-auto"][class~="bg-white"],
+.app-root.theme-dark-analytics section:has(h2) div[class~="overflow-x-auto"][class~="bg-white"] {
+  background:
+    linear-gradient(145deg, #10203a, #0d1b33) !important;
+  border-color: rgba(120, 170, 255, 0.18) !important;
+}
+
+.app-root[data-theme="dark-analytics"] thead tr,
+.app-root.theme-dark-analytics thead tr {
+  background: #132542;
+  color: #bae6fd !important;
+}
+
+.app-root[data-theme="dark-analytics"] tbody tr:not(.top-score-row):not(.top-rank-row):not(.top-dual-row),
+.app-root.theme-dark-analytics tbody tr:not(.top-score-row):not(.top-rank-row):not(.top-dual-row) {
+  background: #0f2038;
+}
+
+.app-root[data-theme="dark-analytics"] tbody tr:not(.top-score-row):not(.top-rank-row):not(.top-dual-row):hover,
+.app-root.theme-dark-analytics tbody tr:not(.top-score-row):not(.top-rank-row):not(.top-dual-row):hover {
+  background: rgba(14, 165, 233, 0.08);
+}

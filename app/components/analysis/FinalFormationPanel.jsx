@@ -1,3 +1,5 @@
+import { formatSeasonTypeLabel } from "../../lib/seasonTypes";
+
 export default function FinalFormationPanel({
   visible,
   analysisStartDate,
@@ -8,6 +10,11 @@ export default function FinalFormationPanel({
   seasonSummary,
   stages,
 }) {
+  const formatRank = (value) => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) && numeric > 0 ? numeric.toFixed(3) : "-";
+  };
+
   return (
         <section className={`${visible ? "" : "hidden"} rounded-3xl bg-white p-6 shadow`}>
           <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
@@ -45,7 +52,7 @@ export default function FinalFormationPanel({
                     <div className="mb-3 flex items-center justify-between gap-2">
                       <div className="font-semibold">ステージ{stage}</div>
                       <div className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-zinc-600">
-                        {seasonSummary.stageTypes?.[stage] || "未設定"}
+                        {formatSeasonTypeLabel(seasonSummary.stageTypes?.[stage])}
                       </div>
                     </div>
 
@@ -89,7 +96,7 @@ export default function FinalFormationPanel({
                               素点 {slot.averageBaseScore ? slot.averageBaseScore.toLocaleString() : "-"}
                             </div>
                             <div>
-                              順位 {slot.averageRank || "-"}
+                              順位 {formatRank(slot.averageRank)}
                             </div>
                           </div>
 

@@ -27,6 +27,9 @@ export default function OcrImportPanel({
           <p className="mt-1 text-sm text-zinc-600">
             OCR読み込みを行う際は、対戦履歴の対戦詳細の画面を読み取りさせてください。
           </p>
+          <p className="mt-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900">
+            OCR読み込みは現在β版です。読み取り結果は必ず目視で確認し、必要に応じて手修正してください。
+          </p>
 
           <label className="hidden">
             <input

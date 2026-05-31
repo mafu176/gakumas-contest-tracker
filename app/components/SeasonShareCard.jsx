@@ -3,6 +3,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import SeasonWinTriangle from "./SeasonWinTriangle";
+import { formatSeasonTypeLabel } from "../lib/seasonTypes";
 
 const cardSizes = {
   vertical: { width: 1080, height: 1920, label: "スマホ縦（9:16）" },
@@ -127,7 +128,7 @@ function HorizontalStageRows({ stageGroups, stageTypes }) {
           <div className="mb-1 flex items-center justify-between gap-2">
             <div className="text-base font-black">STAGE{group.stage}</div>
             <div className="rounded-full bg-white/10 px-2.5 py-0.5 text-[10px] font-bold text-zinc-300">
-              {stageTypes?.[group.stage] || "タイプ未設定"}
+              {formatSeasonTypeLabel(stageTypes?.[group.stage])}
             </div>
           </div>
 
@@ -170,7 +171,7 @@ function StagePlanLegend({ stageTypes, horizontal = false }) {
           className="flex items-center justify-between gap-1 rounded-full bg-white/10 px-2.5 py-1 font-bold text-zinc-300"
         >
           <span className="text-zinc-500">S{stage}</span>
-          <span className="truncate">{stageTypes?.[stage] || "未設定"}</span>
+          <span className="truncate">{formatSeasonTypeLabel(stageTypes?.[stage])}</span>
         </div>
       ))}
     </div>
@@ -355,7 +356,7 @@ export default function SeasonShareCard({
                             STAGE{group.stage}
                           </div>
                           <div className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-zinc-300">
-                            {safeSeasonSummary.stageTypes?.[group.stage] || "タイプ未設定"}
+                            {formatSeasonTypeLabel(safeSeasonSummary.stageTypes?.[group.stage])}
                           </div>
                         </div>
 
@@ -582,7 +583,7 @@ export default function SeasonShareCard({
                         STAGE{group.stage}
                       </div>
                       <div className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-zinc-300">
-                        {safeSeasonSummary.stageTypes?.[group.stage] || "タイプ未設定"}
+                        {formatSeasonTypeLabel(safeSeasonSummary.stageTypes?.[group.stage])}
                       </div>
                     </div>
 

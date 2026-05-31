@@ -978,5 +978,15 @@ export const idolDb = [
     "plan": "アノマリー",
     "rarity": "SSR",
     "image": "/idols/98.png"
+  },
+  {
+    "id": "篠澤_広_ガラクタロード",
+    "name": "ガラクタロード 篠澤広",
+    "short": "ガラクタロード広",
+    "character": "篠澤広",
+    "title": "ガラクタロード",
+    "plan": "センス",
+    "rarity": "SSR",
+    "image": "/idols/99.png"
   }
 ];

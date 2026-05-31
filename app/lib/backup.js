@@ -62,11 +62,10 @@ export function migrateBackupData(data) {
       data.recentIdols ??
       [],
 
-    theme:
-      data.theme ??
-      "notebook",
-
     // 将来用
     ...data,
+
+    theme:
+      data.theme === "dark-analytics" ? "dark-analytics" : "soft",
   };
 }

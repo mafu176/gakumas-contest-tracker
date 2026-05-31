@@ -11,14 +11,6 @@ export default function PageHeader({
         学マス コンテスト戦績トラッカー
       </h1>
 
-      <p className="mt-2 text-zinc-600">
-        OCR・素点/プラス点・編成テンプレ対応版
-      </p>
-
-      {saveStatus && (
-        <p className="mt-3 text-sm text-zinc-600">{saveStatus}</p>
-      )}
-
       {!shareStatsConsentAsked && (
         <div className="mt-4 rounded-2xl border bg-zinc-50 p-4">
           <label className="flex cursor-pointer items-start gap-3 text-sm">

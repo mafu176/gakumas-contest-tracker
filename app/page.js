@@ -54,6 +54,13 @@ function normalizePositionFilter(value) {
   return value === "全体" ? "全体" : normalizePosition(value);
 }
 
+function getSeasonTypeChipKind(stageType) {
+  if (stageType === "センス") return "sense";
+  if (stageType === "ロジック") return "logic";
+  if (stageType === "アノマリー") return "anomaly";
+  return "unset";
+}
+
 import {
   API_URL,
   stages,
@@ -87,6 +94,7 @@ import {
   normalizeMemberScore,
   pickMemberNumbers,
   repairMissingLeadingOneMember,
+  hasMatchingCrownBonusForMembers,
   uniqueNumbers,
   isNearNumber,
   removeNumbersNearTargets,
@@ -118,12 +126,17 @@ import {
 } from "./lib/tracker";
 
 export default function Home() {
+  const normalizeTheme = (value, { allowStandard = false } = {}) => {
+    if (value === "dark-analytics") return "dark-analytics";
+    if (value === "standard" && allowStandard) return "standard";
+    return "soft";
+  };
   const [selectedSlot, setSelectedSlot] = useState("自分 ステージ1 メンバー1");
   const [slotValues, setSlotValues] = useState({});
   const [idolSelectOpen, setIdolSelectOpen] = useState(false);
   const [favoriteIdols, setFavoriteIdols] = useState([]);
   const [recentIdols, setRecentIdols] = useState([]);
-  const [theme, setTheme] = useState("notebook");
+  const [theme, setTheme] = useState("soft");
   const [activeTab, setActiveTab] = useState("input");
   const [storageReady, setStorageReady] = useState(false);
   const [stageDetails, setStageDetails] = useState(makeInitialStageDetails());
@@ -341,7 +354,7 @@ export default function Home() {
       }
 
       const savedTheme = localStorage.getItem("theme");
-      setTheme(savedTheme || "notebook");
+      setTheme(normalizeTheme(savedTheme));
 
       const savedSelectedSeasonId = localStorage.getItem("gakumasSelectedSeasonId");
       if (savedSelectedSeasonId) {
@@ -455,7 +468,7 @@ export default function Home() {
 
   useEffect(() => {
     if (!storageReady) return;
-    localStorage.setItem("theme", theme || "notebook");
+    localStorage.setItem("theme", normalizeTheme(theme));
   }, [theme, storageReady]);
 
   useEffect(() => {
@@ -1921,18 +1934,20 @@ export default function Home() {
           inferredEnemyCrown.bonus,
           inferredOriginalEnemyCrown.bonus,
         ].filter((num) => num > 0);
-        const selfCrownCandidates = inferredSelfBonusNumbers.length > 0
-          ? [...new Set(inferredSelfBonusNumbers)]
-          : await recognizeCrownBonusCandidates(
-              image,
-              getCrownBonusZones(image, stage, activeOcrMode, "self")
-            );
-        const enemyCrownCandidates = inferredEnemyBonusNumbers.length > 0
-          ? [...new Set(inferredEnemyBonusNumbers)]
-          : await recognizeCrownBonusCandidates(
-              image,
-              getCrownBonusZones(image, stage, activeOcrMode, "enemy")
-            );
+        const recognizedSelfCrownCandidates = await recognizeCrownBonusCandidates(
+          image,
+          getCrownBonusZones(image, stage, activeOcrMode, "self")
+        );
+        const recognizedEnemyCrownCandidates = await recognizeCrownBonusCandidates(
+          image,
+          getCrownBonusZones(image, stage, activeOcrMode, "enemy")
+        );
+        const selfCrownCandidates = [
+          ...new Set([...inferredSelfBonusNumbers, ...recognizedSelfCrownCandidates]),
+        ];
+        const enemyCrownCandidates = [
+          ...new Set([...inferredEnemyBonusNumbers, ...recognizedEnemyCrownCandidates]),
+        ];
 
         const selfMembers =
           inferredSelfCrown.members ||
@@ -1956,14 +1971,30 @@ export default function Home() {
 
         let correctedSelfMembers = [...selfMembers];
         let correctedEnemyMembers = [...enemyMembers];
-        correctedSelfMembers = repairMissingLeadingOneMember(correctedSelfMembers, [
-          ...selfTotalReferences,
-          ...selfMemberNumbers,
-        ]);
-        correctedEnemyMembers = repairMissingLeadingOneMember(correctedEnemyMembers, [
-          ...enemyTotalReferences,
-          ...enemyMemberNumbers,
-        ]);
+        if (
+          !hasMatchingCrownBonusForMembers(
+            correctedSelfMembers,
+            selfTotalReferences,
+            selfCrownCandidates
+          )
+        ) {
+          correctedSelfMembers = repairMissingLeadingOneMember(correctedSelfMembers, [
+            ...selfTotalReferences,
+            ...selfMemberNumbers,
+          ]);
+        }
+        if (
+          !hasMatchingCrownBonusForMembers(
+            correctedEnemyMembers,
+            enemyTotalReferences,
+            enemyCrownCandidates
+          )
+        ) {
+          correctedEnemyMembers = repairMissingLeadingOneMember(correctedEnemyMembers, [
+            ...enemyTotalReferences,
+            ...enemyMemberNumbers,
+          ]);
+        }
         const correctionLogs = [];
 
         const isSmartphoneLowScorePattern =
@@ -2036,7 +2067,8 @@ export default function Home() {
           correctedSelfMembers.length,
           selfMaxMember,
           selfMemberNumbers,
-          selfCrownCandidates
+          selfCrownCandidates,
+          correctedSelfMembers
         );
 
         let enemyTotal = pickTotalWithMemberFallback(
@@ -2046,7 +2078,8 @@ export default function Home() {
           correctedEnemyMembers.length,
           enemyMaxMember,
           enemyMemberNumbers,
-          enemyCrownCandidates
+          enemyCrownCandidates,
+          correctedEnemyMembers
         );
 
         // v44 common cleanup:
@@ -3376,7 +3409,7 @@ stageScores[stage] = {
       const restoredRecentIdols = Array.isArray(data.recentIdols)
         ? data.recentIdols
         : [];
-      const restoredTheme = data.theme || "notebook";
+      const restoredTheme = normalizeTheme(data.theme);
 
       setRecords(restoredRecords);
       setFormationTemplates(restoredFormationTemplates);
@@ -3565,15 +3598,21 @@ stageScores[stage] = {
     if (!selectedSeason) return "";
 
     return [
-      `${selectedSeason.name}の戦績をまとめました！`,
-      `最終pt: ${selectedSeason.finalPoint || "-"}`,
-      `最終順位: ${selectedSeason.finalRank ? `${selectedSeason.finalRank}位` : "-"}`,
-      `総試合: ${seasonSummary.totalMatches}戦`,
-      `勝敗: ${seasonSummary.winCount}-${seasonSummary.loseCount}`,
-      `勝率: ${seasonSummary.winRate}%`,
+      "学マス コンテスト戦績トラッカーを公開しました！",
       "",
-      "#学マス #学マスコンテスト戦績トラッカー",
-      typeof window !== "undefined" ? window.location.origin : "",
+      "主な機能",
+      "・コンテスト戦績記録",
+      "・戦績分析",
+      "・共有画像生成",
+      "・OCR読取機能",
+      "",
+      "OCRは「対戦履歴 → 対戦詳細」画面の読込に対応しています。",
+      "",
+      "OCRは実戦画像で継続改善中です。",
+      "もしOCR結果が誤っていた場合は、画像を送っていただけると改善に活用します！",
+      "",
+      "URL:",
+      "https://gakumas-contest-tracker.vercel.app/",
     ].join("\n");
   };
 
@@ -3781,7 +3820,10 @@ const metaStats = useMemo(() => {
 
   const showTab = (...tabs) => tabs.includes(activeTab);
   return (
-    <main className="min-h-screen bg-zinc-100 p-4 md:p-6">
+    <main
+      className={`app-root min-h-screen p-4 md:p-6 theme-${normalizeTheme(theme)}`}
+      data-theme={normalizeTheme(theme)}
+    >
       <IdolSelectModal
         open={idolSelectOpen}
         selectedSlot={selectedSlot}
@@ -3862,7 +3904,10 @@ const metaStats = useMemo(() => {
               {stages.map((stage) => (
                 <span
                   key={stage}
-                  className="rounded-full bg-white px-3 py-1 text-xs font-semibold shadow-sm"
+                  data-stage-type={getSeasonTypeChipKind(
+                    selectedSeason?.stageTypes?.[stage]
+                  )}
+                  className="current-season-type-chip rounded-full bg-white px-3 py-1 text-xs font-semibold shadow-sm"
                 >
                   S{stage}: {selectedSeason?.stageTypes?.[stage] || "未設定"}
                 </span>
@@ -3906,6 +3951,21 @@ const metaStats = useMemo(() => {
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
               />
+            </label>
+
+            <label className="block rounded-2xl border bg-zinc-50 p-4 text-sm">
+              <span className="font-semibold text-zinc-900">テーマ</span>
+              <span className="mt-1 block text-xs text-zinc-600">
+                画面の見た目を選択します。共有画像のデザインは変更されません。
+              </span>
+              <select
+                className="mt-3 w-full rounded-xl border px-3 py-2 text-sm text-zinc-900"
+                value={normalizeTheme(theme)}
+                onChange={(e) => setTheme(normalizeTheme(e.target.value))}
+              >
+                <option value="soft">soft</option>
+                <option value="dark-analytics">dark-analytics</option>
+              </select>
             </label>
 
             <label className="flex cursor-pointer items-start gap-3 rounded-2xl border bg-zinc-50 p-4 text-sm">

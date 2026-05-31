@@ -17,29 +17,51 @@ function IdolNameWithIcon({ stat, idolImageMap, onClick }) {
   const iconSrc = getIdolIconSrc(stat, idolImageMap);
 
   return (
-    <button
-      onClick={onClick}
-      className="flex min-w-0 items-center gap-3 text-left underline-offset-2 hover:underline"
-    >
-      {iconSrc ? (
-        <img
-          src={iconSrc}
-          alt={stat.idolName}
-          className="h-12 w-12 shrink-0 rounded-xl border border-zinc-200 bg-zinc-100 object-cover"
-          onError={(e) => {
-            e.currentTarget.style.display = "none";
-          }}
-        />
-      ) : (
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-zinc-200 bg-zinc-100 text-[10px] font-bold text-zinc-600">
-          NO IMG
+    <div className="min-w-0">
+      <button
+        onClick={onClick}
+        className="flex min-w-0 items-center gap-3 text-left underline-offset-2 hover:underline"
+      >
+        {iconSrc ? (
+          <img
+            src={iconSrc}
+            alt={stat.idolName}
+            className="h-12 w-12 shrink-0 rounded-xl border border-zinc-200 bg-zinc-100 object-cover"
+            onError={(e) => {
+              e.currentTarget.style.display = "none";
+            }}
+          />
+        ) : (
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-zinc-200 bg-zinc-100 text-[10px] font-bold text-zinc-600">
+            NO IMG
+          </div>
+        )}
+
+        <span className="min-w-0 font-semibold">
+          {stat.idolName}
+        </span>
+      </button>
+
+      {(stat.isTopAverageBaseScore || stat.isTopAverageRank) && (
+        <div className="top-badge-row mt-2 flex flex-wrap gap-1.5 pl-[3.75rem] text-[10px] font-bold">
+          {stat.isTopAverageBaseScore && (
+            <span className="top-score-badge rounded-full bg-amber-100 px-2 py-0.5 text-amber-800">
+              👑 平均素点TOP
+            </span>
+          )}
+          {stat.isTopAverageRank && (
+            <span className="top-rank-badge rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-800">
+              🏅 平均順位TOP
+            </span>
+          )}
+          {stat.isTopAverageBaseScore && stat.isTopAverageRank && (
+            <span className="top-dual-badge rounded-full bg-cyan-100 px-2 py-0.5 text-cyan-900">
+              👑🏅 両TOP
+            </span>
+          )}
         </div>
       )}
-
-      <span className="min-w-0 font-semibold">
-        {stat.idolName}
-      </span>
-    </button>
+    </div>
   );
 }
 
@@ -233,11 +255,11 @@ export default function StageIdolAnalysisPanel({
                           key={stat.idolName}
                           className={`rounded-2xl border p-4 ${
                             stat.isTopAverageBaseScore && stat.isTopAverageRank
-                              ? "bg-yellow-100"
+                              ? "top-dual-row top-score-row top-rank-row bg-yellow-100"
                               : stat.isTopAverageBaseScore
-                              ? "bg-amber-50"
+                              ? "top-score-row bg-amber-50"
                               : stat.isTopAverageRank
-                              ? "bg-emerald-50"
+                              ? "top-rank-row bg-emerald-50"
                               : "bg-white"
                           }`}
                         >
@@ -324,11 +346,11 @@ export default function StageIdolAnalysisPanel({
                               className={`border-b ${
                                 stat.isTopAverageBaseScore &&
                                 stat.isTopAverageRank
-                                  ? "bg-yellow-100"
+                                  ? "top-dual-row top-score-row top-rank-row bg-yellow-100"
                                   : stat.isTopAverageBaseScore
-                                  ? "bg-amber-50"
+                                  ? "top-score-row bg-amber-50"
                                   : stat.isTopAverageRank
-                                  ? "bg-emerald-50"
+                                  ? "top-rank-row bg-emerald-50"
                                   : ""
                               }`}
                             >

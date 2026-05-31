@@ -45,10 +45,10 @@ function FavoriteButton({ active, onClick }) {
       type="button"
       onClick={onClick}
       aria-label={active ? "お気に入り解除" : "お気に入り追加"}
-      className={`absolute right-2 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-full border text-lg shadow-sm ${
+      className={`absolute right-2 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-full border text-lg ${
         active
-          ? "border-amber-300 bg-amber-100 text-amber-600"
-          : "border-zinc-200 bg-white/90 text-zinc-600"
+          ? "border-zinc-900 bg-zinc-900 text-white"
+          : "border-zinc-200 bg-white text-zinc-600"
       }`}
     >
       {active ? "★" : "☆"}
@@ -79,7 +79,7 @@ function IdolCard({
           onSelect(idol);
         }
       }}
-      className="group relative overflow-hidden rounded-2xl border border-amber-100 bg-white/90 p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+      className="group relative overflow-hidden rounded-2xl border border-zinc-200 bg-white p-3 text-left transition hover:border-zinc-300"
     >
       <FavoriteButton
         active={isFavorite}
@@ -253,14 +253,11 @@ export default function IdolSelectModal({
         onClick={onClose}
       />
 
-      <div className="relative flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-t-[2rem] border border-amber-100 bg-[#fffaf0] shadow-2xl sm:rounded-[2rem]">
-        <div className="pointer-events-none absolute left-8 top-0 h-5 w-24 -translate-y-1/2 rotate-[-2deg] rounded-sm bg-amber-200/70 shadow-sm" />
-        <div className="pointer-events-none absolute right-10 top-4 h-4 w-20 rotate-3 rounded-sm bg-sky-100/80 shadow-sm" />
-
-        <header className="border-b border-amber-100 bg-[#fff7e6] px-4 pb-3 pt-5 sm:px-6">
+      <div className="relative flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-t-3xl border border-zinc-200 bg-white shadow sm:rounded-3xl">
+        <header className="border-b border-zinc-200 bg-white px-4 pb-3 pt-5 sm:px-6">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-xs font-semibold text-amber-700">
+              <p className="text-xs font-semibold text-zinc-600">
                 ★お気に入り / 最近使った
               </p>
               <h2 className="mt-1 text-lg font-bold text-zinc-900">
@@ -270,7 +267,7 @@ export default function IdolSelectModal({
                 選択中: {selectedSlot}
               </p>
               {hasRecommendedPlan && (
-                <p className="mt-1 text-xs font-semibold text-amber-700">
+                <p className="mt-1 text-xs font-semibold text-zinc-700">
                   このステージのタイプ: {recommendedPlan}
                 </p>
               )}
@@ -280,7 +277,7 @@ export default function IdolSelectModal({
               type="button"
               onClick={onClose}
               aria-label="閉じる"
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-amber-100 bg-white text-xl font-semibold text-zinc-700 shadow-sm"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-zinc-200 bg-white text-xl font-semibold text-zinc-700"
             >
               ×
             </button>
@@ -288,7 +285,7 @@ export default function IdolSelectModal({
 
           <div className="mt-4 space-y-3">
             {hasRecommendedPlan && (
-              <div className="rounded-2xl border border-amber-200 bg-white/80 p-3">
+              <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3">
                 <label className="flex cursor-pointer items-center justify-between gap-3 text-sm font-semibold text-zinc-800">
                   <span>
                     {recommendedPlan}のみ表示
@@ -302,14 +299,14 @@ export default function IdolSelectModal({
                     onChange={(event) =>
                       setUseRecommendedPlanOnly(event.target.checked)
                     }
-                    className="h-5 w-5 accent-amber-500"
+                    className="h-5 w-5 accent-zinc-900"
                   />
                 </label>
               </div>
             )}
 
             <input
-              className="w-full rounded-2xl border border-amber-100 bg-white px-4 py-3 text-sm shadow-sm outline-none focus:border-amber-300 focus:ring-2 focus:ring-amber-100"
+              className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-zinc-400 focus:ring-2 focus:ring-zinc-100"
               placeholder="名前・カード名・略称で検索"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
@@ -325,7 +322,7 @@ export default function IdolSelectModal({
                     className={`shrink-0 rounded-full px-3 py-2 text-xs font-semibold ${
                       plan === item
                         ? "bg-zinc-900 text-white"
-                        : "border border-amber-100 bg-white text-zinc-700"
+                        : "border border-zinc-200 bg-white text-zinc-700"
                     }`}
                   >
                     {item}
@@ -348,8 +345,8 @@ export default function IdolSelectModal({
                   onClick={() => setCharacter(item)}
                   className={`shrink-0 rounded-full px-3 py-2 text-xs font-semibold ${
                     character === item
-                      ? "bg-amber-500 text-white"
-                      : "border border-amber-100 bg-white text-zinc-700"
+                      ? "bg-zinc-900 text-white"
+                      : "border border-zinc-200 bg-white text-zinc-700"
                   }`}
                 >
                   {item}
@@ -397,7 +394,7 @@ export default function IdolSelectModal({
             />
 
             {filteredIdols.length === 0 && (
-              <div className="rounded-2xl border border-dashed border-amber-200 bg-white/70 p-6 text-center text-sm text-zinc-600">
+              <div className="rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 p-6 text-center text-sm text-zinc-600">
                 条件に合うアイドルが見つかりません。
               </div>
             )}

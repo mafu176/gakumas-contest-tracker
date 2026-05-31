@@ -9,9 +9,9 @@ export default function SeasonSummaryPanel({
     <>
               <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                 <div>
-                  <div className="text-sm text-zinc-600">シーズンサマリー</div>
-                  <h3 className="mt-1 text-2xl font-bold text-zinc-800">{selectedSeason.name}</h3>
-                  <p className="mt-1 text-sm text-zinc-200">
+                  <div className="season-summary-label text-sm text-zinc-600" style={{ color: "var(--season-summary-label-color, #52525b)" }}>シーズンサマリー</div>
+                  <h3 className="season-summary-title mt-1 text-2xl font-bold text-white">{selectedSeason.name}</h3>
+                  <p className="season-summary-date mt-1 text-sm text-zinc-200" style={{ color: "var(--season-summary-date-color, #e4e4e7)" }}>
                     {selectedSeason.startDate} ～ {selectedSeason.endDate}
                   </p>
                 </div>

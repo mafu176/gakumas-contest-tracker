@@ -1,5 +1,9 @@
 import SeasonShareCard from "../SeasonShareCard";
 
+function formatValue(value, fallback = "-") {
+  return value === undefined || value === null || value === "" ? fallback : value;
+}
+
 export default function SharePanel({
   visible,
   selectedSeasonId,
@@ -11,15 +15,58 @@ export default function SharePanel({
   setShareCardLayout,
   exportSeasonShareCardPng,
   copySeasonShareCardPng,
-  copySeasonSharePostText,
-  openSeasonShareTweet,
   shareImageStatus,
   selectedSeason,
-  buildSeasonSharePostText,
   seasonSummary,
   seasonExtraStats,
   seasonFormationChangeHistory,
 }) {
+  const buildSeasonResultPostText = () => {
+    if (!selectedSeason) return "";
+
+    const totalMatches = seasonSummary?.totalMatches ?? 0;
+    const wins = seasonSummary?.winCount ?? 0;
+    const losses = seasonSummary?.loseCount ?? 0;
+    const winRate = seasonSummary?.winRate ?? 0;
+
+    return [
+      "学マス コンテスト戦績",
+      "",
+      selectedSeason.name || "シーズン未設定",
+      `期間: ${formatValue(selectedSeason.startDate)}〜${formatValue(selectedSeason.endDate)}`,
+      `対戦数: ${totalMatches}`,
+      `勝敗: ${wins}勝${losses}敗`,
+      `勝率: ${winRate}%`,
+      `最終pt: ${formatValue(selectedSeason.finalPoint)}`,
+      `最終順位: ${formatValue(selectedSeason.finalRank)}位`,
+      "",
+      "https://gakumas-contest-tracker.vercel.app/",
+      "",
+      "#学マス",
+      "#学マスコンテスト戦績トラッカー",
+    ].join("\n");
+  };
+
+  const copySeasonResultPostText = async () => {
+    const postText = buildSeasonResultPostText();
+    if (!postText || typeof navigator === "undefined" || !navigator.clipboard) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(postText);
+  };
+
+  const openSeasonResultTweet = () => {
+    const postText = buildSeasonResultPostText();
+    if (!postText) return;
+
+    window.open(
+      `https://twitter.com/intent/tweet?text=${encodeURIComponent(postText)}`,
+      "_blank",
+      "noopener,noreferrer"
+    );
+  };
+
   return (
     <section className={`${visible ? "" : "hidden"} rounded-3xl bg-white p-6 shadow`}>
       <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -77,14 +124,16 @@ export default function SharePanel({
         </button>
 
         <button
-          onClick={openSeasonShareTweet}
+          onClick={openSeasonResultTweet}
           className="rounded-xl border px-4 py-2 text-sm font-semibold"
         >
           Xに投稿
         </button>
       </div>
 
-      {shareImageStatus && (
+      {shareImageStatus &&
+        shareImageStatus !==
+          "PNG保存またはPNGコピー後、X投稿画面で画像を添付してください" && (
         <p className="mb-3 text-xs text-zinc-600">{shareImageStatus}</p>
       )}
 
@@ -97,14 +146,14 @@ export default function SharePanel({
           <div className="mb-2 flex items-center justify-between gap-2">
             <div className="text-sm font-semibold">X投稿文プレビュー</div>
             <button
-              onClick={copySeasonSharePostText}
+              onClick={copySeasonResultPostText}
               className="rounded-xl bg-white px-3 py-1 text-xs font-semibold text-zinc-700 shadow-sm"
             >
               コピー
             </button>
           </div>
           <pre className="whitespace-pre-wrap rounded-xl bg-white p-3 text-xs leading-relaxed text-zinc-700">
-            {buildSeasonSharePostText()}
+            {buildSeasonResultPostText()}
           </pre>
         </div>
       )}

@@ -1,3 +1,10 @@
+function getSeasonTypeChipKind(stageType) {
+  if (stageType === "センス") return "sense";
+  if (stageType === "ロジック") return "logic";
+  if (stageType === "アノマリー") return "anomaly";
+  return "unset";
+}
+
 export default function BattleInputPanel({
   visible,
   loadedRecordId,
@@ -84,7 +91,10 @@ export default function BattleInputPanel({
           {stages.map((stage) => (
             <span
               key={stage}
-              className="rounded-full bg-white px-3 py-1 text-xs font-semibold shadow-sm"
+              data-stage-type={getSeasonTypeChipKind(
+                selectedSeason?.stageTypes?.[stage]
+              )}
+              className="current-season-type-chip rounded-full bg-white px-3 py-1 text-xs font-semibold shadow-sm"
             >
               S{stage}: {selectedSeason?.stageTypes?.[stage] || "未設定"}
             </span>

@@ -7,7 +7,7 @@ export default function DailyBattleHistoryPanel({
   if (seasonDailySummaries.length === 0) return null;
 
   return (
-    <div className="mt-5 rounded-2xl bg-white/10 p-4">
+    <div className="daily-history-panel mt-5 rounded-2xl bg-white/10 p-4">
       <div className="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
         <div>
           <div className="font-semibold">日別戦績</div>
@@ -20,7 +20,7 @@ export default function DailyBattleHistoryPanel({
         </div>
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-black/20 p-3">
+      <div className="daily-history-info mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-black/20 p-3">
         <div className="text-xs font-semibold text-zinc-200">
           各日の戦績の下に、その日の最後に記録した自分編成を表示できます。
         </div>
@@ -42,7 +42,7 @@ export default function DailyBattleHistoryPanel({
         {seasonDailySummaries.map((summary) => (
           <div
             key={summary.date}
-            className="rounded-2xl border border-white/10 bg-black/20 p-3"
+            className="daily-history-row rounded-2xl border border-white/10 bg-black/20 p-3"
           >
             <div className="grid grid-cols-2 gap-3 text-xs md:grid-cols-7">
               <div>
@@ -95,7 +95,7 @@ export default function DailyBattleHistoryPanel({
                   {summary.finalFormation.map((slot) => (
                     <div
                       key={`${summary.date}-${slot.stage}-${slot.member}`}
-                      className="rounded-xl bg-white/10 p-1.5"
+                      className="daily-history-formation-card rounded-xl bg-white/10 p-1.5"
                     >
                       <div className="aspect-square overflow-hidden rounded-lg bg-white/10">
                         {slot.image ? (
