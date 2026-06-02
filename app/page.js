@@ -115,6 +115,7 @@ import {
   getIdolImage,
   buildFallbackImagePath,
   resolveRecordIdolImage,
+  resolveRecordIdolDisplayName,
   flattenSlotValues,
   buildStageStats,
   buildStageResults,
@@ -914,7 +915,17 @@ export default function Home() {
     const finalFormationBase = latestRecord
       ? stages.flatMap((stage) =>
           members.map((member) => {
-            const idol = latestRecord[`s${stage}_my${member}_idol`] || "";
+            const idol =
+              resolveRecordIdolDisplayName(
+                latestRecord,
+                stage,
+                member,
+                "my",
+                combinedIdolDb
+              ) ||
+              latestRecord[`s${stage}_my${member}_idol_name`] ||
+              latestRecord[`s${stage}_my${member}_idol`] ||
+              "";
             const idolId =
               latestRecord[`s${stage}_my${member}_idol_id`] ||
               makeStableIdolKey(latestRecord[`s${stage}_my${member}_idol`]);
@@ -1076,7 +1087,17 @@ export default function Home() {
 
       return stages.flatMap((stage) =>
         members.map((member) => {
-          const idol = record[`s${stage}_my${member}_idol`] || "";
+          const idol =
+            resolveRecordIdolDisplayName(
+              record,
+              stage,
+              member,
+              "my",
+              combinedIdolDb
+            ) ||
+            record[`s${stage}_my${member}_idol_name`] ||
+            record[`s${stage}_my${member}_idol`] ||
+            "";
           const idolId =
             record[`s${stage}_my${member}_idol_id`] ||
             makeStableIdolKey(record[`s${stage}_my${member}_idol`]);
@@ -2977,7 +2998,14 @@ const metaStats = useMemo(() => {
     filtered.forEach((record) => {
       stages.forEach((stage) => {
         members.forEach((member) => {
-          const idolName = record[`s${stage}_enemy${member}_idol`];
+          const idolName =
+            resolveRecordIdolDisplayName(
+              record,
+              stage,
+              member,
+              "enemy",
+              combinedIdolDb
+            ) || record[`s${stage}_enemy${member}_idol`];
 
           if (!idolName || idolName === "登録なし") return;
 
@@ -3030,7 +3058,7 @@ const metaStats = useMemo(() => {
         if (b.count !== a.count) return b.count - a.count;
         return b.winRate - a.winRate;
       });
-  }, [records, metaDays, metaPosition, metaMinCount, currentTime]);
+  }, [records, metaDays, metaPosition, metaMinCount, currentTime, combinedIdolDb]);
 
   const winCount = records.filter((r) => r.result === "勝ち").length;
   const winRate = records.length

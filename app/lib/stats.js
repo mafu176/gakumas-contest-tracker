@@ -1,6 +1,12 @@
 import { stages, members } from "./constants";
 import { toNumber } from "./numbers";
-import { getIdolDisplayName, getIdolImage, getIdolKey, makeStableIdolKey } from "./idols";
+import {
+  getIdolDisplayName,
+  getIdolImage,
+  getIdolKey,
+  makeStableIdolKey,
+  resolveRecordIdolDisplayName,
+} from "./idols";
 
 export function makeInitialStageDetails() {
   const details = {};
@@ -76,7 +82,9 @@ export function buildStageStats(records, sortMode, minCount) {
   records.forEach((record) => {
     stages.forEach((stage) => {
       members.forEach((member) => {
-        const idolName = record[`s${stage}_my${member}_idol`];
+        const idolName =
+          resolveRecordIdolDisplayName(record, stage, member, "my") ||
+          record[`s${stage}_my${member}_idol`];
         if (!idolName) return;
 
         if (!result[stage][idolName]) {
