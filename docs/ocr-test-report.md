@@ -1,14 +1,14 @@
 # OCR test report
 
-Generated: 2026-06-01T20:41:06.753Z
+Generated: 2026-06-02T06:55:21.970Z
 
 ## Summary
 
-- images: 42, expected: 37, failed: 0
+- images: 47, expected: 42, failed: 0
 - high-score: total 4, expected 4, failed 0, suspicious 4
 - next-screen: total 5, expected 0, failed 0, suspicious 0
 - normal-result: total 8, expected 8, failed 0, suspicious 8
-- user-reports: total 25, expected 25, failed 0, suspicious 25
+- user-reports: total 30, expected 30, failed 0, suspicious 30
 - high-score suspicious: 4
 - next-screen suspicious: 0
 - suspicious values include member sum mismatches, raw power values, crown-like raw values, and missing totals.
@@ -60,6 +60,11 @@ Generated: 2026-06-01T20:41:06.753Z
 | user-reports/unreviewed/IMG_8951.png | user-reports | 250,496 | 306,387 | 299,281 | 147,336 | 449,572 | 143,280 | 999,349 | 597,003 | none | S1 self: total OCR raw missing<br>S1 enemy: member sum mismatch 276,949 != 306,387<br>S2 self: member sum mismatch 267,715 != 299,281<br>S2 self: total OCR raw missing<br>S2 enemy: total OCR raw missing<br>S3 self: member sum mismatch 406,336 != 449,572<br>S3 self: total OCR raw missing<br>S3 enemy: total OCR raw missing |
 | user-reports/unreviewed/IMG_8952.png | user-reports | 291,036 | 127,834 | 274,640 | 101,782 | 787,643 | 265,799 | 1,353,319 | 495,415 | none | S1 self: member sum mismatch 265,048 != 291,036<br>S1 self: total OCR raw missing<br>S1 enemy: total OCR raw missing<br>S2 self: member sum mismatch 250,725 != 274,640<br>S2 self: total OCR raw missing<br>S3 self: member sum mismatch 687,881 != 787,643<br>S3 self: total OCR raw missing<br>S3 enemy: total OCR raw missing |
 | user-reports/unreviewed/IMG_8953.png | user-reports | 233,941 | 341,135 | 236,431 | 83,611 | 406,164 | 287,998 | 876,536 | 712,744 | none | S1 enemy: member sum mismatch 306,931 != 341,135<br>S1 enemy: total OCR raw missing<br>S2 self: member sum mismatch 215,873 != 236,431<br>S2 self: total OCR raw missing<br>S3 self: member sum mismatch 369,457 != 406,164<br>S3 self: total OCR raw missing<br>S3 enemy: total OCR raw missing |
+| user-reports/unreviewed/IMG_9124.png | user-reports | 655,998 | 56,819 | 513,961 | 184,601 | 456,883 | 89,949 | 1,626,842 | 331,369 | none | S1 self: member sum mismatch 588,172 != 655,998<br>S2 self: member sum mismatch 473,089 != 513,961<br>S3 self: member sum mismatch 392,225 != 456,883<br>S3 self: total OCR raw missing<br>S3 enemy: total OCR raw missing |
+| user-reports/unreviewed/IMG_9125.png | user-reports | 1,171,567 | 119,973 | 590,064 | 96,990 | 729,614 | 97,647 | 2,491,245 | 314,610 | none | S1 self: member sum mismatch 1,030,120 != 1,171,567<br>S1 enemy: total OCR raw missing<br>S2 self: member sum mismatch 540,139 != 590,064<br>S3 self: member sum mismatch 632,646 != 729,614<br>S3 self: total OCR raw missing<br>S3 enemy: total OCR raw missing |
+| user-reports/unreviewed/IMG_9126.png | user-reports | 777,728 | 97,744 | 379,985 | 88,183 | 489,387 | 100,360 | 1,647,100 | 286,287 | none | S1 self: member sum mismatch 694,746 != 777,728<br>S1 enemy: total OCR raw missing<br>S2 self: member sum mismatch 350,384 != 379,985<br>S3 self: member sum mismatch 423,196 != 489,387<br>S3 self: total OCR raw missing<br>S3 enemy: total OCR raw missing |
+| user-reports/unreviewed/IMG_9127.png | user-reports | 933,140 | 125,035 | 551,744 | 127,307 | 555,614 | 130,044 | 2,040,498 | 382,386 | none | S1 self: member sum mismatch 837,355 != 933,140<br>S2 self: member sum mismatch 507,802 != 551,744<br>S3 self: member sum mismatch 471,076 != 555,614<br>S3 self: total OCR raw missing<br>S3 enemy: total OCR raw missing |
+| user-reports/unreviewed/IMG_9128.png | user-reports | 654,329 | 100,636 | 566,789 | 144,299 | 641,021 | 74,248 | 1,862,139 | 319,183 | none | S1 self: member sum mismatch 594,301 != 654,329<br>S2 self: member sum mismatch 524,520 != 566,789<br>S3 self: member sum mismatch 559,049 != 641,021<br>S3 self: total OCR raw missing<br>S3 enemy: total OCR raw missing |
 
 ## Improvement notes
 

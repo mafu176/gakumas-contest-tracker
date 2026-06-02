@@ -109,9 +109,9 @@ export function buildStageStats(records, sortMode, minCount) {
         const stat = result[stage][idolName];
 
         const baseScore = toNumber(record[`s${stage}_my${member}_score`]);
-        const bonus = toNumber(record[`s${stage}_my_bonus`]);
-        const combined = baseScore + bonus;
         const rank = toNumber(record[`s${stage}_my${member}_rank`]);
+        const bonus = rank === 1 ? toNumber(record[`s${stage}_my_bonus`]) : 0;
+        const combined = baseScore + bonus;
 
         const teamScore = stages.reduce((sum, targetStage) => {
           const baseTotal = toNumber(record[`s${targetStage}_my_base_total`]);

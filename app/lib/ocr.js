@@ -533,6 +533,17 @@ export function pickTotalWithMemberFallback(
       return memberSum;
     }
 
+    const rawVisibleBonuses = rawNumbers
+      .filter((num) => num >= 10000 && num < 200000)
+      .filter((num) => Math.abs(num - memberSum) > 1000)
+      .filter((num) => !selectedMembers.some((member) => Math.abs(member - num) <= 1))
+      .filter((num) => !isKnownNoiseNumber(num))
+      .sort((a, b) => a - b);
+
+    if (rawVisibleBonuses.length > 0) {
+      return memberSum + rawVisibleBonuses[0];
+    }
+
     if (crownBonus > 0) {
       return memberSum + crownBonus;
     }
@@ -636,6 +647,14 @@ export function inferCrownBonusFromMemberNumbers(memberNumbers, totalNumbers = [
     ) {
       return { bonus, members, total: sumWithBonus };
     }
+
+    if (
+      bonus >= 10000 &&
+      bonus < 200000 &&
+      Math.abs(Math.abs(sumWithBonus - displayedTotal) - 300000) <= 2500
+    ) {
+      return { bonus, members, total: sumWithBonus };
+    }
   }
 
   if (numbers.length >= 4) {
@@ -656,15 +675,6 @@ export function inferCrownBonusFromMemberNumbers(memberNumbers, totalNumbers = [
     if (
       firstMatchesKnownTotal &&
       first > Math.max(...nextThree) &&
-      inferredBonusFromLeadingTotal >= 10000 &&
-      inferredBonusFromLeadingTotal < 200000
-    ) {
-      return { bonus: inferredBonusFromLeadingTotal, members: nextThree, total: first };
-    }
-
-    if (
-      first > Math.max(...nextThree) &&
-      nextThree.every((num) => num >= 10000 && num < 1000000) &&
       inferredBonusFromLeadingTotal >= 10000 &&
       inferredBonusFromLeadingTotal < 200000
     ) {
@@ -1232,12 +1242,16 @@ export function pickMemberNumbers(numbers, stage, totalNumbers = [], bonusNumber
     const leadingLooksLikeMisreadTotal =
       trailingBonus &&
       Math.abs(nextSum + trailingBonus - leading - 200000) <= 1000;
+    const leadingLooksLikeLargeMisreadTotal =
+      trailingBonus &&
+      Math.abs(nextSum + trailingBonus - leading - 300000) <= 2500;
     const leadingEqualsNextMemberSum = Math.abs(leading - nextSum) <= 1;
 
     if (
       looksLikeMemberTotal ||
       nextSumMatchesKnownTotal ||
       leadingLooksLikeMisreadTotal ||
+      leadingLooksLikeLargeMisreadTotal ||
       leadingEqualsNextMemberSum
     ) {
       return values.slice(1);

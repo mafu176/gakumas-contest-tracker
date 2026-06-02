@@ -2391,6 +2391,29 @@ export default function Home() {
     return warnings;
   };
 
+  const resetEnemyInputsAfterSave = () => {
+    setOpponent("");
+    setSlotValues((prev) => {
+      const next = { ...prev };
+      enemySlots.forEach((slot) => {
+        delete next[slot];
+      });
+      return next;
+    });
+    setStageDetails((prev) => {
+      const next = { ...prev };
+      stages.forEach((stage) => {
+        members.forEach((member) => {
+          next[`s${stage}_enemy${member}_score`] = "";
+          next[`s${stage}_enemy${member}_rank`] = "";
+          next[`s${stage}_enemy${member}_idol`] = "";
+        });
+        next[`s${stage}_enemy_bonus`] = "";
+      });
+      return next;
+    });
+  };
+
   const executeSave = () => {
     const idolFields = flattenSlotValues(slotValues);
     const selectedResult = manualResult || autoResult;
@@ -2467,10 +2490,14 @@ export default function Home() {
     }
 
     setLoadedRecordId(null);
-    setOpponent("");
-    setPoint("");
-    setManualResult("");
-    setStageDetails(makeInitialStageDetails());
+    if (isUpdateMode) {
+      setOpponent("");
+      setPoint("");
+      setManualResult("");
+      setStageDetails(makeInitialStageDetails());
+    } else {
+      resetEnemyInputsAfterSave();
+    }
   };
 
   const handleSaveClick = () => {

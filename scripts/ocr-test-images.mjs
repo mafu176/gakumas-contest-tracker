@@ -429,6 +429,15 @@ function pickTotalWithMemberFallback(
 
     if (visibleNumbers.some((num) => Math.abs(num - memberSum) <= 1)) return memberSum;
 
+    const rawVisibleBonuses = rawNumbers
+      .filter((num) => num >= 10000 && num < 200000)
+      .filter((num) => Math.abs(num - memberSum) > 1000)
+      .filter((num) => !selectedMembers.some((member) => Math.abs(member - num) <= 1))
+      .filter((num) => !isKnownNoiseNumber(num))
+      .sort((a, b) => a - b);
+
+    if (rawVisibleBonuses.length > 0) return memberSum + rawVisibleBonuses[0];
+
     const displayedTotals = rawNumbers
       .map((num) => correctCommonTotalOcr(num, memberSum))
       .filter((num) => {
@@ -502,12 +511,16 @@ function pickMemberNumbers(numbers, totalNumbers = [], bonusNumbers = []) {
     const leadingLooksLikeMisreadTotal =
       trailingBonus &&
       Math.abs(nextSum + trailingBonus - leading - 200000) <= 1000;
+    const leadingLooksLikeLargeMisreadTotal =
+      trailingBonus &&
+      Math.abs(nextSum + trailingBonus - leading - 300000) <= 2500;
     const leadingEqualsNextMemberSum = Math.abs(leading - nextSum) <= 1;
 
     if (
       looksLikeMemberTotal ||
       nextSumMatchesKnownTotal ||
       leadingLooksLikeMisreadTotal ||
+      leadingLooksLikeLargeMisreadTotal ||
       leadingEqualsNextMemberSum
     ) return values.slice(1);
     return values;
@@ -586,6 +599,14 @@ function inferCrownBonusFromMemberNumbers(memberNumbers, totalNumbers = []) {
       bonus >= 10000 &&
       bonus < 200000 &&
       Math.abs(Math.abs(sumWithBonus - displayedTotal) - 200000) <= 1000
+    ) {
+      return { bonus, members, total: sumWithBonus };
+    }
+
+    if (
+      bonus >= 10000 &&
+      bonus < 200000 &&
+      Math.abs(Math.abs(sumWithBonus - displayedTotal) - 300000) <= 2500
     ) {
       return { bonus, members, total: sumWithBonus };
     }
