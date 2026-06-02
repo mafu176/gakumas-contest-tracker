@@ -2771,17 +2771,22 @@ export default function Home() {
   };
 
   const copySeasonShareCardPng = async () => {
+    const clipboardUnavailableMessage =
+      "PNGコピーに失敗しました。ブラウザの制限によりコピーできない場合があります。PNG保存をご利用ください。";
     if (!selectedSeason) {
       setShareImageStatus("共有するシーズンを選択してください");
       return;
     }
 
     if (
+      typeof window === "undefined" ||
+      typeof document === "undefined" ||
       typeof navigator === "undefined" ||
       !navigator.clipboard ||
-      typeof ClipboardItem === "undefined"
+      !window.ClipboardItem ||
+      !document.hasFocus()
     ) {
-      setShareImageStatus("このブラウザでは画像コピーに対応していません");
+      setShareImageStatus(clipboardUnavailableMessage);
       return;
     }
 
@@ -2790,19 +2795,23 @@ export default function Home() {
 
       const { blob } = await createSeasonShareCardPng();
 
+      if (!document.hasFocus()) {
+        setShareImageStatus(clipboardUnavailableMessage);
+        return;
+      }
+
       await navigator.clipboard.write([
-        new ClipboardItem({
+        new window.ClipboardItem({
           "image/png": blob,
         }),
       ]);
 
       setShareImageStatus("画像をクリップボードへコピーしました");
     } catch (error) {
-      console.error(error);
       setShareImageStatus(
         error?.message === "share-card-not-ready"
           ? "共有カードを表示してからコピーしてください"
-          : "このブラウザでは画像コピーに対応していません"
+          : clipboardUnavailableMessage
       );
     }
   };
