@@ -24,11 +24,10 @@ export default function PageHeader({
               }}
             />
             <span>
-              <span className="font-semibold">匿名統計に協力する</span>
+              <span className="font-semibold">戦績データ共有に協力する</span>
               <span className="mt-1 block text-xs text-zinc-600">
-                ONにすると、保存時に匿名化した戦績だけを統計用に送信します。
-                自分側・相手側のアイドル名と内部IDは、全体使用率や得点傾向の匿名統計用に送信します。
-                個人メモ・編成テンプレ名は送信しません。
+                ONにすると、保存時にサービス改善および利用状況分析のための戦績情報や編成情報を送信します。
+                送信は設定画面からいつでも無効化できます。
               </span>
             </span>
           </label>

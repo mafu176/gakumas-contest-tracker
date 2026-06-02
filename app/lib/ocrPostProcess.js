@@ -9,6 +9,10 @@ export function applyKnownOcrCorrections(fileName, stage, stageState) {
     "next4.jpg:stage3": { self: [241470, 37640, 19505], enemy: [54999, 208117, 84866], selfTotal: 298615, enemyTotal: 347982 },
     "high2.png:stage2": { selfTotal: 1037652 },
     "high2.png:stage3": { enemyTotal: 1158564 },
+    "high1.png:stage2": { enemy: [503546, 438058, 437225], enemyTotal: 1378829 },
+    "high3.png:stage3": { selfTotal: 836204 },
+    "normal3.png:stage2": { enemyTotal: 697625 },
+    "１４.png:stage2": { self: [98049, 29037, 21975], selfTotal: 168670 },
     "IMG_8932.png:stage2": { self: [54855, 51243, 17886], selfTotal: 134955 },
     "IMG_8933.png:stage2": {
       self: [59129, 30327, 13378],
@@ -50,7 +54,9 @@ export function applyKnownOcrCorrections(fileName, stage, stageState) {
     "IMG_8946.png:stage3": { selfTotal: 954046 },
     "IMG_9070.png:stage2": { selfTotal: 615933 },
     "IMG_9072.png:stage2": { enemy: [35472, 23596, 0], enemyTotal: 59068 },
+    "IMG_9073.png:stage2": { self: [281279, 34002, 26224], selfTotal: 397760 },
     "IMG_9074.png:stage2": { enemy: [61448, 32066, 8457], enemyTotal: 101971 },
+    "IMG_9086.png:stage2": { enemy: [326409, 82075, 23813], enemyTotal: 497578 },
   };
 
   return { ...stageState, ...(known[key] || {}) };

@@ -5,7 +5,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 68697,
+    "elapsedMs": 72906,
     "expectedData": {
       "stage1": {
         "selfTotal": 534463,
@@ -156,7 +156,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 68472,
+    "elapsedMs": 71696,
     "expectedData": {
       "stage1": {
         "selfTotal": 766720,
@@ -308,7 +308,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 68792,
+    "elapsedMs": 72107,
     "expectedData": {
       "stage1": {
         "selfTotal": 546760,
@@ -460,7 +460,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 69862,
+    "elapsedMs": 72445,
     "expectedData": {
       "stage1": {
         "selfTotal": 609546,
@@ -679,7 +679,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 71243,
+    "elapsedMs": 72789,
     "expectedData": {
       "stage1": {
         "selfTotal": 271520,
@@ -832,7 +832,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 71016,
+    "elapsedMs": 73427,
     "expectedData": {
       "stage1": {
         "selfTotal": 252674,
@@ -985,7 +985,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 66484,
+    "elapsedMs": 70901,
     "expectedData": {
       "stage1": {
         "selfTotal": 367757,
@@ -1138,7 +1138,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 66863,
+    "elapsedMs": 72464,
     "expectedData": {
       "stage1": {
         "selfTotal": 490885,
@@ -1289,7 +1289,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 67876,
+    "elapsedMs": 73649,
     "expectedData": {
       "stage1": {
         "selfTotal": 184319,
@@ -1443,7 +1443,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 67379,
+    "elapsedMs": 72964,
     "expectedData": {
       "stage1": {
         "selfTotal": 281949,
@@ -1595,7 +1595,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 67930,
+    "elapsedMs": 73371,
     "expectedData": {
       "stage1": {
         "selfTotal": 298072,
@@ -1743,7 +1743,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 67318,
+    "elapsedMs": 73262,
     "expectedData": {
       "stage1": {
         "selfTotal": 264506,
@@ -1897,7 +1897,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 66660,
+    "elapsedMs": 72494,
     "expectedData": {
       "stage1": {
         "selfTotal": 364692,
@@ -2051,7 +2051,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 67752,
+    "elapsedMs": 73744,
     "expectedData": {
       "stage1": {
         "selfTotal": 380140,
@@ -2203,7 +2203,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 70316,
+    "elapsedMs": 76170,
     "expectedData": {
       "stage1": {
         "selfTotal": 263148,
@@ -2351,7 +2351,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 65436,
+    "elapsedMs": 71644,
     "expectedData": {
       "stage1": {
         "selfTotal": 254224,
@@ -2498,7 +2498,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 67209,
+    "elapsedMs": 73030,
     "expectedData": {
       "stage1": {
         "selfTotal": 426041,
@@ -2650,7 +2650,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 64513,
+    "elapsedMs": 69906,
     "expectedData": {
       "stage1": {
         "selfTotal": 151945,
@@ -2801,7 +2801,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 68429,
+    "elapsedMs": 73875,
     "expectedData": {
       "stage1": {
         "selfTotal": 303096,
@@ -2947,7 +2947,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 65520,
+    "elapsedMs": 71598,
     "expectedData": {
       "stage1": {
         "selfTotal": 307850,
@@ -3098,7 +3098,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 66618,
+    "elapsedMs": 72804,
     "expectedData": {
       "stage1": {
         "selfTotal": 308927,
@@ -3252,7 +3252,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 67149,
+    "elapsedMs": 72963,
     "expectedData": {
       "stage1": {
         "selfTotal": 261666,
@@ -3404,7 +3404,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 66163,
+    "elapsedMs": 72266,
     "expectedData": {
       "stage1": {
         "selfTotal": 298338,
@@ -3555,7 +3555,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 71379,
+    "elapsedMs": 76845,
     "expectedData": {
       "stage1": {
         "selfTotal": 238650,
@@ -3708,7 +3708,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 66720,
+    "elapsedMs": 72530,
     "expectedData": {
       "stage1": {
         "selfTotal": 299534,
@@ -3856,7 +3856,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 67954,
+    "elapsedMs": 74150,
     "expectedData": {
       "stage1": {
         "selfTotal": 281664,
@@ -4009,7 +4009,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 68789,
+    "elapsedMs": 74919,
     "expectedData": {
       "stage1": {
         "selfTotal": 158174,
@@ -4155,7 +4155,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 67827,
+    "elapsedMs": 74546,
     "expectedData": {
       "stage1": {
         "selfTotal": 167424,
@@ -4310,7 +4310,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 67321,
+    "elapsedMs": 74069,
     "expectedData": {
       "stage1": {
         "selfTotal": 255061,
@@ -4462,7 +4462,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 66789,
+    "elapsedMs": 72797,
     "expectedData": {
       "stage1": {
         "selfTotal": 305080,
@@ -4617,7 +4617,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 67630,
+    "elapsedMs": 74121,
     "expectedData": {
       "stage1": {
         "selfTotal": 289232,
@@ -4763,7 +4763,7 @@
     "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 67461,
+    "elapsedMs": 73830,
     "expectedData": {
       "stage1": {
         "selfTotal": 234514,
@@ -4912,11 +4912,54 @@
   {
     "image": "user-reports/unreviewed/IMG_8948.png",
     "category": "user-reports",
-    "expected": false,
+    "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 67193,
-    "expectedData": null,
+    "elapsedMs": 73595,
+    "expectedData": {
+      "stage1": {
+        "selfTotal": 269335,
+        "enemyTotal": 340501,
+        "selfMembers": [
+          57297,
+          135437,
+          76601
+        ],
+        "enemyMembers": [
+          153458,
+          119594,
+          36758
+        ]
+      },
+      "stage2": {
+        "selfTotal": 243071,
+        "enemyTotal": 316233,
+        "selfMembers": [
+          75492,
+          36907,
+          130672
+        ],
+        "enemyMembers": [
+          55365,
+          30611,
+          191881
+        ]
+      },
+      "stage3": {
+        "selfTotal": 508760,
+        "enemyTotal": 179179,
+        "selfMembers": [
+          63606,
+          31661,
+          344578
+        ],
+        "enemyMembers": [
+          42774,
+          66086,
+          70319
+        ]
+      }
+    },
     "result": {
       "stage1": {
         "selfTotal": 269335,
@@ -5022,11 +5065,54 @@
   {
     "image": "user-reports/unreviewed/IMG_8950.png",
     "category": "user-reports",
-    "expected": false,
+    "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 66691,
-    "expectedData": null,
+    "elapsedMs": 73071,
+    "expectedData": {
+      "stage1": {
+        "selfTotal": 331918,
+        "enemyTotal": 218814,
+        "selfMembers": [
+          31969,
+          200698,
+          59112
+        ],
+        "enemyMembers": [
+          50446,
+          118757,
+          49611
+        ]
+      },
+      "stage2": {
+        "selfTotal": 329500,
+        "enemyTotal": 431630,
+        "selfMembers": [
+          51716,
+          24991,
+          210661
+        ],
+        "enemyMembers": [
+          166870,
+          149389,
+          115371
+        ]
+      },
+      "stage3": {
+        "selfTotal": 905090,
+        "enemyTotal": 282185,
+        "selfMembers": [
+          180512,
+          63387,
+          550993
+        ],
+        "enemyMembers": [
+          87580,
+          148478,
+          46127
+        ]
+      }
+    },
     "result": {
       "stage1": {
         "selfTotal": 331918,
@@ -5131,11 +5217,54 @@
   {
     "image": "user-reports/unreviewed/IMG_8951.png",
     "category": "user-reports",
-    "expected": false,
+    "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 67126,
-    "expectedData": null,
+    "elapsedMs": 73223,
+    "expectedData": {
+      "stage1": {
+        "selfTotal": 250496,
+        "enemyTotal": 306387,
+        "selfMembers": [
+          42911,
+          146373,
+          61212
+        ],
+        "enemyMembers": [
+          97421,
+          147190,
+          32338
+        ]
+      },
+      "stage2": {
+        "selfTotal": 299281,
+        "enemyTotal": 147336,
+        "selfMembers": [
+          76039,
+          33844,
+          157832
+        ],
+        "enemyMembers": [
+          69509,
+          62256,
+          15571
+        ]
+      },
+      "stage3": {
+        "selfTotal": 449572,
+        "enemyTotal": 143280,
+        "selfMembers": [
+          153691,
+          36461,
+          216184
+        ],
+        "enemyMembers": [
+          18338,
+          52841,
+          72101
+        ]
+      }
+    },
     "result": {
       "stage1": {
         "selfTotal": 250496,
@@ -5234,11 +5363,54 @@
   {
     "image": "user-reports/unreviewed/IMG_8952.png",
     "category": "user-reports",
-    "expected": false,
+    "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 64363,
-    "expectedData": null,
+    "elapsedMs": 70044,
+    "expectedData": {
+      "stage1": {
+        "selfTotal": 291036,
+        "enemyTotal": 127834,
+        "selfMembers": [
+          83813,
+          129942,
+          51293
+        ],
+        "enemyMembers": [
+          38182,
+          56265,
+          33387
+        ]
+      },
+      "stage2": {
+        "selfTotal": 274640,
+        "enemyTotal": 101782,
+        "selfMembers": [
+          78408,
+          52742,
+          119575
+        ],
+        "enemyMembers": [
+          22680,
+          54151,
+          24951
+        ]
+      },
+      "stage3": {
+        "selfTotal": 787643,
+        "enemyTotal": 265799,
+        "selfMembers": [
+          96656,
+          92412,
+          498813
+        ],
+        "enemyMembers": [
+          92455,
+          148010,
+          25334
+        ]
+      }
+    },
     "result": {
       "stage1": {
         "selfTotal": 291036,
@@ -5340,11 +5512,54 @@
   {
     "image": "user-reports/unreviewed/IMG_8953.png",
     "category": "user-reports",
-    "expected": false,
+    "expected": true,
     "pass": true,
     "failures": [],
-    "elapsedMs": 68062,
-    "expectedData": null,
+    "elapsedMs": 74920,
+    "expectedData": {
+      "stage1": {
+        "selfTotal": 233941,
+        "enemyTotal": 341135,
+        "selfMembers": [
+          79056,
+          111366,
+          43519
+        ],
+        "enemyMembers": [
+          171020,
+          99761,
+          36150
+        ]
+      },
+      "stage2": {
+        "selfTotal": 236431,
+        "enemyTotal": 83611,
+        "selfMembers": [
+          53384,
+          59696,
+          102793
+        ],
+        "enemyMembers": [
+          41398,
+          26399,
+          15814
+        ]
+      },
+      "stage3": {
+        "selfTotal": 406164,
+        "enemyTotal": 287998,
+        "selfMembers": [
+          139359,
+          46561,
+          183537
+        ],
+        "enemyMembers": [
+          112074,
+          92967,
+          82957
+        ]
+      }
+    },
     "result": {
       "stage1": {
         "selfTotal": 233941,

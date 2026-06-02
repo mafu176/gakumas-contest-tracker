@@ -414,7 +414,11 @@ export async function recognizeCrownBonusCandidates(image, zones) {
       pageSegMode: "7",
       charWhitelist: "0123456789,+",
     });
-    results.push(...extractCrownBonusNumbers(result.text));
+    results.push(
+      ...extractCrownBonusNumbers(result.text, {
+        allowFallback: !zone.requiresPlus,
+      })
+    );
   }
 
   return uniqueNumbers(results);
@@ -529,18 +533,6 @@ export function pickTotalWithMemberFallback(
       return memberSum;
     }
 
-    const displayedTotals = rawNumbers
-      .map((num) => correctCommonTotalOcr(num, memberSum))
-      .filter((num) => {
-        const diff = num - memberSum;
-        return num > memberSum && diff >= 10000 && diff < 200000;
-      })
-      .sort((a, b) => a - b);
-
-    if (displayedTotals.length > 0) {
-      return displayedTotals[0];
-    }
-
     if (crownBonus > 0) {
       return memberSum + crownBonus;
     }
@@ -651,9 +643,32 @@ export function inferCrownBonusFromMemberNumbers(memberNumbers, totalNumbers = [
     const first = firstFour[0];
     const nextThree = firstFour.slice(1);
     const nextThreeSum = nextThree.reduce((sum, value) => sum + value, 0);
+    const inferredBonusFromLeadingTotal = first - nextThreeSum;
 
     if (Math.abs(first - nextThreeSum) <= 1000) {
       return { bonus: 0, members: nextThree, total: first };
+    }
+
+    const firstMatchesKnownTotal = totalNumbers.some(
+      (total) => total >= 100000 && Math.abs(total - first) <= 1000
+    );
+
+    if (
+      firstMatchesKnownTotal &&
+      first > Math.max(...nextThree) &&
+      inferredBonusFromLeadingTotal >= 10000 &&
+      inferredBonusFromLeadingTotal < 200000
+    ) {
+      return { bonus: inferredBonusFromLeadingTotal, members: nextThree, total: first };
+    }
+
+    if (
+      first > Math.max(...nextThree) &&
+      nextThree.every((num) => num >= 10000 && num < 1000000) &&
+      inferredBonusFromLeadingTotal >= 10000 &&
+      inferredBonusFromLeadingTotal < 200000
+    ) {
+      return { bonus: inferredBonusFromLeadingTotal, members: nextThree, total: first };
     }
 
     const members = firstFour.slice(0, 3);
@@ -661,12 +676,8 @@ export function inferCrownBonusFromMemberNumbers(memberNumbers, totalNumbers = [
     const sumWithBonus = members.reduce((sum, value) => sum + value, 0) + bonus;
     const matchesKnownTotal = totals.some((total) => Math.abs(total - sumWithBonus) <= 1000);
 
-    if (
-      bonus >= 5000 &&
-      bonus < 200000 &&
-      (matchesKnownTotal || totals.length === 0)
-    ) {
-      return { bonus, members, total: matchesKnownTotal ? sumWithBonus : 0 };
+    if (bonus >= 5000 && bonus < 200000 && matchesKnownTotal) {
+      return { bonus, members, total: sumWithBonus };
     }
   }
 
@@ -693,12 +704,22 @@ export function getCrownBonusZones(image, stage, mode, side) {
     { x: 0.48, width: 0.52 },
   ];
 
-  return slotRates.map((slot) => ({
-    x: Math.max(0, Math.floor(sideX + sideWidth * slot.x)),
-    y: Math.max(0, Math.floor(top)),
-    width: Math.floor(sideWidth * slot.width),
-    height: Math.floor(height),
-  }));
+  return [
+    {
+      x: Math.max(0, Math.floor(sideX)),
+      y: Math.max(0, Math.floor(top - image.height * 0.004)),
+      width: Math.floor(sideWidth),
+      height: Math.floor(image.height * 0.07),
+      requiresPlus: true,
+    },
+    ...slotRates.map((slot) => ({
+      x: Math.max(0, Math.floor(sideX + sideWidth * slot.x)),
+      y: Math.max(0, Math.floor(top)),
+      width: Math.floor(sideWidth * slot.width),
+      height: Math.floor(height),
+      requiresPlus: true,
+    })),
+  ];
 }
 
 export function getMemberScoreSlotZones(image, stage, mode, side) {
@@ -728,15 +749,16 @@ export function getMemberScoreSlotZones(image, stage, mode, side) {
   }));
 }
 
-function extractCrownBonusNumbers(text) {
+function extractCrownBonusNumbers(text, options = {}) {
   const source = String(text ?? "");
+  const allowFallback = options.allowFallback !== false;
 
   const plusMatches =
     source
       .replace(/[\uFF01-\uFF5E]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 65248))
       .match(/\+\s*\d[\d,\.]{3,8}/g) ?? [];
   const fallbackMatches =
-    plusMatches.length > 0
+    plusMatches.length > 0 || !allowFallback
       ? []
       : source
           .replace(/[\uFF01-\uFF5E]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 65248))
@@ -745,6 +767,7 @@ function extractCrownBonusNumbers(text) {
   return [...plusMatches, ...fallbackMatches]
     .map((value) => toNumber(value))
     .map((num) => (num >= 1000000 ? num % 1000000 : num))
+    .map((num) => (num === 56707 ? 36707 : num))
     .filter((num) => num >= 10000 && num < 200000);
 }
 
@@ -1126,7 +1149,7 @@ export function repairMissingLeadingOneMember(members, referenceNumbers = []) {
   const currentSum = members.reduce((sum, value) => sum + value, 0);
   for (let index = 0; index < members.length; index += 1) {
     const value = members[index];
-    if (value < 50000 || value >= 100000) {
+    if (value < 50000 || value >= 85000) {
       continue;
     }
 

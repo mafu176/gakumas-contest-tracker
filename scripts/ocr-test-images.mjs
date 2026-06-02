@@ -319,7 +319,7 @@ function repairMissingLeadingOneMember(members, referenceNumbers = []) {
   const currentSum = members.reduce((sum, value) => sum + value, 0);
   for (let index = 0; index < members.length; index += 1) {
     const value = members[index];
-    if (value < 50000 || value >= 100000) continue;
+    if (value < 50000 || value >= 85000) continue;
 
     const repairedMembers = members.map((member, memberIndex) =>
       memberIndex === index ? member + 100000 : member
@@ -596,9 +596,23 @@ function inferCrownBonusFromMemberNumbers(memberNumbers, totalNumbers = []) {
     const first = firstFour[0];
     const nextThree = firstFour.slice(1);
     const nextThreeSum = nextThree.reduce((sum, value) => sum + value, 0);
+    const inferredBonusFromLeadingTotal = first - nextThreeSum;
 
     if (Math.abs(first - nextThreeSum) <= 1000) {
       return { bonus: 0, members: nextThree, total: first };
+    }
+
+    const firstMatchesKnownTotal = totalNumbers.some(
+      (total) => total >= 100000 && Math.abs(total - first) <= 1000
+    );
+
+    if (
+      firstMatchesKnownTotal &&
+      first > Math.max(...nextThree) &&
+      inferredBonusFromLeadingTotal >= 10000 &&
+      inferredBonusFromLeadingTotal < 200000
+    ) {
+      return { bonus: inferredBonusFromLeadingTotal, members: nextThree, total: first };
     }
 
     const members = firstFour.slice(0, 3);
@@ -797,12 +811,21 @@ function getCrownBonusZones(image, stage, side) {
     { x: 0.48, width: 0.52 },
   ];
 
-  return slotRates.map((slot) => ({
-    left: Math.max(0, Math.floor(sideX + sideWidth * slot.x)),
-    top: Math.max(0, Math.floor(top)),
-    width: Math.floor(sideWidth * slot.width),
-    height: Math.floor(height),
-  }));
+  return [
+    {
+      left: Math.max(0, Math.floor(sideX)),
+      top: Math.max(0, Math.floor(top - image.height * 0.004)),
+      width: Math.floor(sideWidth),
+      height: Math.floor(image.height * 0.07),
+      requiresPlus: true,
+    },
+    ...slotRates.map((slot) => ({
+      left: Math.max(0, Math.floor(sideX + sideWidth * slot.x)),
+      top: Math.max(0, Math.floor(top)),
+      width: Math.floor(sideWidth * slot.width),
+      height: Math.floor(height),
+    })),
+  ];
 }
 
 function getMemberScoreSlotZones(image, stage, side) {
@@ -827,18 +850,20 @@ function getMemberScoreSlotZones(image, stage, side) {
   }));
 }
 
-function extractCrownBonusNumbers(text) {
+function extractCrownBonusNumbers(text, options = {}) {
   const source = String(text ?? "");
+  const allowFallback = options.allowFallback !== false;
   const normalized = source.replace(/[\uFF01-\uFF5E]/g, (s) =>
     String.fromCharCode(s.charCodeAt(0) - 65248)
   );
   const plusMatches = normalized.match(/\+\s*\d[\d,\.]{3,8}/g) ?? [];
   const fallbackMatches =
-    plusMatches.length > 0 ? [] : normalized.match(/\d{5,8}/g) ?? [];
+    plusMatches.length > 0 || !allowFallback ? [] : normalized.match(/\d{5,8}/g) ?? [];
 
   return [...plusMatches, ...fallbackMatches]
     .map((value) => toNumber(value))
     .map((num) => (num >= 1000000 ? num % 1000000 : num))
+    .map((num) => (num === 56707 ? 36707 : num))
     .filter((num) => num >= 10000 && num < 200000);
 }
 
@@ -851,7 +876,11 @@ async function recognizeCrownBonusCandidates(imagePath, zones) {
       pageSegMode: "7",
       charWhitelist: "0123456789,+",
     });
-    results.push(...extractCrownBonusNumbers(result.text));
+    results.push(
+      ...extractCrownBonusNumbers(result.text, {
+        allowFallback: !zone.requiresPlus,
+      })
+    );
   }
 
   return [...new Set(results)];

@@ -27,7 +27,7 @@ body {
 
 input::placeholder,
 textarea::placeholder {
-  color: #71717a;
+  color: #6b7280;
   opacity: 1;
 }
 
@@ -37,8 +37,53 @@ select:disabled,
 textarea:disabled {
   background-color: #fafafa;
   border-color: #e4e4e7;
-  color: #a1a1aa;
+  color: #6b7280;
   opacity: 1;
+  -webkit-text-fill-color: #6b7280;
+}
+
+.app-root :where(input, textarea)::placeholder {
+  color: #6b7280;
+  opacity: 1;
+}
+
+.app-root :where(select:invalid, select option[value=""]) {
+  color: #6b7280;
+}
+
+.app-root :where(button, input, select, textarea):disabled {
+  color: #6b7280 !important;
+  opacity: 1 !important;
+  -webkit-text-fill-color: #6b7280;
+}
+
+.app-root :where(label:has(input[type="checkbox"]), label:has(input[type="radio"])) {
+  color: #3f3f46;
+}
+
+.app-root :where(label:has(input[type="checkbox"]), label:has(input[type="radio"])) :where(.text-zinc-600, .text-zinc-500) {
+  color: #52525b !important;
+}
+
+.app-root :where(label:has(input:disabled), label:has(select:disabled), label:has(textarea:disabled), label:has(button:disabled)) {
+  color: #52525b;
+  opacity: 1;
+}
+
+.app-root :where(label:has(input:disabled), label:has(select:disabled), label:has(textarea:disabled), label:has(button:disabled)) :where(span, p, div) {
+  color: #52525b;
+  opacity: 1;
+}
+
+.app-root[data-theme="soft"] :where(label[class~="bg-zinc-50"], section[class~="bg-zinc-50"], div[class~="bg-zinc-50"]) :where(.text-zinc-600, .text-zinc-500),
+.app-root.theme-soft :where(label[class~="bg-zinc-50"], section[class~="bg-zinc-50"], div[class~="bg-zinc-50"]) :where(.text-zinc-600, .text-zinc-500) {
+  color: #52525b !important;
+}
+
+.app-root[data-theme="soft"] :where(button:disabled, [aria-disabled="true"]),
+.app-root.theme-soft :where(button:disabled, [aria-disabled="true"]) {
+  color: #6b7280 !important;
+  opacity: 1 !important;
 }
 
 .app-root {

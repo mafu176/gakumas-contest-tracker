@@ -2082,808 +2082,7 @@ export default function Home() {
           correctedEnemyMembers
         );
 
-        // v44 common cleanup:
-        // total-mix removal + plus-score noise removal + conservative leading-digit recovery.
-        if (activeOcrMode === "smartphone") {
-          const selfNoPlus = removePlusLikeNumbers(
-            correctedSelfMembers,
-            [selfTotal, rawSelfTotal]
-          );
-
-          const enemyNoPlus = removePlusLikeNumbers(
-            correctedEnemyMembers,
-            [enemyTotal, rawEnemyTotal]
-          );
-
-          const selfCleaned = applyCommonMemberCleanup(selfNoPlus, [
-            selfTotal,
-            rawSelfTotal,
-          ]);
-
-          const enemyCleaned = applyCommonMemberCleanup(enemyNoPlus, [
-            enemyTotal,
-            rawEnemyTotal,
-          ]);
-
-          if (
-            correctedSelfMembers.length >= 3 &&
-            selfCleaned.length >= 3 &&
-            selfCleaned.length < correctedSelfMembers.length
-          ) {
-            correctionLogs.push("自分: 合計混入/加点誤認を共通除去");
-            correctedSelfMembers = selfCleaned;
-          }
-
-          if (
-            correctedEnemyMembers.length >= 3 &&
-            enemyCleaned.length >= 3 &&
-            enemyCleaned.length < correctedEnemyMembers.length
-          ) {
-            correctionLogs.push("相手: 合計混入/加点誤認を共通除去");
-            correctedEnemyMembers = enemyCleaned;
-          }
-
-          // Conservative recovery for values like 67,608 -> 167,608.
-          // Only apply when all 3 member slots remain and a reference total exists.
-          const selfRecovered = correctedSelfMembers.map((num) =>
-            recoverMissingLeadingDigit(num, selfTotal || rawSelfTotal)
-          );
-
-          const enemyRecovered = correctedEnemyMembers.map((num) =>
-            recoverMissingLeadingDigit(num, enemyTotal || rawEnemyTotal)
-          );
-
-          if (
-            correctedSelfMembers.length === 3 &&
-            selfRecovered.length === 3 &&
-            selfRecovered.reduce((sum, value) => sum + value, 0) <=
-              (selfTotal || rawSelfTotal || 3000000)
-          ) {
-            if (selfRecovered.join(",") !== correctedSelfMembers.join(",")) {
-              correctionLogs.push("自分: 先頭桁欠落を共通復元");
-            }
-            correctedSelfMembers = selfRecovered;
-          }
-
-          if (
-            correctedEnemyMembers.length === 3 &&
-            enemyRecovered.length === 3 &&
-            enemyRecovered.reduce((sum, value) => sum + value, 0) <=
-              (enemyTotal || rawEnemyTotal || 3000000)
-          ) {
-            if (enemyRecovered.join(",") !== correctedEnemyMembers.join(",")) {
-              correctionLogs.push("相手: 先頭桁欠落を共通復元");
-            }
-            correctedEnemyMembers = enemyRecovered;
-          }
-        }
-
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 2 &&
-          isSmartphoneLowScorePattern &&
-          selfTotal === 150588 &&
-          selfMemberSum === 138451
-        ) {
-          selfTotal = 150388;
-        }
-
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 2 &&
-          isSmartphoneHighScorePattern
-        ) {
-          selfTotal = 110667;
-          enemyTotal = 169560;
-        }
-
-        // Smartphone result-screen sample:
-        // Total value can be mixed into the member row, causing the 3rd member to disappear.
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 1 &&
-          correctedSelfMembers.includes(214213) &&
-          correctedSelfMembers.includes(97133) &&
-          correctedSelfMembers.includes(70385)
-        ) {
-          correctionLogs.push("自分: ステージ1の合計混入を補正");
-          correctedSelfMembers = [97133, 70385, 46695];
-          selfTotal = 214213;
-        }
-
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 1 &&
-          correctedEnemyMembers.includes(306835) &&
-          correctedEnemyMembers.includes(89101) &&
-          correctedEnemyMembers.includes(76522)
-        ) {
-          correctionLogs.push("相手: ステージ1の合計混入を補正");
-          correctedEnemyMembers = [89101, 76522, 117677];
-          enemyTotal = 306835;
-        }
-
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 2 &&
-          correctedEnemyMembers.includes(69560) &&
-          correctedEnemyMembers.includes(34740) &&
-          correctedEnemyMembers.includes(44314)
-        ) {
-          correctionLogs.push("相手: ステージ2の合計先頭桁欠落/混入を補正");
-          correctedEnemyMembers = [34740, 44314, 75422];
-          enemyTotal = 169560;
-        }
-
-        // Generic rule:
-        // If total value is mixed into member scores, remove values close to total.
-        const filterMixedTotal = (members, totalValue, sideLabel) => {
-          if (members.length < 4 || !totalValue) return members;
-
-          const filtered = members.filter(
-            (v) => Math.abs(v - totalValue) > 100
-          );
-
-          if (filtered.length === 3) {
-            correctionLogs.push(
-              `${sideLabel}: 合計値混入を自動除外 (${totalValue.toLocaleString()})`
-            );
-            return filtered;
-          }
-
-          return members;
-        };
-
-        correctedSelfMembers = filterMixedTotal(
-          correctedSelfMembers,
-          selfTotal,
-          "自分"
-        );
-
-        correctedEnemyMembers = filterMixedTotal(
-          correctedEnemyMembers,
-          enemyTotal,
-          "相手"
-        );
-
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 3 &&
-          correctedSelfMembers.join(",") === "99664,53021,68069"
-        ) {
-          selfTotal = 220754;
-        }
-
-        // Smartphone sample pattern 3:
-        // Stage 1 self can read 136,629 as total instead of the 2nd member score.
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 1 &&
-          correctedSelfMembers.includes(45635) &&
-          correctedSelfMembers.includes(42885) &&
-          correctedSelfMembers.includes(25311)
-        ) {
-          correctedSelfMembers = [45635, 136629, 42885];
-          selfTotal = 252474;
-        }
-
-        // Smartphone sample pattern 3:
-        // Stage 2 self can misread 92,435 as 75,597.
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 2 &&
-          correctedSelfMembers.includes(75597) &&
-          correctedSelfMembers.includes(38689) &&
-          correctedSelfMembers.includes(23986)
-        ) {
-          correctedSelfMembers = [92435, 38689, 23986];
-          selfTotal = 173597;
-        }
-
-        // Smartphone high-score sample pattern:
-        // Stage 1 self may miss 238,482 and treat 252,474 as member-like.
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 1 &&
-          correctedSelfMembers.includes(61804) &&
-          correctedSelfMembers.includes(134177)
-        ) {
-          correctedSelfMembers = [161804, 134177, 238482];
-          selfTotal = 534463;
-        }
-
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 1 &&
-          correctedEnemyMembers.includes(687235) &&
-          correctedEnemyMembers.includes(365073) &&
-          correctedEnemyMembers.includes(138786)
-        ) {
-          correctedEnemyMembers = [365073, 138786, 110358];
-          enemyTotal = 687231;
-        }
-
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 1 &&
-          correctedEnemyMembers.includes(138786) &&
-          correctedEnemyMembers.includes(110358)
-        ) {
-          correctedEnemyMembers = [365073, 138786, 110358];
-          enemyTotal = 687231;
-        }
-
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 1 &&
-          (correctedEnemyMembers.includes(687231) ||
-            correctedEnemyMembers.includes(687251)) &&
-          correctedEnemyMembers.includes(365073) &&
-          correctedEnemyMembers.includes(138786)
-        ) {
-          correctionLogs.push("相手: ステージ1の合計混入/末尾誤認を補正");
-          correctedEnemyMembers = [365073, 138786, 110358];
-          enemyTotal = 687231;
-        }
-
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 2 &&
-          correctedEnemyMembers.includes(783708) &&
-          correctedEnemyMembers.includes(271048) &&
-          correctedEnemyMembers.includes(307221)
-        ) {
-          correctionLogs.push("相手: ステージ2高スコア帯の合計混入を補正");
-          correctedEnemyMembers = [271048, 307221, 205439];
-          enemyTotal = 783708;
-        }
-
-        // Smartphone high-score sample pattern:
-        // Stage 2 can lose leading digits in very high scores.
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 2 &&
-          (correctedSelfMembers.includes(53048) ||
-            correctedSelfMembers.includes(205886))
-        ) {
-          correctedSelfMembers = [437293, 205886, 309869];
-          selfTotal = 953048;
-        }
-
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 2 &&
-          (correctedEnemyMembers.includes(100709) ||
-            correctedEnemyMembers.includes(437225))
-        ) {
-          correctedEnemyMembers = [503546, 438058, 437225];
-          enemyTotal = 1479538;
-        }
-
-        // Smartphone high-score sample pattern:
-        // Stage 3 can lose leading digits in totals and members.
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 3 &&
-          (correctedSelfMembers.includes(66972) ||
-            correctedSelfMembers.includes(307030) ||
-            correctedSelfMembers.includes(322202))
-        ) {
-          correctedSelfMembers = [307030, 322202, 191592];
-          selfTotal = 820824;
-        }
-
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 3 &&
-          (correctedEnemyMembers.includes(113008) ||
-            correctedEnemyMembers.includes(382488) ||
-            correctedEnemyMembers.includes(229246))
-        ) {
-          correctedEnemyMembers = [113008, 382488, 229246];
-          enemyTotal = 801239;
-        }
-
-        // Smartphone high-score sample pattern 5.
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 1 &&
-          correctedSelfMembers.includes(609546) &&
-          correctedSelfMembers.includes(217490) &&
-          correctedSelfMembers.includes(239123)
-        ) {
-          correctedSelfMembers = [217490, 239123, 105109];
-          selfTotal = 609546;
-        }
-
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 1 &&
-          correctedEnemyMembers.includes(550038) &&
-          correctedEnemyMembers.includes(235749)
-        ) {
-          correctedEnemyMembers = [235749, 153261, 161028];
-          enemyTotal = 550038;
-        }
-
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 2 &&
-          correctedSelfMembers.includes(809001) &&
-          correctedSelfMembers.includes(261140) &&
-          correctedSelfMembers.includes(294273)
-        ) {
-          correctedSelfMembers = [261140, 294273, 314248];
-          selfTotal = 869661;
-        }
-
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 2 &&
-          correctedEnemyMembers.includes(381883) &&
-          correctedEnemyMembers.includes(214377) &&
-          correctedEnemyMembers.includes(387744)
-        ) {
-          correctedEnemyMembers = [381883, 214377, 387744];
-          enemyTotal = 1061552;
-        }
-
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 3 &&
-          correctedSelfMembers.includes(65679)
-        ) {
-          correctedSelfMembers = [415602, 299721, 443814];
-          selfTotal = 1159137;
-        }
-
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 3 &&
-          correctedEnemyMembers.includes(501685) &&
-          correctedEnemyMembers.includes(348563) &&
-          correctedEnemyMembers.includes(356796)
-        ) {
-          correctedEnemyMembers = [501685, 348563, 356796];
-          enemyTotal = 1307381;
-        }
-
-        // Smartphone high-score sample pattern 6:
-        // Stage 1 self can mix total into member row and drop leading digits.
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 1 &&
-          correctedSelfMembers.includes(766720) &&
-          correctedSelfMembers.includes(94734) &&
-          correctedSelfMembers.includes(386653)
-        ) {
-          correctedSelfMembers = [194734, 386653, 108003];
-          selfTotal = 766720;
-        }
-
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 1 &&
-          correctedEnemyMembers.includes(359417) &&
-          correctedEnemyMembers.includes(49682) &&
-          correctedEnemyMembers.includes(77526)
-        ) {
-          correctedEnemyMembers = [49682, 177526, 132209];
-          enemyTotal = 359417;
-        }
-
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 1 &&
-          correctedEnemyMembers.includes(49682) &&
-          correctedEnemyMembers.includes(177526) &&
-          correctedEnemyMembers.includes(132209)
-        ) {
-          correctedEnemyMembers = [49682, 177526, 132209];
-          enemyTotal = 359417;
-        }
-
-        // Smartphone high-score sample pattern 6:
-        // Stage 2 can mix total into member row and miss the third member.
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 2 &&
-          correctedSelfMembers.includes(809001) &&
-          correctedSelfMembers.includes(261140) &&
-          correctedSelfMembers.includes(294273)
-        ) {
-          correctedSelfMembers = [520640, 322242, 90642];
-          selfTotal = 1037652;
-        }
-
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 2 &&
-          correctedSelfMembers.includes(520640) &&
-          correctedSelfMembers.includes(322242) &&
-          correctedSelfMembers.includes(90642)
-        ) {
-          selfTotal = 1037652;
-        }
-
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 2 &&
-          correctedEnemyMembers.includes(785708) &&
-          correctedEnemyMembers.includes(271048) &&
-          correctedEnemyMembers.includes(307221)
-        ) {
-          correctedEnemyMembers = [271048, 307221, 205439];
-          enemyTotal = 783708;
-        }
-
-        // Smartphone sample pattern 3:
-        // Stage 3 self total can pick the first member score instead of total.
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 3 &&
-          correctedSelfMembers.includes(55880) &&
-          correctedSelfMembers.includes(50353) &&
-          correctedSelfMembers.includes(82508)
-        ) {
-          selfTotal = 205242;
-        }
-
-        // Smartphone sample pattern 3:
-        // Stage 3 enemy can misread 46,783 as 26,783 and miss 21,194.
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 3 &&
-          correctedEnemyMembers.includes(26783) &&
-          correctedEnemyMembers.includes(60871)
-        ) {
-          correctedEnemyMembers = [46783, 60871, 21194];
-          enemyTotal = 128848;
-        }
-
-        // v40 migration note: keep existing sample-specific corrections for safety.
-        // Future versions will gradually replace them with shared cleanup helpers.
-        // Smartphone high-score sample pattern 7.
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 1 &&
-          correctedSelfMembers.includes(546760) &&
-          correctedSelfMembers.includes(76520) &&
-          correctedSelfMembers.includes(92139)
-        ) {
-          correctedSelfMembers = [76520, 192139, 278101];
-          selfTotal = 546760;
-        }
-
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 1 &&
-          correctedEnemyMembers.includes(573909) &&
-          correctedEnemyMembers.includes(85655) &&
-          correctedEnemyMembers.includes(333696)
-        ) {
-          correctedEnemyMembers = [85655, 333696, 87819];
-          enemyTotal = 573909;
-        }
-
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 2 &&
-          correctedSelfMembers.includes(389414) &&
-          correctedSelfMembers.includes(338907) &&
-          correctedSelfMembers.includes(411862)
-        ) {
-          selfTotal = 1140183;
-        }
-
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 2 &&
-          correctedEnemyMembers.includes(337871) &&
-          correctedEnemyMembers.includes(329751) &&
-          correctedEnemyMembers.includes(428804)
-        ) {
-          enemyTotal = 1182186;
-        }
-
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 3 &&
-          correctedSelfMembers.includes(252281) &&
-          correctedSelfMembers.includes(88695) &&
-          correctedSelfMembers.includes(395228)
-        ) {
-          correctedSelfMembers = [252281, 188695, 395228];
-          selfTotal = 915249;
-        }
-
-        // Smartphone bright-background sample pattern.
-        // Bright idol background can make white score text hard to OCR.
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 1 &&
-          (
-            correctedSelfMembers.includes(576837) ||
-            correctedSelfMembers.includes(57683) ||
-            correctedSelfMembers.includes(615858) ||
-            selfTotal === 576857 ||
-            selfTotal === 576837 ||
-            selfTotal === 615866
-          )
-        ) {
-          correctedSelfMembers = [99414, 169956, 288415];
-          correctedEnemyMembers = [134809, 101113, 65523];
-          selfTotal = 615468;
-          enemyTotal = 301445;
-        }
-
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 2 &&
-          (selfTotal === 112005 ||
-            correctedSelfMembers.includes(112005) ||
-            enemyTotal === 112005)
-        ) {
-          correctedSelfMembers = [560028, 391626, 264484];
-          correctedEnemyMembers = [347215, 252420, 501317];
-          selfTotal = 1328143;
-          enemyTotal = 1100952;
-        }
-
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 3 &&
-          (selfTotal === 1021163 ||
-            enemyTotal === 101105 ||
-            correctedEnemyMembers.includes(101105))
-        ) {
-          correctedSelfMembers = [419236, 380186, 160271];
-          correctedEnemyMembers = [505527, 332326, 392693];
-          selfTotal = 959693;
-          enemyTotal = 1331651;
-        }
-
-                // Smartphone bright-background sample pattern 2 (pink background + next screen)
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 1 &&
-          (correctedSelfMembers.includes(89789) ||
-           correctedEnemyMembers.includes(61548))
-        ) {
-          correctedSelfMembers = [89789, 294756, 120527];
-          correctedEnemyMembers = [307740, 124657, 79853];
-          selfTotal = 505072;
-          enemyTotal = 573798;
-        }
-
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 2 &&
-          (correctedSelfMembers.includes(73889) ||
-           correctedEnemyMembers.includes(81512))
-        ) {
-          correctedSelfMembers = [294339, 221752, 377758];
-          correctedEnemyMembers = [407560, 255440, 216894];
-          selfTotal = 893849;
-          enemyTotal = 961406;
-        }
-
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 3 &&
-          (correctedSelfMembers.includes(84995) ||
-           enemyTotal === 426188)
-        ) {
-          correctedSelfMembers = [424977, 300598, 173657];
-          correctedEnemyMembers = [99825, 85327, 241016];
-          selfTotal = 984227;
-          enemyTotal = 426168;
-        }
-
-        // Smartphone bright-background sample pattern 3 (red background + next screen)
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 1 &&
-          (correctedSelfMembers.includes(789963) ||
-            correctedSelfMembers.includes(52065) ||
-            correctedEnemyMembers.includes(422020))
-        ) {
-          correctedSelfMembers = [420946, 152065, 132783];
-          correctedEnemyMembers = [162093, 125550, 134377];
-          selfTotal = 789983;
-          enemyTotal = 422020;
-        }
-
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 2 &&
-          (correctedSelfMembers.includes(78548) ||
-            correctedSelfMembers.includes(263012) ||
-            correctedEnemyMembers.includes(39391))
-        ) {
-          correctedSelfMembers = [892741, 388738, 263012];
-          correctedEnemyMembers = [379393, 385391, 422901];
-          selfTotal = 1723039;
-          enemyTotal = 1187685;
-        }
-
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 3 &&
-          (correctedSelfMembers.includes(131052) ||
-            selfTotal === 131052 ||
-            enemyTotal === 131052)
-        ) {
-          correctedSelfMembers = [264434, 226110, 655260];
-          correctedEnemyMembers = [390181, 351758, 471034];
-          selfTotal = 1276856;
-          enemyTotal = 1212973;
-        }
-
-                // Normal result screen pattern (non-next screen)
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 1 &&
-          (correctedSelfMembers.includes(367757) ||
-           correctedEnemyMembers.includes(914658))
-        ) {
-          correctedSelfMembers = [129896, 89633, 148228];
-          correctedEnemyMembers = [232357, 413294, 186349];
-          selfTotal = 367757;
-          enemyTotal = 914658;
-        }
-
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 2 &&
-          (correctedSelfMembers.includes(55636) ||
-           correctedEnemyMembers.includes(475138))
-        ) {
-          correctedSelfMembers = [270769, 155636, 189124];
-          correctedEnemyMembers = [127429, 375691, 194505];
-          selfTotal = 615529;
-          enemyTotal = 772763;
-        }
-
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 3 &&
-          correctedSelfMembers.includes(58516)
-        ) {
-          correctedSelfMembers = [158516,257052,271092];
-          selfTotal = 686660;
-        }
-
-        // Normal result screen pattern 2
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 1 &&
-          correctedEnemyMembers.includes(584249) &&
-          correctedEnemyMembers.includes(117051) &&
-          correctedEnemyMembers.includes(298404)
-        ) {
-          correctedEnemyMembers = [117051, 298404, 109114];
-          enemyTotal = 584249;
-        }
-
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 2 &&
-          correctedSelfMembers.includes(58642) &&
-          correctedSelfMembers.includes(67727) &&
-          correctedSelfMembers.includes(244496)
-        ) {
-          correctedSelfMembers = [58642, 67727, 244496];
-          selfTotal = 419764;
-        }
-
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 2 &&
-          correctedEnemyMembers.includes(429432) &&
-          correctedEnemyMembers.includes(110999) &&
-          correctedEnemyMembers.includes(240186)
-        ) {
-          correctedEnemyMembers = [110999, 240186, 78247];
-          enemyTotal = 429432;
-        }
-
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 3 &&
-          correctedSelfMembers.includes(330854) &&
-          correctedSelfMembers.includes(67608) &&
-          correctedSelfMembers.includes(51683)
-        ) {
-          correctedSelfMembers = [330854, 167608, 151683];
-          selfTotal = 716315;
-        }
-
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 3 &&
-          correctedEnemyMembers.includes(47405) &&
-          correctedEnemyMembers.includes(17847)
-        ) {
-          correctedEnemyMembers = [19339, 47405, 17847];
-          enemyTotal = 84591;
-        }
-
-        if (
-          activeOcrMode === "smartphone" &&
-          stage === 3 &&
-          correctedEnemyMembers.includes(90537) &&
-          correctedEnemyMembers.includes(90881) &&
-          correctedEnemyMembers.includes(72810)
-        ) {
-          correctedEnemyMembers = [190537, 90881, 72810];
-          enemyTotal = 354228;
-        }
-
-
-        // v46 common next-screen severe-collapse fallback.
-        // Consolidates old pattern 4 / pattern 5 blocks into compact key-number groups.
-        const smartphoneKeyNumbers = [
-          ...correctedSelfMembers,
-          ...correctedEnemyMembers,
-          selfTotal,
-          enemyTotal,
-          rawSelfTotal,
-          rawEnemyTotal,
-        ].filter(Boolean);
-
-        const hasAnySmartphoneKey = (...keys) =>
-          activeOcrMode === "smartphone" &&
-          keys.some((key) => smartphoneKeyNumbers.includes(key));
-
-        if (stage === 1 && hasAnySmartphoneKey(23204, 33308, 41804)) {
-          correctionLogs.push("v46共通: 次へ画面collapse pattern4 stage1");
-          correctedSelfMembers = [139543, 166543, 80707];
-          correctedEnemyMembers = [106557, 141804, 61387];
-          selfTotal = 420101;
-          enemyTotal = 309748;
-        }
-
-        if (stage === 2 && hasAnySmartphoneKey(82971, 905569)) {
-          correctionLogs.push("v46共通: 次へ画面collapse pattern4 stage2");
-          correctedSelfMembers = [219039, 295003, 318929];
-          correctedEnemyMembers = [217835, 277561, 341811];
-          selfTotal = 832971;
-          enemyTotal = 905569;
-        }
-
-        if (stage === 3 && hasAnySmartphoneKey(48294)) {
-          correctionLogs.push("v46共通: 次へ画面collapse pattern4 stage3");
-          correctedSelfMembers = [241470, 37640, 19505];
-          correctedEnemyMembers = [54999, 208117, 84866];
-          selfTotal = 346909;
-          enemyTotal = 347982;
-        }
-
-        if (stage === 1 && hasAnySmartphoneKey(80377)) {
-          correctionLogs.push("v46共通: 次へ画面collapse pattern5 stage1");
-          correctedSelfMembers = [292941, 114129, 87361];
-          correctedEnemyMembers = [76266, 401889, 134467];
-          selfTotal = 494431;
-          enemyTotal = 692999;
-        }
-
-        if (stage === 2 && hasAnySmartphoneKey(59255, 291346)) {
-          correctionLogs.push("v46共通: 次へ画面collapse pattern5 stage2");
-          correctedSelfMembers = [796276, 402299, 372620];
-          correctedEnemyMembers = [350511, 352543, 291346];
-          selfTotal = 1730450;
-          enemyTotal = 994400;
-        }
-
-        if (stage === 3 && hasAnySmartphoneKey(59662)) {
-          correctionLogs.push("v46共通: 次へ画面collapse pattern5 stage3");
-          correctedSelfMembers = [187902, 298314, 95070];
-          correctedEnemyMembers = [255440, 60552, 218768];
-          selfTotal = 640948;
-          enemyTotal = 534760;
-        }
-
+        // Keep browser OCR output aligned with scripts/ocr-test-images.mjs.
         ({
           self: correctedSelfMembers,
           enemy: correctedEnemyMembers,
@@ -2896,7 +2095,7 @@ export default function Home() {
           enemyTotal,
         }));
 
-stageScores[stage] = {
+        stageScores[stage] = {
           self: correctedSelfMembers.map((n) => n?.toLocaleString() || ""),
           enemy: correctedEnemyMembers.map((n) => n?.toLocaleString() || ""),
           selfTotal: selfTotal ? selfTotal.toLocaleString() : "",
@@ -3227,22 +2426,22 @@ stageScores[stage] = {
     if (shareStatsEnabled) {
       saveRecordToSheets(buildAnonymousStatsRecord(nextRecord, displayName))
         .then((data) => {
-          console.log("匿名統計送信処理完了", data);
+          console.log("戦績データ共有処理完了", data);
           setSaveStatus(
             data?.localOnly
-              ? "ローカル保存しました（匿名統計送信は失敗/未設定）"
-              : "ローカル保存＋匿名統計送信しました"
+              ? "ローカル保存しました（戦績データ共有は失敗/未設定）"
+              : "ローカル保存＋戦績データ共有しました"
           );
         })
         .catch((err) => {
           console.error(err);
-          setSaveStatus("ローカル保存しました（匿名統計送信に失敗）");
+          setSaveStatus("ローカル保存しました（戦績データ共有に失敗）");
         });
     } else {
       setSaveStatus(
         isUpdateMode
-          ? "ローカル履歴を更新しました（匿名統計は新規保存時のみ送信）"
-          : "ローカル保存しました（匿名統計送信OFF）"
+          ? "ローカル履歴を更新しました（戦績データ共有OFF）"
+          : "ローカル保存しました（戦績データ共有OFF）"
       );
     }
 
@@ -3271,6 +2470,20 @@ stageScores[stage] = {
     const targetId = deleteTarget.id;
 
     setSaveStatus("削除中...");
+
+    if (!shareStatsEnabled) {
+      setRecords((prev) =>
+        prev.filter((record, index) => {
+          const recordKey = record.id || `index-${index}`;
+          const targetKey = deleteTarget.id || `index-${deleteTarget.index}`;
+          return recordKey !== targetKey;
+        })
+      );
+      setEditingDirtyIds((prev) => prev.filter((id) => id !== targetId));
+      setSaveStatus("ローカル履歴から削除しました（戦績データ共有OFF）");
+      setDeleteTarget(null);
+      return;
+    }
 
     fetch(API_URL, {
       method: "POST",
@@ -3691,7 +2904,13 @@ stageScores[stage] = {
     setEditingId(null);
     setSaveStatus("更新中...");
 
-    saveRecordToSheets(record)
+    if (!shareStatsEnabled) {
+      setEditingDirtyIds((prev) => prev.filter((id) => id !== record.id));
+      setSaveStatus("ローカル更新しました（戦績データ共有OFF）");
+      return;
+    }
+
+    saveRecordToSheets(buildAnonymousStatsRecord(record, displayName))
       .then((data) => {
         console.log("更新処理完了", data);
         setEditingDirtyIds((prev) => prev.filter((id) => id !== record.id));
@@ -3979,12 +3198,27 @@ const metaStats = useMemo(() => {
                 }}
               />
               <span>
-                <span className="font-semibold">統計データ送信を有効にする</span>
+                <span className="font-semibold">戦績データ共有を有効にする</span>
                 <span className="mt-1 block text-xs text-zinc-600">
-                  保存時に環境分析・利用状況確認・運営改善用データを送信します。いつでもここで切り替えできます。
+                  保存時にサービス改善および利用状況分析のための戦績情報や編成情報を送信します。いつでもここで切り替えできます。
                 </span>
               </span>
             </label>
+
+            <section className="rounded-2xl border bg-zinc-50 p-4 text-sm text-zinc-700">
+              <h3 className="font-semibold text-zinc-900">データ共有について</h3>
+              <div className="mt-2 space-y-2 text-xs leading-6 text-zinc-600">
+                <p>
+                  データ共有を有効にした場合、サービス改善および利用状況分析のため、戦績情報や編成情報を送信します。
+                </p>
+                <p>
+                  送信データには、プレイヤー名、戦績情報、編成情報などが含まれる場合があります。
+                </p>
+                <p>
+                  送信は設定画面からいつでも無効化できます。
+                </p>
+              </div>
+            </section>
 
             <label className="flex cursor-pointer items-start gap-3 rounded-2xl border bg-zinc-50 p-4 text-sm">
               <input
@@ -4096,6 +3330,58 @@ const metaStats = useMemo(() => {
           setShowGuide={setShowGuide}
         />
 
+        <section className={`${showTab("settings") ? "" : "hidden"} rounded-3xl bg-white p-6 shadow`}>
+          <h2 className="text-xl font-semibold text-zinc-900">サポート</h2>
+          <div className="mt-4 space-y-5 text-sm leading-7 text-zinc-700">
+            <section>
+              <h3 className="font-semibold text-zinc-900">学マス コンテスト戦績トラッカー 公式X</h3>
+              <p className="mt-1">@gkmas_ct</p>
+              <a
+                href="https://x.com/gkmas_ct"
+                target="_blank"
+                rel="noreferrer"
+                className="font-semibold text-sky-700 underline"
+              >
+                https://x.com/gkmas_ct
+              </a>
+              <p className="mt-2">
+                不具合報告・ご要望・OCR失敗画像の提供はこちらまでお願いします。
+              </p>
+            </section>
+
+            <section className="border-t pt-5">
+              <h3 className="font-semibold text-zinc-900">OCR機能について</h3>
+              <p className="mt-1">OCR機能は現在β版です。</p>
+              <p>読み取り結果は必ずご自身で確認し、必要に応じて修正してください。</p>
+              <p>OCR結果の正確性は保証されません。</p>
+            </section>
+
+            <section className="border-t pt-5">
+              <h3 className="font-semibold text-zinc-900">データ保存について</h3>
+              <p className="mt-1">
+                戦績・編成・設定などのデータは主に利用者のブラウザ内に保存されます。
+              </p>
+              <p>
+                ブラウザデータ削除や端末変更によりデータが失われる場合があります。
+              </p>
+              <p>必要に応じてバックアップ機能をご利用ください。</p>
+            </section>
+
+            <section className="border-t pt-5">
+              <h3 className="font-semibold text-zinc-900">権利表記</h3>
+              <p className="mt-1">
+                本サイトは「学園アイドルマスター」の非公式ファンサイトです。
+              </p>
+              <p>
+                株式会社バンダイナムコエンターテインメント様、株式会社QualiArts様、その他関係各社とは一切関係ありません。
+              </p>
+              <p>
+                ゲーム内画像・名称・商標等の権利は各権利者に帰属します。
+              </p>
+            </section>
+          </div>
+        </section>
+
         <section id="season-management-top" data-season-management="true" className={`${showTab("season") ? "" : "hidden"} rounded-3xl bg-white p-6 shadow`}>
         <SeasonManagementForm
           visible={showTab("season")}
@@ -4155,7 +3441,7 @@ const metaStats = useMemo(() => {
               )}
 
               <div className="mt-4 text-xs text-zinc-600">
-                アイドル画像は /public/idols/アイドルID.png またはアイドルDBの image 項目で表示できます。相手側入力は匿名統計用データとして活用します。
+                アイドル画像は /public/idols/アイドルID.png またはアイドルDBの image 項目で表示できます。相手側入力は戦績データ共有用データとして活用します。
               </div>
 
               <div className="hidden">
