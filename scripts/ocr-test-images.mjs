@@ -882,7 +882,13 @@ function getMemberScoreSlotZones(image, stage, side, mode = "smartphone") {
   const sideX = image.width * xRate;
   const sideWidth = image.width * layout.sideWidth;
   const slotRates =
-    mode === "desktop"
+    mode === "desktop" && stage === 3 && side === "self"
+      ? [
+          { x: 0.00, width: 0.46 },
+          { x: 0.27, width: 0.46 },
+          { x: 0.54, width: 0.46 },
+        ]
+      : mode === "desktop"
       ? [
           { x: 0.00, width: 0.38 },
           { x: 0.31, width: 0.38 },
@@ -898,8 +904,29 @@ function getMemberScoreSlotZones(image, stage, side, mode = "smartphone") {
     left: Math.max(0, Math.floor(sideX + sideWidth * slot.x)),
     top: Math.max(0, Math.floor(image.height * topRate)),
     width: Math.floor(sideWidth * slot.width),
-    height: Math.floor(image.height * (mode === "desktop" ? 0.045 : 0.04)),
+    height: Math.floor(image.height * (mode === "desktop" && stage === 3 && side === "self" ? 0.05 : mode === "desktop" ? 0.045 : 0.04)),
   }));
+}
+
+function getDesktopStage3SelfRecoverySlotZones(image) {
+  const layout = getDeviceOcrLayout("desktop");
+  const sideX = image.width * layout.leftX;
+  const sideWidth = image.width * layout.sideWidth;
+  const topRates = [0.645, 0.655, 0.665, 0.675];
+  const slotRates = [
+    { x: 0.00, width: 0.46 },
+    { x: 0.27, width: 0.46 },
+    { x: 0.54, width: 0.46 },
+  ];
+
+  return topRates.flatMap((topRate) =>
+    slotRates.map((slot) => ({
+      left: Math.max(0, Math.floor(sideX + sideWidth * slot.x)),
+      top: Math.max(0, Math.floor(image.height * topRate)),
+      width: Math.floor(sideWidth * slot.width),
+      height: Math.floor(image.height * 0.05),
+    }))
+  );
 }
 
 function extractCrownBonusNumbers(text, options = {}) {
@@ -1302,6 +1329,25 @@ async function runOcrForImage(imagePath, options = {}) {
       ]);
     }
 
+    let usedDesktopStage3SelfRecovery = false;
+    if (ocrSource === "desktop" && stage === 3 && self.length < 3) {
+      const recoveryNumbers = await recognizeMemberScoreSlotCandidates(
+        imagePath,
+        getDesktopStage3SelfRecoverySlotZones(image)
+      );
+      if (recoveryNumbers.length >= 3) {
+        const recoveredMemberNumbers = [
+          ...new Set([...recoveryNumbers, ...selfMemberNumbers]),
+        ];
+        const recoveredSelf = recoveryNumbers.slice(0, 3);
+        if (recoveredSelf.length >= 3) {
+          selfMemberNumbers = recoveredMemberNumbers;
+          self = recoveredSelf;
+          usedDesktopStage3SelfRecovery = true;
+        }
+      }
+    }
+
     const selfMemberSum = self.reduce((sum, value) => sum + value, 0);
     const enemyMemberSum = enemy.reduce((sum, value) => sum + value, 0);
     let selfTotal = pickTotalWithMemberFallback(
@@ -1314,6 +1360,15 @@ async function runOcrForImage(imagePath, options = {}) {
       selfCrownCandidates,
       self
     );
+    if (usedDesktopStage3SelfRecovery && self.length === 3) {
+      const recoveredDisplayedTotals = selfMemberNumbers
+        .filter((num) => num > selfMemberSum)
+        .filter((num) => num - selfMemberSum >= 10000 && num - selfMemberSum < 200000)
+        .sort((a, b) => a - b);
+      if (recoveredDisplayedTotals.length > 0) {
+        selfTotal = recoveredDisplayedTotals[0];
+      }
+    }
     let enemyTotal = pickTotalWithMemberFallback(
       enemyTotalResult.numbers,
       enemyTotalCandidates,

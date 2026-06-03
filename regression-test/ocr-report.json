@@ -6,7 +6,7 @@
     "source": "desktop",
     "pass": true,
     "failures": [],
-    "elapsedMs": 21065,
+    "elapsedMs": 20993,
     "expectedData": {
       "stage1": {
         "selfTotal": 234514,
@@ -153,7 +153,7 @@
     "source": "desktop",
     "pass": true,
     "failures": [],
-    "elapsedMs": 21487,
+    "elapsedMs": 21558,
     "expectedData": {
       "stage1": {
         "selfTotal": 289232,
@@ -298,7 +298,7 @@
     "source": "desktop",
     "pass": true,
     "failures": [],
-    "elapsedMs": 21321,
+    "elapsedMs": 21363,
     "expectedData": {
       "stage1": {
         "selfTotal": 575365,
@@ -444,7 +444,7 @@
     "source": "desktop",
     "pass": true,
     "failures": [],
-    "elapsedMs": 21945,
+    "elapsedMs": 25503,
     "expectedData": null,
     "result": {
       "stage1": {
@@ -510,10 +510,12 @@
         }
       },
       "stage3": {
-        "selfTotal": 200294,
+        "selfTotal": 1038239,
         "enemyTotal": 282014,
         "self": [
-          200294
+          200294,
+          379028,
+          382431
         ],
         "enemy": [
           97213,
@@ -544,7 +546,7 @@
     "source": "desktop",
     "pass": true,
     "failures": [],
-    "elapsedMs": 25164,
+    "elapsedMs": 22341,
     "expectedData": null,
     "result": {
       "stage1": {
@@ -610,10 +612,11 @@
         }
       },
       "stage3": {
-        "selfTotal": 1043303,
+        "selfTotal": 660406,
         "enemyTotal": 215648,
         "self": [
-          724222,
+          133035,
+          208290,
           319081
         ],
         "enemy": [
@@ -645,7 +648,7 @@
     "source": "desktop",
     "pass": true,
     "failures": [],
-    "elapsedMs": 32111,
+    "elapsedMs": 21051,
     "expectedData": {
       "stage1": {
         "selfTotal": 416932,
@@ -791,7 +794,7 @@
     "source": "desktop",
     "pass": true,
     "failures": [],
-    "elapsedMs": 33619,
+    "elapsedMs": 20798,
     "expectedData": {
       "stage1": {
         "selfTotal": 1067467,
@@ -935,7 +938,7 @@
     "source": "desktop",
     "pass": true,
     "failures": [],
-    "elapsedMs": 34909,
+    "elapsedMs": 20619,
     "expectedData": {
       "stage1": {
         "selfTotal": 371494,
@@ -1081,7 +1084,7 @@
     "source": "desktop",
     "pass": true,
     "failures": [],
-    "elapsedMs": 35097,
+    "elapsedMs": 24546,
     "expectedData": null,
     "result": {
       "stage1": {
@@ -1145,11 +1148,12 @@
         }
       },
       "stage3": {
-        "selfTotal": 604755,
+        "selfTotal": 1212217,
         "enemyTotal": 317311,
         "self": [
-          503963,
-          100792
+          213167,
+          394295,
+          503963
         ],
         "enemy": [
           63667,
@@ -1180,7 +1184,7 @@
     "source": "desktop",
     "pass": true,
     "failures": [],
-    "elapsedMs": 34650,
+    "elapsedMs": 24445,
     "expectedData": null,
     "result": {
       "stage1": {
@@ -1282,7 +1286,7 @@
     "source": "desktop",
     "pass": true,
     "failures": [],
-    "elapsedMs": 34530,
+    "elapsedMs": 20651,
     "expectedData": {
       "stage1": {
         "selfTotal": 1244170,
@@ -1427,7 +1431,7 @@
     "source": "desktop",
     "pass": true,
     "failures": [],
-    "elapsedMs": 36375,
+    "elapsedMs": 25156,
     "expectedData": null,
     "result": {
       "stage1": {
@@ -1493,11 +1497,12 @@
         }
       },
       "stage3": {
-        "selfTotal": 826582,
+        "selfTotal": 729614,
         "enemyTotal": 97647,
         "self": [
-          729614,
-          96968
+          25716,
+          484840,
+          122090
         ],
         "enemy": [
           49200,
@@ -1528,7 +1533,7 @@
     "source": "desktop",
     "pass": true,
     "failures": [],
-    "elapsedMs": 35720,
+    "elapsedMs": 21990,
     "expectedData": {
       "stage1": {
         "selfTotal": 777728,
@@ -1675,7 +1680,7 @@
     "source": "desktop",
     "pass": true,
     "failures": [],
-    "elapsedMs": 36602,
+    "elapsedMs": 21678,
     "expectedData": {
       "stage1": {
         "selfTotal": 1770495,
@@ -1822,7 +1827,7 @@
     "source": "desktop",
     "pass": true,
     "failures": [],
-    "elapsedMs": 34378,
+    "elapsedMs": 21333,
     "expectedData": {
       "stage1": {
         "selfTotal": 654329,
@@ -1969,7 +1974,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 117810,
+    "elapsedMs": 72955,
     "expectedData": {
       "stage1": {
         "selfTotal": 534463,
@@ -2121,7 +2126,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 116174,
+    "elapsedMs": 71143,
     "expectedData": {
       "stage1": {
         "selfTotal": 766720,
@@ -2274,7 +2279,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 115476,
+    "elapsedMs": 71484,
     "expectedData": {
       "stage1": {
         "selfTotal": 546760,
@@ -2427,7 +2432,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 117536,
+    "elapsedMs": 72312,
     "expectedData": {
       "stage1": {
         "selfTotal": 609546,
@@ -2652,7 +2657,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 117089,
+    "elapsedMs": 73632,
     "expectedData": {
       "stage1": {
         "selfTotal": 271520,
@@ -2806,7 +2811,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 117385,
+    "elapsedMs": 73979,
     "expectedData": {
       "stage1": {
         "selfTotal": 252674,
@@ -2960,7 +2965,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 114690,
+    "elapsedMs": 71317,
     "expectedData": {
       "stage1": {
         "selfTotal": 367757,
@@ -3114,7 +3119,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 116842,
+    "elapsedMs": 72423,
     "expectedData": {
       "stage1": {
         "selfTotal": 490885,
@@ -3266,7 +3271,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 119032,
+    "elapsedMs": 74121,
     "expectedData": {
       "stage1": {
         "selfTotal": 184319,
@@ -3421,7 +3426,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 117230,
+    "elapsedMs": 71306,
     "expectedData": {
       "stage1": {
         "selfTotal": 281949,
@@ -3574,7 +3579,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 118133,
+    "elapsedMs": 71499,
     "expectedData": {
       "stage1": {
         "selfTotal": 298072,
@@ -3723,7 +3728,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 116851,
+    "elapsedMs": 71147,
     "expectedData": {
       "stage1": {
         "selfTotal": 264506,
@@ -3878,7 +3883,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 115941,
+    "elapsedMs": 70471,
     "expectedData": {
       "stage1": {
         "selfTotal": 364692,
@@ -4033,7 +4038,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 118008,
+    "elapsedMs": 71563,
     "expectedData": {
       "stage1": {
         "selfTotal": 380140,
@@ -4186,7 +4191,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 122829,
+    "elapsedMs": 74310,
     "expectedData": {
       "stage1": {
         "selfTotal": 263148,
@@ -4335,7 +4340,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 113507,
+    "elapsedMs": 81131,
     "expectedData": {
       "stage1": {
         "selfTotal": 254224,
@@ -4483,7 +4488,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 116941,
+    "elapsedMs": 120929,
     "expectedData": {
       "stage1": {
         "selfTotal": 426041,
@@ -4636,7 +4641,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 111443,
+    "elapsedMs": 115659,
     "expectedData": {
       "stage1": {
         "selfTotal": 151945,
@@ -4788,7 +4793,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 119550,
+    "elapsedMs": 122702,
     "expectedData": {
       "stage1": {
         "selfTotal": 303096,
@@ -4935,7 +4940,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 113585,
+    "elapsedMs": 117673,
     "expectedData": {
       "stage1": {
         "selfTotal": 307850,
@@ -5087,7 +5092,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 115938,
+    "elapsedMs": 118836,
     "expectedData": {
       "stage1": {
         "selfTotal": 308927,
@@ -5242,7 +5247,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 116633,
+    "elapsedMs": 119132,
     "expectedData": {
       "stage1": {
         "selfTotal": 261666,
@@ -5395,7 +5400,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 115695,
+    "elapsedMs": 118392,
     "expectedData": {
       "stage1": {
         "selfTotal": 298338,
@@ -5547,7 +5552,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 123893,
+    "elapsedMs": 125799,
     "expectedData": {
       "stage1": {
         "selfTotal": 238650,
@@ -5701,7 +5706,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 115200,
+    "elapsedMs": 117581,
     "expectedData": {
       "stage1": {
         "selfTotal": 299534,
@@ -5850,7 +5855,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 117417,
+    "elapsedMs": 119507,
     "expectedData": {
       "stage1": {
         "selfTotal": 281664,
@@ -6004,7 +6009,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 118567,
+    "elapsedMs": 120700,
     "expectedData": {
       "stage1": {
         "selfTotal": 158174,
@@ -6151,7 +6156,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 117637,
+    "elapsedMs": 118008,
     "expectedData": {
       "stage1": {
         "selfTotal": 167424,
@@ -6307,7 +6312,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 116420,
+    "elapsedMs": 119640,
     "expectedData": {
       "stage1": {
         "selfTotal": 255061,
@@ -6460,7 +6465,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 116018,
+    "elapsedMs": 118248,
     "expectedData": {
       "stage1": {
         "selfTotal": 305080,
@@ -6616,7 +6621,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 117937,
+    "elapsedMs": 120131,
     "expectedData": {
       "stage1": {
         "selfTotal": 289232,
@@ -6763,7 +6768,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 116889,
+    "elapsedMs": 120329,
     "expectedData": {
       "stage1": {
         "selfTotal": 234514,
@@ -6916,7 +6921,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 115904,
+    "elapsedMs": 118991,
     "expectedData": {
       "stage1": {
         "selfTotal": 269335,
@@ -7070,7 +7075,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 114332,
+    "elapsedMs": 117526,
     "expectedData": {
       "stage1": {
         "selfTotal": 331918,
@@ -7223,7 +7228,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 115769,
+    "elapsedMs": 119242,
     "expectedData": {
       "stage1": {
         "selfTotal": 250496,
@@ -7370,7 +7375,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 110997,
+    "elapsedMs": 112267,
     "expectedData": {
       "stage1": {
         "selfTotal": 291036,
@@ -7520,7 +7525,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 118034,
+    "elapsedMs": 120077,
     "expectedData": {
       "stage1": {
         "selfTotal": 233941,
@@ -7669,7 +7674,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 116453,
+    "elapsedMs": 118152,
     "expectedData": {
       "stage1": {
         "selfTotal": 655998,
@@ -7823,7 +7828,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 111354,
+    "elapsedMs": 111241,
     "expectedData": {
       "stage1": {
         "selfTotal": 1171567,
@@ -7973,7 +7978,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 111575,
+    "elapsedMs": 114110,
     "expectedData": {
       "stage1": {
         "selfTotal": 777728,
@@ -8127,7 +8132,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 112855,
+    "elapsedMs": 112947,
     "expectedData": {
       "stage1": {
         "selfTotal": 933140,
@@ -8282,7 +8287,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 109981,
+    "elapsedMs": 113473,
     "expectedData": {
       "stage1": {
         "selfTotal": 654329,

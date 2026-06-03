@@ -988,5 +988,385 @@ export const idolDb = [
     "plan": "センス",
     "rarity": "SSR",
     "image": "/idols/99.png"
+  },
+  {
+    "id": "花海_咲季_わたしが一番",
+    "name": "わたしが一番！ 花海咲季",
+    "short": "わたしが一番！咲季",
+    "character": "花海咲季",
+    "title": "わたしが一番！",
+    "plan": "センス",
+    "rarity": "SR",
+    "image": "/idols/100.png"
+  },
+  {
+    "id": "月村_手毬_一匹狼",
+    "name": "一匹狼 月村手毬",
+    "short": "一匹狼手毬",
+    "character": "月村手毬",
+    "title": "一匹狼",
+    "plan": "センス",
+    "rarity": "SR",
+    "image": "/idols/101.png"
+  },
+  {
+    "id": "藤田_ことね_カワイイはじめました",
+    "name": "カワイイ♡はじめました 藤田ことね",
+    "short": "カワイイ♡は…とね",
+    "character": "藤田ことね",
+    "title": "カワイイ♡はじめました",
+    "plan": "ロジック",
+    "rarity": "SR",
+    "image": "/idols/102.png"
+  },
+  {
+    "id": "雨夜_燕_初志貫徹",
+    "name": "初志貫徹 雨夜燕",
+    "short": "初志貫徹夜燕",
+    "character": "雨夜燕",
+    "title": "初志貫徹",
+    "plan": "ロジック",
+    "rarity": "SR",
+    "image": "/idols/103.png"
+  },
+  {
+    "id": "有村_麻央_はじまりはカッコよく",
+    "name": "はじまりはカッコよく 有村麻央",
+    "short": "はじまりはカ…麻央",
+    "character": "有村麻央",
+    "title": "はじまりはカッコよく",
+    "plan": "センス",
+    "rarity": "SR",
+    "image": "/idols/104.png"
+  },
+  {
+    "id": "葛城_リーリヤ_一つ踏み出した先に",
+    "name": "一つ踏み出した先に 葛城リーリヤ",
+    "short": "一つ踏み出し…リヤ",
+    "character": "葛城リーリヤ",
+    "title": "一つ踏み出した先に",
+    "plan": "ロジック",
+    "rarity": "SR",
+    "image": "/idols/105.png"
+  },
+  {
+    "id": "倉本_千奈_胸を張って一歩ずつ",
+    "name": "胸を張って一歩ずつ 倉本千奈",
+    "short": "胸を張って一…千奈",
+    "character": "倉本千奈",
+    "title": "胸を張って一歩ずつ",
+    "plan": "ロジック",
+    "rarity": "SR",
+    "image": "/idols/106.png"
+  },
+  {
+    "id": "紫雲_清夏_夢へのリスタート",
+    "name": "夢へのリスタート 紫雲清夏",
+    "short": "夢へのリスタート清夏",
+    "character": "紫雲清夏",
+    "title": "夢へのリスタート",
+    "plan": "センス",
+    "rarity": "SR",
+    "image": "/idols/107.png"
+  },
+  {
+    "id": "篠澤_広_一番向いてないこと",
+    "name": "一番向いてないこと 篠澤広",
+    "short": "一番向いてな…澤広",
+    "character": "篠澤広",
+    "title": "一番向いてないこと",
+    "plan": "ロジック",
+    "rarity": "SR",
+    "image": "/idols/108.png"
+  },
+  {
+    "id": "十王_星南_一番星",
+    "name": "一番星 十王星南",
+    "short": "一番星星南",
+    "character": "十王星南",
+    "title": "一番星",
+    "plan": "アノマリー",
+    "rarity": "SR",
+    "image": "/idols/109.jpg"
+  },
+  {
+    "id": "秦谷_美鈴_ゆっくり、一歩ずつ",
+    "name": "ゆっくり、一歩ずつ 秦谷美鈴",
+    "short": "ゆっくり、一…美鈴",
+    "character": "秦谷美鈴",
+    "title": "ゆっくり、一歩ずつ",
+    "plan": "アノマリー",
+    "rarity": "SR",
+    "image": "/idols/110.png"
+  },
+  {
+    "id": "花海_佑芽_アイドル、はじめっ",
+    "name": "アイドル、はじめっ！ 花海佑芽",
+    "short": "アイドル、は…佑芽",
+    "character": "花海佑芽",
+    "title": "アイドル、はじめっ！",
+    "plan": "ロジック",
+    "rarity": "SR",
+    "image": "/idols/111.png"
+  },
+  {
+    "id": "姫崎_莉波_私らしさのはじまり",
+    "name": "『私らしさ』のはじまり 姫崎莉波",
+    "short": "『私らしさ』…莉波",
+    "character": "姫崎莉波",
+    "title": "『私らしさ』のはじまり",
+    "plan": "センス",
+    "rarity": "SR",
+    "image": "/idols/112.png"
+  },
+  {
+    "id": "花海_咲季_学園生活",
+    "name": "学園生活 花海咲季",
+    "short": "学園生活咲季",
+    "character": "花海咲季",
+    "title": "学園生活",
+    "plan": "センス",
+    "rarity": "R",
+    "image": "/idols/113.png"
+  },
+  {
+    "id": "花海_咲季_初声",
+    "name": "初声 花海咲季",
+    "short": "初声咲季",
+    "character": "花海咲季",
+    "title": "初声",
+    "plan": "ロジック",
+    "rarity": "R",
+    "image": "/idols/114.jpg"
+  },
+  {
+    "id": "月村_手毬_学園生活",
+    "name": "学園生活 月村手毬",
+    "short": "学園生活手毬",
+    "character": "月村手毬",
+    "title": "学園生活",
+    "plan": "センス",
+    "rarity": "R",
+    "image": "/idols/115.png"
+  },
+  {
+    "id": "月村_手毬_初声",
+    "name": "初声 月村手毬",
+    "short": "初声手毬",
+    "character": "月村手毬",
+    "title": "初声",
+    "plan": "ロジック",
+    "rarity": "R",
+    "image": "/idols/116.jpg"
+  },
+  {
+    "id": "藤田_ことね_学園生活",
+    "name": "学園生活 藤田ことね",
+    "short": "学園生活とね",
+    "character": "藤田ことね",
+    "title": "学園生活",
+    "plan": "ロジック",
+    "rarity": "R",
+    "image": "/idols/117.png"
+  },
+  {
+    "id": "藤田_ことね_初声",
+    "name": "初声 藤田ことね",
+    "short": "初声とね",
+    "character": "藤田ことね",
+    "title": "初声",
+    "plan": "センス",
+    "rarity": "R",
+    "image": "/idols/118.jpg"
+  },
+  {
+    "id": "雨夜_燕_学園生活",
+    "name": "学園生活 雨夜燕",
+    "short": "学園生活夜燕",
+    "character": "雨夜燕",
+    "title": "学園生活",
+    "plan": "アノマリー",
+    "rarity": "R",
+    "image": "/idols/119.png"
+  },
+  {
+    "id": "有村_麻央_学園生活",
+    "name": "学園生活 有村麻央",
+    "short": "学園生活麻央",
+    "character": "有村麻央",
+    "title": "学園生活",
+    "plan": "センス",
+    "rarity": "R",
+    "image": "/idols/120.png"
+  },
+  {
+    "id": "有村_麻央_初恋",
+    "name": "初恋 有村麻央",
+    "short": "初恋麻央",
+    "character": "有村麻央",
+    "title": "初恋",
+    "plan": "ロジック",
+    "rarity": "R",
+    "image": "/idols/121.jpg"
+  },
+  {
+    "id": "葛城_リーリヤ_学園生活",
+    "name": "学園生活 葛城リーリヤ",
+    "short": "学園生活リヤ",
+    "character": "葛城リーリヤ",
+    "title": "学園生活",
+    "plan": "ロジック",
+    "rarity": "R",
+    "image": "/idols/122.png"
+  },
+  {
+    "id": "葛城_リーリヤ_初心",
+    "name": "初心 葛城リーリヤ",
+    "short": "初心リヤ",
+    "character": "葛城リーリヤ",
+    "title": "初心",
+    "plan": "センス",
+    "rarity": "R",
+    "image": "/idols/123.jpg"
+  },
+  {
+    "id": "倉本_千奈_学園生活",
+    "name": "学園生活 倉本千奈",
+    "short": "学園生活千奈",
+    "character": "倉本千奈",
+    "title": "学園生活",
+    "plan": "ロジック",
+    "rarity": "R",
+    "image": "/idols/124.png"
+  },
+  {
+    "id": "倉本_千奈_初心",
+    "name": "初心 倉本千奈",
+    "short": "初心千奈",
+    "character": "倉本千奈",
+    "title": "初心",
+    "plan": "センス",
+    "rarity": "R",
+    "image": "/idols/125.jpg"
+  },
+  {
+    "id": "紫雲_清夏_学園生活",
+    "name": "学園生活 紫雲清夏",
+    "short": "学園生活清夏",
+    "character": "紫雲清夏",
+    "title": "学園生活",
+    "plan": "センス",
+    "rarity": "R",
+    "image": "/idols/126.png"
+  },
+  {
+    "id": "紫雲_清夏_初恋",
+    "name": "初恋 紫雲清夏",
+    "short": "初恋清夏",
+    "character": "紫雲清夏",
+    "title": "初恋",
+    "plan": "ロジック",
+    "rarity": "R",
+    "image": "/idols/127.jpg"
+  },
+  {
+    "id": "篠澤_広_学園生活",
+    "name": "学園生活 篠澤広",
+    "short": "学園生活澤広",
+    "character": "篠澤広",
+    "title": "学園生活",
+    "plan": "ロジック",
+    "rarity": "R",
+    "image": "/idols/128.png"
+  },
+  {
+    "id": "篠澤_広_初恋",
+    "name": "初恋 篠澤広",
+    "short": "初恋澤広",
+    "character": "篠澤広",
+    "title": "初恋",
+    "plan": "センス",
+    "rarity": "R",
+    "image": "/idols/129.jpg"
+  },
+  {
+    "id": "十王_星南_学園生活",
+    "name": "学園生活 十王星南",
+    "short": "学園生活星南",
+    "character": "十王星南",
+    "title": "学園生活",
+    "plan": "アノマリー",
+    "rarity": "R",
+    "image": "/idols/130.jpg"
+  },
+  {
+    "id": "十王_星南_初陣",
+    "name": "初陣 十王星南",
+    "short": "初陣星南",
+    "character": "十王星南",
+    "title": "初陣",
+    "plan": "ロジック",
+    "rarity": "R",
+    "image": "/idols/131.png"
+  },
+  {
+    "id": "秦谷_美鈴_学園生活",
+    "name": "学園生活 秦谷美鈴",
+    "short": "学園生活美鈴",
+    "character": "秦谷美鈴",
+    "title": "学園生活",
+    "plan": "アノマリー",
+    "rarity": "R",
+    "image": "/idols/132.png"
+  },
+  {
+    "id": "秦谷_美鈴_初陣",
+    "name": "初陣 秦谷美鈴",
+    "short": "初陣美鈴",
+    "character": "秦谷美鈴",
+    "title": "初陣",
+    "plan": "ロジック",
+    "rarity": "R",
+    "image": "/idols/133.png"
+  },
+  {
+    "id": "花海_佑芽_学園生活",
+    "name": "学園生活 花海佑芽",
+    "short": "学園生活佑芽",
+    "character": "花海佑芽",
+    "title": "学園生活",
+    "plan": "ロジック",
+    "rarity": "R",
+    "image": "/idols/134.png"
+  },
+  {
+    "id": "花海_佑芽_初陣",
+    "name": "初陣 花海佑芽",
+    "short": "初陣佑芽",
+    "character": "花海佑芽",
+    "title": "初陣",
+    "plan": "センス",
+    "rarity": "R",
+    "image": "/idols/135.png"
+  },
+  {
+    "id": "姫崎_莉波_学園生活",
+    "name": "学園生活 姫崎莉波",
+    "short": "学園生活莉波",
+    "character": "姫崎莉波",
+    "title": "学園生活",
+    "plan": "センス",
+    "rarity": "R",
+    "image": "/idols/136.png"
+  },
+  {
+    "id": "姫崎_莉波_初心",
+    "name": "初心 姫崎莉波",
+    "short": "初心莉波",
+    "character": "姫崎莉波",
+    "title": "初心",
+    "plan": "ロジック",
+    "rarity": "R",
+    "image": "/idols/137.jpg"
   }
 ];

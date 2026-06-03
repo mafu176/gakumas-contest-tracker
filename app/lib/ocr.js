@@ -764,7 +764,13 @@ export function getMemberScoreSlotZones(image, stage, mode, side) {
   const topRate = scoreTopRates[stageIndex];
   const sideX = image.width * xRate;
   const sideWidth = image.width * layout.sideWidth;
-  const slotRates = isDesktop
+  const slotRates = isDesktop && stage === 3 && side === "self"
+    ? [
+        { x: 0.00, width: 0.46 },
+        { x: 0.27, width: 0.46 },
+        { x: 0.54, width: 0.46 },
+      ]
+    : isDesktop
     ? [
         { x: 0.00, width: 0.38 },
         { x: 0.31, width: 0.38 },
@@ -780,7 +786,7 @@ export function getMemberScoreSlotZones(image, stage, mode, side) {
     x: Math.max(0, Math.floor(sideX + sideWidth * slot.x)),
     y: Math.max(0, Math.floor(image.height * topRate)),
     width: Math.floor(sideWidth * slot.width),
-    height: Math.floor(image.height * (isDesktop ? 0.045 : 0.04)),
+    height: Math.floor(image.height * (isDesktop && stage === 3 && side === "self" ? 0.05 : isDesktop ? 0.045 : 0.04)),
   }));
 }
 
