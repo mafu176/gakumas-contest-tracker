@@ -248,6 +248,24 @@ export function getDeviceOcrLayout(mode) {
       totalHeight: 0.050,
       memberHeight: 0.150,
     },
+    desktop: {
+      direct: true,
+      totalTop: [0.112, 0.368, 0.615],
+      memberTop: [0.135, 0.390, 0.650],
+      memberTopCandidates: [
+        [0.130, 0.385, 0.635],
+        [0.135, 0.390, 0.645],
+        [0.140, 0.395, 0.650],
+        [0.145, 0.400, 0.655],
+      ],
+      enemyMemberTop: [0.135, 0.386, 0.650],
+      enemyMemberHeight: [0.150, 0.060, 0.150],
+      leftX: 0.05,
+      rightX: 0.50,
+      sideWidth: 0.46,
+      totalHeight: 0.050,
+      memberHeight: 0.150,
+    },
     ipad: {
       stageTop: [0.08, 0.38, 0.68],
       stageHeight: 0.19,
@@ -741,21 +759,28 @@ export function getMemberScoreSlotZones(image, stage, mode, side) {
 
   const stageIndex = stage - 1;
   const xRate = side === "self" ? layout.leftX : layout.rightX;
-  const scoreTopRates = [0.22, 0.405, 0.64];
+  const isDesktop = mode === "desktop";
+  const scoreTopRates = isDesktop ? [0.16, 0.415, 0.665] : [0.22, 0.405, 0.64];
   const topRate = scoreTopRates[stageIndex];
   const sideX = image.width * xRate;
   const sideWidth = image.width * layout.sideWidth;
-  const slotRates = [
-    { x: 0.00, width: 0.36 },
-    { x: 0.31, width: 0.36 },
-    { x: 0.62, width: 0.36 },
-  ];
+  const slotRates = isDesktop
+    ? [
+        { x: 0.00, width: 0.38 },
+        { x: 0.31, width: 0.38 },
+        { x: 0.62, width: 0.38 },
+      ]
+    : [
+        { x: 0.00, width: 0.36 },
+        { x: 0.31, width: 0.36 },
+        { x: 0.62, width: 0.36 },
+      ];
 
   return slotRates.map((slot) => ({
     x: Math.max(0, Math.floor(sideX + sideWidth * slot.x)),
     y: Math.max(0, Math.floor(image.height * topRate)),
     width: Math.floor(sideWidth * slot.width),
-    height: Math.floor(image.height * 0.04),
+    height: Math.floor(image.height * (isDesktop ? 0.045 : 0.04)),
   }));
 }
 

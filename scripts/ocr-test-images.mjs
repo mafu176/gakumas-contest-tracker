@@ -202,6 +202,24 @@ function toNumber(value) {
 
 function getDeviceOcrLayout(mode) {
   const layouts = {
+    desktop: {
+      direct: true,
+      totalTop: [0.112, 0.368, 0.615],
+      memberTop: [0.135, 0.390, 0.650],
+      memberTopCandidates: [
+        [0.130, 0.385, 0.635],
+        [0.135, 0.390, 0.645],
+        [0.140, 0.395, 0.650],
+        [0.145, 0.400, 0.655],
+      ],
+      enemyMemberTop: [0.135, 0.386, 0.650],
+      enemyMemberHeight: [0.150, 0.060, 0.150],
+      leftX: 0.05,
+      rightX: 0.50,
+      sideWidth: 0.46,
+      totalHeight: 0.050,
+      memberHeight: 0.150,
+    },
     smartphone: {
       direct: true,
       totalTop: [0.165, 0.450, 0.690],
@@ -270,8 +288,10 @@ function getFixedOcrZones(image, stage, mode = "smartphone") {
   };
 }
 
-function getAlternativeTotalZones(image, stage, side) {
-  const layout = getDeviceOcrLayout("smartphone");
+function getAlternativeTotalZones(image, stage, side, mode = "smartphone") {
+  const layout = getDeviceOcrLayout(mode);
+  if (!layout.totalTopCandidates) return [];
+
   const stageIndex = stage - 1;
   const xRate = side === "self" ? layout.leftX : layout.rightX;
 
@@ -283,8 +303,10 @@ function getAlternativeTotalZones(image, stage, side) {
   }));
 }
 
-function getAlternativeMemberZones(image, stage, side) {
-  const layout = getDeviceOcrLayout("smartphone");
+function getAlternativeMemberZones(image, stage, side, mode = "smartphone") {
+  const layout = getDeviceOcrLayout(mode);
+  if (!layout.memberTopCandidates) return [];
+
   const stageIndex = stage - 1;
   const xRate = side === "self" ? layout.leftX : layout.rightX;
 
@@ -817,10 +839,11 @@ async function recognizeOcrZone(imagePath, zone, options = {}) {
   };
 }
 
-function getCrownBonusZones(image, stage, side) {
-  const layout = getDeviceOcrLayout("smartphone");
+function getCrownBonusZones(image, stage, side, mode = "smartphone") {
+  const layout = getDeviceOcrLayout(mode);
   const stageIndex = stage - 1;
-  const yRates = [0.246, 0.457, 0.66];
+  const yRates =
+    mode === "desktop" ? [0.176, 0.425, 0.672] : [0.246, 0.457, 0.66];
   const xRate = side === "self" ? layout.leftX : layout.rightX;
   const sideX = image.width * xRate;
   const sideWidth = image.width * layout.sideWidth;
@@ -849,25 +872,33 @@ function getCrownBonusZones(image, stage, side) {
   ];
 }
 
-function getMemberScoreSlotZones(image, stage, side) {
-  const layout = getDeviceOcrLayout("smartphone");
+function getMemberScoreSlotZones(image, stage, side, mode = "smartphone") {
+  const layout = getDeviceOcrLayout(mode);
   const stageIndex = stage - 1;
   const xRate = side === "self" ? layout.leftX : layout.rightX;
-  const scoreTopRates = [0.22, 0.405, 0.64];
+  const scoreTopRates =
+    mode === "desktop" ? [0.16, 0.415, 0.665] : [0.22, 0.405, 0.64];
   const topRate = scoreTopRates[stageIndex];
   const sideX = image.width * xRate;
   const sideWidth = image.width * layout.sideWidth;
-  const slotRates = [
-    { x: 0.00, width: 0.36 },
-    { x: 0.31, width: 0.36 },
-    { x: 0.62, width: 0.36 },
-  ];
+  const slotRates =
+    mode === "desktop"
+      ? [
+          { x: 0.00, width: 0.38 },
+          { x: 0.31, width: 0.38 },
+          { x: 0.62, width: 0.38 },
+        ]
+      : [
+          { x: 0.00, width: 0.36 },
+          { x: 0.31, width: 0.36 },
+          { x: 0.62, width: 0.36 },
+        ];
 
   return slotRates.map((slot) => ({
     left: Math.max(0, Math.floor(sideX + sideWidth * slot.x)),
     top: Math.max(0, Math.floor(image.height * topRate)),
     width: Math.floor(sideWidth * slot.width),
-    height: Math.floor(image.height * 0.04),
+    height: Math.floor(image.height * (mode === "desktop" ? 0.045 : 0.04)),
   }));
 }
 
@@ -1129,30 +1160,31 @@ async function runOcrForImage(imagePath, options = {}) {
   const image = await readImageSize(imagePath);
   const fileName = path.basename(imagePath);
   const results = {};
+  const ocrSource = options.source === "desktop" ? "desktop" : "smartphone";
 
   for (const stage of stages) {
-    const zones = getFixedOcrZones(image, stage);
+    const zones = getFixedOcrZones(image, stage, ocrSource);
     const selfTotalResult = await recognizeOcrZone(imagePath, zones.selfTotal);
     const selfTotalCandidateResult = await recognizeTotalCandidatesDetailed(
       imagePath,
-      limitOcrZones(getAlternativeTotalZones(image, stage, "self"), options),
+      limitOcrZones(getAlternativeTotalZones(image, stage, "self", ocrSource), options),
       options
     );
     const selfTotalCandidates = selfTotalCandidateResult.numbers;
     const selfMemberResult = await recognizeBestMemberZone(
       imagePath,
-      limitOcrZones(getAlternativeMemberZones(image, stage, "self"), options)
+      limitOcrZones(getAlternativeMemberZones(image, stage, "self", ocrSource), options)
     );
     const enemyTotalResult = await recognizeOcrZone(imagePath, zones.enemyTotal);
     const enemyTotalCandidateResult = await recognizeTotalCandidatesDetailed(
       imagePath,
-      limitOcrZones(getAlternativeTotalZones(image, stage, "enemy"), options),
+      limitOcrZones(getAlternativeTotalZones(image, stage, "enemy", ocrSource), options),
       options
     );
     const enemyTotalCandidates = enemyTotalCandidateResult.numbers;
     const enemyMemberResult = await recognizeBestMemberZone(
       imagePath,
-      limitOcrZones(getAlternativeMemberZones(image, stage, "enemy"), options)
+      limitOcrZones(getAlternativeMemberZones(image, stage, "enemy", ocrSource), options)
     );
 
     const selfTotalReferences = [
@@ -1176,7 +1208,7 @@ async function runOcrForImage(imagePath, options = {}) {
     if (shouldUseSlotMembers(selfMemberNumbers, selfTotalResult.numbers)) {
       const slotNumbers = await recognizeMemberScoreSlotCandidates(
         imagePath,
-        getMemberScoreSlotZones(image, stage, "self")
+        getMemberScoreSlotZones(image, stage, "self", ocrSource)
       );
       if (slotNumbers.length >= 3) selfMemberNumbers = slotNumbers;
     }
@@ -1184,7 +1216,7 @@ async function runOcrForImage(imagePath, options = {}) {
     if (shouldUseSlotMembers(enemyMemberNumbers, enemyTotalResult.numbers)) {
       const slotNumbers = await recognizeMemberScoreSlotCandidates(
         imagePath,
-        getMemberScoreSlotZones(image, stage, "enemy")
+        getMemberScoreSlotZones(image, stage, "enemy", ocrSource)
       );
       if (slotNumbers.length >= 3) enemyMemberNumbers = slotNumbers;
     }
@@ -1215,11 +1247,11 @@ async function runOcrForImage(imagePath, options = {}) {
     ].filter((num) => num > 0);
     const recognizedSelfCrownCandidates = await recognizeCrownBonusCandidates(
       imagePath,
-      getCrownBonusZones(image, stage, "self")
+      getCrownBonusZones(image, stage, "self", ocrSource)
     );
     const recognizedEnemyCrownCandidates = await recognizeCrownBonusCandidates(
       imagePath,
-      getCrownBonusZones(image, stage, "enemy")
+      getCrownBonusZones(image, stage, "enemy", ocrSource)
     );
     const selfCrownCandidates = [
       ...new Set([...inferredSelfBonusNumbers, ...recognizedSelfCrownCandidates]),
@@ -1451,6 +1483,12 @@ function formatNumber(value) {
 
 function getCategory(relativePath) {
   return relativePath.split("/")[0] || "";
+}
+
+function getOcrSourceForImage(category, forcedSource) {
+  if (forcedSource === "desktop") return "desktop";
+  if (forcedSource === "smartphone") return "smartphone";
+  return category === "desktop" ? "desktop" : "smartphone";
 }
 
 function getSideTotal(result, side) {
@@ -1808,8 +1846,17 @@ function buildNextDebugReport(report) {
 async function main() {
   const args = process.argv.slice(2);
   const debugNext = args.includes("--debug-next");
+  const sourceIndex = args.indexOf("--source");
+  const sourceValue = sourceIndex >= 0 ? args[sourceIndex + 1] : "";
+  const forcedSource = ["smartphone", "desktop"].includes(sourceValue)
+    ? sourceValue
+    : "";
   const filters = args
-    .filter((value) => value !== "--debug-next")
+    .filter((value, index) =>
+      value !== "--debug-next" &&
+      value !== "--source" &&
+      !(sourceIndex >= 0 && index === sourceIndex + 1)
+    )
     .map((value) => value.toLowerCase());
   const imagePaths = (await collectImages(testImagesDir))
     .filter((imagePath) => {
@@ -1825,6 +1872,7 @@ async function main() {
   for (const imagePath of imagePaths) {
     const relative = path.relative(testImagesDir, imagePath).replaceAll("\\", "/");
     const category = getCategory(relative);
+    const source = getOcrSourceForImage(category, forcedSource);
     if (category === "next-screen") {
       console.log(`SKIP ${relative} unsupported`);
       report.push({
@@ -1834,6 +1882,7 @@ async function main() {
         pass: true,
         skipped: true,
         unsupported: true,
+        source,
         message: unsupportedNextScreenMessage,
         failures: [],
         elapsedMs: 0,
@@ -1848,6 +1897,7 @@ async function main() {
     const result = await runOcrForImage(imagePath, {
       debugNext,
       fastNext: false,
+      source,
     });
     const elapsedMs = Date.now() - startedAt;
     console.log(`OCR ${relative} ${elapsedMs}ms`);
@@ -1857,6 +1907,7 @@ async function main() {
       image: relative,
       category,
       expected: Boolean(expected),
+      source,
       pass: failures.length === 0,
       failures,
       elapsedMs,

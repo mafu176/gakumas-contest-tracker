@@ -1,0 +1,44 @@
+{
+  "s1": {
+    "selfTotal": 371494,
+    "enemyTotal": 187866,
+    "selfMembers": [
+      89197,
+      65018,
+      181066
+    ],
+    "enemyMembers": [
+      84731,
+      73551,
+      29584
+    ]
+  },
+  "s2": {
+    "selfTotal": 554524,
+    "enemyTotal": 277949,
+    "selfMembers": [
+      381236,
+      41166,
+      55875
+    ],
+    "enemyMembers": [
+      114895,
+      58267,
+      104787
+    ]
+  },
+  "s3": {
+    "selfTotal": 1091628,
+    "enemyTotal": 414628,
+    "selfMembers": [
+      213523,
+      306591,
+      476262
+    ],
+    "enemyMembers": [
+      57628,
+      194402,
+      162598
+    ]
+  }
+}
