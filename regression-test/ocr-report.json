@@ -1,8434 +1,1057 @@
 [
   {
-    "image": "desktop/スクリーンショット 2026-05-31 132829.png",
-    "category": "desktop",
+    "image": "fewer-members/HJ9X-pzbkAAZsBP.jpg",
+    "category": "fewer-members",
     "expected": true,
-    "source": "desktop",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 20993,
+    "source": "smartphone",
+    "pass": false,
+    "failures": [
+      {
+        "key": "S3 enemy total",
+        "expected": 1006590,
+        "actual": 303759
+      },
+      {
+        "key": "S3 enemy member1",
+        "expected": 414706,
+        "actual": 303759
+      },
+      {
+        "key": "S3 enemy member2",
+        "expected": 303759,
+        "actual": 0
+      },
+      {
+        "key": "S3 enemy member3",
+        "expected": 288125,
+        "actual": 0
+      }
+    ],
+    "elapsedMs": 109687,
     "expectedData": {
       "stage1": {
-        "selfTotal": 234514,
-        "enemyTotal": 194505,
+        "selfTotal": 972329,
+        "enemyTotal": 1106745,
         "selfMembers": [
-          32663,
-          50095,
-          126464
+          285033,
+          422606,
+          264690
         ],
         "enemyMembers": [
-          86301,
-          34271,
-          73933
+          307260,
+          486160,
+          216093
         ]
       },
       "stage2": {
-        "selfTotal": 472554,
-        "enemyTotal": 196898,
+        "selfTotal": 1140260,
+        "enemyTotal": 644897,
         "selfMembers": [
-          308797,
-          54362,
-          47636
+          524836,
+          292907,
+          217550
         ],
         "enemyMembers": [
-          75616,
-          66476,
-          54806
+          260193,
+          384704,
+          0
         ]
       },
       "stage3": {
-        "selfTotal": 2249806,
-        "enemyTotal": 397980,
+        "selfTotal": 1559674,
+        "enemyTotal": 1006590,
         "selfMembers": [
-          1229903,
-          281439,
-          615387
+          412526,
+          423125,
+          603353
         ],
         "enemyMembers": [
-          196506,
-          128630,
-          72844
+          414706,
+          303759,
+          288125
         ]
       }
     },
     "result": {
       "stage1": {
-        "selfTotal": 234514,
-        "enemyTotal": 194505,
+        "selfTotal": 972329,
+        "enemyTotal": 1106745,
         "self": [
-          32663,
-          50095,
-          126464
+          285033,
+          422606,
+          264690
         ],
         "enemy": [
-          86301,
-          34271,
-          73933
+          307260,
+          486160,
+          216093
         ],
         "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            234514,
-            32663,
-            50095,
-            126464,
-            25292
+          "selfTotal": [
+            972529
           ],
-          "enemyTotal": [],
+          "selfMembers": [
+            972529,
+            285033,
+            422606,
+            264690
+          ],
+          "enemyTotal": [
+            1106745
+          ],
           "enemyMembers": [
-            194505,
-            86301,
-            34271,
-            73933
+            307260,
+            486160,
+            216093,
+            97232
           ]
         }
       },
       "stage2": {
-        "selfTotal": 472554,
-        "enemyTotal": 196898,
+        "selfTotal": 1140260,
+        "enemyTotal": 644897,
         "self": [
-          308797,
-          54362,
-          47636
+          524836,
+          292907,
+          217550
         ],
         "enemy": [
-          75616,
-          66476,
-          54806
+          260193,
+          384704
         ],
         "raw": {
-          "selfTotal": [],
+          "selfTotal": [
+            104967
+          ],
           "selfMembers": [
-            472554,
-            308797,
-            54362,
-            47636,
-            61759
+            1140260,
+            524836,
+            292907,
+            217550,
+            104967
           ],
           "enemyTotal": [],
           "enemyMembers": [
-            196898,
-            75616,
-            66476,
-            54806
+            644897,
+            260193,
+            384704
           ]
         }
       },
       "stage3": {
-        "selfTotal": 2249806,
-        "enemyTotal": 397980,
+        "selfTotal": 1559674,
+        "enemyTotal": 303759,
         "self": [
-          1229903,
-          281439,
-          615387
+          412526,
+          423125,
+          603353
         ],
         "enemy": [
-          196506,
-          128630,
-          72844
+          303759
         ],
         "raw": {
           "selfTotal": [],
           "selfMembers": [
-            1229903,
-            281439,
-            615387,
-            123077
+            412526,
+            423125,
+            603353,
+            120670
           ],
           "enemyTotal": [],
           "enemyMembers": [
-            397980,
-            196506,
-            128630,
-            72844
+            414706,
+            303759,
+            288125
           ]
         }
       }
     }
   },
   {
-    "image": "desktop/スクリーンショット 2026-05-31 132838.png",
-    "category": "desktop",
+    "image": "fewer-members/IMG_9162.png",
+    "category": "fewer-members",
     "expected": true,
-    "source": "desktop",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 21558,
+    "source": "smartphone",
+    "pass": false,
+    "failures": [
+      {
+        "key": "S1 self member3",
+        "expected": 0,
+        "actual": 100972
+      },
+      {
+        "key": "S2 enemy total",
+        "expected": 272472,
+        "actual": 59773
+      },
+      {
+        "key": "S2 enemy member1",
+        "expected": 181039,
+        "actual": 59773
+      },
+      {
+        "key": "S2 enemy member2",
+        "expected": 59773,
+        "actual": 0
+      },
+      {
+        "key": "S2 enemy member3",
+        "expected": 31660,
+        "actual": 0
+      },
+      {
+        "key": "S3 enemy total",
+        "expected": 388509,
+        "actual": 144254
+      },
+      {
+        "key": "S3 enemy member1",
+        "expected": 181448,
+        "actual": 144254
+      },
+      {
+        "key": "S3 enemy member2",
+        "expected": 144254,
+        "actual": 0
+      },
+      {
+        "key": "S3 enemy member3",
+        "expected": 62807,
+        "actual": 0
+      }
+    ],
+    "elapsedMs": 131133,
     "expectedData": {
       "stage1": {
-        "selfTotal": 289232,
-        "enemyTotal": 345147,
+        "selfTotal": 648263,
+        "enemyTotal": 368785,
         "selfMembers": [
-          82993,
-          58512,
-          147727
+          504862,
+          42429,
+          0
         ],
         "enemyMembers": [
-          210155,
-          46582,
-          46379
+          132257,
+          172308,
+          64220
         ]
       },
       "stage2": {
-        "selfTotal": 433945,
-        "enemyTotal": 929875,
+        "selfTotal": 542929,
+        "enemyTotal": 272472,
         "selfMembers": [
-          345259,
-          38747,
-          49939
+          148365,
+          65791,
+          273978
         ],
         "enemyMembers": [
-          497578,
-          326409,
-          82075
+          181039,
+          59773,
+          31660
         ]
       },
       "stage3": {
-        "selfTotal": 813146,
-        "enemyTotal": 345874,
+        "selfTotal": 566826,
+        "enemyTotal": 388509,
         "selfMembers": [
-          264954,
-          196342,
-          293209
+          433712,
+          12893,
+          33479
         ],
         "enemyMembers": [
-          69688,
-          126309,
-          149877
+          181448,
+          144254,
+          62807
         ]
       }
     },
     "result": {
       "stage1": {
-        "selfTotal": 289232,
-        "enemyTotal": 345147,
+        "selfTotal": 648263,
+        "enemyTotal": 368785,
         "self": [
-          82993,
-          58512,
-          147727
+          504862,
+          42429,
+          100972
         ],
         "enemy": [
-          210155,
-          46582,
-          46379
+          132257,
+          172308,
+          64220
         ],
         "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            289232,
-            82993,
-            58512,
-            147727
+          "selfTotal": [
+            648263
           ],
-          "enemyTotal": [],
+          "selfMembers": [
+            648263,
+            504862,
+            42429,
+            100972,
+            2000
+          ],
+          "enemyTotal": [
+            368785
+          ],
           "enemyMembers": [
-            345147,
-            210155,
-            46582,
-            46379,
-            42031
+            368785,
+            132257,
+            172308,
+            64220
           ]
         }
       },
       "stage2": {
-        "selfTotal": 433945,
-        "enemyTotal": 929875,
+        "selfTotal": 542929,
+        "enemyTotal": 59773,
         "self": [
-          345259,
-          38747,
-          49939
+          148365,
+          65791,
+          273978
         ],
         "enemy": [
-          497578,
-          326409,
-          82075
+          59773
         ],
         "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            345259,
-            38747,
-            49939
+          "selfTotal": [
+            54795
           ],
-          "enemyTotal": [],
+          "selfMembers": [
+            542929,
+            148365,
+            65791,
+            273978,
+            54795
+          ],
+          "enemyTotal": [
+            181039,
+            59773,
+            31660
+          ],
           "enemyMembers": [
-            497578,
-            326409,
-            82075,
-            23813
+            181039,
+            59773,
+            31660
           ]
         }
       },
       "stage3": {
-        "selfTotal": 813146,
-        "enemyTotal": 345874,
+        "selfTotal": 566826,
+        "enemyTotal": 144254,
         "self": [
-          264954,
-          196342,
-          293209
+          433712,
+          12893,
+          33479
         ],
         "enemy": [
-          69688,
-          126309,
-          149877
+          144254
         ],
         "raw": {
           "selfTotal": [],
           "selfMembers": [
-            813146,
-            264954,
-            196342,
-            293209,
-            58641
+            433712,
+            12893,
+            33479,
+            86742
           ],
           "enemyTotal": [],
           "enemyMembers": [
-            69688,
-            126309,
-            149877
+            181448,
+            144254,
+            62807
           ]
         }
       }
     }
   },
   {
-    "image": "desktop/スクリーンショット 2026-05-31 132847.png",
-    "category": "desktop",
+    "image": "fewer-members/IMG_9163.png",
+    "category": "fewer-members",
     "expected": true,
-    "source": "desktop",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 21363,
+    "source": "smartphone",
+    "pass": false,
+    "failures": [
+      {
+        "key": "S1 self total",
+        "expected": 653833,
+        "actual": 544861
+      },
+      {
+        "key": "S1 enemy total",
+        "expected": 357616,
+        "actual": 56973
+      },
+      {
+        "key": "S1 enemy member1",
+        "expected": 162233,
+        "actual": 56973
+      },
+      {
+        "key": "S1 enemy member2",
+        "expected": 56973,
+        "actual": 0
+      },
+      {
+        "key": "S1 enemy member3",
+        "expected": 138410,
+        "actual": 0
+      },
+      {
+        "key": "S2 enemy total",
+        "expected": 260246,
+        "actual": 123530
+      },
+      {
+        "key": "S2 enemy member2",
+        "expected": 69768,
+        "actual": 0
+      },
+      {
+        "key": "S2 enemy member3",
+        "expected": 66948,
+        "actual": 0
+      }
+    ],
+    "elapsedMs": 125340,
     "expectedData": {
       "stage1": {
-        "selfTotal": 575365,
-        "enemyTotal": 146199,
+        "selfTotal": 653833,
+        "enemyTotal": 357616,
         "selfMembers": [
-          305080,
-          43361,
-          52947
+          544861,
+          0,
+          0
         ],
         "enemyMembers": [
-          30199,
-          99356,
-          16644
+          162233,
+          56973,
+          138410
         ]
       },
       "stage2": {
-        "selfTotal": 485660,
-        "enemyTotal": 134810,
+        "selfTotal": 428775,
+        "enemyTotal": 260246,
         "selfMembers": [
-          328123,
-          52541,
-          39372
+          134263,
+          183334,
+          74512
         ],
         "enemyMembers": [
-          63782,
-          28933,
-          42095
+          123530,
+          69768,
+          66948
         ]
       },
       "stage3": {
-        "selfTotal": 1126424,
-        "enemyTotal": 299045,
+        "selfTotal": 506403,
+        "enemyTotal": 170770,
         "selfMembers": [
-          230319,
-          293133,
-          502477
+          393410,
+          34311,
+          0
         ],
         "enemyMembers": [
-          165153,
-          44640,
-          89252
+          24244,
+          32067,
+          114459
         ]
       }
     },
     "result": {
       "stage1": {
-        "selfTotal": 575365,
-        "enemyTotal": 146199,
+        "selfTotal": 544861,
+        "enemyTotal": 56973,
         "self": [
-          305080,
-          43361,
-          52947
+          544861
         ],
         "enemy": [
-          30199,
-          99356,
-          16644
+          56973
         ],
         "raw": {
           "selfTotal": [],
           "selfMembers": [
-            305080,
-            43361,
-            52947,
-            173977
+            6535,
+            544861,
+            108972
           ],
-          "enemyTotal": [],
+          "enemyTotal": [
+            357616
+          ],
           "enemyMembers": [
-            146199,
-            30199,
-            99356,
-            16644
+            357616,
+            162233,
+            56973,
+            138410
           ]
         }
       },
       "stage2": {
-        "selfTotal": 485660,
-        "enemyTotal": 134810,
+        "selfTotal": 428775,
+        "enemyTotal": 123530,
         "self": [
-          328123,
-          52541,
-          39372
+          134263,
+          183334,
+          74512
         ],
         "enemy": [
-          63782,
-          28933,
-          42095
+          123530
         ],
         "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            485660,
-            328123,
-            52541,
-            39372,
-            65624
+          "selfTotal": [
+            36666
           ],
-          "enemyTotal": [],
+          "selfMembers": [
+            134263,
+            183334,
+            74512,
+            36666
+          ],
+          "enemyTotal": [
+            123530,
+            69768,
+            66948
+          ],
           "enemyMembers": [
-            134810,
-            63782,
-            28933,
-            42095
+            260246,
+            123530,
+            69768,
+            56938
           ]
         }
       },
       "stage3": {
-        "selfTotal": 1126424,
-        "enemyTotal": 299045,
+        "selfTotal": 506403,
+        "enemyTotal": 170770,
         "self": [
-          230319,
-          293133,
-          502477
+          393410,
+          34311
         ],
         "enemy": [
-          165153,
-          44640,
-          89252
+          24244,
+          32067,
+          114459
         ],
         "raw": {
           "selfTotal": [],
           "selfMembers": [
-            1126424,
-            230319,
-            293133,
-            502477,
-            100495
+            393410,
+            34311,
+            78682
           ],
           "enemyTotal": [],
           "enemyMembers": [
-            165153,
-            44640,
-            89252
+            24244,
+            32067,
+            114459
           ]
         }
       }
     }
   },
   {
-    "image": "desktop/スクリーンショット 2026-05-31 132855.png",
-    "category": "desktop",
-    "expected": false,
-    "source": "desktop",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 25503,
-    "expectedData": null,
-    "result": {
-      "stage1": {
-        "selfTotal": 255061,
-        "enemyTotal": 321067,
-        "self": [
-          68836,
-          74429,
-          111796
-        ],
-        "enemy": [
-          112081,
-          114969,
-          71024
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            255061,
-            68836,
-            74429,
-            111796
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            321067,
-            112081,
-            114969,
-            71024,
-            22993
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 1383861,
-        "enemyTotal": 119184,
-        "self": [
-          692932,
-          510016,
-          43753
-        ],
-        "enemy": [
-          35650,
-          42776,
-          40758
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            692932,
-            510016,
-            43753,
-            137160,
-            102003
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            119184,
-            35650,
-            42776,
-            40758
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 1038239,
-        "enemyTotal": 282014,
-        "self": [
-          200294,
-          379028,
-          382431
-        ],
-        "enemy": [
-          97213,
-          75805,
-          108996
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            1038239,
-            200294
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            282014,
-            97213,
-            75805,
-            108996
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "desktop/スクリーンショット 2026-05-31 132930.png",
-    "category": "desktop",
-    "expected": false,
-    "source": "desktop",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 22341,
-    "expectedData": null,
-    "result": {
-      "stage1": {
-        "selfTotal": 167624,
-        "enemyTotal": 131283,
-        "self": [
-          33779,
-          51945,
-          68084
-        ],
-        "enemy": [
-          38970,
-          48037,
-          44276
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            167424,
-            33779,
-            51945,
-            68084,
-            13816
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            131285,
-            38970,
-            48037,
-            44276
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 573394,
-        "enemyTotal": 143815,
-        "self": [
-          423505,
-          28161,
-          37027
-        ],
-        "enemy": [
-          71361,
-          51858,
-          20596
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            573394,
-            423505,
-            28161,
-            37027,
-            84701
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            143815,
-            71361,
-            51858,
-            20596
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 660406,
-        "enemyTotal": 215648,
-        "self": [
-          133035,
-          208290,
-          319081
-        ],
-        "enemy": [
-          46870,
-          68438,
-          100340
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            724222,
-            319081
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            215648,
-            46870,
-            68438,
-            100340
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "desktop/スクリーンショット 2026-05-31 132954.png",
-    "category": "desktop",
+    "image": "fewer-members/IMG_9165.png",
+    "category": "fewer-members",
     "expected": true,
-    "source": "desktop",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 21051,
+    "source": "smartphone",
+    "pass": false,
+    "failures": [
+      {
+        "key": "S1 self member3",
+        "expected": 120852,
+        "actual": 0
+      },
+      {
+        "key": "S2 self total",
+        "expected": 252883,
+        "actual": 94205
+      },
+      {
+        "key": "S2 self member1",
+        "expected": 158678,
+        "actual": 78295
+      },
+      {
+        "key": "S2 self member2",
+        "expected": 94205,
+        "actual": 0
+      },
+      {
+        "key": "S2 enemy total",
+        "expected": 332234,
+        "actual": 51744
+      },
+      {
+        "key": "S2 enemy member1",
+        "expected": 88082,
+        "actual": 51744
+      },
+      {
+        "key": "S2 enemy member2",
+        "expected": 51744,
+        "actual": 0
+      },
+      {
+        "key": "S2 enemy member3",
+        "expected": 160340,
+        "actual": 0
+      },
+      {
+        "key": "S3 self total",
+        "expected": 507535,
+        "actual": 422946
+      }
+    ],
+    "elapsedMs": 135171,
     "expectedData": {
       "stage1": {
-        "selfTotal": 416932,
-        "enemyTotal": 520186,
+        "selfTotal": 705662,
+        "enemyTotal": 220305,
         "selfMembers": [
-          243648,
-          50937,
-          122347
+          140009,
+          370668,
+          120852
         ],
         "enemyMembers": [
-          150745,
-          256866,
-          61202
+          72882,
+          62944,
+          84479
         ]
       },
       "stage2": {
-        "selfTotal": 510839,
-        "enemyTotal": 697032,
+        "selfTotal": 252883,
+        "enemyTotal": 332234,
         "selfMembers": [
-          367586,
-          37244,
-          32492
+          158678,
+          94205,
+          0
         ],
         "enemyMembers": [
-          349516,
-          57628,
-          104574
+          88082,
+          51744,
+          160340
         ]
       },
       "stage3": {
-        "selfTotal": 947906,
-        "enemyTotal": 657459,
+        "selfTotal": 507535,
+        "enemyTotal": 445207,
         "selfMembers": [
-          118436,
-          271764,
-          464755
+          422946,
+          0,
+          0
         ],
         "enemyMembers": [
-          399896,
-          137380,
-          120183
+          173165,
+          206033,
+          66009
         ]
       }
     },
     "result": {
       "stage1": {
-        "selfTotal": 416932,
-        "enemyTotal": 520186,
+        "selfTotal": 705662,
+        "enemyTotal": 220305,
         "self": [
-          243648,
-          50937,
-          122347
+          140009,
+          370668
         ],
         "enemy": [
-          150745,
-          256866,
-          61202
+          72882,
+          62944,
+          84479
         ],
         "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            416932,
-            243648,
-            50937,
-            122347
+          "selfTotal": [
+            705662
           ],
-          "enemyTotal": [],
+          "selfMembers": [
+            705662,
+            140009,
+            370668,
+            120852,
+            741335
+          ],
+          "enemyTotal": [
+            220305
+          ],
           "enemyMembers": [
-            520186,
-            150745,
-            256866,
-            61202,
-            51373
+            220305,
+            72882,
+            62944,
+            84479
           ]
         }
       },
       "stage2": {
-        "selfTotal": 510839,
-        "enemyTotal": 697032,
+        "selfTotal": 94205,
+        "enemyTotal": 51744,
         "self": [
-          367586,
-          37244,
-          32492
+          78295
         ],
         "enemy": [
-          349516,
-          57628,
-          104574
+          51744
         ],
         "raw": {
           "selfTotal": [],
           "selfMembers": [
-            367586,
-            37244,
-            32492,
-            73517
+            158678,
+            78295
           ],
-          "enemyTotal": [],
+          "enemyTotal": [
+            88082,
+            51744,
+            160340
+          ],
           "enemyMembers": [
-            349516,
-            57628,
-            104574,
-            185314
+            88082,
+            51744,
+            160340,
+            432068
           ]
         }
       },
       "stage3": {
-        "selfTotal": 947906,
-        "enemyTotal": 657459,
+        "selfTotal": 422946,
+        "enemyTotal": 445207,
         "self": [
-          118436,
-          271764,
-          464755
+          422946
         ],
         "enemy": [
-          399896,
-          137380,
-          120183
+          173165,
+          206033,
+          66009
         ],
         "raw": {
           "selfTotal": [],
           "selfMembers": [
-            947906,
-            118436,
-            271764,
-            464755,
-            92951
+            422946,
+            84589
           ],
           "enemyTotal": [],
           "enemyMembers": [
-            399896,
-            137380,
-            120183
+            87192
           ]
         }
       }
     }
   },
   {
-    "image": "desktop/スクリーンショット 2026-05-31 133010.png",
-    "category": "desktop",
+    "image": "fewer-members/IMG_9166.png",
+    "category": "fewer-members",
     "expected": true,
-    "source": "desktop",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 20798,
+    "source": "smartphone",
+    "pass": false,
+    "failures": [
+      {
+        "key": "S1 self member3",
+        "expected": 0,
+        "actual": 31854
+      },
+      {
+        "key": "S2 self total",
+        "expected": 198427,
+        "actual": 165356
+      }
+    ],
+    "elapsedMs": 125206,
     "expectedData": {
       "stage1": {
-        "selfTotal": 1067467,
-        "enemyTotal": 239521,
+        "selfTotal": 280103,
+        "enemyTotal": 233873,
         "selfMembers": [
-          564855,
-          311217,
-          53882
+          159273,
+          88976,
+          0
         ],
         "enemyMembers": [
-          76260,
-          44671,
-          118590
+          42758,
+          122028,
+          69087
         ]
       },
       "stage2": {
-        "selfTotal": 563077,
-        "enemyTotal": 878743,
+        "selfTotal": 198427,
+        "enemyTotal": 172228,
         "selfMembers": [
-          394671,
-          46002,
-          43470
+          165356,
+          0,
+          0
         ],
         "enemyMembers": [
-          507812,
-          235114,
-          135817
+          26320,
+          62220,
+          83688
         ]
       },
       "stage3": {
-        "selfTotal": 858989,
-        "enemyTotal": 393136,
+        "selfTotal": 619594,
+        "enemyTotal": 176045,
         "selfMembers": [
-          130841,
-          350934,
-          377214
+          35646,
+          443231,
+          52071
         ],
         "enemyMembers": [
-          188332,
-          53953,
-          150851
+          75680,
+          100365,
+          0
         ]
       }
     },
     "result": {
       "stage1": {
-        "selfTotal": 1067467,
-        "enemyTotal": 239521,
+        "selfTotal": 280103,
+        "enemyTotal": 233873,
         "self": [
-          564855,
-          311217,
-          53882
+          159273,
+          88976,
+          31854
         ],
         "enemy": [
-          76260,
-          44671,
-          118590
+          42758,
+          122028,
+          69087
         ],
         "raw": {
-          "selfTotal": [],
+          "selfTotal": [
+            280105
+          ],
           "selfMembers": [
-            564855,
-            311217,
-            53882,
-            137513
+            280105,
+            159273,
+            88976,
+            31854
           ],
           "enemyTotal": [],
           "enemyMembers": [
-            239521,
-            76260,
-            44671,
-            118590
+            42758,
+            122028,
+            69087
           ]
         }
       },
       "stage2": {
-        "selfTotal": 563077,
-        "enemyTotal": 878743,
+        "selfTotal": 165356,
+        "enemyTotal": 172228,
         "self": [
-          394671,
-          46002,
-          43470
+          165356
         ],
         "enemy": [
-          507812,
-          235114,
-          135817
+          26320,
+          62220,
+          83688
         ],
         "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            263077,
-            394671,
-            46002,
-            43470,
-            78934
+          "selfTotal": [
+            55071
           ],
-          "enemyTotal": [],
+          "selfMembers": [
+            198427,
+            165356
+          ],
+          "enemyTotal": [
+            26320,
+            62220,
+            83688
+          ],
           "enemyMembers": [
-            507812,
-            235114,
-            135817
+            172228,
+            26320,
+            62220,
+            83688
           ]
         }
       },
       "stage3": {
-        "selfTotal": 858989,
-        "enemyTotal": 393136,
+        "selfTotal": 619594,
+        "enemyTotal": 176045,
         "self": [
-          130841,
-          350934,
-          377214
+          35646,
+          443231,
+          52071
         ],
         "enemy": [
-          188332,
-          53953,
-          150851
+          75680,
+          100365
         ],
         "raw": {
           "selfTotal": [],
           "selfMembers": [
-            130841,
-            350934,
-            377214
+            35646,
+            443231,
+            52071,
+            88646
           ],
           "enemyTotal": [],
           "enemyMembers": [
-            393136,
-            188332,
-            53953,
-            150851
+            75680,
+            100365
           ]
         }
       }
     }
   },
   {
-    "image": "desktop/スクリーンショット 2026-05-31 133037.png",
-    "category": "desktop",
+    "image": "fewer-members/IMG_9167.png",
+    "category": "fewer-members",
     "expected": true,
-    "source": "desktop",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 20619,
+    "source": "smartphone",
+    "pass": false,
+    "failures": [
+      {
+        "key": "S3 enemy total",
+        "expected": 301721,
+        "actual": 102466
+      },
+      {
+        "key": "S3 enemy member1",
+        "expected": 112658,
+        "actual": 102466
+      },
+      {
+        "key": "S3 enemy member2",
+        "expected": 102466,
+        "actual": 0
+      },
+      {
+        "key": "S3 enemy member3",
+        "expected": 86597,
+        "actual": 0
+      }
+    ],
+    "elapsedMs": 128581,
     "expectedData": {
       "stage1": {
-        "selfTotal": 371494,
-        "enemyTotal": 187866,
+        "selfTotal": 181066,
+        "enemyTotal": 685829,
         "selfMembers": [
-          89197,
-          65018,
-          181066
+          181066,
+          0,
+          0
         ],
         "enemyMembers": [
-          84731,
-          73551,
-          29584
+          166141,
+          238835,
+          233086
         ]
       },
       "stage2": {
-        "selfTotal": 554524,
-        "enemyTotal": 277949,
+        "selfTotal": 298263,
+        "enemyTotal": 534795,
         "selfMembers": [
-          381236,
-          41166,
-          55875
+          117482,
+          180781,
+          0
         ],
         "enemyMembers": [
-          114895,
-          58267,
-          104787
+          207013,
+          86554,
+          199826
         ]
       },
       "stage3": {
-        "selfTotal": 1091628,
-        "enemyTotal": 414628,
+        "selfTotal": 731747,
+        "enemyTotal": 301721,
         "selfMembers": [
-          213523,
-          306591,
-          476262
+          523337,
+          55793,
+          47950
         ],
         "enemyMembers": [
-          57628,
-          194402,
-          162598
+          112658,
+          102466,
+          86597
         ]
       }
     },
     "result": {
       "stage1": {
-        "selfTotal": 371494,
-        "enemyTotal": 187866,
+        "selfTotal": 181066,
+        "enemyTotal": 685829,
         "self": [
-          89197,
-          65018,
           181066
         ],
         "enemy": [
-          84731,
-          73551,
-          29584
+          166141,
+          238835,
+          233086
         ],
         "raw": {
-          "selfTotal": [],
+          "selfTotal": [
+            181066
+          ],
           "selfMembers": [
-            371494,
-            89197,
-            65018,
             181066,
-            36213
+            181066
           ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            187866,
-            84731,
-            73551,
-            29584
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 554524,
-        "enemyTotal": 277949,
-        "self": [
-          381236,
-          41166,
-          55875
-        ],
-        "enemy": [
-          114895,
-          58267,
-          104787
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            554524,
-            381236,
-            41166,
-            55875,
-            76247
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            277949,
-            114895,
-            58267,
-            104787
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 1091628,
-        "enemyTotal": 414628,
-        "self": [
-          213523,
-          306591,
-          476262
-        ],
-        "enemy": [
-          57628,
-          194402,
-          162598
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            213523,
-            306591,
-            476262,
-            95252
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            57628,
-            194402,
-            162598
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "desktop/スクリーンショット 2026-05-31 133053.png",
-    "category": "desktop",
-    "expected": false,
-    "source": "desktop",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 24546,
-    "expectedData": null,
-    "result": {
-      "stage1": {
-        "selfTotal": 365329,
-        "enemyTotal": 407441,
-        "self": [
-          228790,
-          55229,
-          81310
-        ],
-        "enemy": [
-          35252,
-          62022,
-          258473
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            365329,
-            228790,
-            55229,
-            81310
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            35252,
-            62022,
-            258473,
-            51694
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 478954,
-        "enemyTotal": 242744,
-        "self": [
-          313125,
-          48603,
-          54601
-        ],
-        "enemy": [
-          138475,
-          77541,
-          26728
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            478954,
-            313125,
-            48603,
-            54601,
-            62625
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            138475,
-            77541,
-            26728
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 1212217,
-        "enemyTotal": 317311,
-        "self": [
-          213167,
-          394295,
-          503963
-        ],
-        "enemy": [
-          63667,
-          56538,
-          197106
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            1212217,
-            503963,
-            100792
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            63667,
-            56538,
-            197106
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "desktop/スクリーンショット 2026-05-31 133115.png",
-    "category": "desktop",
-    "expected": false,
-    "source": "desktop",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 24445,
-    "expectedData": null,
-    "result": {
-      "stage1": {
-        "selfTotal": 317618,
-        "enemyTotal": 493110,
-        "self": [
-          126680,
-          61190,
-          129748
-        ],
-        "enemy": [
-          261978,
-          154234,
-          17656
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            317618,
-            126680,
-            61190,
-            129748
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            261978,
-            154234,
-            17656,
-            59242,
-            308448
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 494161,
-        "enemyTotal": 231997,
-        "self": [
-          331558,
-          34983,
-          61309
-        ],
-        "enemy": [
-          131528,
-          18375,
-          82094
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            494161,
-            331558,
-            34983,
-            61309,
-            66311
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            131528,
-            18375,
-            82094
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 509986,
-        "enemyTotal": 166103,
-        "self": [
-          424989,
-          84997
-        ],
-        "enemy": [
-          44726,
-          87076,
-          34301
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            1038479,
-            424989,
-            84997
-          ],
-          "enemyTotal": [
-            166103
-          ],
-          "enemyMembers": [
-            44726,
-            87076,
-            34301
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "desktop/スクリーンショット 2026-06-02 200831.png",
-    "category": "desktop",
-    "expected": true,
-    "source": "desktop",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 20651,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 1244170,
-        "enemyTotal": 56819,
-        "selfMembers": [
-          655998,
-          136109,
-          339132
-        ],
-        "enemyMembers": [
-          23244,
-          13426,
-          20149
-        ]
-      },
-      "stage2": {
-        "selfTotal": 624185,
-        "enemyTotal": 184601,
-        "selfMembers": [
-          513961,
-          69352,
-          40872
-        ],
-        "enemyMembers": [
-          66751,
-          45628,
-          72222
-        ]
-      },
-      "stage3": {
-        "selfTotal": 849108,
-        "enemyTotal": 162019,
-        "selfMembers": [
-          456883,
-          323292,
-          27936
-        ],
-        "enemyMembers": [
-          89949,
-          47327,
-          24743
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 1244170,
-        "enemyTotal": 56819,
-        "self": [
-          655998,
-          136109,
-          339132
-        ],
-        "enemy": [
-          23244,
-          13426,
-          20149
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            655998,
-            136109,
-            339132,
-            112931,
-            167826
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            56819,
-            23244,
-            13426,
-            20149
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 624185,
-        "enemyTotal": 184601,
-        "self": [
-          513961,
-          69352,
-          40872
-        ],
-        "enemy": [
-          66751,
-          45628,
-          72222
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            513961,
-            69352,
-            40872
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            184601,
-            66751,
-            45628,
-            72222
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 849108,
-        "enemyTotal": 162019,
-        "self": [
-          456883,
-          323292,
-          27936
-        ],
-        "enemy": [
-          89949,
-          47327,
-          24743
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            456883,
-            323292,
-            27936,
-            40997,
-            54658
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            89949,
-            47327,
-            24743
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "desktop/スクリーンショット 2026-06-02 200840.png",
-    "category": "desktop",
-    "expected": false,
-    "source": "desktop",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 25156,
-    "expectedData": null,
-    "result": {
-      "stage1": {
-        "selfTotal": 1201687,
-        "enemyTotal": 119973,
-        "self": [
-          171567,
-          218728,
-          707239
-        ],
-        "enemy": [
-          60325,
-          32993,
-          26655
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            171567,
-            218728,
-            707239,
-            104153,
-            141447
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            119973,
-            60325,
-            32993,
-            26655
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 590064,
-        "enemyTotal": 96990,
-        "self": [
-          141105,
-          249628,
-          149406
-        ],
-        "enemy": [
-          30833,
-          35797,
-          30360
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            590064,
-            141105,
-            249628,
-            149406,
-            49925
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            96990,
-            30833,
-            35797,
-            30360
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 729614,
-        "enemyTotal": 97647,
-        "self": [
-          25716,
-          484840,
-          122090
-        ],
-        "enemy": [
-          49200,
-          14360,
-          34087
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            729614,
-            96968
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            97647,
-            49200,
-            14360,
-            34087
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "desktop/スクリーンショット 2026-06-02 200846.png",
-    "category": "desktop",
-    "expected": true,
-    "source": "desktop",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 21990,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 777728,
-        "enemyTotal": 97744,
-        "selfMembers": [
-          167550,
-          414913,
-          112283
-        ],
-        "enemyMembers": [
-          49883,
-          25037,
-          22824
-        ]
-      },
-      "stage2": {
-        "selfTotal": 730369,
-        "enemyTotal": 88183,
-        "selfMembers": [
-          379985,
-          104778,
-          97597
-        ],
-        "enemyMembers": [
-          42473,
-          22097,
-          23613
-        ]
-      },
-      "stage3": {
-        "selfTotal": 489387,
-        "enemyTotal": 100360,
-        "selfMembers": [
-          330958,
-          64222,
-          28016
-        ],
-        "enemyMembers": [
-          40878,
-          46080,
-          13402
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 777728,
-        "enemyTotal": 97744,
-        "self": [
-          167550,
-          414913,
-          112283
-        ],
-        "enemy": [
-          49883,
-          25037,
-          22824
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            777728,
-            167550,
-            414913,
-            112283,
-            82982
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            49883,
-            25037,
-            22824
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 730369,
-        "enemyTotal": 88183,
-        "self": [
-          379985,
-          104778,
-          97597
-        ],
-        "enemy": [
-          42473,
-          22097,
-          23613
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            379985,
-            104778,
-            97597,
-            148009
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            88183,
-            42473,
-            22097,
-            23613
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 489387,
-        "enemyTotal": 100360,
-        "self": [
-          330958,
-          64222,
-          28016
-        ],
-        "enemy": [
-          40878,
-          46080,
-          13402
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            330958,
-            64222,
-            28016,
-            66191
-          ],
-          "enemyTotal": [
-            100360
-          ],
-          "enemyMembers": [
-            100560,
-            40878,
-            46080,
-            13402
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "desktop/スクリーンショット 2026-06-02 200858.png",
-    "category": "desktop",
-    "expected": true,
-    "source": "desktop",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 21678,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 1770495,
-        "enemyTotal": 125035,
-        "selfMembers": [
-          933140,
-          241841,
-          478925
-        ],
-        "enemyMembers": [
-          44824,
-          42624,
-          37587
-        ]
-      },
-      "stage2": {
-        "selfTotal": 551749,
-        "enemyTotal": 212410,
-        "selfMembers": [
-          106055,
-          182034,
-          219713
-        ],
-        "enemyMembers": [
-          127307,
-          45250,
-          39853
-        ]
-      },
-      "stage3": {
-        "selfTotal": 655976,
-        "enemyTotal": 130044,
-        "selfMembers": [
-          555614,
-          15824,
-          84538
-        ],
-        "enemyMembers": [
-          46876,
-          62847,
-          20321
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 1770495,
-        "enemyTotal": 125035,
-        "self": [
-          933140,
-          241841,
-          478925
-        ],
-        "enemy": [
-          44824,
-          42624,
-          37587
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            933140,
-            241841,
-            478925,
-            116589,
-            105785
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            125035,
-            44824,
-            42624,
-            37587
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 551749,
-        "enemyTotal": 212410,
-        "self": [
-          106055,
-          182034,
-          219713
-        ],
-        "enemy": [
-          127307,
-          45250,
-          39853
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            551744,
-            106055,
-            182034,
-            219713,
-            43947
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            127307,
-            45250,
-            39853
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 655976,
-        "enemyTotal": 130044,
-        "self": [
-          555614,
-          15824,
-          84538
-        ],
-        "enemy": [
-          46876,
-          62847,
-          20321
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            555614,
-            15824,
-            84538
-          ],
-          "enemyTotal": [
-            130044
-          ],
-          "enemyMembers": [
-            130044,
-            46876,
-            62847,
-            20321
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "desktop/スクリーンショット 2026-06-02 200904.png",
-    "category": "desktop",
-    "expected": true,
-    "source": "desktop",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 21333,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 654329,
-        "enemyTotal": 100636,
-        "selfMembers": [
-          206114,
-          300141,
-          88046
-        ],
-        "enemyMembers": [
-          31734,
-          30057,
-          38845
-        ]
-      },
-      "stage2": {
-        "selfTotal": 1006481,
-        "enemyTotal": 144299,
-        "selfMembers": [
-          566789,
-          186078,
-          211345
-        ],
-        "enemyMembers": [
-          86241,
-          36615,
-          21443
-        ]
-      },
-      "stage3": {
-        "selfTotal": 231257,
-        "enemyTotal": 74248,
-        "selfMembers": [
-          41656,
-          107629,
-          81972
-        ],
-        "enemyMembers": [
-          15370,
-          39913,
-          18965
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 654329,
-        "enemyTotal": 100636,
-        "self": [
-          206114,
-          300141,
-          88046
-        ],
-        "enemy": [
-          31734,
-          30057,
-          38845
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            654329,
-            206114,
-            300141,
-            88046,
-            60028
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            100636,
-            31734,
-            30057,
-            38845
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 1006481,
-        "enemyTotal": 144299,
-        "self": [
-          566789,
-          186078,
-          211345
-        ],
-        "enemy": [
-          86241,
-          36615,
-          21443
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            566789,
-            186078,
-            211345,
-            42269
-          ],
-          "enemyTotal": [
-            144299
-          ],
-          "enemyMembers": [
-            144299,
-            86241,
-            36615,
-            21443
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 231257,
-        "enemyTotal": 74248,
-        "self": [
-          41656,
-          107629,
-          81972
-        ],
-        "enemy": [
-          15370,
-          39913,
-          18965
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            41656,
-            107629,
-            81972
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            74248,
-            15370,
-            39913,
-            18965
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "high-score/high1.png",
-    "category": "high-score",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 72955,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 534463,
-        "enemyTotal": 687231,
-        "selfMembers": [
-          161804,
-          134177,
-          238482
-        ],
-        "enemyMembers": [
-          365073,
-          138786,
-          110358
-        ]
-      },
-      "stage2": {
-        "selfTotal": 953048,
-        "enemyTotal": 1378829,
-        "selfMembers": [
-          437293,
-          205886,
-          309869
-        ],
-        "enemyMembers": [
-          503546,
-          438058,
-          437225
-        ]
-      },
-      "stage3": {
-        "selfTotal": 820824,
-        "enemyTotal": 801239,
-        "selfMembers": [
-          307030,
-          322202,
-          191592
-        ],
-        "enemyMembers": [
-          113008,
-          382488,
-          229246
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 534463,
-        "enemyTotal": 687231,
-        "self": [
-          161804,
-          134177,
-          238482
-        ],
-        "enemy": [
-          365073,
-          138786,
-          110358
-        ],
-        "raw": {
-          "selfTotal": [
-            534465
-          ],
-          "selfMembers": [
-            534463,
-            161804,
-            134177,
-            238482
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            687231,
-            365073,
-            138786,
-            110358,
-            73014
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 953048,
-        "enemyTotal": 1378829,
-        "self": [
-          437293,
-          205886,
-          309869
-        ],
-        "enemy": [
-          503546,
-          438058,
-          437225
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            953048,
-            437293,
-            205886,
-            309869
-          ],
-          "enemyTotal": [
-            503546,
-            438058,
-            437225
-          ],
-          "enemyMembers": [
-            1479538,
-            903546,
-            438058,
-            437225,
-            100709
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 820824,
-        "enemyTotal": 801239,
-        "self": [
-          307030,
-          322202,
-          191592
-        ],
-        "enemy": [
-          113008,
-          382488,
-          229246
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            307030,
-            322202,
-            191592
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            113008,
-            382488,
-            229246,
-            76497
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "high-score/high2.png",
-    "category": "high-score",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 71143,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 766720,
-        "enemyTotal": 359417,
-        "selfMembers": [
-          194734,
-          386653,
-          108003
-        ],
-        "enemyMembers": [
-          49682,
-          177526,
-          132209
-        ]
-      },
-      "stage2": {
-        "selfTotal": 1037652,
-        "enemyTotal": 783708,
-        "selfMembers": [
-          520640,
-          322242,
-          90642
-        ],
-        "enemyMembers": [
-          271048,
-          307221,
-          205439
-        ]
-      },
-      "stage3": {
-        "selfTotal": 1075396,
-        "enemyTotal": 1158564,
-        "selfMembers": [
-          333197,
-          327359,
-          414840
-        ],
-        "enemyMembers": [
-          487927,
-          300343,
-          272709
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 766720,
-        "enemyTotal": 359417,
-        "self": [
-          194734,
-          386653,
-          108003
-        ],
-        "enemy": [
-          49682,
-          177526,
-          132209
-        ],
-        "raw": {
-          "selfTotal": [
-            766720
-          ],
-          "selfMembers": [
-            766720,
-            194734,
-            386653,
-            108003,
-            77330
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            359417,
-            49682,
-            177526,
-            132209
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 1037652,
-        "enemyTotal": 783708,
-        "self": [
-          520640,
-          322242,
-          90642
-        ],
-        "enemy": [
-          271048,
-          307221,
-          205439
-        ],
-        "raw": {
-          "selfTotal": [
-            104128
-          ],
-          "selfMembers": [
-            1057652,
-            520640,
-            322242,
-            90642,
-            104128
-          ],
-          "enemyTotal": [
-            271048,
-            307221,
-            205439
-          ],
-          "enemyMembers": [
-            783708,
-            271048,
-            307221,
-            205439
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 1075396,
-        "enemyTotal": 1158564,
-        "self": [
-          333197,
-          327359,
-          414840
-        ],
-        "enemy": [
-          487927,
-          300343,
-          272709
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            333197,
-            327359,
-            414840
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            487927,
-            300343,
-            272709
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "high-score/high3.png",
-    "category": "high-score",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 71484,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 546760,
-        "enemyTotal": 573909,
-        "selfMembers": [
-          76520,
-          192139,
-          278101
-        ],
-        "enemyMembers": [
-          85655,
-          333696,
-          87819
-        ]
-      },
-      "stage2": {
-        "selfTotal": 1140183,
-        "enemyTotal": 1182186,
-        "selfMembers": [
-          389414,
-          338907,
-          411862
-        ],
-        "enemyMembers": [
-          337871,
-          329751,
-          428804
-        ]
-      },
-      "stage3": {
-        "selfTotal": 836204,
-        "enemyTotal": 841196,
-        "selfMembers": [
-          252281,
-          188695,
-          395228
-        ],
-        "enemyMembers": [
-          305353,
-          235259,
-          300584
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 546760,
-        "enemyTotal": 573909,
-        "self": [
-          76520,
-          192139,
-          278101
-        ],
-        "enemy": [
-          85655,
-          333696,
-          87819
-        ],
-        "raw": {
-          "selfTotal": [
-            546760
-          ],
-          "selfMembers": [
-            546760,
-            76520,
-            192139,
-            278101
-          ],
-          "enemyTotal": [
-            573909
-          ],
-          "enemyMembers": [
-            573909,
-            85655,
-            333696,
-            87819
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 1140183,
-        "enemyTotal": 1182186,
-        "self": [
-          389414,
-          338907,
-          411862
-        ],
-        "enemy": [
-          337871,
-          329751,
-          428804
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            1140183,
-            389414,
-            338907,
-            411862
-          ],
-          "enemyTotal": [
-            337871,
-            329751,
-            428804,
-            85760
-          ],
-          "enemyMembers": [
-            1182186,
-            337871,
-            329751,
-            428804,
-            85760
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 836204,
-        "enemyTotal": 841196,
-        "self": [
-          252281,
-          188695,
-          395228
-        ],
-        "enemy": [
-          305353,
-          235259,
-          300584
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            252281,
-            188695,
-            395228
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            305353,
-            235259,
-            300584
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "high-score/high4.png",
-    "category": "high-score",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 72312,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 609546,
-        "enemyTotal": 550038,
-        "selfMembers": [
-          217490,
-          239123,
-          105109
-        ],
-        "enemyMembers": [
-          235749,
-          153261,
-          161028
-        ]
-      },
-      "stage2": {
-        "selfTotal": 869661,
-        "enemyTotal": 1061552,
-        "selfMembers": [
-          261140,
-          294273,
-          314248
-        ],
-        "enemyMembers": [
-          381883,
-          214377,
-          387744
-        ]
-      },
-      "stage3": {
-        "selfTotal": 1159137,
-        "enemyTotal": 1307381,
-        "selfMembers": [
-          415602,
-          299721,
-          443814
-        ],
-        "enemyMembers": [
-          501685,
-          348563,
-          356796
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 609546,
-        "enemyTotal": 550038,
-        "self": [
-          217490,
-          239123,
-          105109
-        ],
-        "enemy": [
-          235749,
-          153261,
-          161028
-        ],
-        "raw": {
-          "selfTotal": [
-            609546
-          ],
-          "selfMembers": [
-            609546,
-            217490,
-            239123,
-            105109,
-            47824
-          ],
-          "enemyTotal": [
-            550038
-          ],
-          "enemyMembers": [
-            550038,
-            235749,
-            153261,
-            161028
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 869661,
-        "enemyTotal": 1061552,
-        "self": [
-          261140,
-          294273,
-          314248
-        ],
-        "enemy": [
-          381883,
-          214377,
-          387744
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            869661,
-            261140,
-            294273,
-            314248
-          ],
-          "enemyTotal": [
-            381883,
-            214377,
-            387744,
-            77548
-          ],
-          "enemyMembers": [
-            1061552,
-            381883,
-            214377,
-            387744,
-            77548
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 1159137,
-        "enemyTotal": 1307381,
-        "self": [
-          415602,
-          299721,
-          443814
-        ],
-        "enemy": [
-          501685,
-          348563,
-          356796
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            415602,
-            299721,
-            443814
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            501685,
-            348563,
-            356796,
-            100337
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "next-screen/next1.png",
-    "category": "next-screen",
-    "expected": false,
-    "pass": true,
-    "skipped": true,
-    "unsupported": true,
-    "source": "smartphone",
-    "message": "Next screen is unsupported for OCR. Use normal result or high-score screen.",
-    "failures": [],
-    "elapsedMs": 0,
-    "expectedData": null,
-    "result": null
-  },
-  {
-    "image": "next-screen/next2.png",
-    "category": "next-screen",
-    "expected": false,
-    "pass": true,
-    "skipped": true,
-    "unsupported": true,
-    "source": "smartphone",
-    "message": "Next screen is unsupported for OCR. Use normal result or high-score screen.",
-    "failures": [],
-    "elapsedMs": 0,
-    "expectedData": null,
-    "result": null
-  },
-  {
-    "image": "next-screen/next3.png",
-    "category": "next-screen",
-    "expected": false,
-    "pass": true,
-    "skipped": true,
-    "unsupported": true,
-    "source": "smartphone",
-    "message": "Next screen is unsupported for OCR. Use normal result or high-score screen.",
-    "failures": [],
-    "elapsedMs": 0,
-    "expectedData": null,
-    "result": null
-  },
-  {
-    "image": "next-screen/next4.jpg",
-    "category": "next-screen",
-    "expected": false,
-    "pass": true,
-    "skipped": true,
-    "unsupported": true,
-    "source": "smartphone",
-    "message": "Next screen is unsupported for OCR. Use normal result or high-score screen.",
-    "failures": [],
-    "elapsedMs": 0,
-    "expectedData": null,
-    "result": null
-  },
-  {
-    "image": "next-screen/next5.png",
-    "category": "next-screen",
-    "expected": false,
-    "pass": true,
-    "skipped": true,
-    "unsupported": true,
-    "source": "smartphone",
-    "message": "Next screen is unsupported for OCR. Use normal result or high-score screen.",
-    "failures": [],
-    "elapsedMs": 0,
-    "expectedData": null,
-    "result": null
-  },
-  {
-    "image": "normal-result/normal1.jpg",
-    "category": "normal-result",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 73632,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 271520,
-        "enemyTotal": 65559,
-        "selfMembers": [
-          97767,
-          106582,
-          45855
-        ],
-        "enemyMembers": [
-          17500,
-          29588,
-          18471
-        ]
-      },
-      "stage2": {
-        "selfTotal": 138451,
-        "enemyTotal": 95056,
-        "selfMembers": [
-          59686,
-          52611,
-          26154
-        ],
-        "enemyMembers": [
-          33363,
-          15969,
-          45724
-        ]
-      },
-      "stage3": {
-        "selfTotal": 228141,
-        "enemyTotal": 84591,
-        "selfMembers": [
-          117001,
-          63031,
-          24709
-        ],
-        "enemyMembers": [
-          19339,
-          47405,
-          17847
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 271520,
-        "enemyTotal": 65559,
-        "self": [
-          97767,
-          106582,
-          45855
-        ],
-        "enemy": [
-          17500,
-          29588,
-          18471
-        ],
-        "raw": {
-          "selfTotal": [
-            271520
-          ],
-          "selfMembers": [
-            271520,
-            97767,
-            106582,
-            45855,
-            21316
-          ],
-          "enemyTotal": [
-            65559
-          ],
-          "enemyMembers": [
-            65559,
-            17500,
-            29588,
-            18471
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 138451,
-        "enemyTotal": 95056,
-        "self": [
-          59686,
-          52611,
-          26154
-        ],
-        "enemy": [
-          33363,
-          15969,
-          45724
-        ],
-        "raw": {
-          "selfTotal": [
-            11937
-          ],
-          "selfMembers": [
-            150588,
-            59686,
-            52611,
-            26154
-          ],
-          "enemyTotal": [
-            133363,
-            15969,
-            45724
-          ],
-          "enemyMembers": [
-            95056,
-            33363,
-            15969,
-            45724
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 228141,
-        "enemyTotal": 84591,
-        "self": [
-          117001,
-          63031,
-          24709
-        ],
-        "enemy": [
-          19339,
-          47405,
-          17847
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            117001,
-            63031,
-            24709,
-            23400
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            47405,
-            17847
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "normal-result/normal2.jpg",
-    "category": "normal-result",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 73979,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 252674,
-        "enemyTotal": 51675,
-        "selfMembers": [
-          45635,
-          136629,
-          42885
-        ],
-        "enemyMembers": [
-          23407,
-          15721,
-          12547
-        ]
-      },
-      "stage2": {
-        "selfTotal": 155110,
-        "enemyTotal": 83067,
-        "selfMembers": [
-          92435,
-          38689,
-          23986
-        ],
-        "enemyMembers": [
-          24422,
-          20572,
-          38073
-        ]
-      },
-      "stage3": {
-        "selfTotal": 205242,
-        "enemyTotal": 128848,
-        "selfMembers": [
-          55880,
-          50353,
-          82508
-        ],
-        "enemyMembers": [
-          46783,
-          60871,
-          21194
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 252674,
-        "enemyTotal": 51675,
-        "self": [
-          45635,
-          136629,
-          42885
-        ],
-        "enemy": [
-          23407,
-          15721,
-          12547
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            45635,
-            136629,
-            42885
-          ],
-          "enemyTotal": [
-            51675
-          ],
-          "enemyMembers": [
-            51675,
-            23407,
-            15721,
-            12547
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 155110,
-        "enemyTotal": 83067,
-        "self": [
-          92435,
-          38689,
-          23986
-        ],
-        "enemy": [
-          24422,
-          20572,
-          38073
-        ],
-        "raw": {
-          "selfTotal": [
-            18487
-          ],
-          "selfMembers": [
-            173597,
-            192435,
-            38689,
-            23986,
-            18487
-          ],
-          "enemyTotal": [
-            24422,
-            20572,
-            38073
-          ],
-          "enemyMembers": [
-            83067,
-            24422,
-            20572,
-            38073
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 205242,
-        "enemyTotal": 128848,
-        "self": [
-          55880,
-          50353,
-          82508
-        ],
-        "enemy": [
-          46783,
-          60871,
-          21194
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            55880,
-            50353,
-            82508,
-            16501
-          ],
-          "enemyTotal": [
-            74508
-          ],
-          "enemyMembers": [
-            46783,
-            60871,
-            21194
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "normal-result/normal3.png",
-    "category": "normal-result",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 71317,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 367757,
-        "enemyTotal": 914658,
-        "selfMembers": [
-          129896,
-          89633,
-          148228
-        ],
-        "enemyMembers": [
-          232357,
-          413294,
-          186349
-        ]
-      },
-      "stage2": {
-        "selfTotal": 615529,
-        "enemyTotal": 697625,
-        "selfMembers": [
-          270769,
-          155636,
-          189124
-        ],
-        "enemyMembers": [
-          127429,
-          375691,
-          194505
-        ]
-      },
-      "stage3": {
-        "selfTotal": 686660,
-        "enemyTotal": 797349,
-        "selfMembers": [
-          158516,
-          257052,
-          271092
-        ],
-        "enemyMembers": [
-          251321,
-          284071,
-          205143
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 367757,
-        "enemyTotal": 914658,
-        "self": [
-          129896,
-          89633,
-          148228
-        ],
-        "enemy": [
-          232357,
-          413294,
-          186349
-        ],
-        "raw": {
-          "selfTotal": [
-            367757
-          ],
-          "selfMembers": [
-            367757,
-            129896,
-            89633,
-            148228
-          ],
-          "enemyTotal": [
-            914658
-          ],
-          "enemyMembers": [
-            914658,
-            232357,
-            413294,
-            186349,
-            282658
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 615529,
-        "enemyTotal": 697625,
-        "self": [
-          270769,
-          155636,
-          189124
-        ],
-        "enemy": [
-          127429,
-          375691,
-          194505
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            615529,
-            270769,
-            155636,
-            189124
-          ],
-          "enemyTotal": [
-            127429,
-            375691,
-            194505
-          ],
-          "enemyMembers": [
-            772763,
-            127429,
-            375691,
-            194505,
-            475158
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 686660,
-        "enemyTotal": 797349,
-        "self": [
-          158516,
-          257052,
-          271092
-        ],
-        "enemy": [
-          251321,
-          284071,
-          205143
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            158516,
-            257052,
-            271092
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            251321,
-            284071,
-            205143,
-            56814
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "normal-result/normal4.png",
-    "category": "normal-result",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 72423,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 490885,
-        "enemyTotal": 524569,
-        "selfMembers": [
-          242490,
-          104579,
-          143816
-        ],
-        "enemyMembers": [
-          117051,
-          298404,
-          109114
-        ]
-      },
-      "stage2": {
-        "selfTotal": 370865,
-        "enemyTotal": 429432,
-        "selfMembers": [
-          58642,
-          67727,
-          244496
-        ],
-        "enemyMembers": [
-          110999,
-          240186,
-          78247
-        ]
-      },
-      "stage3": {
-        "selfTotal": 650145,
-        "enemyTotal": 354228,
-        "selfMembers": [
-          330854,
-          167608,
-          151683
-        ],
-        "enemyMembers": [
-          190537,
-          90881,
-          72810
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 490885,
-        "enemyTotal": 524569,
-        "self": [
-          242490,
-          104579,
-          143816
-        ],
-        "enemy": [
-          117051,
-          298404,
-          109114
-        ],
-        "raw": {
-          "selfTotal": [
-            490885
-          ],
-          "selfMembers": [
-            490885,
-            242490,
-            104579,
-            143816
-          ],
-          "enemyTotal": [
-            584249
-          ],
-          "enemyMembers": [
-            584249,
-            117051,
-            298404,
-            109114
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 370865,
-        "enemyTotal": 429432,
-        "self": [
-          58642,
-          67727,
-          244496
-        ],
-        "enemy": [
-          110999,
-          240186,
-          78247
-        ],
-        "raw": {
-          "selfTotal": [
-            48899
-          ],
-          "selfMembers": [
-            58642,
-            67727,
-            244496,
-            48899
-          ],
-          "enemyTotal": [
-            110999,
-            78247
-          ],
-          "enemyMembers": [
-            110999,
-            240186,
-            78247
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 650145,
-        "enemyTotal": 354228,
-        "self": [
-          330854,
-          167608,
-          151683
-        ],
-        "enemy": [
-          190537,
-          90881,
-          72810
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            330854,
-            167608,
-            151683,
-            66170
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            190537,
-            90881,
-            72810
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "normal-result/１１.png",
-    "category": "normal-result",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 74121,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 184319,
-        "enemyTotal": 114468,
-        "selfMembers": [
-          52416,
-          50229,
-          68062
-        ],
-        "enemyMembers": [
-          63710,
-          38684,
-          12074
-        ]
-      },
-      "stage2": {
-        "selfTotal": 140980,
-        "enemyTotal": 68278,
-        "selfMembers": [
-          69938,
-          41097,
-          15958
-        ],
-        "enemyMembers": [
-          16906,
-          27451,
-          23921
-        ]
-      },
-      "stage3": {
-        "selfTotal": 772141,
-        "enemyTotal": 208602,
-        "selfMembers": [
-          105346,
-          54311,
-          510404
-        ],
-        "enemyMembers": [
-          60874,
-          73965,
-          73763
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 184319,
-        "enemyTotal": 114468,
-        "self": [
-          52416,
-          50229,
-          68062
-        ],
-        "enemy": [
-          63710,
-          38684,
-          12074
-        ],
-        "raw": {
-          "selfTotal": [
-            184319
-          ],
-          "selfMembers": [
-            184319,
-            52416,
-            50229,
-            68062,
-            13612
-          ],
-          "enemyTotal": [
-            114468
-          ],
-          "enemyMembers": [
-            114468,
-            63710,
-            38684,
-            12074
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 140980,
-        "enemyTotal": 68278,
-        "self": [
-          69938,
-          41097,
-          15958
-        ],
-        "enemy": [
-          16906,
-          27451,
-          23921
-        ],
-        "raw": {
-          "selfTotal": [
-            13987
-          ],
-          "selfMembers": [
-            140980,
-            69938,
-            41097,
-            15958
-          ],
-          "enemyTotal": [
-            16906,
-            27451,
-            23921
-          ],
-          "enemyMembers": [
-            68278,
-            16906,
-            27451,
-            23921
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 772141,
-        "enemyTotal": 208602,
-        "self": [
-          105346,
-          54311,
-          510404
-        ],
-        "enemy": [
-          60874,
-          73965,
-          73763
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            105346,
-            54311,
-            510404,
-            102080
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            60874,
-            73965,
-            73763
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "normal-result/１２.png",
-    "category": "normal-result",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 71306,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 281949,
-        "enemyTotal": 138203,
-        "selfMembers": [
-          77346,
-          130416,
-          48104
-        ],
-        "enemyMembers": [
-          77640,
-          28970,
-          31593
-        ]
-      },
-      "stage2": {
-        "selfTotal": 148411,
-        "enemyTotal": 77540,
-        "selfMembers": [
-          81372,
-          28610,
-          22155
-        ],
-        "enemyMembers": [
-          42273,
-          12089,
-          23178
-        ]
-      },
-      "stage3": {
-        "selfTotal": 973653,
-        "enemyTotal": 142519,
-        "selfMembers": [
-          153476,
-          73231,
-          622455
-        ],
-        "enemyMembers": [
-          32155,
-          30235,
-          80129
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 281949,
-        "enemyTotal": 138203,
-        "self": [
-          77346,
-          130416,
-          48104
-        ],
-        "enemy": [
-          77640,
-          28970,
-          31593
-        ],
-        "raw": {
-          "selfTotal": [
-            281949
-          ],
-          "selfMembers": [
-            281949,
-            77346,
-            130416,
-            48104,
-            26083
-          ],
-          "enemyTotal": [
-            358205
-          ],
-          "enemyMembers": [
-            77640,
-            28970,
-            31593
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 148411,
-        "enemyTotal": 77540,
-        "self": [
-          81372,
-          28610,
-          22155
-        ],
-        "enemy": [
-          42273,
-          12089,
-          23178
-        ],
-        "raw": {
-          "selfTotal": [
-            16274
-          ],
-          "selfMembers": [
-            148411,
-            81372,
-            28610,
-            22155,
-            16274
-          ],
-          "enemyTotal": [
-            42273,
-            12089,
-            23178
-          ],
-          "enemyMembers": [
-            77540,
-            42273,
-            12089,
-            23178
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 973653,
-        "enemyTotal": 142519,
-        "self": [
-          153476,
-          73231,
-          622455
-        ],
-        "enemy": [
-          32155,
-          30235,
-          80129
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            153476,
-            73231,
-            622455,
-            12449
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            61875
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "normal-result/１３.png",
-    "category": "normal-result",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 71499,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 298072,
-        "enemyTotal": 206967,
-        "selfMembers": [
-          73278,
-          130362,
-          68360
-        ],
-        "enemyMembers": [
-          71862,
-          19666,
-          115439
-        ]
-      },
-      "stage2": {
-        "selfTotal": 130373,
-        "enemyTotal": 358837,
-        "selfMembers": [
-          57302,
-          47577,
-          25494
-        ],
-        "enemyMembers": [
-          153370,
-          102686,
-          72107
-        ]
-      },
-      "stage3": {
-        "selfTotal": 944889,
-        "enemyTotal": 252150,
-        "selfMembers": [
-          157459,
-          69716,
-          598095
-        ],
-        "enemyMembers": [
-          149832,
-          85259,
-          17059
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 298072,
-        "enemyTotal": 206967,
-        "self": [
-          73278,
-          130362,
-          68360
-        ],
-        "enemy": [
-          71862,
-          19666,
-          115439
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            73278,
-            130362,
-            68360,
-            26072
-          ],
-          "enemyTotal": [
-            206967
-          ],
-          "enemyMembers": [
-            206967,
-            71862,
-            19666,
-            115439
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 130373,
-        "enemyTotal": 358837,
-        "self": [
-          57302,
-          47577,
-          25494
-        ],
-        "enemy": [
-          153370,
-          102686,
-          72107
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            57302,
-            47577,
-            25494
-          ],
-          "enemyTotal": [
-            153370,
-            102686,
-            72107
-          ],
-          "enemyMembers": [
-            153370,
-            102686,
-            72107,
-            350674
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 944889,
-        "enemyTotal": 252150,
-        "self": [
-          157459,
-          69716,
-          598095
-        ],
-        "enemy": [
-          149832,
-          85259,
-          17059
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            157459,
-            69716,
-            598095,
-            119619
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            149832,
-            85259,
-            17059
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "normal-result/１４.png",
-    "category": "normal-result",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 71147,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 264506,
-        "enemyTotal": 92737,
-        "selfMembers": [
-          61422,
-          102924,
-          79576
-        ],
-        "enemyMembers": [
-          52113,
-          12490,
-          28134
-        ]
-      },
-      "stage2": {
-        "selfTotal": 168670,
-        "enemyTotal": 127066,
-        "selfMembers": [
-          98049,
-          29037,
-          21975
-        ],
-        "enemyMembers": [
-          56955,
-          58330,
-          11781
-        ]
-      },
-      "stage3": {
-        "selfTotal": 558362,
-        "enemyTotal": 157403,
-        "selfMembers": [
-          116989,
-          64306,
-          314223
-        ],
-        "enemyMembers": [
-          76298,
-          34784,
-          46321
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 264506,
-        "enemyTotal": 92737,
-        "self": [
-          61422,
-          102924,
-          79576
-        ],
-        "enemy": [
-          52113,
-          12490,
-          28134
-        ],
-        "raw": {
-          "selfTotal": [
-            264506
-          ],
-          "selfMembers": [
-            264506,
-            61422,
-            102924,
-            79576,
-            20584
-          ],
-          "enemyTotal": [
-            92737
-          ],
-          "enemyMembers": [
-            92757,
-            92113,
-            12490,
-            28134
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 168670,
-        "enemyTotal": 127066,
-        "self": [
-          98049,
-          29037,
-          21975
-        ],
-        "enemy": [
-          56955,
-          58330,
-          11781
-        ],
-        "raw": {
-          "selfTotal": [
-            19609
-          ],
-          "selfMembers": [
-            98049,
-            29037,
-            21975,
-            19609
-          ],
-          "enemyTotal": [
-            56955,
-            58330,
-            11781
-          ],
-          "enemyMembers": [
-            127066,
-            56955,
-            58330,
-            11781
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 558362,
-        "enemyTotal": 157403,
-        "self": [
-          116989,
-          64306,
-          314223
-        ],
-        "enemy": [
-          76298,
-          34784,
-          46321
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            116989,
-            64306,
-            314223,
-            62844
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            76298,
-            34784,
-            46321
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "user-reports/passed/IMG_8932.png",
-    "category": "user-reports",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 70471,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 364692,
-        "enemyTotal": 114155,
-        "selfMembers": [
-          140968,
-          151096,
-          42409
-        ],
-        "enemyMembers": [
-          63323,
-          35697,
-          15135
-        ]
-      },
-      "stage2": {
-        "selfTotal": 134955,
-        "enemyTotal": 87898,
-        "selfMembers": [
-          54855,
-          51243,
-          17886
-        ],
-        "enemyMembers": [
-          23738,
-          40268,
-          23892
-        ]
-      },
-      "stage3": {
-        "selfTotal": 830173,
-        "enemyTotal": 277845,
-        "selfMembers": [
-          122966,
-          44945,
-          551885
-        ],
-        "enemyMembers": [
-          146155,
-          65125,
-          66565
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 364692,
-        "enemyTotal": 114155,
-        "self": [
-          140968,
-          151096,
-          42409
-        ],
-        "enemy": [
-          63323,
-          35697,
-          15135
-        ],
-        "raw": {
-          "selfTotal": [
-            364692
-          ],
-          "selfMembers": [
-            364692,
-            140968,
-            151096,
-            42409,
-            30219
-          ],
-          "enemyTotal": [
-            114155
-          ],
-          "enemyMembers": [
-            114155,
-            63323,
-            35697,
-            15135
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 134955,
-        "enemyTotal": 87898,
-        "self": [
-          54855,
-          51243,
-          17886
-        ],
-        "enemy": [
-          23738,
-          40268,
-          23892
-        ],
-        "raw": {
-          "selfTotal": [
-            10971
-          ],
-          "selfMembers": [
-            134955,
-            54855,
-            51243,
-            17886
-          ],
-          "enemyTotal": [
-            23738,
-            40268,
-            23892
-          ],
-          "enemyMembers": [
-            87898,
-            23738,
-            40268,
-            23892
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 830173,
-        "enemyTotal": 277845,
-        "self": [
-          122966,
-          44945,
-          551885
-        ],
-        "enemy": [
-          146155,
-          65125,
-          66565
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            122966,
-            44945,
-            551885,
-            4110577
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            146155,
-            65125,
-            66565
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "user-reports/passed/IMG_8933.png",
-    "category": "user-reports",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 71563,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 380140,
-        "enemyTotal": 408908,
-        "selfMembers": [
-          180827,
-          163508,
-          35805
-        ],
-        "enemyMembers": [
-          252727,
-          42825,
-          62811
-        ]
-      },
-      "stage2": {
-        "selfTotal": 102834,
-        "enemyTotal": 210574,
-        "selfMembers": [
-          59129,
-          30327,
-          13378
-        ],
-        "enemyMembers": [
-          76441,
-          67439,
-          51406
-        ]
-      },
-      "stage3": {
-        "selfTotal": 678751,
-        "enemyTotal": 1147912,
-        "selfMembers": [
-          110499,
-          35480,
-          532772
-        ],
-        "enemyMembers": [
-          284862,
-          539470,
-          215686
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 380140,
-        "enemyTotal": 408908,
-        "self": [
-          180827,
-          163508,
-          35805
-        ],
-        "enemy": [
-          252727,
-          42825,
-          62811
-        ],
-        "raw": {
-          "selfTotal": [
-            380140
-          ],
-          "selfMembers": [
-            380140,
-            180827,
-            163508,
-            35805
-          ],
-          "enemyTotal": [
-            408908
-          ],
-          "enemyMembers": [
-            408908,
-            252727,
-            42825,
-            62811,
-            50545
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 102834,
-        "enemyTotal": 210574,
-        "self": [
-          59129,
-          30327,
-          13378
-        ],
-        "enemy": [
-          76441,
-          67439,
-          51406
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            102854,
-            99129,
-            30327,
-            13378
-          ],
-          "enemyTotal": [
-            76441,
-            67439,
-            51406
-          ],
-          "enemyMembers": [
-            76441,
-            67439,
-            51406,
-            15288
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 678751,
-        "enemyTotal": 1147912,
-        "self": [
-          110499,
-          35480,
-          532772
-        ],
-        "enemy": [
-          284862,
-          539470,
-          215686
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            110499,
-            35480,
-            532772
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            284862,
-            539470,
-            215686,
-            107894
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "user-reports/passed/IMG_8934.png",
-    "category": "user-reports",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 74310,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 263148,
-        "enemyTotal": 288711,
-        "selfMembers": [
-          59221,
-          139804,
-          64123
-        ],
-        "enemyMembers": [
-          9191,
-          48490,
-          192525
-        ]
-      },
-      "stage2": {
-        "selfTotal": 130680,
-        "enemyTotal": 211472,
-        "selfMembers": [
-          75405,
-          50154,
-          5121
-        ],
-        "enemyMembers": [
-          129912,
-          42630,
-          12948
-        ]
-      },
-      "stage3": {
-        "selfTotal": 643096,
-        "enemyTotal": 346123,
-        "selfMembers": [
-          114370,
-          76223,
-          377086
-        ],
-        "enemyMembers": [
-          250408,
-          37883,
-          57832
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 263148,
-        "enemyTotal": 288711,
-        "self": [
-          59221,
-          139804,
-          64123
-        ],
-        "enemy": [
-          9191,
-          48490,
-          192525
-        ],
-        "raw": {
-          "selfTotal": [
-            263148
-          ],
-          "selfMembers": [
-            263148,
-            59221,
-            139804,
-            64123
-          ],
-          "enemyTotal": [
-            288711
-          ],
-          "enemyMembers": [
-            288711,
-            48490,
-            192525,
-            38505
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 130680,
-        "enemyTotal": 211472,
-        "self": [
-          75405,
-          50154,
-          5121
-        ],
-        "enemy": [
-          129912,
-          42630,
-          12948
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            130680,
-            75405,
-            50154
-          ],
-          "enemyTotal": [
-            129912,
-            42630,
-            12948
-          ],
-          "enemyMembers": [
-            129912,
-            42630,
-            12948,
-            25982
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 643096,
-        "enemyTotal": 346123,
-        "self": [
-          114370,
-          76223,
-          377086
-        ],
-        "enemy": [
-          250408,
-          37883,
-          57832
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            114370,
-            76223,
-            377086
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            250408,
-            37883
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "user-reports/passed/IMG_8935.png",
-    "category": "user-reports",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 81131,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 254224,
-        "enemyTotal": 127545,
-        "selfMembers": [
-          48276,
-          134163,
-          44953
-        ],
-        "enemyMembers": [
-          93733,
-          19518,
-          14294
-        ]
-      },
-      "stage2": {
-        "selfTotal": 141464,
-        "enemyTotal": 115848,
-        "selfMembers": [
-          71392,
-          38366,
-          17428
-        ],
-        "enemyMembers": [
-          31379,
-          56994,
-          27475
-        ]
-      },
-      "stage3": {
-        "selfTotal": 752311,
-        "enemyTotal": 248143,
-        "selfMembers": [
-          147437,
-          35684,
-          474325
-        ],
-        "enemyMembers": [
-          89999,
-          110268,
-          47876
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 254224,
-        "enemyTotal": 127545,
-        "self": [
-          48276,
-          134163,
-          44953
-        ],
-        "enemy": [
-          93733,
-          19518,
-          14294
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            48276,
-            134163,
-            44953,
-            26832
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            127545,
-            93733,
-            19518,
-            14294
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 141464,
-        "enemyTotal": 115848,
-        "self": [
-          71392,
-          38366,
-          17428
-        ],
-        "enemy": [
-          31379,
-          56994,
-          27475
-        ],
-        "raw": {
-          "selfTotal": [
-            14278
-          ],
-          "selfMembers": [
-            141464,
-            71392,
-            38366,
-            17428
-          ],
-          "enemyTotal": [
-            31379,
-            56994
-          ],
-          "enemyMembers": [
-            115848,
-            31379,
-            56994,
-            27475
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 752311,
-        "enemyTotal": 248143,
-        "self": [
-          147437,
-          35684,
-          474325
-        ],
-        "enemy": [
-          89999,
-          110268,
-          47876
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            147437,
-            35684,
-            474325
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            89999,
-            110268,
-            47876
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "user-reports/passed/IMG_8936.png",
-    "category": "user-reports",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 120929,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 426041,
-        "enemyTotal": 251308,
-        "selfMembers": [
-          146442,
-          190043,
-          51548
-        ],
-        "enemyMembers": [
-          116776,
-          117350,
-          17182
-        ]
-      },
-      "stage2": {
-        "selfTotal": 102699,
-        "enemyTotal": 251763,
-        "selfMembers": [
-          44384,
-          41327,
-          16988
-        ],
-        "enemyMembers": [
-          87536,
-          33999,
-          108524
-        ]
-      },
-      "stage3": {
-        "selfTotal": 605482,
-        "enemyTotal": 285597,
-        "selfMembers": [
-          82788,
-          61426,
-          384390
-        ],
-        "enemyMembers": [
-          92449,
-          72163,
-          120985
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 426041,
-        "enemyTotal": 251308,
-        "self": [
-          146442,
-          190043,
-          51548
-        ],
-        "enemy": [
-          116776,
-          117350,
-          17182
-        ],
-        "raw": {
-          "selfTotal": [
-            426041
-          ],
-          "selfMembers": [
-            426041,
-            146442,
-            190043,
-            51548,
-            38008
-          ],
-          "enemyTotal": [
-            251350
-          ],
-          "enemyMembers": [
-            251508,
-            116776,
-            117350,
-            17182
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 102699,
-        "enemyTotal": 251763,
-        "self": [
-          44384,
-          41327,
-          16988
-        ],
-        "enemy": [
-          87536,
-          33999,
-          108524
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            102699,
-            44384,
-            41327,
-            16988
-          ],
-          "enemyTotal": [
-            87536,
-            33999,
-            108524
-          ],
-          "enemyMembers": [
-            251765,
-            87536,
-            33999,
-            108524,
-            4421704
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 605482,
-        "enemyTotal": 285597,
-        "self": [
-          82788,
-          61426,
-          384390
-        ],
-        "enemy": [
-          92449,
-          72163,
-          120985
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            82788,
-            61426,
-            384390
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            92449,
-            72163,
-            120985
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "user-reports/passed/IMG_8942.png",
-    "category": "user-reports",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 115659,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 151945,
-        "enemyTotal": 207761,
-        "selfMembers": [
-          35771,
-          72363,
-          43811
-        ],
-        "enemyMembers": [
-          80908,
-          50235,
-          60437
-        ]
-      },
-      "stage2": {
-        "selfTotal": 183388,
-        "enemyTotal": 362105,
-        "selfMembers": [
-          69624,
-          40632,
-          73132
-        ],
-        "enemyMembers": [
-          209867,
-          74413,
-          35852
-        ]
-      },
-      "stage3": {
-        "selfTotal": 844649,
-        "enemyTotal": 761470,
-        "selfMembers": [
-          69805,
-          76023,
-          582351
-        ],
-        "enemyMembers": [
-          200920,
-          431086,
-          129464
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 151945,
-        "enemyTotal": 207761,
-        "self": [
-          35771,
-          72363,
-          43811
-        ],
-        "enemy": [
-          80908,
-          50235,
-          60437
-        ],
-        "raw": {
-          "selfTotal": [
-            151945
-          ],
-          "selfMembers": [
-            151945,
-            35771,
-            72363,
-            43811
-          ],
-          "enemyTotal": [
-            207761
-          ],
-          "enemyMembers": [
-            180908,
-            50235,
-            60437,
-            16181
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 183388,
-        "enemyTotal": 362105,
-        "self": [
-          69624,
-          40632,
-          73132
-        ],
-        "enemy": [
-          209867,
-          74413,
-          35852
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            183388,
-            69624,
-            40632,
-            73132
-          ],
-          "enemyTotal": [
-            209867,
-            74413,
-            35852
-          ],
-          "enemyMembers": [
-            362105,
-            209867,
-            74413,
-            35852
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 844649,
-        "enemyTotal": 761470,
-        "self": [
-          69805,
-          76023,
-          582351
-        ],
-        "enemy": [
-          200920,
-          431086,
-          129464
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            69805,
-            76023,
-            582351,
-            116470
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            200920,
-            431086,
-            129464
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "user-reports/passed/IMG_8943.png",
-    "category": "user-reports",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 122702,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 303096,
-        "enemyTotal": 248127,
-        "selfMembers": [
-          109121,
-          124137,
-          69838
-        ],
-        "enemyMembers": [
-          39368,
-          21460,
-          156083
-        ]
-      },
-      "stage2": {
-        "selfTotal": 322615,
-        "enemyTotal": 58875,
-        "selfMembers": [
-          70715,
-          54281,
-          164683
-        ],
-        "enemyMembers": [
-          30066,
-          19634,
-          9175
-        ]
-      },
-      "stage3": {
-        "selfTotal": 958127,
-        "enemyTotal": 181936,
-        "selfMembers": [
-          98913,
-          51564,
-          673042
-        ],
-        "enemyMembers": [
-          84381,
-          75809,
-          21746
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 303096,
-        "enemyTotal": 248127,
-        "self": [
-          109121,
-          124137,
-          69838
-        ],
-        "enemy": [
-          39368,
-          21460,
-          156083
-        ],
-        "raw": {
-          "selfTotal": [
-            505096
-          ],
-          "selfMembers": [
-            505096,
-            109121,
-            124137,
-            69838
-          ],
-          "enemyTotal": [
-            248127
-          ],
-          "enemyMembers": [
-            248127,
-            39368,
-            21460,
-            156083
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 322615,
-        "enemyTotal": 58875,
-        "self": [
-          70715,
-          54281,
-          164683
-        ],
-        "enemy": [
-          30066,
-          19634,
-          9175
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            322615,
-            70715,
-            54281,
-            164683,
-            32936
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            30066,
-            19634
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 958127,
-        "enemyTotal": 181936,
-        "self": [
-          98913,
-          51564,
-          673042
-        ],
-        "enemy": [
-          84381,
-          75809,
-          21746
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            98913,
-            51564,
-            673042,
-            154608
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            84381,
-            75809,
-            21746
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "user-reports/passed/IMG_8944.png",
-    "category": "user-reports",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 117673,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 307850,
-        "enemyTotal": 136541,
-        "selfMembers": [
-          113206,
-          126404,
-          42960
-        ],
-        "enemyMembers": [
-          38067,
-          64069,
-          34405
-        ]
-      },
-      "stage2": {
-        "selfTotal": 757417,
-        "enemyTotal": 535546,
-        "selfMembers": [
-          104457,
-          50805,
-          501796
-        ],
-        "enemyMembers": [
-          165140,
-          179610,
-          190796
-        ]
-      },
-      "stage3": {
-        "selfTotal": 874690,
-        "enemyTotal": 235054,
-        "selfMembers": [
-          136696,
-          76641,
-          551128
-        ],
-        "enemyMembers": [
-          92426,
-          102511,
-          40117
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 307850,
-        "enemyTotal": 136541,
-        "self": [
-          113206,
-          126404,
-          42960
-        ],
-        "enemy": [
-          38067,
-          64069,
-          34405
-        ],
-        "raw": {
-          "selfTotal": [
-            307850
-          ],
-          "selfMembers": [
-            307850,
-            113206,
-            126404,
-            42960,
-            25280
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            136541,
-            38067,
-            64069,
-            34405
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 757417,
-        "enemyTotal": 535546,
-        "self": [
-          104457,
-          50805,
-          501796
-        ],
-        "enemy": [
-          165140,
-          179610,
-          190796
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            757417,
-            104457,
-            50805,
-            501796,
-            100359
-          ],
-          "enemyTotal": [
-            165140,
-            179610,
-            190796
-          ],
-          "enemyMembers": [
-            535546,
-            165140,
-            179610,
-            190796
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 874690,
-        "enemyTotal": 235054,
-        "self": [
-          136696,
-          76641,
-          551128
-        ],
-        "enemy": [
-          92426,
-          102511,
-          40117
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            136696,
-            76641,
-            551128,
-            110225
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            92426,
-            102511,
-            40117
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "user-reports/passed/IMG_8945.png",
-    "category": "user-reports",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 118836,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 308927,
-        "enemyTotal": 82767,
-        "selfMembers": [
-          76457,
-          137437,
-          67546
-        ],
-        "enemyMembers": [
-          25263,
-          39224,
-          18280
-        ]
-      },
-      "stage2": {
-        "selfTotal": 210977,
-        "enemyTotal": 126379,
-        "selfMembers": [
-          86024,
-          35956,
-          71793
-        ],
-        "enemyMembers": [
-          55170,
-          23973,
-          47236
-        ]
-      },
-      "stage3": {
-        "selfTotal": 414180,
-        "enemyTotal": 164378,
-        "selfMembers": [
-          58854,
-          18354,
-          280810
-        ],
-        "enemyMembers": [
-          48976,
-          45678,
-          69724
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 308927,
-        "enemyTotal": 82767,
-        "self": [
-          76457,
-          137437,
-          67546
-        ],
-        "enemy": [
-          25263,
-          39224,
-          18280
-        ],
-        "raw": {
-          "selfTotal": [
-            308927
-          ],
-          "selfMembers": [
-            308927,
-            76457,
-            137437,
-            67546,
-            27487
-          ],
-          "enemyTotal": [
-            82767
-          ],
-          "enemyMembers": [
-            82767,
-            25263,
-            39224,
-            18280
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 210977,
-        "enemyTotal": 126379,
-        "self": [
-          86024,
-          35956,
-          71793
-        ],
-        "enemy": [
-          55170,
-          23973,
-          47236
-        ],
-        "raw": {
-          "selfTotal": [
-            17204
-          ],
-          "selfMembers": [
-            86024,
-            35956,
-            71793,
-            17204
-          ],
-          "enemyTotal": [
-            55170,
-            23973,
-            47236
-          ],
-          "enemyMembers": [
-            126379,
-            55170,
-            23973,
-            47236
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 414180,
-        "enemyTotal": 164378,
-        "self": [
-          58854,
-          18354,
-          280810
-        ],
-        "enemy": [
-          48976,
-          45678,
-          69724
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            58854,
-            18354,
-            280810,
-            56162
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            48976,
-            45678,
-            69724
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "user-reports/passed/IMG_8946.png",
-    "category": "user-reports",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 119132,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 261666,
-        "enemyTotal": 254170,
-        "selfMembers": [
-          33701,
-          140266,
-          59646
-        ],
-        "enemyMembers": [
-          106628,
-          100486,
-          47056
-        ]
-      },
-      "stage2": {
-        "selfTotal": 211052,
-        "enemyTotal": 254719,
-        "selfMembers": [
-          51675,
-          46554,
-          112823
-        ],
-        "enemyMembers": [
-          47592,
-          36094,
-          142528
-        ]
-      },
-      "stage3": {
-        "selfTotal": 954046,
-        "enemyTotal": 184913,
-        "selfMembers": [
-          76975,
-          42416,
-          695546
-        ],
-        "enemyMembers": [
-          56822,
-          64014,
-          64077
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 261666,
-        "enemyTotal": 254170,
-        "self": [
-          33701,
-          140266,
-          59646
-        ],
-        "enemy": [
-          106628,
-          100486,
-          47056
-        ],
-        "raw": {
-          "selfTotal": [
-            261666
-          ],
-          "selfMembers": [
-            261666,
-            33701,
-            140266,
-            59646,
-            28053
-          ],
-          "enemyTotal": [
-            254170
-          ],
-          "enemyMembers": [
-            254170,
-            106628,
-            100486,
-            47056
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 211052,
-        "enemyTotal": 254719,
-        "self": [
-          51675,
-          46554,
-          112823
-        ],
-        "enemy": [
-          47592,
-          36094,
-          142528
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            211052,
-            51675,
-            46554,
-            112823
-          ],
-          "enemyTotal": [
-            36094,
-            142528,
-            28505
-          ],
-          "enemyMembers": [
-            254719,
-            47592,
-            36094,
-            142528,
-            28505
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 954046,
-        "enemyTotal": 184913,
-        "self": [
-          76975,
-          42416,
-          695546
-        ],
-        "enemy": [
-          56822,
-          64014,
-          64077
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            76975,
-            42416,
-            695546
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            56822,
-            64014,
-            64077
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "user-reports/passed/IMG_9070.png",
-    "category": "user-reports",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 118392,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 298338,
-        "enemyTotal": 184326,
-        "selfMembers": [
-          151282,
-          56763,
-          60037
-        ],
-        "enemyMembers": [
-          97402,
-          25812,
-          61112
-        ]
-      },
-      "stage2": {
-        "selfTotal": 615933,
-        "enemyTotal": 239665,
-        "selfMembers": [
-          436335,
-          43743,
-          48588
-        ],
-        "enemyMembers": [
-          50688,
-          31246,
-          157731
-        ]
-      },
-      "stage3": {
-        "selfTotal": 1374488,
-        "enemyTotal": 179009,
-        "selfMembers": [
-          75991,
-          457212,
-          701071
-        ],
-        "enemyMembers": [
-          69001,
-          65419,
-          44589
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 298338,
-        "enemyTotal": 184326,
-        "self": [
-          151282,
-          56763,
-          60037
-        ],
-        "enemy": [
-          97402,
-          25812,
-          61112
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            298338,
-            151282,
-            56763,
-            60037,
-            30256
-          ],
-          "enemyTotal": [
-            184326
-          ],
-          "enemyMembers": [
-            184326,
-            97402,
-            25812,
-            61112
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 615933,
-        "enemyTotal": 239665,
-        "self": [
-          436335,
-          43743,
-          48588
-        ],
-        "enemy": [
-          50688,
-          31246,
-          157731
-        ],
-        "raw": {
-          "selfTotal": [
-            87267
-          ],
-          "selfMembers": [
-            615953,
-            436335,
-            43743,
-            48588,
-            87207
-          ],
-          "enemyTotal": [
-            50688,
-            31246,
-            157731
-          ],
-          "enemyMembers": [
-            239605,
-            50688,
-            31246,
-            157731
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 1374488,
-        "enemyTotal": 179009,
-        "self": [
-          75991,
-          457212,
-          701071
-        ],
-        "enemy": [
-          69001,
-          65419,
-          44589
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            75991,
-            457212,
-            701071
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            69001,
-            44589
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "user-reports/passed/IMG_9071.png",
-    "category": "user-reports",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 125799,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 238650,
-        "enemyTotal": 132641,
-        "selfMembers": [
-          116646,
-          32684,
-          65991
-        ],
-        "enemyMembers": [
-          77629,
-          38268,
-          16744
-        ]
-      },
-      "stage2": {
-        "selfTotal": 359124,
-        "enemyTotal": 232926,
-        "selfMembers": [
-          249265,
-          27212,
-          32794
-        ],
-        "enemyMembers": [
-          188242,
-          33472,
-          11212
-        ]
-      },
-      "stage3": {
-        "selfTotal": 781926,
-        "enemyTotal": 432737,
-        "selfMembers": [
-          171539,
-          167412,
-          369146
-        ],
-        "enemyMembers": [
-          158730,
-          128712,
-          145295
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 238650,
-        "enemyTotal": 132641,
-        "self": [
-          116646,
-          32684,
-          65991
-        ],
-        "enemy": [
-          77629,
-          38268,
-          16744
-        ],
-        "raw": {
-          "selfTotal": [
-            238650
-          ],
-          "selfMembers": [
-            238650,
-            116646,
-            32684,
-            65991,
-            23329
-          ],
-          "enemyTotal": [
-            132641
-          ],
-          "enemyMembers": [
-            132641,
-            77629,
-            38268,
-            16744
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 359124,
-        "enemyTotal": 232926,
-        "self": [
-          249265,
-          27212,
-          32794
-        ],
-        "enemy": [
-          188242,
-          33472,
-          11212
-        ],
-        "raw": {
-          "selfTotal": [
-            49853
-          ],
-          "selfMembers": [
-            359124,
-            249265,
-            27212,
-            32794,
-            49853
-          ],
-          "enemyTotal": [
-            188242,
-            33472,
-            11212
-          ],
-          "enemyMembers": [
-            232926,
-            188242,
-            33472,
-            11212
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 781926,
-        "enemyTotal": 432737,
-        "self": [
-          171539,
-          167412,
-          369146
-        ],
-        "enemy": [
-          158730,
-          128712,
-          145295
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            171539,
-            167412,
-            369146,
-            73829
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            607285
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "user-reports/passed/IMG_9072.png",
-    "category": "user-reports",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 117581,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 299534,
-        "enemyTotal": 266799,
-        "selfMembers": [
-          83246,
-          73666,
-          142622
-        ],
-        "enemyMembers": [
-          161073,
-          46490,
-          27022
-        ]
-      },
-      "stage2": {
-        "selfTotal": 495109,
-        "enemyTotal": 59068,
-        "selfMembers": [
-          330235,
-          41644,
-          57183
-        ],
-        "enemyMembers": [
-          35472,
-          23596,
-          0
-        ]
-      },
-      "stage3": {
-        "selfTotal": 648435,
-        "enemyTotal": 336307,
-        "selfMembers": [
-          154787,
-          171798,
-          268209
-        ],
-        "enemyMembers": [
-          37557,
-          232560,
-          66190
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 299534,
-        "enemyTotal": 266799,
-        "self": [
-          83246,
-          73666,
-          142622
-        ],
-        "enemy": [
-          161073,
-          46490,
-          27022
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            299534,
-            83246,
-            73666,
-            142622
-          ],
-          "enemyTotal": [
-            266799
-          ],
-          "enemyMembers": [
-            266799,
-            161073,
-            46490,
-            27022,
-            32214
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 495109,
-        "enemyTotal": 59068,
-        "self": [
-          330235,
-          41644,
-          57183
-        ],
-        "enemy": [
-          35472,
-          23596,
-          0
-        ],
-        "raw": {
-          "selfTotal": [
-            66047
-          ],
-          "selfMembers": [
-            495109,
-            330235,
-            41644,
-            57183,
-            66047
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            59068,
-            35472,
-            23596
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 648435,
-        "enemyTotal": 336307,
-        "self": [
-          154787,
-          171798,
-          268209
-        ],
-        "enemy": [
-          37557,
-          232560,
-          66190
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            154787,
-            171798,
-            268209,
-            53641
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            37557,
-            232560,
-            66190
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "user-reports/passed/IMG_9073.png",
-    "category": "user-reports",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 119507,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 281664,
-        "enemyTotal": 255364,
-        "selfMembers": [
-          72081,
-          47509,
-          135062
-        ],
-        "enemyMembers": [
-          117236,
-          64120,
-          74008
-        ]
-      },
-      "stage2": {
-        "selfTotal": 397760,
-        "enemyTotal": 185577,
-        "selfMembers": [
-          281279,
-          34002,
-          26224
-        ],
-        "enemyMembers": [
-          61056,
-          72039,
-          52482
-        ]
-      },
-      "stage3": {
-        "selfTotal": 893956,
-        "enemyTotal": 367559,
-        "selfMembers": [
-          108230,
-          173461,
-          510221
-        ],
-        "enemyMembers": [
-          63023,
-          194127,
-          110409
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 281664,
-        "enemyTotal": 255364,
-        "self": [
-          72081,
-          47509,
-          135062
-        ],
-        "enemy": [
-          117236,
-          64120,
-          74008
-        ],
-        "raw": {
-          "selfTotal": [
-            281664
-          ],
-          "selfMembers": [
-            281664,
-            72081,
-            47509,
-            135062,
-            27012
-          ],
-          "enemyTotal": [
-            255364
-          ],
-          "enemyMembers": [
-            255364,
-            117236,
-            64120,
-            74008
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 397760,
-        "enemyTotal": 185577,
-        "self": [
-          281279,
-          34002,
-          26224
-        ],
-        "enemy": [
-          61056,
-          72039,
-          52482
-        ],
-        "raw": {
-          "selfTotal": [
-            56255
-          ],
-          "selfMembers": [
-            281279,
-            34002,
-            26224,
-            56255
-          ],
-          "enemyTotal": [
-            61056,
-            72039,
-            52482
-          ],
-          "enemyMembers": [
-            185577,
-            61056,
-            72039,
-            52482
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 893956,
-        "enemyTotal": 367559,
-        "self": [
-          108230,
-          173461,
-          510221
-        ],
-        "enemy": [
-          63023,
-          194127,
-          110409
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            108230,
-            173461,
-            510221
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            63023,
-            194127,
-            110409
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "user-reports/passed/IMG_9074.png",
-    "category": "user-reports",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 120700,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 158174,
-        "enemyTotal": 361860,
-        "selfMembers": [
-          73395,
-          48841,
-          35938
-        ],
-        "enemyMembers": [
-          42126,
-          196723,
-          83667
-        ]
-      },
-      "stage2": {
-        "selfTotal": 527141,
-        "enemyTotal": 101971,
-        "selfMembers": [
-          375977,
-          31268,
-          44701
-        ],
-        "enemyMembers": [
-          61448,
-          32066,
-          8457
-        ]
-      },
-      "stage3": {
-        "selfTotal": 1260487,
-        "enemyTotal": 411294,
-        "selfMembers": [
-          107711,
-          329872,
-          685754
-        ],
-        "enemyMembers": [
-          153493,
-          94997,
-          162804
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 158174,
-        "enemyTotal": 361860,
-        "self": [
-          73395,
-          48841,
-          35938
-        ],
-        "enemy": [
-          42126,
-          196723,
-          83667
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            73395,
-            48841,
-            35938
-          ],
-          "enemyTotal": [
-            361860
-          ],
-          "enemyMembers": [
-            361860,
-            42126,
-            196723,
-            83667,
-            39544
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 527141,
-        "enemyTotal": 101971,
-        "self": [
-          375977,
-          31268,
-          44701
-        ],
-        "enemy": [
-          61448,
-          32066,
-          8457
-        ],
-        "raw": {
-          "selfTotal": [
-            75195
-          ],
-          "selfMembers": [
-            375977,
-            31268,
-            44701,
-            75195
-          ],
-          "enemyTotal": [
-            61448,
-            32066
-          ],
-          "enemyMembers": [
-            61448,
-            32066
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 1260487,
-        "enemyTotal": 411294,
-        "self": [
-          107711,
-          329872,
-          685754
-        ],
-        "enemy": [
-          153493,
-          94997,
-          162804
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            107711,
-            329872,
-            685754,
-            1357150
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            63309
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "user-reports/passed/IMG_9083.png",
-    "category": "user-reports",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 118008,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 167424,
-        "enemyTotal": 131283,
-        "selfMembers": [
-          33779,
-          51945,
-          68084
-        ],
-        "enemyMembers": [
-          38970,
-          48037,
-          44276
-        ]
-      },
-      "stage2": {
-        "selfTotal": 573394,
-        "enemyTotal": 143815,
-        "selfMembers": [
-          423505,
-          28161,
-          37027
-        ],
-        "enemyMembers": [
-          71361,
-          51858,
-          20596
-        ]
-      },
-      "stage3": {
-        "selfTotal": 724222,
-        "enemyTotal": 215648,
-        "selfMembers": [
-          133035,
-          208290,
-          319081
-        ],
-        "enemyMembers": [
-          46870,
-          68438,
-          100340
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 167424,
-        "enemyTotal": 131283,
-        "self": [
-          33779,
-          51945,
-          68084
-        ],
-        "enemy": [
-          38970,
-          48037,
-          44276
-        ],
-        "raw": {
-          "selfTotal": [
-            167424
-          ],
-          "selfMembers": [
-            167424,
-            33779,
-            51945,
-            68084,
-            13616
-          ],
-          "enemyTotal": [
-            151285
-          ],
-          "enemyMembers": [
-            131283,
-            38970,
-            48037,
-            44276
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 573394,
-        "enemyTotal": 143815,
-        "self": [
-          423505,
-          28161,
-          37027
-        ],
-        "enemy": [
-          71361,
-          51858,
-          20596
-        ],
-        "raw": {
-          "selfTotal": [
-            84701
-          ],
-          "selfMembers": [
-            373394,
-            423505,
-            28161,
-            37027,
-            84701
-          ],
-          "enemyTotal": [
-            71361,
-            51858,
-            20596
-          ],
-          "enemyMembers": [
-            143815,
-            71361,
-            51858,
-            20596
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 724222,
-        "enemyTotal": 215648,
-        "self": [
-          133035,
-          208290,
-          319081
-        ],
-        "enemy": [
-          46870,
-          68438,
-          100340
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            133035,
-            208290,
-            319081,
-            63816
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            46870,
-            68438,
-            100340
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "user-reports/passed/IMG_9084.png",
-    "category": "user-reports",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 119640,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 255061,
-        "enemyTotal": 321067,
-        "selfMembers": [
-          68836,
-          74429,
-          111796
-        ],
-        "enemyMembers": [
-          112081,
-          114969,
-          71024
-        ]
-      },
-      "stage2": {
-        "selfTotal": 692932,
-        "enemyTotal": 119184,
-        "selfMembers": [
-          510016,
-          43753,
-          37160
-        ],
-        "enemyMembers": [
-          35650,
-          42776,
-          40758
-        ]
-      },
-      "stage3": {
-        "selfTotal": 1038239,
-        "enemyTotal": 282014,
-        "selfMembers": [
-          200294,
-          379028,
-          382431
-        ],
-        "enemyMembers": [
-          97213,
-          75805,
-          108996
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 255061,
-        "enemyTotal": 321067,
-        "self": [
-          68836,
-          74429,
-          111796
-        ],
-        "enemy": [
-          112081,
-          114969,
-          71024
-        ],
-        "raw": {
-          "selfTotal": [
-            255061
-          ],
-          "selfMembers": [
-            255061,
-            68836,
-            74429,
-            111796
-          ],
-          "enemyTotal": [
-            321067
-          ],
-          "enemyMembers": [
-            521067,
-            112081,
-            114969,
-            71024
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 692932,
-        "enemyTotal": 119184,
-        "self": [
-          510016,
-          43753,
-          37160
-        ],
-        "enemy": [
-          35650,
-          42776,
-          40758
-        ],
-        "raw": {
-          "selfTotal": [
-            102003
-          ],
-          "selfMembers": [
-            692952,
-            510016,
-            43753,
-            37160,
-            102003
-          ],
-          "enemyTotal": [
-            35650,
-            42776,
-            40758
-          ],
-          "enemyMembers": [
-            119184,
-            35650,
-            42776,
-            40758
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 1038239,
-        "enemyTotal": 282014,
-        "self": [
-          200294,
-          379028,
-          382431
-        ],
-        "enemy": [
-          97213,
-          75805,
-          108996
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            200294,
-            379028,
-            382431,
-            76486
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            108996
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "user-reports/passed/IMG_9085.png",
-    "category": "user-reports",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 118248,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 305080,
-        "enemyTotal": 146199,
-        "selfMembers": [
-          43361,
-          52947,
-          173977
-        ],
-        "enemyMembers": [
-          30199,
-          99356,
-          16644
-        ]
-      },
-      "stage2": {
-        "selfTotal": 485660,
-        "enemyTotal": 134810,
-        "selfMembers": [
-          328123,
-          52541,
-          39372
-        ],
-        "enemyMembers": [
-          63782,
-          28933,
-          42095
-        ]
-      },
-      "stage3": {
-        "selfTotal": 1126424,
-        "enemyTotal": 299045,
-        "selfMembers": [
-          230319,
-          293133,
-          502477
-        ],
-        "enemyMembers": [
-          165153,
-          44640,
-          89252
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 305080,
-        "enemyTotal": 146199,
-        "self": [
-          43361,
-          52947,
-          173977
-        ],
-        "enemy": [
-          30199,
-          99356,
-          16644
-        ],
-        "raw": {
-          "selfTotal": [
-            505080
-          ],
-          "selfMembers": [
-            505080,
-            43361,
-            52947,
-            173977,
-            34795
-          ],
-          "enemyTotal": [
-            146199
-          ],
-          "enemyMembers": [
-            146199,
-            30199,
-            99356,
-            16644
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 485660,
-        "enemyTotal": 134810,
-        "self": [
-          328123,
-          52541,
-          39372
-        ],
-        "enemy": [
-          63782,
-          28933,
-          42095
-        ],
-        "raw": {
-          "selfTotal": [
-            65624
-          ],
-          "selfMembers": [
-            485660,
-            328123,
-            52541,
-            39372,
-            65624
-          ],
-          "enemyTotal": [
-            63782,
-            28933,
-            42095
-          ],
-          "enemyMembers": [
-            134810,
-            63782,
-            28933,
-            42095
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 1126424,
-        "enemyTotal": 299045,
-        "self": [
-          230319,
-          293133,
-          502477
-        ],
-        "enemy": [
-          165153,
-          44640,
-          89252
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            230319,
-            293133,
-            502477,
-            100495
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            165153,
-            44640,
-            89252
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "user-reports/passed/IMG_9086.png",
-    "category": "user-reports",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 120131,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 289232,
-        "enemyTotal": 345147,
-        "selfMembers": [
-          82993,
-          58512,
-          147727
-        ],
-        "enemyMembers": [
-          210155,
-          46582,
-          46379
-        ]
-      },
-      "stage2": {
-        "selfTotal": 345259,
-        "enemyTotal": 497578,
-        "selfMembers": [
-          256573,
-          38747,
-          49939
-        ],
-        "enemyMembers": [
-          326409,
-          82075,
-          23813
-        ]
-      },
-      "stage3": {
-        "selfTotal": 813146,
-        "enemyTotal": 345874,
-        "selfMembers": [
-          264954,
-          196342,
-          293209
-        ],
-        "enemyMembers": [
-          69688,
-          126309,
-          149877
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 289232,
-        "enemyTotal": 345147,
-        "self": [
-          82993,
-          58512,
-          147727
-        ],
-        "enemy": [
-          210155,
-          46582,
-          46379
-        ],
-        "raw": {
-          "selfTotal": [
-            289232
-          ],
-          "selfMembers": [
-            289232,
-            82993,
-            58512,
-            147727
-          ],
-          "enemyTotal": [
-            345147
-          ],
-          "enemyMembers": [
-            345147,
-            210155,
-            46582,
-            46379
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 345259,
-        "enemyTotal": 497578,
-        "self": [
-          256573,
-          38747,
-          49939
-        ],
-        "enemy": [
-          326409,
-          82075,
-          23813
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            256573,
-            38747,
-            49939
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            326409,
-            82075,
-            23813,
-            65281
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 813146,
-        "enemyTotal": 345874,
-        "self": [
-          264954,
-          196342,
-          293209
-        ],
-        "enemy": [
-          69688,
-          126309,
-          149877
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            264954,
-            196342,
-            293209,
-            58641
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            69688,
-            126309,
-            149877
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "user-reports/passed/IMG_9087.png",
-    "category": "user-reports",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 120329,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 234514,
-        "enemyTotal": 194505,
-        "selfMembers": [
-          32663,
-          50095,
-          126464
-        ],
-        "enemyMembers": [
-          86301,
-          34271,
-          73933
-        ]
-      },
-      "stage2": {
-        "selfTotal": 472554,
-        "enemyTotal": 196898,
-        "selfMembers": [
-          308797,
-          54362,
-          47636
-        ],
-        "enemyMembers": [
-          75616,
-          66476,
-          54806
-        ]
-      },
-      "stage3": {
-        "selfTotal": 1229903,
-        "enemyTotal": 397980,
-        "selfMembers": [
-          210000,
-          281439,
-          615387
-        ],
-        "enemyMembers": [
-          196506,
-          128630,
-          72844
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 234514,
-        "enemyTotal": 194505,
-        "self": [
-          32663,
-          50095,
-          126464
-        ],
-        "enemy": [
-          86301,
-          34271,
-          73933
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            234514,
-            32663,
-            50095,
-            126464,
-            25292
-          ],
-          "enemyTotal": [
-            194505
-          ],
-          "enemyMembers": [
-            194505,
-            86301,
-            34271,
-            73933
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 472554,
-        "enemyTotal": 196898,
-        "self": [
-          308797,
-          54362,
-          47636
-        ],
-        "enemy": [
-          75616,
-          66476,
-          54806
-        ],
-        "raw": {
-          "selfTotal": [
-            71000,
-            61759
-          ],
-          "selfMembers": [
-            472554,
-            308797,
-            54362,
-            47636,
-            61759
-          ],
-          "enemyTotal": [
-            75616,
-            66476,
-            54806
-          ],
-          "enemyMembers": [
-            196898,
-            75616,
-            66476,
-            54806
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 1229903,
-        "enemyTotal": 397980,
-        "self": [
-          210000,
-          281439,
-          615387
-        ],
-        "enemy": [
-          196506,
-          128630,
-          72844
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            210000,
-            281439,
-            615387,
-            123077
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            60363
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "user-reports/unreviewed/IMG_8948.png",
-    "category": "user-reports",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 118991,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 269335,
-        "enemyTotal": 340501,
-        "selfMembers": [
-          57297,
-          135437,
-          76601
-        ],
-        "enemyMembers": [
-          153458,
-          119594,
-          36758
-        ]
-      },
-      "stage2": {
-        "selfTotal": 243071,
-        "enemyTotal": 316233,
-        "selfMembers": [
-          75492,
-          36907,
-          130672
-        ],
-        "enemyMembers": [
-          55365,
-          30611,
-          191881
-        ]
-      },
-      "stage3": {
-        "selfTotal": 508760,
-        "enemyTotal": 179179,
-        "selfMembers": [
-          63606,
-          31661,
-          344578
-        ],
-        "enemyMembers": [
-          42774,
-          66086,
-          70319
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 269335,
-        "enemyTotal": 340501,
-        "self": [
-          57297,
-          135437,
-          76601
-        ],
-        "enemy": [
-          153458,
-          119594,
-          36758
-        ],
-        "raw": {
-          "selfTotal": [
-            269335
-          ],
-          "selfMembers": [
-            269335,
-            57297,
-            135437,
-            76601
-          ],
-          "enemyTotal": [
-            340501
-          ],
-          "enemyMembers": [
-            240501,
-            153458,
-            119594,
-            36758,
-            30691
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 243071,
-        "enemyTotal": 316233,
-        "self": [
-          75492,
-          36907,
-          130672
-        ],
-        "enemy": [
-          55365,
-          30611,
-          191881
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            75492,
-            36907,
-            130672
-          ],
-          "enemyTotal": [
-            55365,
-            30611,
-            191881,
-            38376
-          ],
-          "enemyMembers": [
-            316233,
-            55365,
-            30611,
-            191881,
-            38376
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 508760,
-        "enemyTotal": 179179,
-        "self": [
-          63606,
-          31661,
-          344578
-        ],
-        "enemy": [
-          42774,
-          66086,
-          70319
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            63606,
-            31661,
-            344578,
-            68915
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            42774,
-            66086,
-            70319
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "user-reports/unreviewed/IMG_8950.png",
-    "category": "user-reports",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 117526,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 331918,
-        "enemyTotal": 218814,
-        "selfMembers": [
-          31969,
-          200698,
-          59112
-        ],
-        "enemyMembers": [
-          50446,
-          118757,
-          49611
-        ]
-      },
-      "stage2": {
-        "selfTotal": 329500,
-        "enemyTotal": 431630,
-        "selfMembers": [
-          51716,
-          24991,
-          210661
-        ],
-        "enemyMembers": [
-          166870,
-          149389,
-          115371
-        ]
-      },
-      "stage3": {
-        "selfTotal": 905090,
-        "enemyTotal": 282185,
-        "selfMembers": [
-          180512,
-          63387,
-          550993
-        ],
-        "enemyMembers": [
-          87580,
-          148478,
-          46127
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 331918,
-        "enemyTotal": 218814,
-        "self": [
-          31969,
-          200698,
-          59112
-        ],
-        "enemy": [
-          50446,
-          118757,
-          49611
-        ],
-        "raw": {
-          "selfTotal": [
-            331918
-          ],
-          "selfMembers": [
-            331918,
-            31969,
-            200698,
-            59112,
-            40139
-          ],
-          "enemyTotal": [
-            218814
-          ],
-          "enemyMembers": [
-            218814,
-            50446,
-            118757,
-            49611
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 329500,
-        "enemyTotal": 431630,
-        "self": [
-          51716,
-          24991,
-          210661
-        ],
-        "enemy": [
-          166870,
-          149389,
-          115371
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            329500,
-            51716,
-            24991,
-            210661,
-            42132
-          ],
-          "enemyTotal": [
-            166870,
-            149389,
-            115371
-          ],
-          "enemyMembers": [
-            431630,
-            166870,
-            149389,
-            115371
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 905090,
-        "enemyTotal": 282185,
-        "self": [
-          180512,
-          63387,
-          550993
-        ],
-        "enemy": [
-          87580,
-          148478,
-          46127
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            180512,
-            63387,
-            550993,
-            110198
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            148478,
-            46127
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "user-reports/unreviewed/IMG_8951.png",
-    "category": "user-reports",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 119242,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 250496,
-        "enemyTotal": 306387,
-        "selfMembers": [
-          42911,
-          146373,
-          61212
-        ],
-        "enemyMembers": [
-          97421,
-          147190,
-          32338
-        ]
-      },
-      "stage2": {
-        "selfTotal": 299281,
-        "enemyTotal": 147336,
-        "selfMembers": [
-          76039,
-          33844,
-          157832
-        ],
-        "enemyMembers": [
-          69509,
-          62256,
-          15571
-        ]
-      },
-      "stage3": {
-        "selfTotal": 449572,
-        "enemyTotal": 143280,
-        "selfMembers": [
-          153691,
-          36461,
-          216184
-        ],
-        "enemyMembers": [
-          18338,
-          52841,
-          72101
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 250496,
-        "enemyTotal": 306387,
-        "self": [
-          42911,
-          146373,
-          61212
-        ],
-        "enemy": [
-          97421,
-          147190,
-          32338
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            250496,
-            42911,
-            146373,
-            61212
-          ],
-          "enemyTotal": [
-            306587
-          ],
-          "enemyMembers": [
-            306387,
-            97421,
-            147190,
-            32338,
-            29438
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 299281,
-        "enemyTotal": 147336,
-        "self": [
-          76039,
-          33844,
-          157832
-        ],
-        "enemy": [
-          69509,
-          62256,
-          15571
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            76039,
-            33844,
-            157832,
-            31566
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            147336,
-            69509,
-            62256,
-            15571
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 449572,
-        "enemyTotal": 143280,
-        "self": [
-          153691,
-          36461,
-          216184
-        ],
-        "enemy": [
-          18338,
-          52841,
-          72101
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            153691,
-            36461,
-            216184,
-            43236
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            18338,
-            52841,
-            72101
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "user-reports/unreviewed/IMG_8952.png",
-    "category": "user-reports",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 112267,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 291036,
-        "enemyTotal": 127834,
-        "selfMembers": [
-          83813,
-          129942,
-          51293
-        ],
-        "enemyMembers": [
-          38182,
-          56265,
-          33387
-        ]
-      },
-      "stage2": {
-        "selfTotal": 274640,
-        "enemyTotal": 101782,
-        "selfMembers": [
-          78408,
-          52742,
-          119575
-        ],
-        "enemyMembers": [
-          22680,
-          54151,
-          24951
-        ]
-      },
-      "stage3": {
-        "selfTotal": 787643,
-        "enemyTotal": 265799,
-        "selfMembers": [
-          96656,
-          92412,
-          498813
-        ],
-        "enemyMembers": [
-          92455,
-          148010,
-          25334
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 291036,
-        "enemyTotal": 127834,
-        "self": [
-          83813,
-          129942,
-          51293
-        ],
-        "enemy": [
-          38182,
-          56265,
-          33387
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            291036,
-            83813,
-            129942,
-            51293,
-            25988
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            127834,
-            38182,
-            56265,
-            33387
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 274640,
-        "enemyTotal": 101782,
-        "self": [
-          78408,
-          52742,
-          119575
-        ],
-        "enemy": [
-          22680,
-          54151,
-          24951
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            74040,
-            78408,
-            52742,
-            119575,
-            23915
-          ],
-          "enemyTotal": [
-            22680,
-            54151,
-            24951
-          ],
-          "enemyMembers": [
-            101782,
-            22680,
-            54151,
-            24951
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 787643,
-        "enemyTotal": 265799,
-        "self": [
-          96656,
-          92412,
-          498813
-        ],
-        "enemy": [
-          92455,
-          148010,
-          25334
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            96656,
-            92412,
-            498813,
-            99762
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            92455,
-            148010,
-            25334
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "user-reports/unreviewed/IMG_8953.png",
-    "category": "user-reports",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 120077,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 233941,
-        "enemyTotal": 341135,
-        "selfMembers": [
-          79056,
-          111366,
-          43519
-        ],
-        "enemyMembers": [
-          171020,
-          99761,
-          36150
-        ]
-      },
-      "stage2": {
-        "selfTotal": 236431,
-        "enemyTotal": 83611,
-        "selfMembers": [
-          53384,
-          59696,
-          102793
-        ],
-        "enemyMembers": [
-          41398,
-          26399,
-          15814
-        ]
-      },
-      "stage3": {
-        "selfTotal": 406164,
-        "enemyTotal": 287998,
-        "selfMembers": [
-          139359,
-          46561,
-          183537
-        ],
-        "enemyMembers": [
-          112074,
-          92967,
-          82957
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 233941,
-        "enemyTotal": 341135,
-        "self": [
-          79056,
-          111366,
-          43519
-        ],
-        "enemy": [
-          171020,
-          99761,
-          36150
-        ],
-        "raw": {
-          "selfTotal": [
-            233941
-          ],
-          "selfMembers": [
-            233941,
-            79056,
-            111366,
-            43519
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            341135,
-            171020,
-            99761,
-            36150,
-            34204
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 236431,
-        "enemyTotal": 83611,
-        "self": [
-          53384,
-          59696,
-          102793
-        ],
-        "enemy": [
-          41398,
-          26399,
-          15814
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            53384,
-            59696,
-            102793,
-            20558
-          ],
-          "enemyTotal": [
-            41398,
-            26399,
-            15814
-          ],
-          "enemyMembers": [
-            83611,
-            41398,
-            26399,
-            15814
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 406164,
-        "enemyTotal": 287998,
-        "self": [
-          139359,
-          46561,
-          183537
-        ],
-        "enemy": [
-          112074,
-          92967,
-          82957
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            139359,
-            46561,
-            183537,
-            36707
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            62835
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "user-reports/unreviewed/IMG_9124.png",
-    "category": "user-reports",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 118152,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 655998,
-        "enemyTotal": 56819,
-        "selfMembers": [
-          136109,
-          339132,
-          112931
-        ],
-        "enemyMembers": [
-          23244,
-          13426,
-          20149
-        ]
-      },
-      "stage2": {
-        "selfTotal": 513961,
-        "enemyTotal": 184601,
-        "selfMembers": [
-          204361,
-          69352,
-          199376
-        ],
-        "enemyMembers": [
-          66751,
-          45628,
-          72222
-        ]
-      },
-      "stage3": {
-        "selfTotal": 456883,
-        "enemyTotal": 89949,
-        "selfMembers": [
-          323292,
-          27936,
-          40997
-        ],
-        "enemyMembers": [
-          47327,
-          24743,
-          17879
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 655998,
-        "enemyTotal": 56819,
-        "self": [
-          136109,
-          339132,
-          112931
-        ],
-        "enemy": [
-          23244,
-          13426,
-          20149
-        ],
-        "raw": {
-          "selfTotal": [
-            655998
-          ],
-          "selfMembers": [
-            655998,
-            136109,
-            339132,
-            112931,
-            67826
-          ],
-          "enemyTotal": [
-            56819
-          ],
-          "enemyMembers": [
-            56819,
-            23244,
-            13426,
-            20149
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 513961,
-        "enemyTotal": 184601,
-        "self": [
-          204361,
-          69352,
-          199376
-        ],
-        "enemy": [
-          66751,
-          45628,
-          72222
-        ],
-        "raw": {
-          "selfTotal": [
-            40872
-          ],
-          "selfMembers": [
-            215961,
-            204361,
-            69352,
-            199376,
-            40872
-          ],
-          "enemyTotal": [
-            66751,
-            45628,
-            72222
-          ],
-          "enemyMembers": [
-            184601,
-            66751,
-            45628,
-            72222
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 456883,
-        "enemyTotal": 89949,
-        "self": [
-          323292,
-          27936,
-          40997
-        ],
-        "enemy": [
-          47327,
-          24743,
-          17879
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            323292,
-            27936,
-            40997,
-            64658
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            59838
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "user-reports/unreviewed/IMG_9125.png",
-    "category": "user-reports",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 111241,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 1171567,
-        "enemyTotal": 119973,
-        "selfMembers": [
-          218728,
-          707239,
-          104153
-        ],
-        "enemyMembers": [
-          60325,
-          32993,
-          26655
-        ]
-      },
-      "stage2": {
-        "selfTotal": 590064,
-        "enemyTotal": 96990,
-        "selfMembers": [
-          141105,
-          249628,
-          149406
-        ],
-        "enemyMembers": [
-          30833,
-          35797,
-          30360
-        ]
-      },
-      "stage3": {
-        "selfTotal": 729614,
-        "enemyTotal": 97647,
-        "selfMembers": [
-          484840,
-          122090,
-          25716
-        ],
-        "enemyMembers": [
-          49200,
-          14360,
-          34087
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 1171567,
-        "enemyTotal": 119973,
-        "self": [
-          218728,
-          707239,
-          104153
-        ],
-        "enemy": [
-          60325,
-          32993,
-          26655
-        ],
-        "raw": {
-          "selfTotal": [
-            1171567
-          ],
-          "selfMembers": [
-            218728,
-            707239,
-            104153,
-            141447
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            60325,
-            32993,
-            26655
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 590064,
-        "enemyTotal": 96990,
-        "self": [
-          141105,
-          249628,
-          149406
-        ],
-        "enemy": [
-          30833,
-          35797,
-          30360
-        ],
-        "raw": {
-          "selfTotal": [
-            49925
-          ],
-          "selfMembers": [
-            290064,
-            141105,
-            249628,
-            149406,
-            49925
-          ],
-          "enemyTotal": [
-            30833,
-            35797,
-            30360
-          ],
-          "enemyMembers": [
-            96990,
-            30833,
-            35797,
-            30360
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 729614,
-        "enemyTotal": 97647,
-        "self": [
-          484840,
-          122090,
-          25716
-        ],
-        "enemy": [
-          49200,
-          14360,
-          34087
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            484840,
-            122090,
-            25716,
-            96968
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            642192
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "user-reports/unreviewed/IMG_9126.png",
-    "category": "user-reports",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 114110,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 777728,
-        "enemyTotal": 97744,
-        "selfMembers": [
-          167550,
-          414913,
-          112283
-        ],
-        "enemyMembers": [
-          49883,
-          25037,
-          22824
-        ]
-      },
-      "stage2": {
-        "selfTotal": 379985,
-        "enemyTotal": 88183,
-        "selfMembers": [
-          104778,
-          97597,
-          148009
-        ],
-        "enemyMembers": [
-          42473,
-          22097,
-          23613
-        ]
-      },
-      "stage3": {
-        "selfTotal": 489387,
-        "enemyTotal": 100360,
-        "selfMembers": [
-          330958,
-          64222,
-          28016
-        ],
-        "enemyMembers": [
-          40878,
-          46080,
-          13402
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 777728,
-        "enemyTotal": 97744,
-        "self": [
-          167550,
-          414913,
-          112283
-        ],
-        "enemy": [
-          49883,
-          25037,
-          22824
-        ],
-        "raw": {
-          "selfTotal": [
-            777728
-          ],
-          "selfMembers": [
-            777728,
-            167550,
-            414913,
-            112283,
-            82982
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            97744,
-            49883,
-            25037,
-            22824
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 379985,
-        "enemyTotal": 88183,
-        "self": [
-          104778,
-          97597,
-          148009
-        ],
-        "enemy": [
-          42473,
-          22097,
-          23613
-        ],
-        "raw": {
-          "selfTotal": [
-            29601
-          ],
-          "selfMembers": [
-            379985,
-            104778,
-            97597,
-            148009,
-            29601
-          ],
-          "enemyTotal": [
-            42473,
-            22097,
-            23613
-          ],
-          "enemyMembers": [
-            88183,
-            42473,
-            22097,
-            23613
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 489387,
-        "enemyTotal": 100360,
-        "self": [
-          330958,
-          64222,
-          28016
-        ],
-        "enemy": [
-          40878,
-          46080,
-          13402
-        ],
-        "raw": {
-          "selfTotal": [],
-          "selfMembers": [
-            330958,
-            64222,
-            28016,
-            66191
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            40878,
-            46080,
-            13402
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "user-reports/unreviewed/IMG_9127.png",
-    "category": "user-reports",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 112947,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 933140,
-        "enemyTotal": 125035,
-        "selfMembers": [
-          241841,
-          478925,
-          116589
-        ],
-        "enemyMembers": [
-          44824,
-          42624,
-          37587
-        ]
-      },
-      "stage2": {
-        "selfTotal": 551744,
-        "enemyTotal": 127307,
-        "selfMembers": [
-          106055,
-          182034,
-          219713
-        ],
-        "enemyMembers": [
-          42204,
-          45250,
-          39853
-        ]
-      },
-      "stage3": {
-        "selfTotal": 555614,
-        "enemyTotal": 130044,
-        "selfMembers": [
-          422691,
-          15824,
-          32561
-        ],
-        "enemyMembers": [
-          46876,
-          62847,
-          20321
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 933140,
-        "enemyTotal": 125035,
-        "self": [
-          241841,
-          478925,
-          116589
-        ],
-        "enemy": [
-          44824,
-          42624,
-          37587
-        ],
-        "raw": {
-          "selfTotal": [
-            933140
-          ],
-          "selfMembers": [
-            933140,
-            241841,
-            478925,
-            116589,
-            95785
-          ],
           "enemyTotal": [
-            125035
+            685829
           ],
           "enemyMembers": [
-            125055,
-            144824,
-            42624,
-            37587
+            85829,
+            166141,
+            238835,
+            233086,
+            47767
           ]
         }
       },
       "stage2": {
-        "selfTotal": 551744,
-        "enemyTotal": 127307,
+        "selfTotal": 298263,
+        "enemyTotal": 534795,
         "self": [
-          106055,
-          182034,
-          219713
+          117482,
+          180781
         ],
         "enemy": [
-          42204,
-          45250,
-          39853
+          207013,
+          86554,
+          199826
         ],
         "raw": {
-          "selfTotal": [
-            43942
-          ],
-          "selfMembers": [
-            106055,
-            182034,
-            219713,
-            435942
-          ],
-          "enemyTotal": [
-            42204,
-            45250,
-            39853
-          ],
-          "enemyMembers": [
-            127307,
-            42204,
-            45250,
-            39853
-          ]
-        }
-      },
-      "stage3": {
-        "selfTotal": 555614,
-        "enemyTotal": 130044,
-        "self": [
-          422691,
-          15824,
-          32561
-        ],
-        "enemy": [
-          46876,
-          62847,
-          20321
-        ],
-        "raw": {
           "selfTotal": [],
-          "selfMembers": [
-            422691,
-            15824,
-            32561,
-            84538
-          ],
-          "enemyTotal": [],
-          "enemyMembers": [
-            46876,
-            62847,
-            20321
-          ]
-        }
-      }
-    }
-  },
-  {
-    "image": "user-reports/unreviewed/IMG_9128.png",
-    "category": "user-reports",
-    "expected": true,
-    "source": "smartphone",
-    "pass": true,
-    "failures": [],
-    "elapsedMs": 113473,
-    "expectedData": {
-      "stage1": {
-        "selfTotal": 654329,
-        "enemyTotal": 100636,
-        "selfMembers": [
-          206114,
-          300141,
-          88046
-        ],
-        "enemyMembers": [
-          31734,
-          30057,
-          38845
-        ]
-      },
-      "stage2": {
-        "selfTotal": 566789,
-        "enemyTotal": 144299,
-        "selfMembers": [
-          127097,
-          186078,
-          211345
-        ],
-        "enemyMembers": [
-          86241,
-          36615,
-          21443
-        ]
-      },
-      "stage3": {
-        "selfTotal": 641021,
-        "enemyTotal": 74248,
-        "selfMembers": [
-          409864,
-          41656,
-          107529
-        ],
-        "enemyMembers": [
-          15370,
-          39913,
-          18965
-        ]
-      }
-    },
-    "result": {
-      "stage1": {
-        "selfTotal": 654329,
-        "enemyTotal": 100636,
-        "self": [
-          206114,
-          300141,
-          88046
-        ],
-        "enemy": [
-          31734,
-          30057,
-          38845
-        ],
-        "raw": {
-          "selfTotal": [
-            654329
-          ],
-          "selfMembers": [
-            654329,
-            206114,
-            300141,
-            88046,
-            60028
-          ],
-          "enemyTotal": [
-            100635
-          ],
-          "enemyMembers": [
-            100635,
-            31734,
-            30057,
-            38845
-          ]
-        }
-      },
-      "stage2": {
-        "selfTotal": 566789,
-        "enemyTotal": 144299,
-        "self": [
-          127097,
-          186078,
-          211345
-        ],
-        "enemy": [
-          86241,
-          36615,
-          21443
-        ],
-        "raw": {
-          "selfTotal": [
-            42269
-          ],
           "selfMembers": [
-            366789,
-            127097,
-            186078,
-            211345,
-            42269
+            117482,
+            180781
           ],
           "enemyTotal": [
-            86241,
-            36615,
-            21443
+            207013,
+            86554,
+            199826,
+            41402
           ],
           "enemyMembers": [
-            144299,
-            86241,
-            36615,
-            21443
+            534795,
+            207013,
+            86554,
+            199826,
+            41402
           ]
         }
       },
       "stage3": {
-        "selfTotal": 641021,
-        "enemyTotal": 74248,
+        "selfTotal": 731747,
+        "enemyTotal": 102466,
         "self": [
-          409864,
-          41656,
-          107529
+          523337,
+          55793,
+          47950
         ],
         "enemy": [
-          15370,
-          39913,
-          18965
+          102466
         ],
         "raw": {
           "selfTotal": [],
           "selfMembers": [
-            409864,
-            41656,
-            107529,
-            81972
+            523337,
+            55793,
+            47950,
+            104667
           ],
           "enemyTotal": [],
           "enemyMembers": [
-            57930
+            112658,
+            102466,
+            86597
           ]
         }
       }

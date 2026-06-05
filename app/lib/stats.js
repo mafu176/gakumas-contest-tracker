@@ -4,9 +4,15 @@ import {
   getIdolDisplayName,
   getIdolImage,
   getIdolKey,
+  isEmptyIdolSlot,
   makeStableIdolKey,
   resolveRecordIdolDisplayName,
 } from "./idols";
+
+function isEmptyIdolName(value) {
+  const text = String(value ?? "").trim();
+  return !text || text === "編成なし" || text === "未登録" || text === "登録なし";
+}
 
 export function makeInitialStageDetails() {
   const details = {};
@@ -45,30 +51,37 @@ export function flattenSlotValues(slotValues) {
       const myIdol = getSelectedMyIdol(stage, member, slotValues);
       const enemyIdol = getSelectedEnemyIdol(stage, member, slotValues);
 
-      flat[`s${stage}_my${member}_idol`] = getIdolDisplayName(myIdol);
-      flat[`s${stage}_my${member}_idol_name`] = myIdol?.name || "";
+      const hasMyIdol = !isEmptyIdolSlot(myIdol);
+      const hasEnemyIdol = !isEmptyIdolSlot(enemyIdol);
+
+      flat[`s${stage}_my${member}_idol`] = hasMyIdol ? getIdolDisplayName(myIdol) : "";
+      flat[`s${stage}_my${member}_idol_name`] = hasMyIdol ? myIdol?.name || "" : "";
       flat[`s${stage}_my${member}_idol_variant`] =
-        myIdol?.variant ||
-        myIdol?.costume ||
-        myIdol?.cardName ||
-        myIdol?.title ||
-        myIdol?.style ||
-        "";
-      flat[`s${stage}_my${member}_idol_id`] = getIdolKey(myIdol);
-      flat[`s${stage}_my${member}_idol_image`] = getIdolImage(myIdol);
+        hasMyIdol
+          ? myIdol?.variant ||
+            myIdol?.costume ||
+            myIdol?.cardName ||
+            myIdol?.title ||
+            myIdol?.style ||
+            ""
+          : "";
+      flat[`s${stage}_my${member}_idol_id`] = hasMyIdol ? getIdolKey(myIdol) : "";
+      flat[`s${stage}_my${member}_idol_image`] = hasMyIdol ? getIdolImage(myIdol) : "";
 
       flat[`s${stage}_enemy${member}_idol`] =
-        getIdolDisplayName(enemyIdol) || "登録なし";
-      flat[`s${stage}_enemy${member}_idol_name`] = enemyIdol?.name || "";
+        hasEnemyIdol ? getIdolDisplayName(enemyIdol) : "";
+      flat[`s${stage}_enemy${member}_idol_name`] = hasEnemyIdol ? enemyIdol?.name || "" : "";
       flat[`s${stage}_enemy${member}_idol_variant`] =
-        enemyIdol?.variant ||
-        enemyIdol?.costume ||
-        enemyIdol?.cardName ||
-        enemyIdol?.title ||
-        enemyIdol?.style ||
-        "";
-      flat[`s${stage}_enemy${member}_idol_id`] = getIdolKey(enemyIdol);
-      flat[`s${stage}_enemy${member}_idol_image`] = getIdolImage(enemyIdol);
+        hasEnemyIdol
+          ? enemyIdol?.variant ||
+            enemyIdol?.costume ||
+            enemyIdol?.cardName ||
+            enemyIdol?.title ||
+            enemyIdol?.style ||
+            ""
+          : "";
+      flat[`s${stage}_enemy${member}_idol_id`] = hasEnemyIdol ? getIdolKey(enemyIdol) : "";
+      flat[`s${stage}_enemy${member}_idol_image`] = hasEnemyIdol ? getIdolImage(enemyIdol) : "";
     });
   });
 
@@ -85,7 +98,7 @@ export function buildStageStats(records, sortMode, minCount) {
         const idolName =
           resolveRecordIdolDisplayName(record, stage, member, "my") ||
           record[`s${stage}_my${member}_idol`];
-        if (!idolName) return;
+        if (isEmptyIdolName(idolName)) return;
 
         if (!result[stage][idolName]) {
           result[stage][idolName] = {

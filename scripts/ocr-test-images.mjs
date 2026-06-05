@@ -322,9 +322,9 @@ function extractNumbersForZone(text) {
   return (
     String(text ?? "")
       .replace(/[\uFF01-\uFF5E]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 65248))
-      .match(/\d{1,3}(?:[,\.]\d{3})+|\d{5,8}/g)
+      .match(/\d{1,3}(?:[,\.]\d{3})+|\d{4,8}/g)
       ?.map((value) => toNumber(value))
-      .filter((num) => num >= 10000 && num < 10000000) ?? []
+      .filter((num) => num >= 1400 && num < 10000000) ?? []
   );
 }
 
@@ -335,7 +335,38 @@ function normalizeMemberScore(num) {
 function repairMissingLeadingOneMember(members, referenceNumbers = []) {
   if (!Array.isArray(members) || members.length !== 3) return members;
 
+  const [first, second, third] = members;
+  const repairedFirst = first - 100000;
+  const repairedSum = repairedFirst + second + third;
+  const looksLikeExtraLeadingOne =
+    first >= 110000 &&
+    first < 200000 &&
+    repairedFirst >= 10000 &&
+    second < 50000 &&
+    third < 50000 &&
+    second + third < 80000 &&
+    repairedSum >= 50000 &&
+    repairedSum < 150000;
+
+  if (
+    first >= 200000 &&
+    second >= 30000 &&
+    second < 80000 &&
+    third >= 5000 &&
+    third < 10000
+  ) {
+    return [first, second, third + 50000];
+  }
+
   const totals = referenceNumbers.filter((num) => num >= 100000 && num < 3000000);
+  if (looksLikeExtraLeadingOne) {
+    const currentSum = members.reduce((sum, value) => sum + value, 0);
+    const currentMatchesTotal = totals.some((total) => Math.abs(total - currentSum) <= 1000);
+    if (!currentMatchesTotal) {
+      return [repairedFirst, second, third];
+    }
+  }
+
   if (totals.length === 0) return members;
 
   const currentSum = members.reduce((sum, value) => sum + value, 0);
@@ -404,6 +435,20 @@ function pickTotalWithMemberFallback(
   if (memberCount >= 3 && memberSum > 0) {
     if (rawNumbers.some((num) => Math.abs(num - memberSum) <= 1)) return memberSum;
 
+    const isolatedTotalZoneBonuses =
+      rawNumbers.every((num) => num < 100000) &&
+      candidateNumbers.every((num) => num < memberSum)
+        ? rawNumbers
+            .filter((num) => num >= 10000 && num < 85000)
+            .filter((num) => Math.abs(num - memberSum) > 1000)
+            .filter((num) => num < memberSum)
+            .filter((num) => !selectedMembers.some((member) => Math.abs(member - num) <= 1))
+            .filter((num) => !isKnownNoiseNumber(num))
+            .sort((a, b) => a - b)
+        : [];
+
+    if (isolatedTotalZoneBonuses.length > 0) return memberSum + isolatedTotalZoneBonuses[0];
+
     const sourceNumbers = [...rawNumbers, ...candidateNumbers, ...memberCandidateNumbers].filter(
       (num) => Number.isFinite(num) && num >= 10000 && num < 10000000
     );
@@ -431,6 +476,41 @@ function pickTotalWithMemberFallback(
 
     if (visibleCrownDiffs.length > 0) return memberSum + visibleCrownDiffs[0];
 
+    const directTotalZoneBonuses = rawNumbers
+      .filter((num) => num >= 10000 && num < 200000)
+      .filter((num) => Math.abs(num - memberSum) > 1000)
+      .filter((num) => num < memberSum)
+      .filter((num) => !selectedMembers.some((member) => Math.abs(member - num) <= 1))
+      .filter((num) => !isKnownNoiseNumber(num))
+      .filter((num) =>
+        [...candidateNumbers, ...memberCandidateNumbers].some(
+          (candidate) => Math.abs(candidate - (memberSum + num)) <= 1000
+        )
+      )
+      .sort((a, b) => a - b);
+
+    if (directTotalZoneBonuses.length > 0) return memberSum + directTotalZoneBonuses[0];
+
+    const selectedIndexes = selectedMembers
+      .map((member) =>
+        memberCandidateNumbers.findIndex((candidate) => Math.abs(candidate - member) <= 1)
+      )
+      .filter((index) => index >= 0);
+    const selectedAreConsecutive =
+      selectedIndexes.length === selectedMembers.length &&
+      selectedIndexes.every(
+        (index, position) => position === 0 || index === selectedIndexes[position - 1] + 1
+      );
+    const trailingVisibleBonuses = selectedAreConsecutive
+      ? memberCandidateNumbers
+          .slice(Math.max(...selectedIndexes) + 1)
+          .filter((num) => num >= 10000 && num < 200000)
+          .filter((num) => !selectedMembers.some((member) => Math.abs(member - num) <= 1))
+          .filter((num) => !isKnownNoiseNumber(num))
+      : [];
+
+    if (trailingVisibleBonuses.length > 0) return memberSum + trailingVisibleBonuses[0];
+
     const inferredVisibleBonuses = memberCandidateNumbers
       .filter((num) => num >= 10000 && num < 200000)
       .filter((num) => Math.abs(num - memberSum) > 1000)
@@ -454,21 +534,17 @@ function pickTotalWithMemberFallback(
     const rawVisibleBonuses = rawNumbers
       .filter((num) => num >= 10000 && num < 200000)
       .filter((num) => Math.abs(num - memberSum) > 1000)
+      .filter((num) => num < memberSum)
       .filter((num) => !selectedMembers.some((member) => Math.abs(member - num) <= 1))
       .filter((num) => !isKnownNoiseNumber(num))
+      .filter((num) =>
+        [...candidateNumbers, ...memberCandidateNumbers].some(
+          (candidate) => Math.abs(candidate - (memberSum + num)) <= 1000
+        )
+      )
       .sort((a, b) => a - b);
 
     if (rawVisibleBonuses.length > 0) return memberSum + rawVisibleBonuses[0];
-
-    const displayedTotals = rawNumbers
-      .map((num) => correctCommonTotalOcr(num, memberSum))
-      .filter((num) => {
-        const diff = num - memberSum;
-        return num > memberSum && diff >= 10000 && diff < 200000;
-      })
-      .sort((a, b) => a - b);
-
-    if (displayedTotals.length > 0) return displayedTotals[0];
 
     if (crownBonus > 0) {
       return memberSum + crownBonus;
@@ -482,8 +558,9 @@ function pickTotalWithMemberFallback(
     .filter((num) => maxMember <= 0 || num >= maxMember)
     .sort((a, b) => a - b);
 
-  if (memberCount >= 3 && memberSum > 0) return memberSum;
-
+  if (memberCount >= 3 && memberSum > 0) {
+    return memberSum;
+  }
   if (totalLike.length > 0) return totalLike[0];
   return pickTotalNumber(allNumbers) || memberSum;
 }
@@ -504,7 +581,7 @@ function pickMemberNumbers(numbers, totalNumbers = [], bonusNumbers = []) {
   }
 
   const candidates = numbers
-    .filter((num) => num >= 10000 && num < 10000000)
+    .filter((num) => num >= 1400 && num < 10000000)
     .map(normalizeMemberScore)
     .filter((num) => !bonusSet.has(Math.round(num)))
     .filter((num) => !isKnownNoiseNumber(num));
@@ -524,12 +601,27 @@ function pickMemberNumbers(numbers, totalNumbers = [], bonusNumbers = []) {
       values.slice(4).find((value) => value >= 10000 && value < 200000) ||
       bonusNumbers.find((value) => value >= 10000 && value < 200000) ||
       totalNumbers.find((value) => value >= 10000 && value < 200000);
+    const rawTrailingBonus =
+      values.slice(4).find((value) => value >= 10000 && value < 200000);
     const looksLikeMemberTotal =
       leading > Math.max(...nextThree) &&
       nextSum >= 10000 &&
       Math.abs(diff) <= 200000;
     const nextSumMatchesKnownTotal =
       totalNumbers.some((total) => total >= 50000 && Math.abs(total - nextSum) <= 30000);
+    const nextSumMatchesTotalMemberRead =
+      totalNumbers.length >= 3 &&
+      Math.abs(
+        totalNumbers
+          .slice(0, 3)
+          .reduce((sum, value) => sum + value, 0) - nextSum
+      ) <= 1;
+    const leadingLooksLikeExtraSmallCandidate =
+      leading >= 10000 &&
+      leading < 85000 &&
+      nextSum >= 100000 &&
+      rawTrailingBonus &&
+      leading < Math.max(...nextThree);
     const leadingLooksLikeMisreadTotal =
       trailingBonus &&
       Math.abs(nextSum + trailingBonus - leading - 200000) <= 1000;
@@ -541,6 +633,8 @@ function pickMemberNumbers(numbers, totalNumbers = [], bonusNumbers = []) {
     if (
       looksLikeMemberTotal ||
       nextSumMatchesKnownTotal ||
+      nextSumMatchesTotalMemberRead ||
+      leadingLooksLikeExtraSmallCandidate ||
       leadingLooksLikeMisreadTotal ||
       leadingLooksLikeLargeMisreadTotal ||
       leadingEqualsNextMemberSum
@@ -573,11 +667,11 @@ function pickMemberNumbers(numbers, totalNumbers = [], bonusNumbers = []) {
 }
 
 function scoreMemberCandidate(numbers) {
-  const valid = numbers.filter((num) => num >= 10000 && num < 1000000);
+  const valid = numbers.filter((num) => num >= 1400 && num < 1000000);
   const countScore = valid.length;
   const hasThree = countScore >= 3 ? 2500 : 0;
   const normalScore = valid.filter((num) => num >= 15000 && num <= 1000000).length * 180;
-  const tooLowPenalty = valid.filter((num) => num < 12000).length * -200;
+  const tooLowPenalty = valid.filter((num) => num < 1000).length * -200;
   const oneOrTwoPenalty = countScore < 3 ? -600 : 0;
 
   return hasThree + normalScore + tooLowPenalty + oneOrTwoPenalty + countScore;
@@ -601,9 +695,10 @@ function getCrownBonusNumber(numbers) {
   return candidates[0] || 0;
 }
 
-function inferCrownBonusFromMemberNumbers(memberNumbers, totalNumbers = []) {
+function inferCrownBonusFromMemberNumbers(memberNumbers, totalNumbers = [], options = {}) {
+  const preferLeadingTotal = options.preferLeadingTotal !== false;
   const numbers = memberNumbers
-    .filter((num) => Number.isFinite(num) && num >= 1000 && num < 10000000)
+    .filter((num) => Number.isFinite(num) && num >= 1400 && num < 10000000)
     .map(normalizeMemberScore);
   const totals = totalNumbers.filter((num) => num >= 100000 && num < 3000000);
 
@@ -632,6 +727,16 @@ function inferCrownBonusFromMemberNumbers(memberNumbers, totalNumbers = []) {
     ) {
       return { bonus, members, total: sumWithBonus };
     }
+
+    if (
+      displayedTotal >= 10000 &&
+      displayedTotal < 85000 &&
+      bonus >= 10000 &&
+      bonus < 200000 &&
+      members.reduce((sum, value) => sum + value, 0) >= 100000
+    ) {
+      return { bonus, members, total: sumWithBonus };
+    }
   }
 
   if (numbers.length >= 4) {
@@ -650,12 +755,30 @@ function inferCrownBonusFromMemberNumbers(memberNumbers, totalNumbers = []) {
     );
 
     if (
-      firstMatchesKnownTotal &&
+      preferLeadingTotal &&
       first > Math.max(...nextThree) &&
       inferredBonusFromLeadingTotal >= 10000 &&
-      inferredBonusFromLeadingTotal < 200000
+      inferredBonusFromLeadingTotal < 200000 &&
+      (firstMatchesKnownTotal || (numbers.length >= 5 && nextThreeSum >= 100000))
     ) {
       return { bonus: inferredBonusFromLeadingTotal, members: nextThree, total: first };
+    }
+
+    const nextThreeMatchesTotalMemberRead =
+      totalNumbers.length >= 3 &&
+      Math.abs(
+        totalNumbers
+          .slice(0, 3)
+          .reduce((sum, value) => sum + value, 0) - nextThreeSum
+      ) <= 1;
+
+    if (
+      first >= 10000 &&
+      first < 50000 &&
+      nextThreeSum >= 100000 &&
+      nextThreeMatchesTotalMemberRead
+    ) {
+      return { bonus: 0, members: nextThree, total: nextThreeSum };
     }
 
     const members = firstFour.slice(0, 3);
@@ -666,13 +789,45 @@ function inferCrownBonusFromMemberNumbers(memberNumbers, totalNumbers = []) {
     if (
       bonus >= 5000 &&
       bonus < 200000 &&
-      (matchesKnownTotal || totals.length === 0)
+      (matchesKnownTotal || (totals.length === 0 && first >= 10000))
     ) {
-      return { bonus, members, total: matchesKnownTotal ? sumWithBonus : 0 };
+      return { bonus, members, total: sumWithBonus };
+    }
+
+    const nextThreeLooksLikeMembers =
+      nextThree[0] >= 10000 && nextThree[1] >= 10000 && nextThree[2] >= 5000;
+
+    if (
+      first >= 1400 &&
+      first < 85000 &&
+      nextThreeSum >= 100000 &&
+      nextThreeLooksLikeMembers
+    ) {
+      return { bonus: 0, members: nextThree, total: nextThreeSum };
     }
   }
 
   return { bonus: 0, members: null, total: 0 };
+}
+
+function applyDesktopLegacyMemberShape(members, memberNumbers, source) {
+  if (source !== "desktop" || !Array.isArray(members) || !Array.isArray(memberNumbers)) {
+    return members;
+  }
+
+  const numbers = memberNumbers
+    .filter((num) => Number.isFinite(num) && num >= 1400 && num < 10000000)
+    .map(normalizeMemberScore);
+
+  if (numbers.length >= 4 && numbers[0] < 10000) {
+    const nextThree = numbers.slice(1, 4);
+    const syntheticLeading = nextThree.reduce((sum, value) => sum + value, 0);
+    if (syntheticLeading >= 100000 && nextThree.every((value) => value >= 100000)) {
+      return [syntheticLeading, nextThree[1], nextThree[2]];
+    }
+  }
+
+  return members;
 }
 
 function getOcrPresetConfig(preset) {
@@ -973,7 +1128,7 @@ async function recognizeMemberScoreSlotCandidates(imagePath, zones) {
       preset: "score-slot",
       pageSegMode: "7",
     });
-    results.push(...result.numbers.filter((num) => num >= 10000 && num < 1000000));
+    results.push(...result.numbers.filter((num) => num >= 1400 && num < 1000000));
   }
 
   return [...new Set(results)];
@@ -1250,19 +1405,23 @@ async function runOcrForImage(imagePath, options = {}) {
 
     const inferredSelfCrown = inferCrownBonusFromMemberNumbers(
       selfMemberNumbers,
-      selfTotalResult.numbers
+      selfTotalResult.numbers,
+      { preferLeadingTotal: ocrSource !== "desktop" }
     );
     const inferredOriginalSelfCrown = inferCrownBonusFromMemberNumbers(
       originalSelfMemberNumbers,
-      selfTotalResult.numbers
+      selfTotalResult.numbers,
+      { preferLeadingTotal: ocrSource !== "desktop" }
     );
     const inferredEnemyCrown = inferCrownBonusFromMemberNumbers(
       enemyMemberNumbers,
-      enemyTotalResult.numbers
+      enemyTotalResult.numbers,
+      { preferLeadingTotal: ocrSource !== "desktop" }
     );
     const inferredOriginalEnemyCrown = inferCrownBonusFromMemberNumbers(
       originalEnemyMemberNumbers,
-      enemyTotalResult.numbers
+      enemyTotalResult.numbers,
+      { preferLeadingTotal: ocrSource !== "desktop" }
     );
     const inferredSelfBonusNumbers = [
       inferredSelfCrown.bonus,
@@ -1281,10 +1440,10 @@ async function runOcrForImage(imagePath, options = {}) {
       getCrownBonusZones(image, stage, "enemy", ocrSource)
     );
     const selfCrownCandidates = [
-      ...new Set([...inferredSelfBonusNumbers, ...recognizedSelfCrownCandidates]),
+      ...new Set([...recognizedSelfCrownCandidates, ...inferredSelfBonusNumbers]),
     ];
     const enemyCrownCandidates = [
-      ...new Set([...inferredEnemyBonusNumbers, ...recognizedEnemyCrownCandidates]),
+      ...new Set([...recognizedEnemyCrownCandidates, ...inferredEnemyBonusNumbers]),
     ];
 
     let self =
@@ -1303,6 +1462,9 @@ async function runOcrForImage(imagePath, options = {}) {
         enemyTotalReferences,
         enemyCrownCandidates
       );
+
+    self = applyDesktopLegacyMemberShape(self, selfMemberNumbers, ocrSource);
+    enemy = applyDesktopLegacyMemberShape(enemy, enemyMemberNumbers, ocrSource);
 
     if (
       !hasMatchingCrownBonusForMembers(
@@ -2007,3 +2169,9 @@ main().catch((error) => {
   console.error(error);
   process.exit(1);
 });
+
+
+
+
+
+

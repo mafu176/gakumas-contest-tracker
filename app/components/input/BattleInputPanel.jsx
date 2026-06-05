@@ -265,14 +265,14 @@ export default function BattleInputPanel({
                                 />
                               ) : (
                                 <div className="flex h-full w-full items-center justify-center text-[9px] text-zinc-600">
-                                  No Image
+                                  {idol ? "No Image" : "編成なし"}
                                 </div>
                               )}
                             </div>
 
                             <div className="min-w-0 text-sm">
                               <div className="truncate font-semibold text-zinc-700">
-                                {idol ? idol.short : "アイドル未選択"}
+                                {idol ? idol.short : "編成なし"}
                               </div>
                               {idol?.plan && (
                                 <div className="truncate text-xs text-zinc-600">
@@ -378,14 +378,14 @@ export default function BattleInputPanel({
                                 />
                               ) : (
                                 <div className="flex h-full w-full items-center justify-center text-[9px] text-zinc-600">
-                                  No Image
+                                  {idol ? "No Image" : "編成なし"}
                                 </div>
                               )}
                             </div>
 
                             <div className="min-w-0 text-sm">
                               <div className="truncate font-semibold text-zinc-700">
-                                {idol ? idol.short : "アイドル未選択"}
+                                {idol ? idol.short : "編成なし"}
                               </div>
                               {idol?.plan && (
                                 <div className="truncate text-xs text-zinc-600">

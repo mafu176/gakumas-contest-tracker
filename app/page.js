@@ -604,9 +604,9 @@ export default function Home() {
   const selectIdolForSlot = useCallback((idol) => {
     setSlotValues((prev) => ({
       ...prev,
-      [selectedSlot]: idol,
+      [selectedSlot]: idol || "",
     }));
-    addRecentIdol(idol);
+    if (idol) addRecentIdol(idol);
     setIdolSelectOpen(false);
   }, [addRecentIdol, selectedSlot]);
 
@@ -1618,7 +1618,7 @@ export default function Home() {
 
     mySlots.forEach((slot) => {
       const idol = slotValues[slot];
-      slots[slot] = getIdolDisplayName(idol);
+      slots[slot] = idol ? getIdolDisplayName(idol) : "";
     });
 
     const newTemplate = {
@@ -1636,9 +1636,13 @@ export default function Home() {
   const loadFormation = (template) => {
     const loaded = {};
 
+    mySlots.forEach((slot) => {
+      loaded[slot] = "";
+    });
+
     Object.entries(template.slots || {}).forEach(([slot, idolName]) => {
       const idol = findIdolByNameLocal(idolName);
-      if (idol) loaded[slot] = idol;
+      loaded[slot] = idol || "";
     });
 
     setSlotValues((prev) => ({
@@ -1666,6 +1670,7 @@ export default function Home() {
       "";
 
     if (!idolId && !idolName) return null;
+    if (idolName === "編成なし" || idolName === "未登録" || idolName === "登録なし") return null;
 
     const matched = combinedIdolDb.find((idol) => {
       const candidateId = getIdolKey(idol);
@@ -1709,6 +1714,13 @@ export default function Home() {
 
       if (idol) loadedSlots[slot] = idol;
     };
+
+    mySlots.forEach((slot) => {
+      loadedSlots[slot] = "";
+    });
+    enemySlots.forEach((slot) => {
+      loadedSlots[slot] = "";
+    });
 
     mySlots.forEach((slot) => loadSlot(slot, "my"));
     enemySlots.forEach((slot) => loadSlot(slot, "enemy"));
@@ -1964,10 +1976,10 @@ export default function Home() {
           getCrownBonusZones(image, stage, activeOcrMode, "enemy")
         );
         const selfCrownCandidates = [
-          ...new Set([...inferredSelfBonusNumbers, ...recognizedSelfCrownCandidates]),
+          ...new Set([...recognizedSelfCrownCandidates, ...inferredSelfBonusNumbers]),
         ];
         const enemyCrownCandidates = [
-          ...new Set([...inferredEnemyBonusNumbers, ...recognizedEnemyCrownCandidates]),
+          ...new Set([...recognizedEnemyCrownCandidates, ...inferredEnemyBonusNumbers]),
         ];
 
         const selfMembers =
@@ -2247,38 +2259,20 @@ export default function Home() {
         const myIdol = getSelectedMyIdol(stage, member, slotValues);
         const enemyIdol = getSelectedEnemyIdol(stage, member, slotValues);
 
-        if (!myIdol) {
-          warnings.push(
-            `自分 ステージ${stage} メンバー${member} のアイドルが未選択です`
-          );
-        }
 
-        if (!enemyIdol) {
-          warnings.push(
-            `相手 ステージ${stage} メンバー${member} のアイドルが未選択です（登録なしで保存できます）`
-          );
-        }
-
-        if (!stageDetails[`s${stage}_my${member}_score`]) {
+        if (myIdol && !stageDetails[`s${stage}_my${member}_score`]) {
           warnings.push(
             `自分 ステージ${stage} メンバー${member} のスコアが未入力です`
           );
         }
 
-        if (!stageDetails[`s${stage}_enemy${member}_score`]) {
+        if (enemyIdol && !stageDetails[`s${stage}_enemy${member}_score`]) {
           warnings.push(
             `相手 ステージ${stage} メンバー${member} のスコアが未入力です`
           );
         }
       });
 
-      if (myFilled > 0 && myFilled < 3) {
-        warnings.push(`ステージ${stage}: 自分の個人スコアが${myFilled}人分だけです`);
-      }
-
-      if (enemyFilled > 0 && enemyFilled < 3) {
-        warnings.push(`ステージ${stage}: 相手の個人スコアが${enemyFilled}人分だけです`);
-      }
 
       if (myTotal > 0 && myBaseTotal === 0) {
         warnings.push(`ステージ${stage}: 自分合計はありますが個人スコアがありません`);
@@ -3034,7 +3028,7 @@ const metaStats = useMemo(() => {
               combinedIdolDb
             ) || record[`s${stage}_enemy${member}_idol`];
 
-          if (!idolName || idolName === "登録なし") return;
+          if (!idolName || idolName === "編成なし" || idolName === "未登録" || idolName === "登録なし") return;
 
           if (!map[idolName]) {
             map[idolName] = {

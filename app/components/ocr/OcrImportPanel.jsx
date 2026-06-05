@@ -31,6 +31,10 @@ export default function OcrImportPanel({
             OCR読み込みは現在β版です。読み取り結果は必ず目視で確認し、必要に応じて手修正してください。
           </p>
 
+          <p className="mt-2 rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
+            OCRは標準的な3人編成の対戦詳細スクリーンショットを前提に調整中です。0〜2人編成の画像は読み取り後に手修正してください。
+          </p>
+
           <label className="hidden">
             <input
               type="checkbox"

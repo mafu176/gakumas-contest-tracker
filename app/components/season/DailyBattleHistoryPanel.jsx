@@ -109,7 +109,7 @@ export default function DailyBattleHistoryPanel({
                           />
                         ) : (
                           <div className="flex h-full w-full items-center justify-center text-[10px] text-zinc-600">
-                            No Image
+                            {slot.idol ? "No Image" : "編成なし"}
                           </div>
                         )}
                       </div>
@@ -118,7 +118,7 @@ export default function DailyBattleHistoryPanel({
                         S{slot.stage}-{slot.member}
                       </div>
                       <div className="mt-0.5 line-clamp-2 text-[10px] font-semibold leading-tight text-white">
-                        {slot.idol || "未登録"}
+                        {slot.idol || "編成なし"}
                       </div>
                     </div>
                   ))}

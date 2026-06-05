@@ -312,6 +312,14 @@ export default function IdolSelectModal({
               onChange={(event) => setSearch(event.target.value)}
             />
 
+            <button
+              type="button"
+              onClick={() => onSelect(null)}
+              className="w-full rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-3 text-left text-sm font-semibold text-zinc-700"
+            >
+              編成なし
+            </button>
+
             {!useRecommendedPlanOnly || !hasRecommendedPlan ? (
               <div className="flex gap-2 overflow-x-auto pb-1">
                 {planFilters.map((item) => (

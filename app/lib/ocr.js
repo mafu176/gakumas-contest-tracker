@@ -450,7 +450,7 @@ export async function recognizeMemberScoreSlotCandidates(image, zones) {
       preset: "score-slot",
       pageSegMode: "7",
     });
-    results.push(...result.numbers.filter((num) => num >= 10000 && num < 1000000));
+    results.push(...result.numbers.filter((num) => num >= 1400 && num < 1000000));
   }
 
   return uniqueNumbers(results);
@@ -494,6 +494,22 @@ export function pickTotalWithMemberFallback(
       return memberSum;
     }
 
+    const isolatedTotalZoneBonuses =
+      rawNumbers.every((num) => num < 100000) &&
+      candidateNumbers.every((num) => num < memberSum)
+        ? rawNumbers
+            .filter((num) => num >= 10000 && num < 85000)
+            .filter((num) => Math.abs(num - memberSum) > 1000)
+            .filter((num) => num < memberSum)
+            .filter((num) => !selectedMembers.some((member) => Math.abs(member - num) <= 1))
+            .filter((num) => !isKnownNoiseNumber(num))
+            .sort((a, b) => a - b)
+        : [];
+
+    if (isolatedTotalZoneBonuses.length > 0) {
+      return memberSum + isolatedTotalZoneBonuses[0];
+    }
+
     const sourceNumbers = [...rawNumbers, ...candidateNumbers, ...memberCandidateNumbers].filter(
       (num) => Number.isFinite(num) && num >= 10000 && num < 10000000
     );
@@ -527,6 +543,45 @@ export function pickTotalWithMemberFallback(
       return memberSum + visibleCrownDiffs[0];
     }
 
+    const directTotalZoneBonuses = rawNumbers
+      .filter((num) => num >= 10000 && num < 200000)
+      .filter((num) => Math.abs(num - memberSum) > 1000)
+      .filter((num) => num < memberSum)
+      .filter((num) => !selectedMembers.some((member) => Math.abs(member - num) <= 1))
+      .filter((num) => !isKnownNoiseNumber(num))
+      .filter((num) =>
+        [...candidateNumbers, ...memberCandidateNumbers].some(
+          (candidate) => Math.abs(candidate - (memberSum + num)) <= 1000
+        )
+      )
+      .sort((a, b) => a - b);
+
+    if (directTotalZoneBonuses.length > 0) {
+      return memberSum + directTotalZoneBonuses[0];
+    }
+
+    const selectedIndexes = selectedMembers
+      .map((member) =>
+        memberCandidateNumbers.findIndex((candidate) => Math.abs(candidate - member) <= 1)
+      )
+      .filter((index) => index >= 0);
+    const selectedAreConsecutive =
+      selectedIndexes.length === selectedMembers.length &&
+      selectedIndexes.every(
+        (index, position) => position === 0 || index === selectedIndexes[position - 1] + 1
+      );
+    const trailingVisibleBonuses = selectedAreConsecutive
+      ? memberCandidateNumbers
+          .slice(Math.max(...selectedIndexes) + 1)
+          .filter((num) => num >= 10000 && num < 200000)
+          .filter((num) => !selectedMembers.some((member) => Math.abs(member - num) <= 1))
+          .filter((num) => !isKnownNoiseNumber(num))
+      : [];
+
+    if (trailingVisibleBonuses.length > 0) {
+      return memberSum + trailingVisibleBonuses[0];
+    }
+
     const inferredVisibleBonuses = memberCandidateNumbers
       .filter((num) => num >= 10000 && num < 200000)
       .filter((num) => Math.abs(num - memberSum) > 1000)
@@ -554,8 +609,14 @@ export function pickTotalWithMemberFallback(
     const rawVisibleBonuses = rawNumbers
       .filter((num) => num >= 10000 && num < 200000)
       .filter((num) => Math.abs(num - memberSum) > 1000)
+      .filter((num) => num < memberSum)
       .filter((num) => !selectedMembers.some((member) => Math.abs(member - num) <= 1))
       .filter((num) => !isKnownNoiseNumber(num))
+      .filter((num) =>
+        [...candidateNumbers, ...memberCandidateNumbers].some(
+          (candidate) => Math.abs(candidate - (memberSum + num)) <= 1000
+        )
+      )
       .sort((a, b) => a - b);
 
     if (rawVisibleBonuses.length > 0) {
@@ -579,7 +640,6 @@ export function pickTotalWithMemberFallback(
   if (memberCount >= 3 && memberSum > 0) {
     return memberSum;
   }
-
   if (totalLike.length > 0) {
     return totalLike[0];
   }
@@ -606,12 +666,12 @@ export function getAlternativeMemberZones(image, stage, mode, side) {
 }
 
 export function scoreMemberCandidate(numbers) {
-  const valid = numbers.filter((num) => num >= 10000 && num < 1000000);
+  const valid = numbers.filter((num) => num >= 1400 && num < 1000000);
   const countScore = valid.length;
   const hasThree = countScore >= 3 ? 2500 : 0;
   const normalScore =
     valid.filter((num) => num >= 15000 && num <= 1000000).length * 180;
-  const tooLowPenalty = valid.filter((num) => num < 12000).length * -200;
+  const tooLowPenalty = valid.filter((num) => num < 1000).length * -200;
   const oneOrTwoPenalty = countScore < 3 ? -600 : 0;
 
   return hasThree + normalScore + tooLowPenalty + oneOrTwoPenalty + countScore;
@@ -642,9 +702,10 @@ function getCrownBonusNumber(numbers) {
   return candidates[0] || 0;
 }
 
-export function inferCrownBonusFromMemberNumbers(memberNumbers, totalNumbers = []) {
+export function inferCrownBonusFromMemberNumbers(memberNumbers, totalNumbers = [], options = {}) {
+  const preferLeadingTotal = options.preferLeadingTotal !== false;
   const numbers = memberNumbers
-    .filter((num) => Number.isFinite(num) && num >= 1000 && num < 10000000)
+    .filter((num) => Number.isFinite(num) && num >= 1400 && num < 10000000)
     .map(normalizeMemberScore);
   const totals = totalNumbers.filter((num) => num >= 100000 && num < 3000000);
 
@@ -673,6 +734,16 @@ export function inferCrownBonusFromMemberNumbers(memberNumbers, totalNumbers = [
     ) {
       return { bonus, members, total: sumWithBonus };
     }
+
+    if (
+      displayedTotal >= 10000 &&
+      displayedTotal < 85000 &&
+      bonus >= 10000 &&
+      bonus < 200000 &&
+      members.reduce((sum, value) => sum + value, 0) >= 100000
+    ) {
+      return { bonus, members, total: sumWithBonus };
+    }
   }
 
   if (numbers.length >= 4) {
@@ -691,12 +762,30 @@ export function inferCrownBonusFromMemberNumbers(memberNumbers, totalNumbers = [
     );
 
     if (
-      firstMatchesKnownTotal &&
+      preferLeadingTotal &&
       first > Math.max(...nextThree) &&
       inferredBonusFromLeadingTotal >= 10000 &&
-      inferredBonusFromLeadingTotal < 200000
+      inferredBonusFromLeadingTotal < 200000 &&
+      (firstMatchesKnownTotal || (numbers.length >= 5 && nextThreeSum >= 100000))
     ) {
       return { bonus: inferredBonusFromLeadingTotal, members: nextThree, total: first };
+    }
+
+    const nextThreeMatchesTotalMemberRead =
+      totalNumbers.length >= 3 &&
+      Math.abs(
+        totalNumbers
+          .slice(0, 3)
+          .reduce((sum, value) => sum + value, 0) - nextThreeSum
+      ) <= 1;
+
+    if (
+      first >= 10000 &&
+      first < 50000 &&
+      nextThreeSum >= 100000 &&
+      nextThreeMatchesTotalMemberRead
+    ) {
+      return { bonus: 0, members: nextThree, total: nextThreeSum };
     }
 
     const members = firstFour.slice(0, 3);
@@ -704,8 +793,24 @@ export function inferCrownBonusFromMemberNumbers(memberNumbers, totalNumbers = [
     const sumWithBonus = members.reduce((sum, value) => sum + value, 0) + bonus;
     const matchesKnownTotal = totals.some((total) => Math.abs(total - sumWithBonus) <= 1000);
 
-    if (bonus >= 5000 && bonus < 200000 && matchesKnownTotal) {
+    if (
+      bonus >= 5000 &&
+      bonus < 200000 &&
+      (matchesKnownTotal || (totals.length === 0 && first >= 10000))
+    ) {
       return { bonus, members, total: sumWithBonus };
+    }
+
+    const nextThreeLooksLikeMembers =
+      nextThree[0] >= 10000 && nextThree[1] >= 10000 && nextThree[2] >= 5000;
+
+    if (
+      first >= 1400 &&
+      first < 85000 &&
+      nextThreeSum >= 100000 &&
+      nextThreeLooksLikeMembers
+    ) {
+      return { bonus: 0, members: nextThree, total: nextThreeSum };
     }
   }
 
@@ -1162,9 +1267,9 @@ export function extractNumbersForZone(text) {
   return (
     String(text ?? "")
       .replace(/[\uFF01-\uFF5E]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 65248))
-      .match(/\d{1,3}(?:[,\.]\d{3})+|\d{5,8}/g)
+      .match(/\d{1,3}(?:[,\.]\d{3})+|\d{4,8}/g)
       ?.map((value) => toNumber(value))
-      .filter((num) => num >= 10000 && num < 10000000) ?? []
+      .filter((num) => num >= 1400 && num < 10000000) ?? []
   );
 }
 
@@ -1182,7 +1287,38 @@ export function repairMissingLeadingOneMember(members, referenceNumbers = []) {
     return members;
   }
 
+  const [first, second, third] = members;
+  const repairedFirst = first - 100000;
+  const repairedSum = repairedFirst + second + third;
+  const looksLikeExtraLeadingOne =
+    first >= 110000 &&
+    first < 200000 &&
+    repairedFirst >= 10000 &&
+    second < 50000 &&
+    third < 50000 &&
+    second + third < 80000 &&
+    repairedSum >= 50000 &&
+    repairedSum < 150000;
+
+  if (
+    first >= 200000 &&
+    second >= 30000 &&
+    second < 80000 &&
+    third >= 5000 &&
+    third < 10000
+  ) {
+    return [first, second, third + 50000];
+  }
+
   const totals = referenceNumbers.filter((num) => num >= 100000 && num < 3000000);
+  if (looksLikeExtraLeadingOne) {
+    const currentSum = members.reduce((sum, value) => sum + value, 0);
+    const currentMatchesTotal = totals.some((total) => Math.abs(total - currentSum) <= 1000);
+    if (!currentMatchesTotal) {
+      return [repairedFirst, second, third];
+    }
+  }
+
   if (totals.length === 0) {
     return members;
   }
@@ -1241,7 +1377,7 @@ export function pickMemberNumbers(numbers, stage, totalNumbers = [], bonusNumber
   }
 
   const candidates = numbers
-    .filter((num) => num >= 10000 && num < 10000000)
+    .filter((num) => num >= 1400 && num < 10000000)
     .filter((num) => num < 10000000)
     .map(normalizeMemberScore)
     .filter((num) => !bonusSet.has(Math.round(num)))
@@ -1264,12 +1400,27 @@ export function pickMemberNumbers(numbers, stage, totalNumbers = [], bonusNumber
       values.slice(4).find((value) => value >= 10000 && value < 200000) ||
       bonusNumbers.find((value) => value >= 10000 && value < 200000) ||
       totalNumbers.find((value) => value >= 10000 && value < 200000);
+    const rawTrailingBonus =
+      values.slice(4).find((value) => value >= 10000 && value < 200000);
     const looksLikeMemberTotal =
       leading > Math.max(...nextThree) &&
       nextSum >= 10000 &&
       Math.abs(diff) <= 200000;
     const nextSumMatchesKnownTotal =
       totalNumbers.some((total) => total >= 50000 && Math.abs(total - nextSum) <= 30000);
+    const nextSumMatchesTotalMemberRead =
+      totalNumbers.length >= 3 &&
+      Math.abs(
+        totalNumbers
+          .slice(0, 3)
+          .reduce((sum, value) => sum + value, 0) - nextSum
+      ) <= 1;
+    const leadingLooksLikeExtraSmallCandidate =
+      leading >= 10000 &&
+      leading < 85000 &&
+      nextSum >= 100000 &&
+      rawTrailingBonus &&
+      leading < Math.max(...nextThree);
     const leadingLooksLikeMisreadTotal =
       trailingBonus &&
       Math.abs(nextSum + trailingBonus - leading - 200000) <= 1000;
@@ -1281,6 +1432,8 @@ export function pickMemberNumbers(numbers, stage, totalNumbers = [], bonusNumber
     if (
       looksLikeMemberTotal ||
       nextSumMatchesKnownTotal ||
+      nextSumMatchesTotalMemberRead ||
+      leadingLooksLikeExtraSmallCandidate ||
       leadingLooksLikeMisreadTotal ||
       leadingLooksLikeLargeMisreadTotal ||
       leadingEqualsNextMemberSum
@@ -1410,3 +1563,10 @@ export async function recognizeOcrZone(image, zone, options = {}) {
     numbers: extractNumbersForZone(result.data.text || ""),
   };
 }
+
+
+
+
+
+
+

@@ -86,7 +86,7 @@ function FormationSlot({ slot, compact = false, horizontal = false, wideImage = 
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-zinc-900 text-[10px] font-bold text-zinc-600">
-            IMAGE
+            {slot?.idol ? "IMAGE" : "編成なし"}
           </div>
         )}
       </div>
@@ -114,7 +114,7 @@ function FormationSlot({ slot, compact = false, horizontal = false, wideImage = 
                 : "mt-1 min-h-10 text-xs font-bold leading-tight text-white"
         }
       >
-        {slot?.idol || "未登録"}
+        {slot?.idol || "編成なし"}
       </div>
     </div>
   );

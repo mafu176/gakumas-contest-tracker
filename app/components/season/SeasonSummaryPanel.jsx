@@ -150,7 +150,7 @@ export default function SeasonSummaryPanel({
 
                             <div className="min-w-0">
                               <div className="line-clamp-2 text-xs font-semibold text-white">
-                                {slot.idol || "未登録"}
+                                {slot.idol || "編成なし"}
                               </div>
                               <div className="mt-1 text-sm font-black text-amber-200">
                                 {slot.averageBaseScore.toLocaleString()}
@@ -211,7 +211,7 @@ export default function SeasonSummaryPanel({
 
                             <div className="min-w-0">
                               <div className="line-clamp-2 text-xs font-semibold text-white">
-                                {slot.idol || "未登録"}
+                                {slot.idol || "編成なし"}
                               </div>
                               <div className="mt-1 text-sm font-black text-emerald-200">
                                 平均 {Number(slot.averageRank).toFixed(2)}位

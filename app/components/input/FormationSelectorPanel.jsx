@@ -58,7 +58,7 @@ export default function FormationSelectorPanel({
                   {mySlots
                     .map((slot) => template.slots?.[slot])
                     .filter(Boolean)
-                    .join(" / ") || "未登録"}
+                    .join(" / ") || "編成なし"}
                 </div>
 
                 <div className="mt-3 flex gap-2">
@@ -132,7 +132,7 @@ export default function FormationSelectorPanel({
                         </div>
                       </div>
                     ) : (
-                      <div className="mt-1 text-zinc-600">未選択</div>
+                      <div className="mt-1 text-zinc-600">編成なし</div>
                     )}
                   </button>
                 );

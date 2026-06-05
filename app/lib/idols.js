@@ -17,8 +17,32 @@ export function getIdolKey(idol) {
   return idol.id || idol.key || makeStableIdolKey(idol.name || idol.short || "");
 }
 
+export function isEmptyIdolSlot(idol) {
+  if (!idol) return true;
+  if (typeof idol === "string") return idol.trim() === "";
+  if (typeof idol !== "object") return false;
+
+  return [
+    idol.idol_db_id,
+    idol.idolDbId,
+    idol.id,
+    idol.key,
+    idol.name,
+    idol.displayName,
+    idol.short,
+    idol.image,
+    idol.imageUrl,
+    idol.image_url,
+    idol.icon,
+    idol.thumbnail,
+    idol.title,
+    idol.variant,
+    idol.character,
+  ].every((value) => String(value ?? "").trim() === "");
+}
+
 export function getIdolDisplayName(idol) {
-  if (!idol) return "";
+  if (isEmptyIdolSlot(idol)) return "";
 
   const baseName = idol.name || idol.short || "";
   const variant =
@@ -101,7 +125,7 @@ function findMatchingIdol(idol, idolSources = getDefaultIdolSources()) {
 }
 
 export function resolveIdolImage(idol, idolSources = getDefaultIdolSources()) {
-  if (!idol) return "";
+  if (isEmptyIdolSlot(idol)) return "";
 
   const directImage =
     idol.image ||
@@ -130,7 +154,7 @@ export function resolveIdolDisplayName(
   idol,
   idolSources = getDefaultIdolSources()
 ) {
-  if (!idol) return "";
+  if (isEmptyIdolSlot(idol)) return "";
 
   const matchedIdol = findMatchingIdol(idol, idolSources);
   if (matchedIdol) {
