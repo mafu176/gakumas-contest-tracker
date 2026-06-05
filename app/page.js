@@ -2001,22 +2001,22 @@ export default function Home() {
         const inferredSelfCrown = inferCrownBonusFromMemberNumbers(
           selfMemberNumbers,
           selfTotalResult.numbers,
-          { preferLeadingTotal: activeOcrMode !== "desktop" }
+          { preferLeadingTotal: activeOcrMode !== "desktop", leadingTotalReferences: selfTotalReferences }
         );
         const inferredOriginalSelfCrown = inferCrownBonusFromMemberNumbers(
           originalSelfMemberNumbers,
           selfTotalResult.numbers,
-          { preferLeadingTotal: activeOcrMode !== "desktop" }
+          { preferLeadingTotal: activeOcrMode !== "desktop", leadingTotalReferences: selfTotalReferences }
         );
         const inferredEnemyCrown = inferCrownBonusFromMemberNumbers(
           enemyMemberNumbers,
           enemyTotalResult.numbers,
-          { preferLeadingTotal: activeOcrMode !== "desktop" }
+          { preferLeadingTotal: activeOcrMode !== "desktop", leadingTotalReferences: enemyTotalReferences }
         );
         const inferredOriginalEnemyCrown = inferCrownBonusFromMemberNumbers(
           originalEnemyMemberNumbers,
           enemyTotalResult.numbers,
-          { preferLeadingTotal: activeOcrMode !== "desktop" }
+          { preferLeadingTotal: activeOcrMode !== "desktop", leadingTotalReferences: enemyTotalReferences }
         );
         const inferredSelfBonusNumbers = [
           inferredSelfCrown.bonus,

@@ -644,6 +644,16 @@ export function pickTotalWithMemberFallback(
     return totalLike[0];
   }
 
+  if (
+    memberCount > 0 &&
+    memberCount < 3 &&
+    memberSum > 0 &&
+    allNumbers.length > 0 &&
+    allNumbers.every((num) => num < memberSum)
+  ) {
+    return memberSum;
+  }
+
   return pickTotalNumber(allNumbers) || memberSum;
 }
 
@@ -708,6 +718,10 @@ export function inferCrownBonusFromMemberNumbers(memberNumbers, totalNumbers = [
     .filter((num) => Number.isFinite(num) && num >= 1400 && num < 10000000)
     .map(normalizeMemberScore);
   const totals = totalNumbers.filter((num) => num >= 100000 && num < 3000000);
+  const leadingTotalReferences = [
+    ...totals,
+    ...(options.leadingTotalReferences || []).filter((num) => num >= 100000 && num < 3000000),
+  ];
 
   if (numbers.length >= 5) {
     const displayedTotal = numbers[0];
@@ -748,6 +762,15 @@ export function inferCrownBonusFromMemberNumbers(memberNumbers, totalNumbers = [
 
   if (preferLeadingTotal && numbers.length === 2) {
     const [displayedTotal, member] = numbers;
+
+    if (
+      displayedTotal >= 100000 &&
+      Math.abs(displayedTotal - member) <= 1 &&
+      leadingTotalReferences.some((total) => Math.abs(total - displayedTotal) <= 1000)
+    ) {
+      return { bonus: 0, members: [member], total: displayedTotal };
+    }
+
     const bonus = displayedTotal - member;
 
     if (
@@ -758,6 +781,21 @@ export function inferCrownBonusFromMemberNumbers(memberNumbers, totalNumbers = [
       bonus < 200000
     ) {
       return { bonus, members: [member], total: displayedTotal };
+    }
+  }
+
+  if (preferLeadingTotal && numbers.length === 3) {
+    const [displayedTotal, firstMember, secondMember] = numbers;
+    const memberSum = firstMember + secondMember;
+
+    if (
+      displayedTotal >= 100000 &&
+      firstMember >= 100000 &&
+      secondMember >= 100000 &&
+      Math.abs(displayedTotal - memberSum) <= 1000 &&
+      leadingTotalReferences.some((total) => Math.abs(total - displayedTotal) <= 1000)
+    ) {
+      return { bonus: 0, members: [firstMember, secondMember], total: displayedTotal };
     }
   }
 
@@ -801,6 +839,22 @@ export function inferCrownBonusFromMemberNumbers(memberNumbers, totalNumbers = [
       nextThreeMatchesTotalMemberRead
     ) {
       return { bonus: 0, members: nextThree, total: nextThreeSum };
+    }
+
+    if (numbers.length >= 5) {
+      const trailingBonus = numbers[4];
+      const trailingTotal = nextThreeSum + trailingBonus;
+
+      if (
+        first >= 10000 &&
+        first < 100000 &&
+        trailingBonus >= 10000 &&
+        trailingBonus < 200000 &&
+        nextThree.every((num) => num >= 10000 && num < 1000000) &&
+        leadingTotalReferences.some((total) => Math.abs(total - trailingTotal) <= 1000)
+      ) {
+        return { bonus: trailingBonus, members: nextThree, total: trailingTotal };
+      }
     }
 
     const members = firstFour.slice(0, 3);

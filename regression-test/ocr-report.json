@@ -4,30 +4,9 @@
     "category": "fewer-members",
     "expected": true,
     "source": "smartphone",
-    "pass": false,
-    "failures": [
-      {
-        "key": "S3 enemy total",
-        "expected": 1006590,
-        "actual": 303759
-      },
-      {
-        "key": "S3 enemy member1",
-        "expected": 414706,
-        "actual": 303759
-      },
-      {
-        "key": "S3 enemy member2",
-        "expected": 303759,
-        "actual": 0
-      },
-      {
-        "key": "S3 enemy member3",
-        "expected": 288125,
-        "actual": 0
-      }
-    ],
-    "elapsedMs": 109687,
+    "pass": true,
+    "failures": [],
+    "elapsedMs": 65831,
     "expectedData": {
       "stage1": {
         "selfTotal": 972329,
@@ -140,14 +119,16 @@
       },
       "stage3": {
         "selfTotal": 1559674,
-        "enemyTotal": 303759,
+        "enemyTotal": 1006590,
         "self": [
           412526,
           423125,
           603353
         ],
         "enemy": [
-          303759
+          414706,
+          303759,
+          288125
         ],
         "raw": {
           "selfTotal": [],
@@ -172,55 +153,9 @@
     "category": "fewer-members",
     "expected": true,
     "source": "smartphone",
-    "pass": false,
-    "failures": [
-      {
-        "key": "S1 self member3",
-        "expected": 0,
-        "actual": 100972
-      },
-      {
-        "key": "S2 enemy total",
-        "expected": 272472,
-        "actual": 59773
-      },
-      {
-        "key": "S2 enemy member1",
-        "expected": 181039,
-        "actual": 59773
-      },
-      {
-        "key": "S2 enemy member2",
-        "expected": 59773,
-        "actual": 0
-      },
-      {
-        "key": "S2 enemy member3",
-        "expected": 31660,
-        "actual": 0
-      },
-      {
-        "key": "S3 enemy total",
-        "expected": 388509,
-        "actual": 144254
-      },
-      {
-        "key": "S3 enemy member1",
-        "expected": 181448,
-        "actual": 144254
-      },
-      {
-        "key": "S3 enemy member2",
-        "expected": 144254,
-        "actual": 0
-      },
-      {
-        "key": "S3 enemy member3",
-        "expected": 62807,
-        "actual": 0
-      }
-    ],
-    "elapsedMs": 131133,
+    "pass": true,
+    "failures": [],
+    "elapsedMs": 80873,
     "expectedData": {
       "stage1": {
         "selfTotal": 648263,
@@ -271,8 +206,7 @@
         "enemyTotal": 368785,
         "self": [
           504862,
-          42429,
-          100972
+          42429
         ],
         "enemy": [
           132257,
@@ -303,14 +237,16 @@
       },
       "stage2": {
         "selfTotal": 542929,
-        "enemyTotal": 59773,
+        "enemyTotal": 272472,
         "self": [
           148365,
           65791,
           273978
         ],
         "enemy": [
-          59773
+          181039,
+          59773,
+          31660
         ],
         "raw": {
           "selfTotal": [
@@ -337,14 +273,16 @@
       },
       "stage3": {
         "selfTotal": 566826,
-        "enemyTotal": 144254,
+        "enemyTotal": 388509,
         "self": [
           433712,
           12893,
           33479
         ],
         "enemy": [
-          144254
+          181448,
+          144254,
+          62807
         ],
         "raw": {
           "selfTotal": [],
@@ -374,45 +312,40 @@
       {
         "key": "S1 self total",
         "expected": 653833,
+        "actual": 660368
+      },
+      {
+        "key": "S1 self member1",
+        "expected": 544861,
+        "actual": 6535
+      },
+      {
+        "key": "S1 self member2",
+        "expected": 0,
         "actual": 544861
       },
       {
-        "key": "S1 enemy total",
-        "expected": 357616,
-        "actual": 56973
-      },
-      {
-        "key": "S1 enemy member1",
-        "expected": 162233,
-        "actual": 56973
-      },
-      {
-        "key": "S1 enemy member2",
-        "expected": 56973,
-        "actual": 0
-      },
-      {
-        "key": "S1 enemy member3",
-        "expected": 138410,
-        "actual": 0
+        "key": "S1 self member3",
+        "expected": 0,
+        "actual": 108972
       },
       {
         "key": "S2 enemy total",
         "expected": 260246,
-        "actual": 123530
-      },
-      {
-        "key": "S2 enemy member2",
-        "expected": 69768,
-        "actual": 0
+        "actual": 250236
       },
       {
         "key": "S2 enemy member3",
         "expected": 66948,
-        "actual": 0
+        "actual": 56938
+      },
+      {
+        "key": "S3 self total",
+        "expected": 506403,
+        "actual": 427721
       }
     ],
-    "elapsedMs": 125340,
+    "elapsedMs": 77312,
     "expectedData": {
       "stage1": {
         "selfTotal": 653833,
@@ -459,13 +392,17 @@
     },
     "result": {
       "stage1": {
-        "selfTotal": 544861,
-        "enemyTotal": 56973,
+        "selfTotal": 660368,
+        "enemyTotal": 357616,
         "self": [
-          544861
+          6535,
+          544861,
+          108972
         ],
         "enemy": [
-          56973
+          162233,
+          56973,
+          138410
         ],
         "raw": {
           "selfTotal": [],
@@ -487,14 +424,16 @@
       },
       "stage2": {
         "selfTotal": 428775,
-        "enemyTotal": 123530,
+        "enemyTotal": 250236,
         "self": [
           134263,
           183334,
           74512
         ],
         "enemy": [
-          123530
+          123530,
+          69768,
+          56938
         ],
         "raw": {
           "selfTotal": [
@@ -520,7 +459,7 @@
         }
       },
       "stage3": {
-        "selfTotal": 506403,
+        "selfTotal": 427721,
         "enemyTotal": 170770,
         "self": [
           393410,
@@ -556,44 +495,14 @@
     "pass": false,
     "failures": [
       {
-        "key": "S1 self member3",
-        "expected": 120852,
-        "actual": 0
-      },
-      {
-        "key": "S2 self total",
-        "expected": 252883,
-        "actual": 94205
-      },
-      {
-        "key": "S2 self member1",
-        "expected": 158678,
-        "actual": 78295
-      },
-      {
         "key": "S2 self member2",
         "expected": 94205,
-        "actual": 0
+        "actual": 78295
       },
       {
         "key": "S2 enemy total",
         "expected": 332234,
-        "actual": 51744
-      },
-      {
-        "key": "S2 enemy member1",
-        "expected": 88082,
-        "actual": 51744
-      },
-      {
-        "key": "S2 enemy member2",
-        "expected": 51744,
-        "actual": 0
-      },
-      {
-        "key": "S2 enemy member3",
-        "expected": 160340,
-        "actual": 0
+        "actual": 300166
       },
       {
         "key": "S3 self total",
@@ -601,7 +510,7 @@
         "actual": 422946
       }
     ],
-    "elapsedMs": 135171,
+    "elapsedMs": 83843,
     "expectedData": {
       "stage1": {
         "selfTotal": 705662,
@@ -652,7 +561,8 @@
         "enemyTotal": 220305,
         "self": [
           140009,
-          370668
+          370668,
+          120852
         ],
         "enemy": [
           72882,
@@ -682,13 +592,16 @@
         }
       },
       "stage2": {
-        "selfTotal": 94205,
-        "enemyTotal": 51744,
+        "selfTotal": 252883,
+        "enemyTotal": 300166,
         "self": [
+          158678,
           78295
         ],
         "enemy": [
-          51744
+          88082,
+          51744,
+          160340
         ],
         "raw": {
           "selfTotal": [],
@@ -739,20 +652,9 @@
     "category": "fewer-members",
     "expected": true,
     "source": "smartphone",
-    "pass": false,
-    "failures": [
-      {
-        "key": "S1 self member3",
-        "expected": 0,
-        "actual": 31854
-      },
-      {
-        "key": "S2 self total",
-        "expected": 198427,
-        "actual": 165356
-      }
-    ],
-    "elapsedMs": 125206,
+    "pass": true,
+    "failures": [],
+    "elapsedMs": 77593,
     "expectedData": {
       "stage1": {
         "selfTotal": 280103,
@@ -803,8 +705,7 @@
         "enemyTotal": 233873,
         "self": [
           159273,
-          88976,
-          31854
+          88976
         ],
         "enemy": [
           42758,
@@ -830,7 +731,7 @@
         }
       },
       "stage2": {
-        "selfTotal": 165356,
+        "selfTotal": 198427,
         "enemyTotal": 172228,
         "self": [
           165356
@@ -895,30 +796,9 @@
     "category": "fewer-members",
     "expected": true,
     "source": "smartphone",
-    "pass": false,
-    "failures": [
-      {
-        "key": "S3 enemy total",
-        "expected": 301721,
-        "actual": 102466
-      },
-      {
-        "key": "S3 enemy member1",
-        "expected": 112658,
-        "actual": 102466
-      },
-      {
-        "key": "S3 enemy member2",
-        "expected": 102466,
-        "actual": 0
-      },
-      {
-        "key": "S3 enemy member3",
-        "expected": 86597,
-        "actual": 0
-      }
-    ],
-    "elapsedMs": 128581,
+    "pass": true,
+    "failures": [],
+    "elapsedMs": 79701,
     "expectedData": {
       "stage1": {
         "selfTotal": 181066,
@@ -1030,14 +910,16 @@
       },
       "stage3": {
         "selfTotal": 731747,
-        "enemyTotal": 102466,
+        "enemyTotal": 301721,
         "self": [
           523337,
           55793,
           47950
         ],
         "enemy": [
-          102466
+          112658,
+          102466,
+          86597
         ],
         "raw": {
           "selfTotal": [],
