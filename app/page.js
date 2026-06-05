@@ -2202,6 +2202,175 @@ export default function Home() {
           enemyTotal,
         }));
 
+        const dropNoiseThirdMemberWhenPartialBonusMatchesTotal = (
+          selectedMembers,
+          selectedTotal,
+          totalReferences,
+          bonusCandidates
+        ) => {
+          if (activeOcrMode === "desktop" || selectedMembers.length !== 3) {
+            return { members: selectedMembers, total: selectedTotal };
+          }
+
+          const sortedSelectedMembers = [...selectedMembers].sort((a, b) => b - a);
+          const [possibleDisplayedTotal, possibleMember, possibleBonus] =
+            sortedSelectedMembers;
+          if (
+            possibleDisplayedTotal >= 300000 &&
+            possibleMember >= 100000 &&
+            possibleBonus >= 10000 &&
+            possibleBonus < 200000 &&
+            Math.abs(possibleMember + possibleBonus - possibleDisplayedTotal) <= 1000
+          ) {
+            return {
+              members: [possibleMember],
+              total: possibleDisplayedTotal,
+            };
+          }
+          if (
+            possibleDisplayedTotal >= 100000 &&
+            possibleDisplayedTotal < 300000 &&
+            possibleMember >= 10000 &&
+            possibleBonus >= 10000 &&
+            Math.abs(possibleMember + possibleBonus - possibleDisplayedTotal) <= 1000
+          ) {
+            return {
+              members: [possibleMember, possibleBonus],
+              total: possibleDisplayedTotal,
+            };
+          }
+
+          const referencedTotals = totalReferences.filter(
+            (total) => Number.isFinite(total) && total >= 100000 && total < 3000000
+          );
+          const bonuses = bonusCandidates.filter(
+            (bonus) => Number.isFinite(bonus) && bonus >= 10000 && bonus < 200000
+          );
+
+          for (const referencedTotal of referencedTotals) {
+            for (const bonus of bonuses) {
+              const selectedTotalLooksLikeMember =
+                Math.abs(selectedMembers[0] - referencedTotal) <= 1000;
+              const oneMemberTotalMatches =
+                Math.abs(selectedMembers[1] + bonus - referencedTotal) <= 1000;
+              const oneMemberThirdIsBonus = Math.abs(selectedMembers[2] - bonus) <= 1;
+
+              if (
+                selectedTotalLooksLikeMember &&
+                oneMemberTotalMatches &&
+                oneMemberThirdIsBonus
+              ) {
+                return {
+                  members: [selectedMembers[1]],
+                  total: referencedTotal,
+                };
+              }
+
+              const twoMemberSum = selectedMembers[0] + selectedMembers[1];
+              const threeMemberSum = twoMemberSum + selectedMembers[2];
+              const twoMemberTotalMatches =
+                Math.abs(twoMemberSum + bonus - referencedTotal) <= 1000;
+              const threeMemberTotalBreaks =
+                Math.abs(threeMemberSum + bonus - referencedTotal) > 1000;
+
+              if (twoMemberTotalMatches && threeMemberTotalBreaks) {
+                return {
+                  members: selectedMembers.slice(0, 2),
+                  total: referencedTotal,
+                };
+              }
+            }
+          }
+
+          return { members: selectedMembers, total: selectedTotal };
+        };
+
+        ({
+          members: correctedSelfMembers,
+          total: selfTotal,
+        } = dropNoiseThirdMemberWhenPartialBonusMatchesTotal(
+          correctedSelfMembers,
+          selfTotal,
+          selfTotalReferences,
+          selfCrownCandidates
+        ));
+        ({
+          members: correctedEnemyMembers,
+          total: enemyTotal,
+        } = dropNoiseThirdMemberWhenPartialBonusMatchesTotal(
+          correctedEnemyMembers,
+          enemyTotal,
+          enemyTotalReferences,
+          enemyCrownCandidates
+        ));
+
+        const formatDebugNumbers = (numbers) =>
+          uniqueNumbers(numbers)
+            .map((num) => Number(num))
+            .filter((num) => Number.isFinite(num) && num > 0)
+            .map((num) => num.toLocaleString())
+            .join(", ") || "none";
+        const formatRejectedCandidates = (
+          rawCandidates,
+          selectedMembers,
+          selectedTotal,
+          selectedBonus
+        ) =>
+          uniqueNumbers(rawCandidates)
+            .map((num) => Number(num))
+            .filter((num) => Number.isFinite(num) && num > 0)
+            .filter(
+              (num) =>
+                !selectedMembers.some((member) => Math.abs(member - num) <= 1) &&
+                Math.abs((selectedTotal || 0) - num) > 1 &&
+                Math.abs((selectedBonus || 0) - num) > 1
+            )
+            .map((num) => {
+              let reason = "unused/noise";
+              if (num < 5000) reason = "tiny OCR noise";
+              else if (num >= 10000 && num < 200000 && selectedBonus > 0) {
+                reason = "bonus-like unused";
+              } else if (num >= 1000000) {
+                reason = "too large";
+              }
+              return `${num.toLocaleString()} (${reason})`;
+            });
+        const formatDebugSide = (label, rawCandidates, selectedMembers, selectedTotal) => {
+          const selectedSum = selectedMembers.reduce((sum, value) => sum + value, 0);
+          const selectedBonus = Math.max(0, (selectedTotal || 0) - selectedSum);
+          const rejectedCandidates = formatRejectedCandidates(
+            rawCandidates,
+            selectedMembers,
+            selectedTotal,
+            selectedBonus
+          );
+          return [
+            `[${label} raw candidates] ${formatDebugNumbers(rawCandidates)}`,
+            `[${label} selected members] ${formatDebugNumbers(selectedMembers)}`,
+            `[${label} selected total] ${
+              selectedTotal ? selectedTotal.toLocaleString() : "none"
+            }`,
+            `[${label} selected bonus] ${
+              selectedBonus ? selectedBonus.toLocaleString() : "none"
+            }`,
+            `[${label} rejected] ${
+              rejectedCandidates.length ? rejectedCandidates.join(", ") : "none"
+            }`,
+          ].join("\n");
+        };
+        const selfDebugCandidates = [
+          ...selfTotalReferences,
+          ...originalSelfMemberNumbers,
+          ...selfMemberNumbers,
+          ...selfCrownCandidates,
+        ];
+        const enemyDebugCandidates = [
+          ...enemyTotalReferences,
+          ...originalEnemyMemberNumbers,
+          ...enemyMemberNumbers,
+          ...enemyCrownCandidates,
+        ];
+
         stageScores[stage] = {
           self: correctedSelfMembers.map((n) => n?.toLocaleString() || ""),
           enemy: correctedEnemyMembers.map((n) => n?.toLocaleString() || ""),
@@ -2220,6 +2389,11 @@ export default function Home() {
             compareOcrMode ? `[比較モード] smartphone結果を採用。auto比較は次版で拡張予定` : "",
           ].filter(Boolean).join("\n")
         );
+        stageTexts[stageTexts.length - 1] = [
+          stageTexts[stageTexts.length - 1],
+          formatDebugSide("self", selfDebugCandidates, correctedSelfMembers, selfTotal),
+          formatDebugSide("enemy", enemyDebugCandidates, correctedEnemyMembers, enemyTotal),
+        ].join("\n");
       }
 
       URL.revokeObjectURL(imageUrl);

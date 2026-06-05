@@ -726,15 +726,19 @@ function inferCrownBonusFromMemberNumbers(memberNumbers, totalNumbers = [], opti
       (total) => Math.abs(total - displayedTotal) <= 1000
     );
 
-    if (displayedTotalIsReferenced && bonus >= 10000 && bonus < 200000) {
+    if (displayedTotalIsReferenced) {
+      const possibleBonuses = numbers.slice(2).filter((num) => num >= 10000 && num < 200000);
       for (const count of [1, 2]) {
         const partialMembers = numbers.slice(1, 1 + count);
         const partialSum = partialMembers.reduce((sum, value) => sum + value, 0);
-        if (
-          partialMembers.every((num) => num >= 1400 && num < 1000000) &&
-          Math.abs(partialSum + bonus - displayedTotal) <= 1000
-        ) {
-          return { bonus, members: partialMembers, total: displayedTotal };
+        for (const possibleBonus of possibleBonuses) {
+          if (
+            partialMembers.every((num) => num >= 1400 && num < 1000000) &&
+            !partialMembers.some((member) => Math.abs(member - possibleBonus) <= 1) &&
+            Math.abs(partialSum + possibleBonus - displayedTotal) <= 1000
+          ) {
+            return { bonus: possibleBonus, members: partialMembers, total: displayedTotal };
+          }
         }
       }
     }
@@ -829,6 +833,7 @@ function inferCrownBonusFromMemberNumbers(memberNumbers, totalNumbers = [], opti
     if (
       preferLeadingTotal &&
       first > Math.max(...nextThree) &&
+      nextThree.every((num) => num >= 5000) &&
       inferredBonusFromLeadingTotal >= 10000 &&
       inferredBonusFromLeadingTotal < 200000 &&
       (firstMatchesKnownTotal || (numbers.length >= 5 && nextThreeSum >= 100000))
@@ -1703,6 +1708,108 @@ async function runOcrForImage(imagePath, options = {}) {
       selfTotal,
       enemyTotal,
     }));
+
+    const dropNoiseThirdMemberWhenPartialBonusMatchesTotal = (
+      selectedMembers,
+      selectedTotal,
+      totalReferences,
+      bonusCandidates
+    ) => {
+      if (ocrSource === "desktop" || selectedMembers.length !== 3) {
+        return { members: selectedMembers, total: selectedTotal };
+      }
+
+      const sortedSelectedMembers = [...selectedMembers].sort((a, b) => b - a);
+      const [possibleDisplayedTotal, possibleMember, possibleBonus] =
+        sortedSelectedMembers;
+      if (
+        possibleDisplayedTotal >= 300000 &&
+        possibleMember >= 100000 &&
+        possibleBonus >= 10000 &&
+        possibleBonus < 200000 &&
+        Math.abs(possibleMember + possibleBonus - possibleDisplayedTotal) <= 1000
+      ) {
+        return {
+          members: [possibleMember],
+          total: possibleDisplayedTotal,
+        };
+      }
+      if (
+        possibleDisplayedTotal >= 100000 &&
+        possibleDisplayedTotal < 300000 &&
+        possibleMember >= 10000 &&
+        possibleBonus >= 10000 &&
+        Math.abs(possibleMember + possibleBonus - possibleDisplayedTotal) <= 1000
+      ) {
+        return {
+          members: [possibleMember, possibleBonus],
+          total: possibleDisplayedTotal,
+        };
+      }
+
+      const referencedTotals = totalReferences.filter(
+        (total) => Number.isFinite(total) && total >= 100000 && total < 3000000
+      );
+      const bonuses = bonusCandidates.filter(
+        (bonus) => Number.isFinite(bonus) && bonus >= 10000 && bonus < 200000
+      );
+
+      for (const referencedTotal of referencedTotals) {
+        for (const bonus of bonuses) {
+          const selectedTotalLooksLikeMember =
+            Math.abs(selectedMembers[0] - referencedTotal) <= 1000;
+          const oneMemberTotalMatches =
+            Math.abs(selectedMembers[1] + bonus - referencedTotal) <= 1000;
+          const oneMemberThirdIsBonus = Math.abs(selectedMembers[2] - bonus) <= 1;
+
+          if (
+            selectedTotalLooksLikeMember &&
+            oneMemberTotalMatches &&
+            oneMemberThirdIsBonus
+          ) {
+            return {
+              members: [selectedMembers[1]],
+              total: referencedTotal,
+            };
+          }
+
+          const twoMemberSum = selectedMembers[0] + selectedMembers[1];
+          const threeMemberSum = twoMemberSum + selectedMembers[2];
+          const twoMemberTotalMatches =
+            Math.abs(twoMemberSum + bonus - referencedTotal) <= 1000;
+          const threeMemberTotalBreaks =
+            Math.abs(threeMemberSum + bonus - referencedTotal) > 1000;
+
+          if (twoMemberTotalMatches && threeMemberTotalBreaks) {
+            return {
+              members: selectedMembers.slice(0, 2),
+              total: referencedTotal,
+            };
+          }
+        }
+      }
+
+      return { members: selectedMembers, total: selectedTotal };
+    };
+
+    ({
+      members: self,
+      total: selfTotal,
+    } = dropNoiseThirdMemberWhenPartialBonusMatchesTotal(
+      self,
+      selfTotal,
+      selfTotalReferences,
+      selfCrownCandidates
+    ));
+    ({
+      members: enemy,
+      total: enemyTotal,
+    } = dropNoiseThirdMemberWhenPartialBonusMatchesTotal(
+      enemy,
+      enemyTotal,
+      enemyTotalReferences,
+      enemyCrownCandidates
+    ));
 
     const stageResult = {
       selfTotal,

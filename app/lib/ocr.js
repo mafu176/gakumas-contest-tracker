@@ -734,15 +734,19 @@ export function inferCrownBonusFromMemberNumbers(memberNumbers, totalNumbers = [
       (total) => Math.abs(total - displayedTotal) <= 1000
     );
 
-    if (displayedTotalIsReferenced && bonus >= 10000 && bonus < 200000) {
+    if (displayedTotalIsReferenced) {
+      const possibleBonuses = numbers.slice(2).filter((num) => num >= 10000 && num < 200000);
       for (const count of [1, 2]) {
         const partialMembers = numbers.slice(1, 1 + count);
         const partialSum = partialMembers.reduce((sum, value) => sum + value, 0);
-        if (
-          partialMembers.every((num) => num >= 1400 && num < 1000000) &&
-          Math.abs(partialSum + bonus - displayedTotal) <= 1000
-        ) {
-          return { bonus, members: partialMembers, total: displayedTotal };
+        for (const possibleBonus of possibleBonuses) {
+          if (
+            partialMembers.every((num) => num >= 1400 && num < 1000000) &&
+            !partialMembers.some((member) => Math.abs(member - possibleBonus) <= 1) &&
+            Math.abs(partialSum + possibleBonus - displayedTotal) <= 1000
+          ) {
+            return { bonus: possibleBonus, members: partialMembers, total: displayedTotal };
+          }
         }
       }
     }
@@ -837,6 +841,7 @@ export function inferCrownBonusFromMemberNumbers(memberNumbers, totalNumbers = [
     if (
       preferLeadingTotal &&
       first > Math.max(...nextThree) &&
+      nextThree.every((num) => num >= 5000) &&
       inferredBonusFromLeadingTotal >= 10000 &&
       inferredBonusFromLeadingTotal < 200000 &&
       (firstMatchesKnownTotal || (numbers.length >= 5 && nextThreeSum >= 100000))
