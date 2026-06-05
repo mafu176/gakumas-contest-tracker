@@ -615,7 +615,9 @@ function pickMemberNumbers(numbers, totalNumbers = [], bonusNumbers = []) {
     const looksLikeMemberTotal =
       leading > Math.max(...nextThree) &&
       nextSum >= 10000 &&
-      Math.abs(diff) <= 200000;
+      Math.abs(diff) <= 200000 &&
+      nextThree.every((num) => num >= 5000) &&
+      totalNumbers.some((total) => total >= 50000 && Math.abs(total - leading) <= 1000);
     const nextSumMatchesKnownTotal =
       totalNumbers.some((total) => total >= 50000 && Math.abs(total - nextSum) <= 30000);
     const nextSumMatchesTotalMemberRead =
@@ -720,6 +722,22 @@ function inferCrownBonusFromMemberNumbers(memberNumbers, totalNumbers = [], opti
     const members = numbers.slice(1, 4);
     const bonus = numbers[4];
     const sumWithBonus = members.reduce((sum, value) => sum + value, 0) + bonus;
+    const displayedTotalIsReferenced = leadingTotalReferences.some(
+      (total) => Math.abs(total - displayedTotal) <= 1000
+    );
+
+    if (displayedTotalIsReferenced && bonus >= 10000 && bonus < 200000) {
+      for (const count of [1, 2]) {
+        const partialMembers = numbers.slice(1, 1 + count);
+        const partialSum = partialMembers.reduce((sum, value) => sum + value, 0);
+        if (
+          partialMembers.every((num) => num >= 1400 && num < 1000000) &&
+          Math.abs(partialSum + bonus - displayedTotal) <= 1000
+        ) {
+          return { bonus, members: partialMembers, total: displayedTotal };
+        }
+      }
+    }
 
     if (bonus >= 10000 && bonus < 200000 && Math.abs(displayedTotal - sumWithBonus) <= 1000) {
       return { bonus, members, total: displayedTotal };
@@ -728,6 +746,7 @@ function inferCrownBonusFromMemberNumbers(memberNumbers, totalNumbers = [], opti
     if (
       bonus >= 10000 &&
       bonus < 200000 &&
+      !displayedTotalIsReferenced &&
       Math.abs(Math.abs(sumWithBonus - displayedTotal) - 200000) <= 1000
     ) {
       return { bonus, members, total: sumWithBonus };
@@ -736,6 +755,7 @@ function inferCrownBonusFromMemberNumbers(memberNumbers, totalNumbers = [], opti
     if (
       bonus >= 10000 &&
       bonus < 200000 &&
+      !displayedTotalIsReferenced &&
       Math.abs(Math.abs(sumWithBonus - displayedTotal) - 300000) <= 2500
     ) {
       return { bonus, members, total: sumWithBonus };
