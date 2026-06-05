@@ -2206,9 +2206,45 @@ export default function Home() {
           selectedMembers,
           selectedTotal,
           totalReferences,
-          bonusCandidates
+          bonusCandidates,
+          rawCandidates = []
         ) => {
-          if (activeOcrMode === "desktop" || selectedMembers.length !== 3) {
+          if (activeOcrMode === "desktop") {
+            return { members: selectedMembers, total: selectedTotal };
+          }
+
+          const rawNumbers = uniqueNumbers(rawCandidates)
+            .map((num) => Number(num))
+            .filter((num) => Number.isFinite(num) && num >= 10000 && num < 3000000);
+
+          if (selectedMembers.length < 3 && selectedMembers.length > 0) {
+            const selectedMemberSum = selectedMembers.reduce((sum, value) => sum + value, 0);
+            const rawBonuses = rawNumbers
+              .filter((num) => num >= 10000 && num < 200000)
+              .filter((num) => !selectedMembers.some((member) => Math.abs(member - num) <= 1))
+              .sort((a, b) => b - a);
+            const rawDisplayedTotals = rawNumbers
+              .filter((num) => num > selectedMemberSum)
+              .filter((num) => Math.abs(num - selectedTotal) > 1000)
+              .sort((a, b) => b - a);
+
+            for (const displayedTotal of rawDisplayedTotals) {
+              for (const bonus of rawBonuses) {
+                if (Math.abs(selectedMemberSum + bonus - displayedTotal) <= 1000) {
+                  return { members: selectedMembers, total: displayedTotal };
+                }
+              }
+            }
+
+            if (selectedMembers.length === 1 && rawBonuses.length > 0) {
+              return {
+                members: selectedMembers,
+                total: selectedMemberSum + rawBonuses[0],
+              };
+            }
+          }
+
+          if (selectedMembers.length !== 3) {
             return { members: selectedMembers, total: selectedTotal };
           }
 
@@ -2292,7 +2328,13 @@ export default function Home() {
           correctedSelfMembers,
           selfTotal,
           selfTotalReferences,
-          selfCrownCandidates
+          selfCrownCandidates,
+          [
+            ...selfTotalReferences,
+            ...originalSelfMemberNumbers,
+            ...selfMemberNumbers,
+            ...selfCrownCandidates,
+          ]
         ));
         ({
           members: correctedEnemyMembers,
@@ -2301,7 +2343,13 @@ export default function Home() {
           correctedEnemyMembers,
           enemyTotal,
           enemyTotalReferences,
-          enemyCrownCandidates
+          enemyCrownCandidates,
+          [
+            ...enemyTotalReferences,
+            ...originalEnemyMemberNumbers,
+            ...enemyMemberNumbers,
+            ...enemyCrownCandidates,
+          ]
         ));
 
         const formatDebugNumbers = (numbers) =>

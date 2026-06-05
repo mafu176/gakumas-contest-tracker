@@ -6,7 +6,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 65831,
+    "elapsedMs": 65192,
     "expectedData": {
       "stage1": {
         "selfTotal": 972329,
@@ -155,7 +155,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 80873,
+    "elapsedMs": 80533,
     "expectedData": {
       "stage1": {
         "selfTotal": 648263,
@@ -311,7 +311,7 @@
     "failures": [
       {
         "key": "S1 self total",
-        "expected": 653833,
+        "expected": 653835,
         "actual": 660368
       },
       {
@@ -338,17 +338,12 @@
         "key": "S2 enemy member3",
         "expected": 66948,
         "actual": 56938
-      },
-      {
-        "key": "S3 self total",
-        "expected": 506403,
-        "actual": 427721
       }
     ],
-    "elapsedMs": 77312,
+    "elapsedMs": 76554,
     "expectedData": {
       "stage1": {
-        "selfTotal": 653833,
+        "selfTotal": 653835,
         "enemyTotal": 357616,
         "selfMembers": [
           544861,
@@ -376,7 +371,7 @@
         ]
       },
       "stage3": {
-        "selfTotal": 506403,
+        "selfTotal": 427721,
         "enemyTotal": 170770,
         "selfMembers": [
           393410,
@@ -498,19 +493,9 @@
         "key": "S2 self member2",
         "expected": 94205,
         "actual": 78295
-      },
-      {
-        "key": "S2 enemy total",
-        "expected": 332234,
-        "actual": 300166
-      },
-      {
-        "key": "S3 self total",
-        "expected": 507535,
-        "actual": 422946
       }
     ],
-    "elapsedMs": 83843,
+    "elapsedMs": 82890,
     "expectedData": {
       "stage1": {
         "selfTotal": 705662,
@@ -528,7 +513,7 @@
       },
       "stage2": {
         "selfTotal": 252883,
-        "enemyTotal": 332234,
+        "enemyTotal": 300166,
         "selfMembers": [
           158678,
           94205,
@@ -541,7 +526,7 @@
         ]
       },
       "stage3": {
-        "selfTotal": 507535,
+        "selfTotal": 422946,
         "enemyTotal": 445207,
         "selfMembers": [
           422946,
@@ -654,7 +639,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 77593,
+    "elapsedMs": 78116,
     "expectedData": {
       "stage1": {
         "selfTotal": 280103,
@@ -798,7 +783,7 @@
     "source": "smartphone",
     "pass": true,
     "failures": [],
-    "elapsedMs": 79701,
+    "elapsedMs": 79064,
     "expectedData": {
       "stage1": {
         "selfTotal": 181066,
