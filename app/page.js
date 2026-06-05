@@ -2245,14 +2245,19 @@ export default function Home() {
         members.forEach((member, index) => {
           const selfScore = parsedOcrScores.stages[stage]?.self?.[index] || "";
           const enemyScore = parsedOcrScores.stages[stage]?.enemy?.[index] || "";
+          const selfScoreKey = `s${stage}_my${member}_score`;
+          const enemyScoreKey = `s${stage}_enemy${member}_score`;
+
+          next[selfScoreKey] = selfScore;
+          next[enemyScoreKey] = enemyScore;
+          next[`s${stage}_my${member}_rank`] = "";
+          next[`s${stage}_enemy${member}_rank`] = "";
 
           if (selfScore) {
-            next[`s${stage}_my${member}_score`] = selfScore;
             allScores.push({ side: "self", member, score: toNumber(selfScore) });
           }
 
           if (enemyScore) {
-            next[`s${stage}_enemy${member}_score`] = enemyScore;
             allScores.push({ side: "enemy", member, score: toNumber(enemyScore) });
           }
         });
