@@ -74,6 +74,7 @@ import {
   resultClass,
   toNumber,
   extractScoresFromOcr,
+  OCR_PARSER_VERSION,
   getDeviceOcrLayout,
   getFixedOcrZones,
   getAlternativeTotalZones,
@@ -2223,7 +2224,7 @@ export default function Home() {
 
       URL.revokeObjectURL(imageUrl);
 
-      setOcrText(stageTexts.join("\n\n"));
+      setOcrText([`[OCR_PARSER_VERSION] ${OCR_PARSER_VERSION}`, ...stageTexts].join("\n\n"));
       setParsedOcrScores({ rawNumbers: [], stages: stageScores });
       setOcrProgress(100);
       setOcrStatus("OCR完了");

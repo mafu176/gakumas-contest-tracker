@@ -1,6 +1,8 @@
 ﻿import Tesseract from "tesseract.js";
 import { toNumber } from "./numbers";
 
+export const OCR_PARSER_VERSION = "ocr-parser-2026-06-05-fewer-member-v3";
+
 const totalPowerCandidates = new Set([
   58905, 58914, 59031, 59850, 60117, 60153, 61230, 61320, 61443,
   62238, 62601, 64497, 64533, 65403, 65679, 65985, 66135, 66345,

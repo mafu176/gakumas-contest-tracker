@@ -1,3 +1,5 @@
+import { OCR_PARSER_VERSION } from "../../lib/ocr";
+
 export default function OcrImportPanel({
   developerMode,
   setDeveloperMode,
@@ -16,6 +18,10 @@ export default function OcrImportPanel({
   applyOcrScores,
   ocrText,
 }) {
+  const debugOcrText = ocrText?.startsWith("[OCR_PARSER_VERSION]")
+    ? ocrText
+    : `[OCR_PARSER_VERSION] ${OCR_PARSER_VERSION}\n\n${ocrText}`;
+
   return (
     <>
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -221,7 +227,7 @@ export default function OcrImportPanel({
             <div className="rounded-2xl border bg-zinc-50 p-4">
               <div className="mb-2 font-semibold text-zinc-900">OCR読み取り結果・補正ログ</div>
               <pre className="max-h-80 overflow-auto whitespace-pre-wrap text-sm text-zinc-700">
-                {ocrText}
+                {debugOcrText}
               </pre>
             </div>
           )}
