@@ -746,6 +746,21 @@ export function inferCrownBonusFromMemberNumbers(memberNumbers, totalNumbers = [
     }
   }
 
+  if (preferLeadingTotal && numbers.length === 2) {
+    const [displayedTotal, member] = numbers;
+    const bonus = displayedTotal - member;
+
+    if (
+      displayedTotal >= 100000 &&
+      member >= 100000 &&
+      member < 1000000 &&
+      bonus >= 10000 &&
+      bonus < 200000
+    ) {
+      return { bonus, members: [member], total: displayedTotal };
+    }
+  }
+
   if (numbers.length >= 4) {
     const firstFour = numbers.slice(0, 4);
     const first = firstFour[0];

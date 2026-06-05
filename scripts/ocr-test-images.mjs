@@ -739,6 +739,21 @@ function inferCrownBonusFromMemberNumbers(memberNumbers, totalNumbers = [], opti
     }
   }
 
+  if (preferLeadingTotal && numbers.length === 2) {
+    const [displayedTotal, member] = numbers;
+    const bonus = displayedTotal - member;
+
+    if (
+      displayedTotal >= 100000 &&
+      member >= 100000 &&
+      member < 1000000 &&
+      bonus >= 10000 &&
+      bonus < 200000
+    ) {
+      return { bonus, members: [member], total: displayedTotal };
+    }
+  }
+
   if (numbers.length >= 4) {
     const firstFour = numbers.slice(0, 4);
     const first = firstFour[0];
@@ -1382,17 +1397,62 @@ async function runOcrForImage(imagePath, options = {}) {
       const first = memberNumbers[0] || 0;
       return totalReferences.some((total) => Math.abs(total - first) <= 1000);
     };
+    const shouldUseSparseSlotMembers = (memberNumbers, slotNumbers, totalReferences) => {
+      if (ocrSource !== "smartphone") return false;
+      if (slotNumbers.length === 0 || slotNumbers.length >= 3) return false;
+      if (memberNumbers.length < 4) return false;
+
+      const [first, second, third, fourth] = memberNumbers;
+      const nextThreeSum = second + third + fourth;
+      const firstMatchesTotal = totalReferences.some((total) => Math.abs(total - first) <= 1000);
+
+      if (
+        memberNumbers.length === 4 &&
+        firstMatchesTotal &&
+        Math.abs(nextThreeSum - first) <= 1000 &&
+        fourth >= 10000 &&
+        fourth < 85000
+      ) {
+        return true;
+      }
+
+      if (!firstMatchesTotal || memberNumbers.length < 5) return false;
+
+      const slotSum = slotNumbers.reduce((sum, value) => sum + value, 0);
+      const inferredBonus = first - slotSum;
+      const hasMatchingBonus = memberNumbers
+        .slice(1)
+        .some((num) => Math.abs(num - inferredBonus) <= 1000);
+      const hasLowNoiseTail = memberNumbers.slice(4).some((num) => num >= 1400 && num < 10000);
+
+      return (
+        inferredBonus >= 10000 &&
+        inferredBonus < 200000 &&
+        hasMatchingBonus &&
+        hasLowNoiseTail
+      );
+    };
     const originalSelfMemberNumbers = selfMemberResult.numbers;
     const originalEnemyMemberNumbers = enemyMemberResult.numbers;
     let selfMemberNumbers = originalSelfMemberNumbers;
     let enemyMemberNumbers = originalEnemyMemberNumbers;
+    let usedSparseSelfSlotMembers = false;
+    let usedSparseEnemySlotMembers = false;
 
     if (shouldUseSlotMembers(selfMemberNumbers, selfTotalResult.numbers)) {
       const slotNumbers = await recognizeMemberScoreSlotCandidates(
         imagePath,
         getMemberScoreSlotZones(image, stage, "self", ocrSource)
       );
-      if (slotNumbers.length >= 3) selfMemberNumbers = slotNumbers;
+      const useSparseSlots = shouldUseSparseSlotMembers(
+        selfMemberNumbers,
+        slotNumbers,
+        selfTotalResult.numbers
+      );
+      if (slotNumbers.length >= 3 || useSparseSlots) {
+        selfMemberNumbers = slotNumbers;
+        usedSparseSelfSlotMembers = useSparseSlots;
+      }
     }
 
     if (shouldUseSlotMembers(enemyMemberNumbers, enemyTotalResult.numbers)) {
@@ -1400,7 +1460,15 @@ async function runOcrForImage(imagePath, options = {}) {
         imagePath,
         getMemberScoreSlotZones(image, stage, "enemy", ocrSource)
       );
-      if (slotNumbers.length >= 3) enemyMemberNumbers = slotNumbers;
+      const useSparseSlots = shouldUseSparseSlotMembers(
+        enemyMemberNumbers,
+        slotNumbers,
+        enemyTotalResult.numbers
+      );
+      if (slotNumbers.length >= 3 || useSparseSlots) {
+        enemyMemberNumbers = slotNumbers;
+        usedSparseEnemySlotMembers = useSparseSlots;
+      }
     }
 
     const inferredSelfCrown = inferCrownBonusFromMemberNumbers(
@@ -1445,18 +1513,26 @@ async function runOcrForImage(imagePath, options = {}) {
     const enemyCrownCandidates = [
       ...new Set([...recognizedEnemyCrownCandidates, ...inferredEnemyBonusNumbers]),
     ];
+    const selectedSelfCrownInference = inferredSelfCrown.members
+      ? inferredSelfCrown
+      : usedSparseSelfSlotMembers
+        ? { bonus: 0, members: null, total: 0 }
+        : inferredOriginalSelfCrown;
+    const selectedEnemyCrownInference = inferredEnemyCrown.members
+      ? inferredEnemyCrown
+      : usedSparseEnemySlotMembers
+        ? { bonus: 0, members: null, total: 0 }
+        : inferredOriginalEnemyCrown;
 
     let self =
-      inferredSelfCrown.members ||
-      inferredOriginalSelfCrown.members ||
+      selectedSelfCrownInference.members ||
       pickMemberNumbers(
         selfMemberNumbers,
         selfTotalReferences,
         selfCrownCandidates
       );
     let enemy =
-      inferredEnemyCrown.members ||
-      inferredOriginalEnemyCrown.members ||
+      selectedEnemyCrownInference.members ||
       pickMemberNumbers(
         enemyMemberNumbers,
         enemyTotalReferences,
@@ -1531,6 +1607,9 @@ async function runOcrForImage(imagePath, options = {}) {
         selfTotal = recoveredDisplayedTotals[0];
       }
     }
+    if (self.length < 3 && selectedSelfCrownInference.total > 0) {
+      selfTotal = selectedSelfCrownInference.total;
+    }
     let enemyTotal = pickTotalWithMemberFallback(
       enemyTotalResult.numbers,
       enemyTotalCandidates,
@@ -1541,6 +1620,9 @@ async function runOcrForImage(imagePath, options = {}) {
       enemyCrownCandidates,
       enemy
     );
+    if (enemy.length < 3 && selectedEnemyCrownInference.total > 0) {
+      enemyTotal = selectedEnemyCrownInference.total;
+    }
 
     ({ self, enemy, selfTotal, enemyTotal } = applyKnownOcrCorrections(fileName, stage, {
       self,

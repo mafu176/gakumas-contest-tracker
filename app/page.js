@@ -1922,17 +1922,64 @@ export default function Home() {
           const first = memberNumbers[0] || 0;
           return totalReferences.some((total) => Math.abs(total - first) <= 1000);
         };
+        const shouldUseSparseSlotMembers = (memberNumbers, slotNumbers, totalReferences) => {
+          if (activeOcrMode !== "smartphone") return false;
+          if (slotNumbers.length === 0 || slotNumbers.length >= 3) return false;
+          if (memberNumbers.length < 4) return false;
+
+          const [first, second, third, fourth] = memberNumbers;
+          const nextThreeSum = second + third + fourth;
+          const firstMatchesTotal = totalReferences.some(
+            (total) => Math.abs(total - first) <= 1000
+          );
+
+          if (
+            memberNumbers.length === 4 &&
+            firstMatchesTotal &&
+            Math.abs(nextThreeSum - first) <= 1000 &&
+            fourth >= 10000 &&
+            fourth < 85000
+          ) {
+            return true;
+          }
+
+          if (!firstMatchesTotal || memberNumbers.length < 5) return false;
+
+          const slotSum = slotNumbers.reduce((sum, value) => sum + value, 0);
+          const inferredBonus = first - slotSum;
+          const hasMatchingBonus = memberNumbers
+            .slice(1)
+            .some((num) => Math.abs(num - inferredBonus) <= 1000);
+          const hasLowNoiseTail = memberNumbers.slice(4).some((num) => num >= 1400 && num < 10000);
+
+          return (
+            inferredBonus >= 10000 &&
+            inferredBonus < 200000 &&
+            hasMatchingBonus &&
+            hasLowNoiseTail
+          );
+        };
         const originalSelfMemberNumbers = selfMemberResult.numbers;
         const originalEnemyMemberNumbers = enemyMemberResult.numbers;
         let selfMemberNumbers = originalSelfMemberNumbers;
         let enemyMemberNumbers = originalEnemyMemberNumbers;
+        let usedSparseSelfSlotMembers = false;
+        let usedSparseEnemySlotMembers = false;
 
         if (shouldUseSlotMembers(selfMemberNumbers, selfTotalResult.numbers)) {
           const slotNumbers = await recognizeMemberScoreSlotCandidates(
             image,
             getMemberScoreSlotZones(image, stage, activeOcrMode, "self")
           );
-          if (slotNumbers.length >= 3) selfMemberNumbers = slotNumbers;
+          const useSparseSlots = shouldUseSparseSlotMembers(
+            selfMemberNumbers,
+            slotNumbers,
+            selfTotalResult.numbers
+          );
+          if (slotNumbers.length >= 3 || useSparseSlots) {
+            selfMemberNumbers = slotNumbers;
+            usedSparseSelfSlotMembers = useSparseSlots;
+          }
         }
 
         if (shouldUseSlotMembers(enemyMemberNumbers, enemyTotalResult.numbers)) {
@@ -1940,24 +1987,36 @@ export default function Home() {
             image,
             getMemberScoreSlotZones(image, stage, activeOcrMode, "enemy")
           );
-          if (slotNumbers.length >= 3) enemyMemberNumbers = slotNumbers;
+          const useSparseSlots = shouldUseSparseSlotMembers(
+            enemyMemberNumbers,
+            slotNumbers,
+            enemyTotalResult.numbers
+          );
+          if (slotNumbers.length >= 3 || useSparseSlots) {
+            enemyMemberNumbers = slotNumbers;
+            usedSparseEnemySlotMembers = useSparseSlots;
+          }
         }
 
         const inferredSelfCrown = inferCrownBonusFromMemberNumbers(
           selfMemberNumbers,
-          selfTotalResult.numbers
+          selfTotalResult.numbers,
+          { preferLeadingTotal: activeOcrMode !== "desktop" }
         );
         const inferredOriginalSelfCrown = inferCrownBonusFromMemberNumbers(
           originalSelfMemberNumbers,
-          selfTotalResult.numbers
+          selfTotalResult.numbers,
+          { preferLeadingTotal: activeOcrMode !== "desktop" }
         );
         const inferredEnemyCrown = inferCrownBonusFromMemberNumbers(
           enemyMemberNumbers,
-          enemyTotalResult.numbers
+          enemyTotalResult.numbers,
+          { preferLeadingTotal: activeOcrMode !== "desktop" }
         );
         const inferredOriginalEnemyCrown = inferCrownBonusFromMemberNumbers(
           originalEnemyMemberNumbers,
-          enemyTotalResult.numbers
+          enemyTotalResult.numbers,
+          { preferLeadingTotal: activeOcrMode !== "desktop" }
         );
         const inferredSelfBonusNumbers = [
           inferredSelfCrown.bonus,
@@ -1981,10 +2040,19 @@ export default function Home() {
         const enemyCrownCandidates = [
           ...new Set([...recognizedEnemyCrownCandidates, ...inferredEnemyBonusNumbers]),
         ];
+        const selectedSelfCrownInference = inferredSelfCrown.members
+          ? inferredSelfCrown
+          : usedSparseSelfSlotMembers
+            ? { bonus: 0, members: null, total: 0 }
+            : inferredOriginalSelfCrown;
+        const selectedEnemyCrownInference = inferredEnemyCrown.members
+          ? inferredEnemyCrown
+          : usedSparseEnemySlotMembers
+            ? { bonus: 0, members: null, total: 0 }
+            : inferredOriginalEnemyCrown;
 
         const selfMembers =
-          inferredSelfCrown.members ||
-          inferredOriginalSelfCrown.members ||
+          selectedSelfCrownInference.members ||
           pickMemberNumbers(
             selfMemberNumbers,
             stage,
@@ -1993,8 +2061,7 @@ export default function Home() {
           );
 
         const enemyMembers =
-          inferredEnemyCrown.members ||
-          inferredOriginalEnemyCrown.members ||
+          selectedEnemyCrownInference.members ||
           pickMemberNumbers(
             enemyMemberNumbers,
             stage,
@@ -2114,6 +2181,12 @@ export default function Home() {
           enemyCrownCandidates,
           correctedEnemyMembers
         );
+        if (correctedSelfMembers.length < 3 && selectedSelfCrownInference.total > 0) {
+          selfTotal = selectedSelfCrownInference.total;
+        }
+        if (correctedEnemyMembers.length < 3 && selectedEnemyCrownInference.total > 0) {
+          enemyTotal = selectedEnemyCrownInference.total;
+        }
 
         // Keep browser OCR output aligned with scripts/ocr-test-images.mjs.
         ({
