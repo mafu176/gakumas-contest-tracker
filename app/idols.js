@@ -1368,5 +1368,15 @@ export const idolDb = [
     "plan": "ロジック",
     "rarity": "R",
     "image": "/idols/137.jpg"
+  },
+  {
+    "id": "葛城_リーリヤ_ガラクタロード",
+    "name": "ガラクタロード 葛城リーリヤ",
+    "short": "ガラクタロード",
+    "character": "葛城リーリヤ",
+    "title": "ガラクタロード",
+    "plan": "ロジック",
+    "rarity": "SSR",
+    "image": "/idols/138.png"
   }
 ];
