@@ -2249,6 +2249,66 @@ export default function Home() {
               .map((num) => num.toLocaleString())
               .join(",") || "none";
 
+          const rawBonusesForCompleteCombo = uniqueNumbers(bonusCandidates)
+            .filter((num) => num >= 10000 && num < 100000);
+          const rawLowBonusLikeForCompleteCombo = rawNumbers
+            .filter((num) => num >= 10000 && num < 100000);
+          const completeComboBonuses = uniqueNumbers([
+            ...rawBonusesForCompleteCombo,
+            ...rawLowBonusLikeForCompleteCombo,
+          ]).sort((a, b) => b - a);
+          const completeComboTotals = rawNumbers
+            .filter((num) => num >= 100000 && num < 3000000)
+            .sort((a, b) => b - a);
+
+          const completeComboMatches = [];
+          for (const displayedTotal of completeComboTotals) {
+            for (const bonus of completeComboBonuses) {
+              const comboCandidates = rawNumbers
+                .filter((num) => num >= 1400 && num < 1000000)
+                .filter((num) => Math.abs(num - displayedTotal) > 1000)
+                .filter((num) => Math.abs(num - bonus) > 1);
+              for (let first = 0; first < comboCandidates.length - 2; first += 1) {
+                for (let second = first + 1; second < comboCandidates.length - 1; second += 1) {
+                  for (let third = second + 1; third < comboCandidates.length; third += 1) {
+                    const members = [
+                      comboCandidates[first],
+                      comboCandidates[second],
+                      comboCandidates[third],
+                    ];
+                    const memberSum = members.reduce((sum, value) => sum + value, 0);
+                    if (Math.abs(memberSum + bonus - displayedTotal) <= 1000) {
+                      completeComboMatches.push({ members, total: displayedTotal, bonus });
+                    }
+                  }
+                }
+              }
+            }
+          }
+          const uniqueCompleteComboMatches = completeComboMatches.filter(
+            (match, index, all) =>
+              all.findIndex(
+                (other) =>
+                  other.total === match.total &&
+                  other.bonus === match.bonus &&
+                  other.members.join(",") === match.members.join(",")
+              ) === index
+          );
+          if (uniqueCompleteComboMatches.length === 1) {
+            const match = uniqueCompleteComboMatches[0];
+            correctionLogs.push(
+              `completeComboGuard chosen members=${match.members.join(",")} total=${match.total} bonus=${match.bonus}`
+            );
+            return { members: match.members, total: match.total };
+          }
+          if (uniqueCompleteComboMatches.length > 1) {
+            correctionLogs.push(
+              `completeComboGuard ambiguous ${uniqueCompleteComboMatches
+                .map((match) => `${match.members.join("+")}+${match.bonus}=${match.total}`)
+                .join(" / ")}`
+            );
+          }
+
           if (selectedMembers.length < 3 && selectedMembers.length > 0) {
             const selectedMemberSum = selectedMembers.reduce((sum, value) => sum + value, 0);
             const rawBonuses = rawNumbers
