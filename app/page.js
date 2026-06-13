@@ -127,6 +127,45 @@ import {
   migrateBackupData,
 } from "./lib/tracker";
 
+function getTodayDateInputValue() {
+  return new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+function toDateInputValue(dateValue) {
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return getTodayDateInputValue();
+
+  return new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+function buildRecordDateFromInputDate(dateInputValue) {
+  const datePart = /^\d{4}-\d{2}-\d{2}$/.test(dateInputValue || "")
+    ? dateInputValue
+    : getTodayDateInputValue();
+  const nowParts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Tokyo",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+    hourCycle: "h23",
+  }).formatToParts(new Date());
+  const getPart = (type) =>
+    nowParts.find((part) => part.type === type)?.value || "00";
+
+  return `${datePart}T${getPart("hour")}:${getPart("minute")}:${getPart("second")}+09:00`;
+}
+
 export default function Home() {
   const normalizeTheme = (value, { allowStandard = false } = {}) => {
     if (value === "dark-analytics") return "dark-analytics";
@@ -168,6 +207,7 @@ export default function Home() {
   const [editingId, setEditingId] = useState(null);
   const [editingDirtyIds, setEditingDirtyIds] = useState([]);
   const [loadedRecordId, setLoadedRecordId] = useState(null);
+  const [battleDate, setBattleDate] = useState(() => getTodayDateInputValue());
   const [saveStatus, setSaveStatus] = useState("");
   const [shareStatsEnabled, setShareStatsEnabled] = useState(false);
   const [shareStatsConsentAsked, setShareStatsConsentAsked] = useState(false);
@@ -825,21 +865,6 @@ export default function Home() {
         if (rangeEnd && time > rangeEnd) return false;
         return true;
       });
-    } else if (selectedSeason) {
-      const start = selectedSeason.startDate
-        ? new Date(`${selectedSeason.startDate}T00:00:00`).getTime()
-        : null;
-      const end = selectedSeason.endDate
-        ? new Date(`${selectedSeason.endDate}T23:59:59`).getTime()
-        : null;
-
-      filtered = filtered.filter((record) => {
-        const time = new Date(record.date).getTime();
-        if (Number.isNaN(time)) return false;
-        if (start && time < start) return false;
-        if (end && time > end) return false;
-        return true;
-      });
     } else {
       const days = toNumber(analysisDays);
 
@@ -862,7 +887,6 @@ export default function Home() {
     analysisDays,
     analysisStartDate,
     analysisEndDate,
-    selectedSeason,
     currentTime,
   ]);
 
@@ -1742,6 +1766,7 @@ export default function Home() {
     setPosition(normalizePosition(record.position));
     setPoint(record.point || "");
     setManualResult(record.result || "");
+    setBattleDate(toDateInputValue(record.date));
     setActiveTab("input");
     setShowSaveConfirm(false);
     setSaveWarnings([]);
@@ -1754,6 +1779,7 @@ export default function Home() {
 
   const cancelLoadedRecordEdit = () => {
     setLoadedRecordId(null);
+    setBattleDate(getTodayDateInputValue());
     setSaveStatus("履歴更新モードを解除しました。次回保存は新規保存になります");
   };
 
@@ -2216,6 +2242,12 @@ export default function Home() {
           const rawNumbers = uniqueNumbers(rawCandidates)
             .map((num) => Number(num))
             .filter((num) => Number.isFinite(num) && num >= 10000 && num < 3000000);
+          const formatComboNumbers = (numbers) =>
+            uniqueNumbers(numbers)
+              .map((num) => Number(num))
+              .filter((num) => Number.isFinite(num) && num > 0)
+              .map((num) => num.toLocaleString())
+              .join(",") || "none";
 
           if (selectedMembers.length < 3 && selectedMembers.length > 0) {
             const selectedMemberSum = selectedMembers.reduce((sum, value) => sum + value, 0);
@@ -2247,6 +2279,66 @@ export default function Home() {
           if (selectedMembers.length !== 3) {
             return { members: selectedMembers, total: selectedTotal };
           }
+
+          const explicitBonusesForMemberCombo = uniqueNumbers(bonusCandidates)
+            .filter((num) => num >= 10000 && num < 200000);
+          const rawBonusesForMemberCombo = (
+            explicitBonusesForMemberCombo.length > 0
+              ? explicitBonusesForMemberCombo
+              : rawNumbers
+                  .filter((num) => num >= 10000 && num < 200000)
+                  .filter((num) => !selectedMembers.some((member) => Math.abs(member - num) <= 1))
+          ).sort((a, b) => b - a);
+          const rawTotalsForMemberCombo = rawNumbers
+            .filter((num) => num >= 100000 && num < 3000000)
+            .filter((total) =>
+              selectedMembers.some((member) => Math.abs(member - total) <= 1000)
+            )
+            .sort((a, b) => b - a);
+          const rawMemberCandidatesForCombo = rawNumbers
+            .filter((num) => num >= 1400 && num < 1000000)
+            .filter((num) => !rawBonusesForMemberCombo.some((bonus) => Math.abs(num - bonus) <= 1));
+          const comboEvaluations = [];
+
+          correctionLogs.push(
+            `comboGuard raw=${formatComboNumbers(rawNumbers)} totals=${formatComboNumbers(
+              rawTotalsForMemberCombo
+            )} bonuses=${formatComboNumbers(rawBonusesForMemberCombo)} memberCandidates=${formatComboNumbers(
+              rawMemberCandidatesForCombo
+            )}`
+          );
+
+          for (const displayedTotal of rawTotalsForMemberCombo) {
+            const comboCandidates = rawMemberCandidatesForCombo.filter(
+              (num) => Math.abs(num - displayedTotal) > 1000
+            );
+            for (const bonus of rawBonusesForMemberCombo) {
+              for (let first = 0; first < comboCandidates.length - 2; first += 1) {
+                for (let second = first + 1; second < comboCandidates.length - 1; second += 1) {
+                  for (let third = second + 1; third < comboCandidates.length; third += 1) {
+                    const members = [
+                      comboCandidates[first],
+                      comboCandidates[second],
+                      comboCandidates[third],
+                    ];
+                    const memberSum = members.reduce((sum, value) => sum + value, 0);
+                    comboEvaluations.push(
+                      `${members.join("+")}+${bonus}=${memberSum + bonus} vs ${displayedTotal}`
+                    );
+                    if (Math.abs(memberSum + bonus - displayedTotal) <= 1000) {
+                      correctionLogs.push(
+                        `comboGuard chosen members=${members.join(",")} total=${displayedTotal} bonus=${bonus}`
+                      );
+                      return { members, total: displayedTotal };
+                    }
+                  }
+                }
+              }
+            }
+          }
+          correctionLogs.push(
+            `comboGuard rejected ${comboEvaluations.slice(0, 8).join(" / ") || "no combos"}`
+          );
 
           const sortedSelectedMembers = [...selectedMembers].sort((a, b) => b - a);
           const [possibleDisplayedTotal, possibleMember, possibleBonus] =
@@ -2721,7 +2813,7 @@ export default function Home() {
     const nextRecord = {
       ...(existingRecord || {}),
       id: isUpdateMode ? loadedRecordId : makeTimestampId("M"),
-      date: existingRecord?.date || new Date().toISOString(),
+      date: buildRecordDateFromInputDate(battleDate),
       updatedAt: isUpdateMode ? new Date().toISOString() : existingRecord?.updatedAt,
       opponent,
       position: normalizePosition(position),
@@ -2789,6 +2881,7 @@ export default function Home() {
       setOpponent("");
       setPoint("");
       setManualResult("");
+      setBattleDate(getTodayDateInputValue());
       setStageDetails(makeInitialStageDetails());
     } else {
       resetEnemyInputsAfterSave();
@@ -3382,9 +3475,10 @@ const metaStats = useMemo(() => {
       });
   }, [records, metaDays, metaPosition, metaMinCount, currentTime, combinedIdolDb]);
 
-  const winCount = records.filter((r) => r.result === "勝ち").length;
-  const winRate = records.length
-    ? Math.round((winCount / records.length) * 100)
+  const analysisSummaryWinCount = analysisRecords.filter((r) => r.result === "勝ち").length;
+  const analysisSummaryTotal = analysisRecords.length;
+  const analysisSummaryWinRate = analysisSummaryTotal
+    ? Math.round((analysisSummaryWinCount / analysisSummaryTotal) * 100)
     : 0;
 
   const tabItems = [
@@ -3451,14 +3545,14 @@ const metaStats = useMemo(() => {
         />
 
         <section className={`${showTab("analysis") ? "" : "hidden"} grid grid-cols-1 gap-4 md:grid-cols-3`}>
-          <StatCard label="総対戦数" value={records.length} />
+          <StatCard label="総対戦数" value={analysisSummaryTotal} />
 
           <StatCard
             label="勝敗"
-            value={`${winCount}勝 ${records.length - winCount}敗`}
+            value={`${analysisSummaryWinCount}勝 ${analysisSummaryTotal - analysisSummaryWinCount}敗`}
           />
 
-          <StatCard label="勝率" value={`${winRate}%`} />
+          <StatCard label="勝率" value={`${analysisSummaryWinRate}%`} />
         </section>
 
         <section className={`${showTab("input") ? "" : "hidden"} rounded-3xl bg-white p-6 shadow`}>
@@ -3635,6 +3729,8 @@ const metaStats = useMemo(() => {
             stages={stages}
             opponent={opponent}
             setOpponent={setOpponent}
+            battleDate={battleDate}
+            setBattleDate={setBattleDate}
             position={position}
             setPosition={setPosition}
             positionOptions={positionOptions}

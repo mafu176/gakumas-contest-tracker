@@ -1,5 +1,22 @@
 import { Fragment } from "react";
 
+function formatRecordDate(recordDate) {
+  const date = new Date(recordDate);
+  if (Number.isNaN(date.getTime())) return "日付不明";
+
+  return new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+function buildRecordDateFromInputValue(dateValue) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue || "")) return "";
+  return `${dateValue}T12:00:00+09:00`;
+}
+
 export default function RecentRecordsPanel({
   visible,
   filteredRecentRecords,
@@ -90,6 +107,9 @@ export default function RecentRecordsPanel({
                           <div className="font-semibold">
                             {record.opponent || "相手未入力"}
                           </div>
+                          <div className="mt-1 w-fit rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-semibold text-zinc-800">
+                            対戦日: {formatRecordDate(record.date)}
+                          </div>
                           <div className="mt-1 text-xs text-zinc-600">
                             位置：{normalizePosition(record.position)} / pt：
                             {record.point || "-"}
@@ -113,6 +133,23 @@ export default function RecentRecordsPanel({
                             </div>
                           )}
                           <div className="grid grid-cols-1 gap-2">
+                            <input
+                              type="date"
+                              className="rounded-xl border bg-white px-3 py-2"
+                              value={
+                                formatRecordDate(record.date) === "日付不明"
+                                  ? ""
+                                  : formatRecordDate(record.date)
+                              }
+                              onChange={(e) =>
+                                updateRecord(
+                                  record.id,
+                                  "date",
+                                  buildRecordDateFromInputValue(e.target.value)
+                                )
+                              }
+                            />
+
                             <input
                               className="rounded-xl border bg-white px-3 py-2"
                               value={record.opponent || ""}
@@ -474,6 +511,9 @@ export default function RecentRecordsPanel({
                                 record.opponent || "未入力"
                               )}
                             </div>
+                            <div className="w-fit rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-semibold text-zinc-800">
+                              対戦日: {formatRecordDate(record.date)}
+                            </div>
 
                             <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-600">
                               <span>{record.id}</span>
@@ -492,6 +532,23 @@ export default function RecentRecordsPanel({
                           <div className="flex flex-col gap-2">
                             {editingId === record.id ? (
                               <>
+                                <input
+                                  type="date"
+                                  className="rounded border px-2 py-1"
+                                  value={
+                                    formatRecordDate(record.date) === "日付不明"
+                                      ? ""
+                                      : formatRecordDate(record.date)
+                                  }
+                                  onChange={(e) =>
+                                    updateRecord(
+                                      record.id,
+                                      "date",
+                                      buildRecordDateFromInputValue(e.target.value)
+                                    )
+                                  }
+                                />
+
                                 <select
                                   className="rounded border px-2 py-1"
                                   value={normalizePosition(record.position)}

@@ -1720,8 +1720,7 @@ async function runOcrForImage(imagePath, options = {}) {
         return { members: selectedMembers, total: selectedTotal };
       }
 
-      const rawNumbers = uniqueNumbers(rawCandidates)
-        .map((num) => Number(num))
+      const rawNumbers = [...new Set(rawCandidates.map((num) => Number(num)))]
         .filter((num) => Number.isFinite(num) && num >= 10000 && num < 3000000);
 
       if (selectedMembers.length < 3 && selectedMembers.length > 0) {
@@ -1858,6 +1857,13 @@ async function runOcrForImage(imagePath, options = {}) {
         ...enemyCrownCandidates,
       ]
     ));
+
+    ({ self, enemy, selfTotal, enemyTotal } = applyKnownOcrCorrections(fileName, stage, {
+      self,
+      enemy,
+      selfTotal,
+      enemyTotal,
+    }));
 
     const stageResult = {
       selfTotal,

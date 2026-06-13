@@ -13,6 +13,8 @@ export default function BattleInputPanel({
   stages,
   opponent,
   setOpponent,
+  battleDate,
+  setBattleDate,
   position,
   setPosition,
   positionOptions,
@@ -102,7 +104,22 @@ export default function BattleInputPanel({
         </div>
       </div>
 
-      <div className={`${visible ? "" : "hidden"} grid grid-cols-1 gap-4 md:grid-cols-4`}>
+      <div className={`${visible ? "" : "hidden"} grid grid-cols-1 gap-4 md:grid-cols-5`}>
+        <label className="block">
+          <span className="mb-1 block text-xs font-semibold text-zinc-700">
+            対戦日
+          </span>
+          <input
+            type="date"
+            className="w-full rounded-2xl border p-4"
+            value={battleDate}
+            onChange={(e) => setBattleDate(e.target.value)}
+          />
+          <span className="mt-1 block text-xs leading-5 text-zinc-600">
+            通常は当日の日付のままでOK。過去分を入力する時だけ変更してください。
+          </span>
+        </label>
+
         <input
           className="rounded-2xl border p-4"
           placeholder="相手プレイヤー名"

@@ -52,11 +52,25 @@ export function applyKnownOcrCorrections(fileName, stage, stageState) {
     "IMG_8943.png:stage2": { enemy: [30066, 19634, 9175], enemyTotal: 58875 },
     "IMG_8944.png:stage3": { selfTotal: 874690 },
     "IMG_8946.png:stage3": { selfTotal: 954046 },
+    "IMG_8948.png:stage1": { enemy: [153458, 119594, 36758], enemyTotal: 340501 },
+    "IMG_8948.png:stage2": { enemyTotal: 316233 },
     "IMG_9070.png:stage2": { selfTotal: 615933 },
     "IMG_9072.png:stage2": { enemy: [35472, 23596, 0], enemyTotal: 59068 },
     "IMG_9073.png:stage2": { self: [281279, 34002, 26224], selfTotal: 397760 },
     "IMG_9074.png:stage2": { enemy: [61448, 32066, 8457], enemyTotal: 101971 },
+    "IMG_9085.png:stage1": { selfTotal: 305080 },
+    "IMG_9087.png:stage3": { self: [210000, 281439, 615387], selfTotal: 1229903 },
     "IMG_9086.png:stage2": { enemy: [326409, 82075, 23813], enemyTotal: 497578 },
+    "IMG_9163.png:stage1": { self: [544861, 0, 0], selfTotal: 653835 },
+    "IMG_9163.png:stage2": { enemy: [123530, 69768, 66948], enemyTotal: 260246 },
+    "IMG_9163.png:stage3": { self: [393410, 34311, 0], selfTotal: 506403 },
+    "IMG_9165.png:stage2": {
+      self: [158678, 94205, 0],
+      enemyTotal: 300166,
+      selfTotal: 252883,
+    },
+    "IMG_9166.png:stage1": { selfTotal: 280103 },
+    "IMG_9166.png:stage2": { self: [165356, 0, 0], selfTotal: 198427 },
   };
 
   return { ...stageState, ...(known[key] || {}) };
