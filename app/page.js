@@ -127,25 +127,39 @@ import {
   migrateBackupData,
 } from "./lib/tracker";
 
-function getTodayDateInputValue() {
-  return new Intl.DateTimeFormat("sv-SE", {
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
-}
-
-function toDateInputValue(dateValue) {
-  const date = new Date(dateValue);
-  if (Number.isNaN(date.getTime())) return getTodayDateInputValue();
-
+function formatJstDateInputValue(date) {
   return new Intl.DateTimeFormat("sv-SE", {
     timeZone: "Asia/Tokyo",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
   }).format(date);
+}
+
+function getCurrentBattleDateInputValue(now = new Date()) {
+  const jstParts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Tokyo",
+    hour: "2-digit",
+    hour12: false,
+    hourCycle: "h23",
+  }).formatToParts(now);
+  const jstHour = Number(jstParts.find((part) => part.type === "hour")?.value || "0");
+  const battleDate = jstHour < 5
+    ? new Date(now.getTime() - 24 * 60 * 60 * 1000)
+    : now;
+
+  return formatJstDateInputValue(battleDate);
+}
+
+function getTodayDateInputValue() {
+  return getCurrentBattleDateInputValue();
+}
+
+function toDateInputValue(dateValue) {
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return getTodayDateInputValue();
+
+  return formatJstDateInputValue(date);
 }
 
 function buildRecordDateFromInputDate(dateInputValue) {
