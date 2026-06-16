@@ -54,6 +54,25 @@ function normalizePositionFilter(value) {
   return value === "全体" ? "全体" : normalizePosition(value);
 }
 
+function getRecordTimestamp(record) {
+  const dateTime = new Date(record?.date || record?.createdAt || 0).getTime();
+  if (!Number.isNaN(dateTime)) return dateTime;
+
+  return 0;
+}
+
+function formatJstDateForDisplay(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+
+  return new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
 function getSeasonTypeChipKind(stageType) {
   if (stageType === "センス") return "sense";
   if (stageType === "ロジック") return "logic";
@@ -180,6 +199,32 @@ function buildRecordDateFromInputDate(dateInputValue) {
   return `${datePart}T${getPart("hour")}:${getPart("minute")}:${getPart("second")}+09:00`;
 }
 
+function getRecordBattleDateInputValue(dateValue) {
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return "";
+
+  return formatJstDateInputValue(date);
+}
+
+function getSeasonAutoFinalPoint(season, records) {
+  if (!season?.startDate || !season?.endDate) return "";
+
+  const seasonRecords = records
+    .map((record) => ({
+      record,
+      battleDate: getRecordBattleDateInputValue(record.date),
+      point: toNumber(record.point),
+    }))
+    .filter(({ battleDate }) => {
+      if (!battleDate) return false;
+      return battleDate >= season.startDate && battleDate <= season.endDate;
+    });
+
+  if (seasonRecords.length === 0) return "";
+
+  return String(seasonRecords.reduce((sum, item) => sum + item.point, 0));
+}
+
 export default function Home() {
   const normalizeTheme = (value, { allowStandard = false } = {}) => {
     if (value === "dark-analytics") return "dark-analytics";
@@ -259,6 +304,7 @@ export default function Home() {
   const [seasonStartDate, setSeasonStartDate] = useState("");
   const [seasonEndDate, setSeasonEndDate] = useState("");
   const [seasonFinalPoint, setSeasonFinalPoint] = useState("");
+  const [seasonFinalPointAutoValue, setSeasonFinalPointAutoValue] = useState("");
   const [seasonFinalRank, setSeasonFinalRank] = useState("");
   const [seasonStageTypes, setSeasonStageTypes] = useState({
     1: "未設定",
@@ -1381,6 +1427,32 @@ export default function Home() {
     return buildAutoMatchResult(stageResults);
   }, [stageResults]);
 
+  const seasonFinalPointAutoSource = useMemo(() => {
+    if (seasonStartDate || seasonEndDate || editingSeasonId) {
+      return {
+        startDate: seasonStartDate,
+        endDate: seasonEndDate,
+      };
+    }
+
+    return selectedSeason;
+  }, [editingSeasonId, seasonEndDate, seasonStartDate, selectedSeason]);
+
+  useEffect(() => {
+    const autoFinalPoint = getSeasonAutoFinalPoint(seasonFinalPointAutoSource, records);
+
+    if (!autoFinalPoint) return;
+
+    setSeasonFinalPoint((current) => {
+      if (!current || current === seasonFinalPointAutoValue) {
+        return autoFinalPoint;
+      }
+
+      return current;
+    });
+    setSeasonFinalPointAutoValue(autoFinalPoint);
+  }, [records, seasonFinalPointAutoSource, seasonFinalPointAutoValue]);
+
 
 
   const resetSeasonForm = () => {
@@ -1389,6 +1461,7 @@ export default function Home() {
     setSeasonStartDate("");
     setSeasonEndDate("");
     setSeasonFinalPoint("");
+    setSeasonFinalPointAutoValue("");
     setSeasonFinalRank("");
     setSeasonStageTypes({
       1: "未設定",
@@ -1488,11 +1561,14 @@ export default function Home() {
   };
 
   const editSeasonPreset = (season) => {
+    const autoFinalPoint = getSeasonAutoFinalPoint(season, records);
+
     setEditingSeasonId(season.id);
     setSeasonName(season.name || "");
     setSeasonStartDate(season.startDate || "");
     setSeasonEndDate(season.endDate || "");
-    setSeasonFinalPoint(season.finalPoint || "");
+    setSeasonFinalPoint(season.finalPoint || autoFinalPoint || "");
+    setSeasonFinalPointAutoValue(autoFinalPoint);
     setSeasonFinalRank(season.finalRank || "");
     setSeasonStageTypes({
       1: season.stageTypes?.[1] || "未設定",
@@ -1734,6 +1810,61 @@ export default function Home() {
       source: "record",
     };
   }, [combinedIdolDb]);
+
+  const opponentReuseOptions = useMemo(() => {
+    const latestByOpponent = new Map();
+
+    records.forEach((record) => {
+      const name = String(record.opponent || "").trim();
+      if (!name) return;
+
+      const time = getRecordTimestamp(record);
+      const current = latestByOpponent.get(name);
+
+      if (!current || time > current.time) {
+        latestByOpponent.set(name, { name, record, time });
+      }
+    });
+
+    return Array.from(latestByOpponent.values()).sort((a, b) => {
+      if (b.time !== a.time) return b.time - a.time;
+      return a.name.localeCompare(b.name, "ja");
+    });
+  }, [records]);
+
+  const applyPastOpponent = useCallback((name) => {
+    const selected = opponentReuseOptions.find((option) => option.name === name);
+    if (!selected) return;
+
+    const loadedEnemySlots = {};
+
+    enemySlots.forEach((slot, index) => {
+      const stage = Math.floor(index / members.length) + 1;
+      const member = (index % members.length) + 1;
+      const idol = findRecordIdol(selected.record, stage, member, "enemy");
+      loadedEnemySlots[slot] = idol || "";
+    });
+
+    setOpponent(selected.name);
+    setSlotValues((prev) => ({
+      ...prev,
+      ...loadedEnemySlots,
+    }));
+  }, [findRecordIdol, opponentReuseOptions]);
+
+  const clearPastOpponent = useCallback(() => {
+    const clearedEnemySlots = {};
+
+    enemySlots.forEach((slot) => {
+      clearedEnemySlots[slot] = "";
+    });
+
+    setOpponent("");
+    setSlotValues((prev) => ({
+      ...prev,
+      ...clearedEnemySlots,
+    }));
+  }, []);
 
   const loadRecordToInput = useCallback((record) => {
     if (!record?.id) {
@@ -3555,6 +3686,49 @@ const metaStats = useMemo(() => {
     ? Math.round((analysisSummaryWinCount / analysisSummaryTotal) * 100)
     : 0;
 
+  const opponentAnalysisRows = useMemo(() => {
+    const map = new Map();
+
+    analysisRecords.forEach((record) => {
+      const opponentName = String(record.opponent || "").trim();
+      if (!opponentName) return;
+
+      const time = getRecordTimestamp(record);
+
+      if (!map.has(opponentName)) {
+        map.set(opponentName, {
+          opponentName,
+          count: 0,
+          wins: 0,
+          losses: 0,
+          latestTime: 0,
+        });
+      }
+
+      const row = map.get(opponentName);
+      row.count += 1;
+
+      if (record.result === resultOptions[0]) {
+        row.wins += 1;
+      } else if (record.result === resultOptions[1]) {
+        row.losses += 1;
+      }
+
+      row.latestTime = Math.max(row.latestTime, time);
+    });
+
+    return Array.from(map.values())
+      .map((row) => ({
+        ...row,
+        winRate: row.count ? Math.round((row.wins / row.count) * 100) : 0,
+        latestDate: row.latestTime ? formatJstDateForDisplay(row.latestTime) : "-",
+      }))
+      .sort((a, b) => {
+        if (b.count !== a.count) return b.count - a.count;
+        return b.latestTime - a.latestTime;
+      });
+  }, [analysisRecords]);
+
   const tabItems = [
     { id: "season", label: "シーズン" },
     { id: "formation", label: "編成" },
@@ -3628,6 +3802,7 @@ const metaStats = useMemo(() => {
 
           <StatCard label="勝率" value={`${analysisSummaryWinRate}%`} />
         </section>
+
 
         <section className={`${showTab("input") ? "" : "hidden"} rounded-3xl bg-white p-6 shadow`}>
           <div className="mb-5 rounded-2xl border bg-amber-50 p-4 text-sm text-amber-950">
@@ -3803,6 +3978,9 @@ const metaStats = useMemo(() => {
             stages={stages}
             opponent={opponent}
             setOpponent={setOpponent}
+            opponentReuseOptions={opponentReuseOptions}
+            onSelectPastOpponent={applyPastOpponent}
+            onClearPastOpponent={clearPastOpponent}
             battleDate={battleDate}
             setBattleDate={setBattleDate}
             position={position}
@@ -4156,6 +4334,52 @@ const metaStats = useMemo(() => {
         />
 
         
+
+        <section className={`${showTab("analysis") ? "" : "hidden"} rounded-3xl bg-white p-6 shadow`}>
+          <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-zinc-900">Opponent Analysis</h2>
+              <p className="mt-1 text-sm text-zinc-600">
+                現在の分析条件: {analysisRecords.length}戦
+              </p>
+            </div>
+          </div>
+
+          {opponentAnalysisRows.length === 0 ? (
+            <div className="mt-4 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 p-5 text-sm text-zinc-600">
+              相手名が登録された対戦履歴がありません。
+            </div>
+          ) : (
+            <div className="mt-4 overflow-x-auto">
+              <table className="min-w-full border-separate border-spacing-y-2 text-left text-sm">
+                <thead className="text-xs text-zinc-500">
+                  <tr>
+                    <th className="px-3 py-2 font-semibold">Opponent</th>
+                    <th className="px-3 py-2 font-semibold">Matches</th>
+                    <th className="px-3 py-2 font-semibold">Wins</th>
+                    <th className="px-3 py-2 font-semibold">Losses</th>
+                    <th className="px-3 py-2 font-semibold">Win Rate</th>
+                    <th className="px-3 py-2 font-semibold">Latest Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {opponentAnalysisRows.map((row) => (
+                    <tr key={row.opponentName} className="bg-zinc-50 text-zinc-800">
+                      <td className="rounded-l-2xl px-3 py-3 font-semibold text-zinc-900">
+                        {row.opponentName}
+                      </td>
+                      <td className="px-3 py-3">{row.count}</td>
+                      <td className="px-3 py-3">{row.wins}</td>
+                      <td className="px-3 py-3">{row.losses}</td>
+                      <td className="px-3 py-3">{row.winRate}%</td>
+                      <td className="rounded-r-2xl px-3 py-3">{row.latestDate}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
 
         <RegressionTestPanel
           visible={showTab("settings") && developerMode}

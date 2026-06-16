@@ -13,6 +13,9 @@ export default function BattleInputPanel({
   stages,
   opponent,
   setOpponent,
+  opponentReuseOptions = [],
+  onSelectPastOpponent,
+  onClearPastOpponent,
   battleDate,
   setBattleDate,
   position,
@@ -120,12 +123,40 @@ export default function BattleInputPanel({
           </span>
         </label>
 
-        <input
-          className="rounded-2xl border p-4"
-          placeholder="相手プレイヤー名"
-          value={opponent}
-          onChange={(e) => setOpponent(e.target.value)}
-        />
+        <div className="space-y-2">
+          <input
+            className="w-full rounded-2xl border p-4"
+            placeholder="相手プレイヤー名"
+            value={opponent}
+            onChange={(e) => setOpponent(e.target.value)}
+          />
+
+          <div className="flex gap-2">
+            <select
+              className="min-w-0 flex-1 rounded-2xl border px-3 py-2 text-sm"
+              value=""
+              onChange={(e) => {
+                if (!e.target.value) return;
+                onSelectPastOpponent?.(e.target.value);
+              }}
+            >
+              <option value="">過去相手を選択</option>
+              {opponentReuseOptions.map((option) => (
+                <option key={option.name} value={option.name}>
+                  {option.name}
+                </option>
+              ))}
+            </select>
+
+            <button
+              type="button"
+              onClick={onClearPastOpponent}
+              className="shrink-0 rounded-2xl border px-3 py-2 text-sm font-semibold text-zinc-700"
+            >
+              クリア
+            </button>
+          </div>
+        </div>
 
         <select
           className="rounded-2xl border p-4"
