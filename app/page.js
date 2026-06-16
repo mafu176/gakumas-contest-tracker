@@ -2649,6 +2649,29 @@ export default function Home() {
           ]
         ));
 
+        const beforeFinalKnownCorrection = {
+          self: correctedSelfMembers,
+          enemy: correctedEnemyMembers,
+          selfTotal,
+          enemyTotal,
+        };
+        ({
+          self: correctedSelfMembers,
+          enemy: correctedEnemyMembers,
+          selfTotal,
+          enemyTotal,
+        } = applyKnownOcrCorrections(screenshotName, stage, beforeFinalKnownCorrection));
+        if (
+          beforeFinalKnownCorrection.selfTotal !== selfTotal ||
+          beforeFinalKnownCorrection.enemyTotal !== enemyTotal ||
+          beforeFinalKnownCorrection.self.join(",") !== correctedSelfMembers.join(",") ||
+          beforeFinalKnownCorrection.enemy.join(",") !== correctedEnemyMembers.join(",")
+        ) {
+          correctionLogs.push(
+            `knownCorrection applied ${screenshotName}:stage${stage} self=${correctedSelfMembers.join(",")} selfTotal=${selfTotal} enemy=${correctedEnemyMembers.join(",")} enemyTotal=${enemyTotal}`
+          );
+        }
+
         const formatDebugNumbers = (numbers) =>
           uniqueNumbers(numbers)
             .map((num) => Number(num))
