@@ -4330,12 +4330,13 @@ const metaStats = useMemo(() => {
 
         <AnalysisGraphPanel
           visible={showTab("analysis")}
+          analysisPosition={analysisPosition}
           analysisStartDate={analysisStartDate}
           analysisEndDate={analysisEndDate}
           analysisDays={analysisDays}
-          selectedSeason={selectedSeason}
+          analysisSeasonSourceId={analysisSeasonSourceId}
+          seasonPresets={seasonPresets}
           analysisRecords={analysisRecords}
-          seasonSummary={seasonSummary}
           stages={stages}
         />
 

@@ -1,15 +1,60 @@
 import SeasonWinTriangle from "../SeasonWinTriangle";
+import { buildRecordStageResults } from "../../lib/tracker";
 
 export default function AnalysisGraphPanel({
   visible,
+  analysisPosition,
   analysisStartDate,
   analysisEndDate,
   analysisDays,
-  selectedSeason,
+  analysisSeasonSourceId,
+  seasonPresets,
   analysisRecords,
-  seasonSummary,
   stages,
 }) {
+  const analysisSeason = seasonPresets.find(
+    (season) => season.id === analysisSeasonSourceId
+  );
+  const targetText = analysisStartDate || analysisEndDate
+    ? `${analysisStartDate || "開始未指定"}～${analysisEndDate || "終了未指定"}`
+    : analysisDays
+      ? `直近${analysisDays}日`
+      : "全期間";
+  const totalMatches = analysisRecords.length;
+  const winCount = analysisRecords.filter((record) => record.result === "勝ち").length;
+  const totalWinRate = totalMatches
+    ? Math.round((winCount / totalMatches) * 1000) / 10
+    : 0;
+  const stageSummaries = Object.fromEntries(
+    stages.map((stage) => {
+      const results = analysisRecords
+        .map((record) =>
+          buildRecordStageResults(record).find((item) => item.stage === stage)
+        )
+        .filter(Boolean);
+      const winCount = results.filter((item) => item.result === "勝ち").length;
+      const loseCount = results.filter((item) => item.result === "負け").length;
+      const drawCount = results.filter((item) => item.result === "引き分け").length;
+
+      return [
+        stage,
+        {
+          total: results.length,
+          winCount,
+          loseCount,
+          drawCount,
+          winRate: results.length
+            ? Math.round((winCount / results.length) * 1000) / 10
+            : 0,
+        },
+      ];
+    })
+  );
+  const stageWinRates = Object.fromEntries(
+    stages.map((stage) => [stage, stageSummaries[stage]?.winRate || 0])
+  );
+  const stageTypes = analysisSeason?.stageTypes || {};
+
   return (
         <section className={`${visible ? "" : "hidden"} rounded-3xl bg-white p-6 shadow`}>
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -19,13 +64,7 @@ export default function AnalysisGraphPanel({
                 ステージ1/2/3の勝率を三角形で比較します。中央は全体勝率です。
               </p>
               <p className="mt-1 text-xs text-zinc-600">
-                対象：{analysisStartDate || analysisEndDate
-                  ? `${analysisStartDate || "開始未指定"}～${analysisEndDate || "終了未指定"}`
-                  : analysisDays
-                    ? `直近${analysisDays}日`
-                    : selectedSeason
-                      ? selectedSeason.name
-                      : "全期間"} / {analysisRecords.length}戦
+                対象：{analysisPosition} / {targetText} / {analysisRecords.length}戦
               </p>
             </div>
           </div>
@@ -33,18 +72,18 @@ export default function AnalysisGraphPanel({
           <div className="mt-6 rounded-3xl bg-zinc-950 p-3 text-white">
             <div className="relative mx-auto min-h-[340px] w-full max-w-[680px] overflow-visible">
               <SeasonWinTriangle
-                stage1WinRate={seasonSummary.stageWinRates?.[1] || 0}
-                stage2WinRate={seasonSummary.stageWinRates?.[2] || 0}
-                stage3WinRate={seasonSummary.stageWinRates?.[3] || 0}
-                totalWinRate={seasonSummary.winRate}
-                stageTypes={seasonSummary.stageTypes}
+                stage1WinRate={stageWinRates[1] || 0}
+                stage2WinRate={stageWinRates[2] || 0}
+                stage3WinRate={stageWinRates[3] || 0}
+                totalWinRate={totalWinRate}
+                stageTypes={stageTypes}
               />
             </div>
           </div>
 
           <div className="mt-4 grid gap-3 md:grid-cols-3">
             {stages.map((stage) => {
-              const summary = seasonSummary.stageSummaries?.[stage] || {
+              const summary = stageSummaries[stage] || {
                 total: 0,
                 winCount: 0,
                 loseCount: 0,
