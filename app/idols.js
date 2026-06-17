@@ -1378,5 +1378,25 @@ export const idolDb = [
     "plan": "ロジック",
     "rarity": "SSR",
     "image": "/idols/138.png"
+  },
+  {
+    "id": "有村_麻央_SUGAR_FLAVOR",
+    "name": "SUGAR FLAVOR 有村麻央",
+    "short": "SUGAR麻央",
+    "character": "有村麻央",
+    "title": "SUGAR FLAVOR",
+    "plan": "センス",
+    "rarity": "SSR",
+    "image": "/idols/139.png"
+  },
+  {
+    "id": "姫崎_莉波_SUGAR_FLAVOR",
+    "name": "SUGAR FLAVOR 姫崎莉波",
+    "short": "SUGAR莉波",
+    "character": "姫崎莉波",
+    "title": "SUGAR FLAVOR",
+    "plan": "アノマリー",
+    "rarity": "SSR",
+    "image": "/idols/140.png"
   }
 ];
