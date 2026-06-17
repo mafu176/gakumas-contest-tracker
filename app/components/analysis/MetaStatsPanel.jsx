@@ -25,12 +25,11 @@ function IdolNameWithIcon({ idolName, idolImageMap = {} }) {
 
 export default function MetaStatsPanel({
   visible,
-  metaDays,
-  setMetaDays,
-  normalizePositionFilter,
-  metaPosition,
-  setMetaPosition,
-  positionOptions,
+  analysisPosition,
+  analysisStartDate,
+  analysisEndDate,
+  analysisDays,
+  analysisRecords,
   metaMinCount,
   setMetaMinCount,
   enemyMetaTopCount,
@@ -40,6 +39,12 @@ export default function MetaStatsPanel({
   toNumber,
   idolImageMap,
 }) {
+  const targetText = analysisStartDate || analysisEndDate
+    ? `${analysisStartDate || "開始未指定"}～${analysisEndDate || "終了未指定"}`
+    : analysisDays
+      ? `直近${analysisDays}日`
+      : "全期間";
+
   return (
         <section className={`${visible ? "" : "hidden"} rounded-3xl bg-white p-6 shadow`}>
           <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -53,27 +58,7 @@ export default function MetaStatsPanel({
               </p>
             </div>
 
-            <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
-              <input
-                className="rounded-xl border px-3 py-2 text-sm"
-                placeholder="日数指定（空欄=全期間）"
-                value={metaDays}
-                onChange={(e) => setMetaDays(e.target.value)}
-              />
-
-              <select
-                className="rounded-xl border px-3 py-2 text-sm"
-                value={normalizePositionFilter(metaPosition)}
-                onChange={(e) => setMetaPosition(e.target.value)}
-              >
-                <option value="全体">全体</option>
-                {positionOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
               <input
                 className="rounded-xl border px-3 py-2 text-sm"
                 placeholder="最低遭遇数"
@@ -109,7 +94,10 @@ export default function MetaStatsPanel({
             <div className="rounded-2xl bg-zinc-100 p-4">
               <div className="text-xs text-zinc-600">対象条件</div>
               <div className="mt-1 text-lg font-bold">
-                {metaPosition} / {metaDays ? `直近${metaDays}日` : "全期間"}
+                {analysisPosition} / {targetText}
+              </div>
+              <div className="mt-1 text-xs text-zinc-600">
+                {analysisRecords.length}戦
               </div>
             </div>
           </div>

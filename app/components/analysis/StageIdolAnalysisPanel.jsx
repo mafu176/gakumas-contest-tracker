@@ -79,7 +79,6 @@ export default function StageIdolAnalysisPanel({
   setAnalysisSeasonSourceId,
   seasonPresets,
   setAnalysisDays,
-  selectedSeason,
   analysisDays,
   analysisMinCount,
   toNumber,
@@ -101,11 +100,9 @@ export default function StageIdolAnalysisPanel({
                 現在の対象：{analysisPosition} /{" "}
                 {analysisStartDate || analysisEndDate
                   ? `${analysisStartDate || "開始未指定"}～${analysisEndDate || "終了未指定"} / `
-                  : selectedSeason
-                    ? `${selectedSeason.name} (${selectedSeason.startDate}～${selectedSeason.endDate}) / `
-                    : analysisDays
-                      ? `直近${analysisDays}日 / `
-                      : "全期間 / "}
+                  : analysisDays
+                    ? `直近${analysisDays}日 / `
+                    : "全期間 / "}
                 最低採用数
                 {analysisMinCount === ""
                   ? "なし"

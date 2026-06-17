@@ -2,18 +2,23 @@ import { formatSeasonTypeLabel } from "../../lib/seasonTypes";
 
 export default function FinalFormationPanel({
   visible,
+  analysisPosition,
   analysisStartDate,
   analysisEndDate,
   analysisDays,
-  selectedSeason,
   analysisRecords,
-  seasonSummary,
+  analysisSummary,
   stages,
 }) {
   const formatRank = (value) => {
     const numeric = Number(value);
     return Number.isFinite(numeric) && numeric > 0 ? numeric.toFixed(3) : "-";
   };
+  const targetText = analysisStartDate || analysisEndDate
+    ? `${analysisStartDate || "開始未指定"}～${analysisEndDate || "終了未指定"}`
+    : analysisDays
+      ? `直近${analysisDays}日`
+      : "全期間";
 
   return (
         <section className={`${visible ? "" : "hidden"} rounded-3xl bg-white p-6 shadow`}>
@@ -26,24 +31,18 @@ export default function FinalFormationPanel({
             </div>
 
             <div className="text-xs text-zinc-600">
-              対象：{analysisStartDate || analysisEndDate
-                ? `${analysisStartDate || "開始未指定"}～${analysisEndDate || "終了未指定"}`
-                : analysisDays
-                  ? `直近${analysisDays}日`
-                  : selectedSeason
-                    ? selectedSeason.name
-                    : "全期間"} / {analysisRecords.length}戦
+              対象：{analysisPosition} / {targetText} / {analysisRecords.length}戦
             </div>
           </div>
 
-          {seasonSummary.finalFormation.length === 0 ? (
+          {analysisSummary.finalFormation.length === 0 ? (
             <div className="rounded-2xl border bg-zinc-50 p-5 text-sm text-zinc-600">
               最終編成を表示できる対戦データがまだありません。
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-3">
               {stages.map((stage) => {
-                const slots = seasonSummary.finalFormation.filter(
+                const slots = analysisSummary.finalFormation.filter(
                   (slot) => slot.stage === stage
                 );
 
@@ -52,7 +51,7 @@ export default function FinalFormationPanel({
                     <div className="mb-3 flex items-center justify-between gap-2">
                       <div className="font-semibold">ステージ{stage}</div>
                       <div className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-zinc-600">
-                        {formatSeasonTypeLabel(seasonSummary.stageTypes?.[stage])}
+                        {formatSeasonTypeLabel(analysisSummary.stageTypes?.[stage])}
                       </div>
                     </div>
 

@@ -967,8 +967,7 @@ export default function Home() {
       : analysisRecords;
   }, [analysisRecords, records, selectedSeason]);
 
-  const seasonSummary = useMemo(() => {
-    const targetRecords = seasonTargetRecords;
+  const buildRecordSummary = useCallback((targetRecords, stageTypeSource = null) => {
     const totalMatches = targetRecords.length;
     const winCount = targetRecords.filter((record) => record.result === "勝ち").length;
     const loseCount = targetRecords.filter((record) => record.result === "負け").length;
@@ -1120,7 +1119,7 @@ export default function Home() {
     });
 
     const stageTypes =
-      selectedSeason?.stageTypes ||
+      stageTypeSource ||
       Object.fromEntries(
         stages.map((stage) => {
           const plans = finalFormation
@@ -1170,7 +1169,19 @@ export default function Home() {
         )
         .filter(Boolean),
     };
-  }, [seasonTargetRecords, combinedIdolDb, selectedSeason]);
+  }, [combinedIdolDb]);
+
+  const analysisSeasonForSummary = useMemo(() => {
+    return seasonPresets.find((season) => season.id === analysisSeasonSourceId) || null;
+  }, [analysisSeasonSourceId, seasonPresets]);
+
+  const seasonSummary = useMemo(() => {
+    return buildRecordSummary(seasonTargetRecords, selectedSeason?.stageTypes);
+  }, [buildRecordSummary, seasonTargetRecords, selectedSeason]);
+
+  const analysisRecordSummary = useMemo(() => {
+    return buildRecordSummary(analysisRecords, analysisSeasonForSummary?.stageTypes);
+  }, [analysisRecords, analysisSeasonForSummary, buildRecordSummary]);
 
   const seasonDailySummaries = useMemo(() => {
     const groups = new Map();
@@ -3629,28 +3640,7 @@ export default function Home() {
   }, [records, recentDays]);
 
 const metaStats = useMemo(() => {
-    let filtered = [...records];
-    const normalizedMetaPosition = normalizePositionFilter(metaPosition);
-
-    if (normalizedMetaPosition !== "全体") {
-      filtered = filtered.filter(
-        (record) => normalizePosition(record.position) === normalizedMetaPosition
-      );
-    }
-
-    const days = toNumber(metaDays);
-
-    if (days > 0) {
-      const now = currentTime;
-      const cutoff = now - days * 24 * 60 * 60 * 1000;
-
-      filtered = filtered.filter((record) => {
-        const time = new Date(record.date).getTime();
-        if (Number.isNaN(time)) return false;
-        return time >= cutoff;
-      });
-    }
-
+    const filtered = analysisRecords;
     const minimumCount = Math.max(0, toNumber(metaMinCount) || 0);
     const totalMatches = filtered.length;
     const map = {};
@@ -3718,7 +3708,7 @@ const metaStats = useMemo(() => {
         if (b.count !== a.count) return b.count - a.count;
         return b.winRate - a.winRate;
       });
-  }, [records, metaDays, metaPosition, metaMinCount, currentTime, combinedIdolDb]);
+  }, [analysisRecords, metaMinCount, combinedIdolDb]);
 
   const analysisSummaryWinCount = analysisRecords.filter((r) => r.result === "勝ち").length;
   const analysisSummaryTotal = analysisRecords.length;
@@ -4314,7 +4304,6 @@ const metaStats = useMemo(() => {
           setAnalysisSeasonSourceId={setAnalysisSeasonSourceId}
           seasonPresets={seasonPresets}
           setAnalysisDays={setAnalysisDays}
-          selectedSeason={selectedSeason}
           analysisDays={analysisDays}
           analysisMinCount={analysisMinCount}
           toNumber={toNumber}
@@ -4342,28 +4331,32 @@ const metaStats = useMemo(() => {
 
         <PositionSummaryPanel
           visible={showTab("analysis")}
+          analysisPosition={analysisPosition}
+          analysisStartDate={analysisStartDate}
+          analysisEndDate={analysisEndDate}
+          analysisDays={analysisDays}
+          analysisRecords={analysisRecords}
           positionSummaries={positionSummaries}
         />
 
         <FinalFormationPanel
           visible={showTab("analysis")}
+          analysisPosition={analysisPosition}
           analysisStartDate={analysisStartDate}
           analysisEndDate={analysisEndDate}
           analysisDays={analysisDays}
-          selectedSeason={selectedSeason}
           analysisRecords={analysisRecords}
-          seasonSummary={seasonSummary}
+          analysisSummary={analysisRecordSummary}
           stages={stages}
         />
 
         <MetaStatsPanel
           visible={showTab("analysis")}
-          metaDays={metaDays}
-          setMetaDays={setMetaDays}
-          normalizePositionFilter={normalizePositionFilter}
-          metaPosition={metaPosition}
-          setMetaPosition={setMetaPosition}
-          positionOptions={positionOptions}
+          analysisPosition={analysisPosition}
+          analysisStartDate={analysisStartDate}
+          analysisEndDate={analysisEndDate}
+          analysisDays={analysisDays}
+          analysisRecords={analysisRecords}
           metaMinCount={metaMinCount}
           setMetaMinCount={setMetaMinCount}
           enemyMetaTopCount={enemyMetaTopCount}
