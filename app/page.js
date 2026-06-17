@@ -225,6 +225,17 @@ function getSeasonAutoFinalPoint(season, records) {
   return String(seasonRecords.reduce((sum, item) => sum + item.point, 0));
 }
 
+function getRecordsForSeason(season, records) {
+  if (!season?.startDate || !season?.endDate) return [];
+
+  return records.filter((record) => {
+    const battleDate = getRecordBattleDateInputValue(record.date);
+    if (!battleDate) return false;
+
+    return battleDate >= season.startDate && battleDate <= season.endDate;
+  });
+}
+
 export default function Home() {
   const normalizeTheme = (value, { allowStandard = false } = {}) => {
     if (value === "dark-analytics") return "dark-analytics";
@@ -950,8 +961,14 @@ export default function Home() {
     currentTime,
   ]);
 
+  const seasonTargetRecords = useMemo(() => {
+    return selectedSeason
+      ? getRecordsForSeason(selectedSeason, records)
+      : analysisRecords;
+  }, [analysisRecords, records, selectedSeason]);
+
   const seasonSummary = useMemo(() => {
-    const targetRecords = analysisRecords;
+    const targetRecords = seasonTargetRecords;
     const totalMatches = targetRecords.length;
     const winCount = targetRecords.filter((record) => record.result === "勝ち").length;
     const loseCount = targetRecords.filter((record) => record.result === "負け").length;
@@ -1153,7 +1170,7 @@ export default function Home() {
         )
         .filter(Boolean),
     };
-  }, [analysisRecords, combinedIdolDb, selectedSeason]);
+  }, [seasonTargetRecords, combinedIdolDb, selectedSeason]);
 
   const seasonDailySummaries = useMemo(() => {
     const groups = new Map();
@@ -1207,7 +1224,7 @@ export default function Home() {
       );
     };
 
-    analysisRecords.forEach((record) => {
+    seasonTargetRecords.forEach((record) => {
       const dateKey = getDateKey(record);
 
       if (!groups.has(dateKey)) {
@@ -1269,10 +1286,10 @@ export default function Home() {
         finalFormation: buildFinalFormationFromRecord(summary.latestRecord),
       }))
       .sort((a, b) => a.date.localeCompare(b.date));
-  }, [analysisRecords, combinedIdolDb]);
+  }, [seasonTargetRecords, combinedIdolDb]);
 
   const seasonExtraStats = useMemo(() => {
-    const orderedRecords = [...analysisRecords].sort(
+    const orderedRecords = [...seasonTargetRecords].sort(
       (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
     );
 
@@ -1323,7 +1340,7 @@ export default function Home() {
       bestPointDay: bestPointDay?.date || "",
       bestPointDayTotal: bestPointDay?.totalPoint || 0,
     };
-  }, [analysisRecords, seasonDailySummaries]);
+  }, [seasonTargetRecords, seasonDailySummaries]);
 
   const seasonFormationChangeHistory = useMemo(() => {
     const history = [];
