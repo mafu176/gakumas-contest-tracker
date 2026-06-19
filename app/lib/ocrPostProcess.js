@@ -84,6 +84,7 @@ export function applyKnownOcrCorrections(fileName, stage, stageState) {
     "IMG_9245.png:stage1": { enemy: [124447, 188031, 31083], enemyTotal: 343561 },
     "IMG_9245.png:stage2": { enemy: [211931, 147329, 219662], enemyTotal: 578922 },
     "IMG_9250.png:stage3": { self: [65386, 18538, 82030], selfTotal: 165954 },
+    "IMG_9254.png:stage3": { self: [31440, 28286, 74178], selfTotal: 148739 },
   };
 
   return { ...stageState, ...(known[key] || {}) };
