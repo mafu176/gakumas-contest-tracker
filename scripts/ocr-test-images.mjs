@@ -205,6 +205,12 @@ function getDeviceOcrLayout(mode) {
     desktop: {
       direct: true,
       totalTop: [0.112, 0.368, 0.615],
+      totalTopCandidates: [
+        [0.102, 0.358, 0.605],
+        [0.112, 0.368, 0.615],
+        [0.122, 0.378, 0.625],
+        [0.132, 0.388, 0.635],
+      ],
       memberTop: [0.135, 0.390, 0.650],
       memberTopCandidates: [
         [0.130, 0.385, 0.635],
@@ -903,7 +909,14 @@ function inferCrownBonusFromMemberNumbers(memberNumbers, totalNumbers = [], opti
   return { bonus: 0, members: null, total: 0 };
 }
 
-function applyDesktopLegacyMemberShape(members, memberNumbers, source) {
+function applyDesktopLegacyMemberShape(
+  members,
+  memberNumbers,
+  totalNumbers,
+  bonusNumbers,
+  source,
+  options = {}
+) {
   if (source !== "desktop" || !Array.isArray(members) || !Array.isArray(memberNumbers)) {
     return members;
   }
@@ -911,6 +924,222 @@ function applyDesktopLegacyMemberShape(members, memberNumbers, source) {
   const numbers = memberNumbers
     .filter((num) => Number.isFinite(num) && num >= 1400 && num < 10000000)
     .map(normalizeMemberScore);
+  const explicitTotals = Array.isArray(totalNumbers) ? totalNumbers : [];
+  const explicitBonuses = Array.isArray(bonusNumbers) ? bonusNumbers : [];
+  const shapeNumbers = [...new Set([
+    ...numbers,
+    ...members.filter((num) => Number.isFinite(num) && num > 0),
+    ...explicitBonuses,
+  ])];
+
+  if (options.allowLeadingSingleMember && numbers.length >= 3) {
+    const matches = [];
+    for (const displayedTotal of numbers) {
+      for (const member of numbers) {
+        if (member === displayedTotal || member < 100000) continue;
+        for (const bonus of shapeNumbers) {
+          if (bonus === displayedTotal || bonus === member) continue;
+          if (
+            bonus >= 10000 &&
+            bonus < 200000 &&
+            member > bonus &&
+            Math.abs(member + bonus - displayedTotal) <= 1000
+          ) {
+            matches.push({ member, total: displayedTotal });
+          }
+        }
+      }
+    }
+    const uniqueMatches = matches.filter(
+      (match, index, all) =>
+        all.findIndex(
+          (other) => other.member === match.member && other.total === match.total
+        ) === index
+    );
+    if (uniqueMatches.length === 1) {
+      return [uniqueMatches[0].member, 0, 0];
+    }
+  }
+
+  if (options.allowExplicitTwoMember && numbers.length >= 4) {
+    const matches = [];
+    const totalCandidates = [...new Set([...explicitTotals, ...numbers])];
+    for (const displayedTotal of totalCandidates) {
+      const totalIsExplicit = explicitTotals.some(
+        (total) => Math.abs(total - displayedTotal) <= 1
+      );
+      for (let first = 0; first < numbers.length - 1; first += 1) {
+        for (let second = first + 1; second < numbers.length; second += 1) {
+          const firstMember = numbers[first];
+          const secondMember = numbers[second];
+          if (firstMember === displayedTotal || secondMember === displayedTotal) continue;
+          if (firstMember < 5000 || secondMember < 5000) continue;
+          const impliedBonus = displayedTotal - firstMember - secondMember;
+          const bonusWasObserved = shapeNumbers.some(
+            (bonus) => Math.abs(bonus - impliedBonus) <= 1000
+          );
+          const bonusIsExplicit = explicitBonuses.some(
+            (bonus) => Math.abs(bonus - impliedBonus) <= 1000
+          );
+          if (
+            impliedBonus >= 10000 &&
+            impliedBonus < 200000 &&
+            (explicitBonuses.length > 0
+              ? bonusIsExplicit
+              : totalIsExplicit && bonusWasObserved)
+          ) {
+            matches.push({ members: [firstMember, secondMember], total: displayedTotal });
+          }
+        }
+      }
+    }
+    const uniqueMatches = matches.filter(
+      (match, index, all) =>
+        all.findIndex(
+          (other) =>
+            other.total === match.total &&
+            other.members.join(",") === match.members.join(",")
+        ) === index
+    );
+    if (uniqueMatches.length === 1) {
+      return [...uniqueMatches[0].members, 0];
+    }
+  }
+
+  if (options.allowLeadingSingleMember && numbers.length === 2) {
+    const [leading, firstMember] = numbers;
+    const impliedBonus = leading - firstMember;
+    if (
+      leading > firstMember &&
+      impliedBonus >= 10000 &&
+      impliedBonus < 200000
+    ) {
+      return [firstMember, 0, 0];
+    }
+  }
+
+  if (options.allowLeadingSingleMember && numbers.length === 3) {
+    const [leading, firstMember, bonusLike] = numbers;
+    if (
+      leading > firstMember &&
+      bonusLike >= 10000 &&
+      bonusLike < 200000 &&
+      Math.abs(leading - (firstMember + bonusLike)) <= 1000
+    ) {
+      return [firstMember, 0, 0];
+    }
+  }
+
+  if (options.allowExactTwoMember && numbers.length === 3) {
+    const [leading, firstMember, secondMember] = numbers;
+    if (
+      leading > Math.max(firstMember, secondMember) &&
+      firstMember >= 5000 &&
+      secondMember >= 5000 &&
+      Math.abs(leading - (firstMember + secondMember)) <= 1000
+    ) {
+      return [firstMember, secondMember, 0];
+    }
+  }
+
+  if (options.allowExplicitSingleMember && numbers.length === 2) {
+    const [leading, firstMember] = numbers;
+    const impliedBonus = leading - firstMember;
+    if (
+      explicitTotals.some((total) => Math.abs(total - leading) <= 1) &&
+      leading > firstMember &&
+      impliedBonus >= 10000 &&
+      impliedBonus < 200000
+    ) {
+      return [firstMember, 0, 0];
+    }
+  }
+
+  if (options.allowExplicitTwoMember && numbers.length === 3) {
+    const [leading, firstMember, secondMember] = numbers;
+    const impliedBonus = leading - firstMember - secondMember;
+    if (
+      explicitTotals.some((total) => Math.abs(total - leading) <= 1) &&
+      leading > Math.max(firstMember, secondMember) &&
+      impliedBonus >= 10000 &&
+      impliedBonus < 200000
+    ) {
+      return [firstMember, secondMember, 0];
+    }
+  }
+
+  if (options.allowExplicitTwoMember && numbers.length === 4) {
+    const [leading, firstMember, secondMember, bonusLike] = numbers;
+    if (
+      explicitTotals.some((total) => Math.abs(total - leading) <= 1) &&
+      leading > Math.max(firstMember, secondMember) &&
+      bonusLike >= 10000 &&
+      bonusLike < 200000 &&
+      Math.abs(leading - (firstMember + secondMember + bonusLike)) <= 1000
+    ) {
+      return [firstMember, secondMember, 0];
+    }
+  }
+
+  if (numbers.length >= 4) {
+    const [leading, firstMember, secondMember, thirdMemberLike, bonusLike] = numbers;
+    const correctedThirdMember =
+      thirdMemberLike >= 100000 && thirdMemberLike < 200000
+        ? thirdMemberLike - 100000
+        : thirdMemberLike;
+    const hasBonusLike = bonusLike >= 10000 && bonusLike < 200000;
+    const sumWithBonus =
+      firstMember + secondMember + correctedThirdMember + (hasBonusLike ? bonusLike : 0);
+    const sumWithoutBonus = firstMember + secondMember + thirdMemberLike;
+    const displayedTotalDelta = leading - sumWithoutBonus;
+
+    if (
+      numbers.length === 4 &&
+      leading >= 50000 &&
+      leading > Math.max(firstMember, secondMember, thirdMemberLike) &&
+      firstMember >= 100000 &&
+      secondMember >= 10000 &&
+      secondMember < 100000 &&
+      thirdMemberLike >= 85000 &&
+      thirdMemberLike < 200000 &&
+      Math.abs(displayedTotalDelta) <= 1000
+    ) {
+      const correctedFirstMember = leading - secondMember - thirdMemberLike;
+      const correctionDelta = Math.abs(correctedFirstMember - firstMember);
+      if (correctionDelta >= 100 && correctionDelta <= 1000) {
+        return [correctedFirstMember, secondMember, 0];
+      }
+    }
+
+    if (
+      leading >= 50000 &&
+      leading > Math.max(firstMember, secondMember, thirdMemberLike) &&
+      correctedThirdMember >= 5000 &&
+      hasBonusLike &&
+      Math.abs(leading - sumWithBonus) <= 3000
+    ) {
+      return [firstMember, secondMember, correctedThirdMember];
+    }
+
+    if (
+      leading >= 50000 &&
+      leading > Math.max(firstMember, secondMember, thirdMemberLike) &&
+      [firstMember, secondMember, thirdMemberLike].every((value) => value >= 5000) &&
+      Math.abs(leading - sumWithoutBonus) <= 3000
+    ) {
+      return [firstMember, secondMember, thirdMemberLike];
+    }
+
+    if (
+      leading >= 50000 &&
+      leading > Math.max(firstMember, secondMember, thirdMemberLike) &&
+      [firstMember, secondMember, thirdMemberLike].every((value) => value >= 5000) &&
+      displayedTotalDelta >= 10000 &&
+      displayedTotalDelta < 200000
+    ) {
+      return [firstMember, secondMember, thirdMemberLike];
+    }
+  }
 
   if (numbers.length >= 4 && numbers[0] < 10000) {
     const nextThree = numbers.slice(1, 4);
@@ -921,6 +1150,52 @@ function applyDesktopLegacyMemberShape(members, memberNumbers, source) {
   }
 
   return members;
+}
+
+function pickDesktopTotalFromMemberShape(members, memberNumbers, totalNumbers, source) {
+  if (source !== "desktop" || !Array.isArray(members) || members.length !== 3 || !Array.isArray(memberNumbers)) {
+    return 0;
+  }
+
+  const numbers = memberNumbers
+    .filter((num) => Number.isFinite(num) && num >= 1400 && num < 10000000)
+    .map(normalizeMemberScore);
+  const memberSum = members.reduce((sum, value) => sum + value, 0);
+  const totalCandidateNumbers = Array.isArray(totalNumbers) ? totalNumbers : [];
+  const totalCandidates = [...new Set([...numbers, ...totalCandidateNumbers])]
+    .filter((num) => num >= 50000 && num > memberSum)
+    .sort((a, b) => a - b);
+
+  for (const total of totalCandidates) {
+    const explicitBonus = total - memberSum;
+    if (
+      totalCandidateNumbers.some((num) => Math.abs(num - total) <= 1) &&
+      explicitBonus >= 10000 &&
+      explicitBonus < 200000
+    ) {
+      return total;
+    }
+
+    if (
+      numbers[0] &&
+      Math.abs(numbers[0] - total) <= 1 &&
+      explicitBonus >= 10000 &&
+      explicitBonus < 200000
+    ) {
+      return total;
+    }
+
+    const matchingBonus = numbers
+      .filter((num) => num >= 10000 && num < 200000)
+      .filter((num) => !members.some((member) => Math.abs(member - num) <= 1))
+      .find((num) => Math.abs(total - (memberSum + num)) <= 3000);
+
+    if (matchingBonus) {
+      return total;
+    }
+  }
+
+  return 0;
 }
 
 function getOcrPresetConfig(preset) {
@@ -1473,7 +1748,23 @@ async function runOcrForImage(imagePath, options = {}) {
     const shouldUseSlotMembers = (memberNumbers, totalReferences) => {
       if (memberNumbers.length < 3) return true;
       const first = memberNumbers[0] || 0;
-      return totalReferences.some((total) => Math.abs(total - first) <= 1000);
+      if (totalReferences.some((total) => Math.abs(total - first) <= 1000)) {
+        return true;
+      }
+
+      if (ocrSource === "desktop" && memberNumbers.length >= 4) {
+        const nextThree = memberNumbers.slice(1, 4);
+        const nextThreeSum = nextThree.reduce((sum, value) => sum + value, 0);
+        const firstLooksLikeTotal =
+          first >= 50000 &&
+          first > Math.max(...nextThree) &&
+          nextThree.every((num) => num >= 5000 && num < 1000000) &&
+          Math.abs(first - nextThreeSum) <= 3000;
+
+        if (firstLooksLikeTotal) return true;
+      }
+
+      return false;
     };
     const shouldUseSparseSlotMembers = (memberNumbers, slotNumbers, totalReferences) => {
       if (ocrSource !== "smartphone") return false;
@@ -1617,8 +1908,26 @@ async function runOcrForImage(imagePath, options = {}) {
         enemyCrownCandidates
       );
 
-    self = applyDesktopLegacyMemberShape(self, selfMemberNumbers, ocrSource);
-    enemy = applyDesktopLegacyMemberShape(enemy, enemyMemberNumbers, ocrSource);
+    self = applyDesktopLegacyMemberShape(
+      self,
+      originalSelfMemberNumbers,
+      selfTotalReferences,
+      selfCrownCandidates,
+      ocrSource,
+      {
+        allowLeadingSingleMember: stage === 1,
+        allowExactTwoMember: stage === 2,
+        allowExplicitSingleMember: stage === 3,
+        allowExplicitTwoMember: stage === 3,
+      }
+    );
+    enemy = applyDesktopLegacyMemberShape(
+      enemy,
+      originalEnemyMemberNumbers,
+      enemyTotalReferences,
+      enemyCrownCandidates,
+      ocrSource
+    );
 
     if (
       !hasMatchingCrownBonusForMembers(
@@ -1676,6 +1985,15 @@ async function runOcrForImage(imagePath, options = {}) {
       selfCrownCandidates,
       self
     );
+    const desktopSelfTotal = pickDesktopTotalFromMemberShape(
+      self,
+      originalSelfMemberNumbers,
+      selfTotalReferences,
+      ocrSource
+    );
+    if (desktopSelfTotal > 0) {
+      selfTotal = desktopSelfTotal;
+    }
     if (usedDesktopStage3SelfRecovery && self.length === 3) {
       const recoveredDisplayedTotals = selfMemberNumbers
         .filter((num) => num > selfMemberSum)
@@ -1698,6 +2016,15 @@ async function runOcrForImage(imagePath, options = {}) {
       enemyCrownCandidates,
       enemy
     );
+    const desktopEnemyTotal = pickDesktopTotalFromMemberShape(
+      enemy,
+      originalEnemyMemberNumbers,
+      enemyTotalReferences,
+      ocrSource
+    );
+    if (desktopEnemyTotal > 0) {
+      enemyTotal = desktopEnemyTotal;
+    }
     if (enemy.length < 3 && selectedEnemyCrownInference.total > 0) {
       enemyTotal = selectedEnemyCrownInference.total;
     }

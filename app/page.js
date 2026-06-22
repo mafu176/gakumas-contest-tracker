@@ -94,6 +94,7 @@ import {
   toNumber,
   extractScoresFromOcr,
   OCR_PARSER_VERSION,
+  normalizeOcrMode,
   getDeviceOcrLayout,
   getFixedOcrZones,
   getAlternativeTotalZones,
@@ -112,6 +113,8 @@ import {
   extractNumbersForZone,
   pickTotalNumber,
   normalizeMemberScore,
+  applyDesktopMemberShape,
+  pickDesktopTotalFromMemberShape,
   pickMemberNumbers,
   repairMissingLeadingOneMember,
   hasMatchingCrownBonusForMembers,
@@ -2003,7 +2006,7 @@ export default function Home() {
         3: { self: ["", "", ""], enemy: ["", "", ""], selfTotal: "", enemyTotal: "" },
       };
 
-      const activeOcrMode = ocrMode === "compare" ? "smartphone" : ocrMode;
+      const activeOcrMode = ocrMode === "compare" ? "smartphone" : normalizeOcrMode(ocrMode);
       const compareOcrMode = ocrMode === "compare";
 
       for (const stage of stages) {
@@ -2120,7 +2123,23 @@ export default function Home() {
         const shouldUseSlotMembers = (memberNumbers, totalReferences) => {
           if (memberNumbers.length < 3) return true;
           const first = memberNumbers[0] || 0;
-          return totalReferences.some((total) => Math.abs(total - first) <= 1000);
+          if (totalReferences.some((total) => Math.abs(total - first) <= 1000)) {
+            return true;
+          }
+
+          if (activeOcrMode === "desktop" && memberNumbers.length >= 4) {
+            const nextThree = memberNumbers.slice(1, 4);
+            const nextThreeSum = nextThree.reduce((sum, value) => sum + value, 0);
+            const firstLooksLikeTotal =
+              first >= 50000 &&
+              first > Math.max(...nextThree) &&
+              nextThree.every((num) => num >= 5000 && num < 1000000) &&
+              Math.abs(first - nextThreeSum) <= 3000;
+
+            if (firstLooksLikeTotal) return true;
+          }
+
+          return false;
         };
         const shouldUseSparseSlotMembers = (memberNumbers, slotNumbers, totalReferences) => {
           if (activeOcrMode !== "smartphone") return false;
@@ -2271,6 +2290,26 @@ export default function Home() {
 
         let correctedSelfMembers = [...selfMembers];
         let correctedEnemyMembers = [...enemyMembers];
+        if (activeOcrMode === "desktop") {
+          correctedSelfMembers = applyDesktopMemberShape(
+            correctedSelfMembers,
+            originalSelfMemberNumbers,
+            selfTotalReferences,
+            selfCrownCandidates,
+            {
+              allowLeadingSingleMember: stage === 1,
+              allowExactTwoMember: stage === 2,
+              allowExplicitSingleMember: stage === 3,
+              allowExplicitTwoMember: stage === 3,
+            }
+          );
+          correctedEnemyMembers = applyDesktopMemberShape(
+            correctedEnemyMembers,
+            originalEnemyMemberNumbers,
+            enemyTotalReferences,
+            enemyCrownCandidates
+          );
+        }
         if (
           !hasMatchingCrownBonusForMembers(
             correctedSelfMembers,
@@ -2370,6 +2409,14 @@ export default function Home() {
           selfCrownCandidates,
           correctedSelfMembers
         );
+        if (activeOcrMode === "desktop") {
+          const desktopSelfTotal = pickDesktopTotalFromMemberShape(
+            correctedSelfMembers,
+            originalSelfMemberNumbers,
+            selfTotalReferences
+          );
+          if (desktopSelfTotal > 0) selfTotal = desktopSelfTotal;
+        }
 
         let enemyTotal = pickTotalWithMemberFallback(
           enemyTotalResult.numbers,
@@ -2381,6 +2428,14 @@ export default function Home() {
           enemyCrownCandidates,
           correctedEnemyMembers
         );
+        if (activeOcrMode === "desktop") {
+          const desktopEnemyTotal = pickDesktopTotalFromMemberShape(
+            correctedEnemyMembers,
+            originalEnemyMemberNumbers,
+            enemyTotalReferences
+          );
+          if (desktopEnemyTotal > 0) enemyTotal = desktopEnemyTotal;
+        }
         if (correctedSelfMembers.length < 3 && selectedSelfCrownInference.total > 0) {
           selfTotal = selectedSelfCrownInference.total;
         }
