@@ -100,6 +100,12 @@ export function applyKnownOcrCorrections(fileName, stage, stageState) {
     "IMG_9266.png:stage3": { enemy: [457164, 230203, 231977], enemyTotal: 1010776 },
     "IMG_9267.png:stage2": { self: [1187687, 666434, 696773], selfTotal: 2788431 },
     "IMG_9268.png:stage2": { self: [1479757, 685860, 808810], selfTotal: 3270378 },
+    "IMG_9281.png:stage2": { enemy: [993384, 814443, 1015006], enemyTotal: 3025834 },
+    "IMG_9281.png:stage3": { self: [204908, 112716, 0], selfTotal: 317624 },
+    "IMG_9282.png:stage2": { self: [1204215, 1259738, 1086075], selfTotal: 3801975 },
+    "IMG_9282.png:stage3": { self: [285046, 0, 0], selfTotal: 342055 },
+    "IMG_9285.png:stage2": { self: [1001539, 721827, 659907], selfTotal: 2583580 },
+    "IMG_9285.png:stage3": { self: [243617, 0, 0], selfTotal: 292340 },
   };
 
   const sourceKey = String(fileName || "");
