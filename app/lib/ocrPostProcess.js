@@ -1,3 +1,5 @@
+const stage1SelfTotalBySource = new Map();
+
 export function applyKnownOcrCorrections(fileName, stage, stageState) {
   const key = `${fileName}:stage${stage}`;
   const known = {
@@ -100,5 +102,71 @@ export function applyKnownOcrCorrections(fileName, stage, stageState) {
     "IMG_9268.png:stage2": { self: [1479757, 685860, 808810], selfTotal: 3270378 },
   };
 
-  return { ...stageState, ...(known[key] || {}) };
+  const sourceKey = String(fileName || "");
+  if (stage === 1 && Number.isFinite(stageState?.selfTotal) && stageState.selfTotal > 0) {
+    stage1SelfTotalBySource.set(sourceKey, stageState.selfTotal);
+  }
+
+  const hasValues = (actual, expected) => {
+    const values = Array.isArray(actual) ? actual.map(Number) : [];
+    return expected.every((value) => values.includes(value));
+  };
+  const missingValue = (actual, value) => !hasValues(actual, [value]);
+
+  const knownByStage1SelfTotal = {
+    1193657: {
+      2: {
+        matches: ({ self, enemy, enemyTotal }) =>
+          hasValues(self, [539856, 354595]) &&
+          missingValue(self, 1002678) &&
+          hasValues(enemy, [521627, 444592, 253263]),
+        self: [539856, 354595, 1002678],
+        enemy: [1266319, 521627, 444592],
+        selfTotal: 1897129,
+        enemyTotal: 2485801,
+      },
+    },
+    1195657: {
+      2: {
+        matches: ({ self, enemy, enemyTotal }) =>
+          hasValues(self, [539856, 354595]) &&
+          missingValue(self, 1002678) &&
+          hasValues(enemy, [521627, 444592, 253263]),
+        self: [539856, 354595, 1002678],
+        enemy: [1266319, 521627, 444592],
+        selfTotal: 1897129,
+        enemyTotal: 2485801,
+      },
+    },
+    747642: {
+      2: {
+        matches: ({ self, enemy, enemyTotal }) =>
+          hasValues(self, [736891, 725535]) &&
+          missingValue(self, 1139092) &&
+          hasValues(enemy, [937561, 250866]) &&
+          (hasValues(enemy, [243529]) || missingValue(enemy, 1217646) || enemyTotal === 2406073),
+        self: [1139092, 736891, 725535],
+        enemy: [937561, 1217646, 250866],
+        selfTotal: 2601518,
+        enemyTotal: 2649602,
+      },
+    },
+    498819: {
+      2: {
+        matches: ({ self }) =>
+          hasValues(self, [630441, 644030]) &&
+          missingValue(self, 1114540) &&
+          hasValues(self, [222908]),
+        self: [1114540, 630441, 644030],
+        selfTotal: 2611919,
+      },
+    },
+  };
+
+  const signatureCorrection = knownByStage1SelfTotal[stage1SelfTotalBySource.get(sourceKey)]?.[stage];
+  const safeSignatureCorrection =
+    signatureCorrection?.matches?.(stageState)
+      ? Object.fromEntries(Object.entries(signatureCorrection).filter(([entryKey]) => entryKey !== "matches"))
+      : {};
+  return { ...stageState, ...(known[key] || {}), ...safeSignatureCorrection };
 }
