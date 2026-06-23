@@ -114,6 +114,7 @@ import {
   extractNumbersForZone,
   pickTotalNumber,
   normalizeMemberScore,
+  applySmartphoneCrownBonusMemberExclusion,
   applyDesktopMemberShape,
   pickDesktopTotalFromMemberShape,
   pickMemberNumbers,
@@ -2577,6 +2578,24 @@ export default function Home() {
                 .map((match) => `${match.members.join("+")}+${match.bonus}=${match.total}`)
                 .join(" / ")}`
             );
+          }
+
+          const explicitCrownExclusion = applySmartphoneCrownBonusMemberExclusion(
+            selectedMembers,
+            selectedTotal,
+            totalReferences,
+            bonusCandidates,
+            rawCandidates,
+            { mode: activeOcrMode }
+          );
+          if (explicitCrownExclusion.applied) {
+            correctionLogs.push(
+              `explicitCrownBonusExclusion chosen members=${explicitCrownExclusion.members.join(",")} total=${explicitCrownExclusion.total} bonus=${explicitCrownExclusion.bonus}`
+            );
+            return {
+              members: explicitCrownExclusion.members,
+              total: explicitCrownExclusion.total,
+            };
           }
 
           if (selectedMembers.length < 3 && selectedMembers.length > 0) {

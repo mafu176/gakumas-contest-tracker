@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 import Tesseract from "tesseract.js";
+import { applySmartphoneCrownBonusMemberExclusion } from "../app/lib/ocr.js";
 import { applyKnownOcrCorrections, applyKnownOcrSetCorrections } from "../app/lib/ocrPostProcess.js";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -2239,6 +2240,21 @@ async function runOcrForImage(imagePath, options = {}) {
       if (uniqueCompleteComboMatches.length === 1) {
         const match = uniqueCompleteComboMatches[0];
         return { members: match.members, total: match.total };
+      }
+
+      const explicitCrownExclusion = applySmartphoneCrownBonusMemberExclusion(
+        selectedMembers,
+        selectedTotal,
+        totalReferences,
+        bonusCandidates,
+        rawCandidates,
+        { mode: ocrSource }
+      );
+      if (explicitCrownExclusion.applied) {
+        return {
+          members: explicitCrownExclusion.members,
+          total: explicitCrownExclusion.total,
+        };
       }
 
       if (selectedMembers.length < 3 && selectedMembers.length > 0) {

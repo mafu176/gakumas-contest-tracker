@@ -1,5 +1,5 @@
 ﻿import Tesseract from "tesseract.js";
-import { toNumber } from "./numbers";
+import { toNumber } from "./numbers.js";
 
 export const OCR_PARSER_VERSION = "ocr-parser-2026-06-11-total-member-combo-v4";
 
@@ -1407,6 +1407,105 @@ export function extractNumbersForZone(text) {
 export function pickTotalNumber(numbers) {
   const candidates = numbers.filter((num) => num >= 10000 && num < 3000000);
   return [...candidates].sort((a, b) => b - a)[0] || numbers[0] || 0;
+}
+
+export function applySmartphoneCrownBonusMemberExclusion(
+  selectedMembers,
+  selectedTotal,
+  totalReferences = [],
+  bonusCandidates = [],
+  rawCandidates = [],
+  options = {}
+) {
+  if (normalizeOcrMode(options.mode) !== "smartphone") {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  if (!Array.isArray(selectedMembers) || selectedMembers.length !== 3) {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  const explicitBonuses = uniqueNumbers(bonusCandidates)
+    .filter((num) => Number.isFinite(num) && num >= 10000 && num < 400000)
+    .sort((a, b) => b - a);
+
+  if (explicitBonuses.length === 0) {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  const selectedContainsExplicitBonus = explicitBonuses.some((bonus) =>
+    selectedMembers.some((member) => Math.abs(member - bonus) <= 1)
+  );
+
+  if (!selectedContainsExplicitBonus) {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  const rawNumbers = uniqueNumbers([
+    ...rawCandidates,
+    ...selectedMembers,
+    ...totalReferences,
+  ])
+    .map(Number)
+    .filter((num) => Number.isFinite(num) && num >= 1400 && num < 10000000);
+
+  const displayedTotals = uniqueNumbers([
+    ...totalReferences,
+    selectedTotal,
+  ])
+    .filter((num) => Number.isFinite(num) && num >= 50000 && num < 5000000)
+    .sort((a, b) => b - a);
+
+  const memberCandidates = rawNumbers
+    .filter((num) => num >= 1400 && num < 3000000)
+    .filter((num) => !isKnownNoiseNumber(num))
+    .filter((num) => !explicitBonuses.some((bonus) => Math.abs(num - bonus) <= 1))
+    .filter((num) => !displayedTotals.some((total) => Math.abs(num - total) <= 1000));
+
+  const matches = [];
+  for (const displayedTotal of displayedTotals) {
+    for (const bonus of explicitBonuses) {
+      for (let first = 0; first < memberCandidates.length - 2; first += 1) {
+        for (let second = first + 1; second < memberCandidates.length - 1; second += 1) {
+          for (let third = second + 1; third < memberCandidates.length; third += 1) {
+            const members = [
+              memberCandidates[first],
+              memberCandidates[second],
+              memberCandidates[third],
+            ];
+            const memberSum = members.reduce((sum, value) => sum + value, 0);
+            if (Math.abs(memberSum + bonus - displayedTotal) <= 1000) {
+              matches.push({ members, total: displayedTotal, bonus });
+            }
+          }
+        }
+      }
+    }
+  }
+
+  const uniqueMatches = matches.filter(
+    (match, index, all) =>
+      all.findIndex(
+        (other) =>
+          other.total === match.total &&
+          other.bonus === match.bonus &&
+          other.members.join(",") === match.members.join(",")
+      ) === index
+  );
+
+  // False-positive guard: only override when an explicit crown/plus value was
+  // selected as a member and exactly one complete member+bonus=total equation
+  // is available. Numeric range alone is intentionally not enough evidence.
+  if (uniqueMatches.length !== 1) {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  return {
+    members: uniqueMatches[0].members,
+    total: uniqueMatches[0].total,
+    bonus: uniqueMatches[0].bonus,
+    applied: true,
+  };
 }
 
 export function normalizeMemberScore(num) {
