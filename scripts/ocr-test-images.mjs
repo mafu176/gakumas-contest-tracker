@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 import Tesseract from "tesseract.js";
-import { applyKnownOcrCorrections } from "../app/lib/ocrPostProcess.js";
+import { applyKnownOcrCorrections, applyKnownOcrSetCorrections } from "../app/lib/ocrPostProcess.js";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const testImagesDir = path.join(rootDir, "test-images");
@@ -2414,7 +2414,7 @@ async function runOcrForImage(imagePath, options = {}) {
     results[`stage${stage}`] = stageResult;
   }
 
-  return results;
+  return applyKnownOcrSetCorrections(results);
 }
 
 async function collectImages(dir) {

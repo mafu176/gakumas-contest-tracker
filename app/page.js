@@ -33,7 +33,7 @@ import SeasonManagementForm from "./components/season/SeasonManagementForm";
 import SeasonSummaryPanel from "./components/season/SeasonSummaryPanel";
 import SeasonShareCard from "./components/SeasonShareCard";
 import StatCard from "./components/StatCard";
-import { applyKnownOcrCorrections } from "./lib/ocrPostProcess";
+import { applyKnownOcrCorrections, applyKnownOcrSetCorrections } from "./lib/ocrPostProcess";
 
 function makeTimestampId(prefix) {
   return `${prefix}${Date.now()}`;
@@ -2891,8 +2891,9 @@ export default function Home() {
 
       URL.revokeObjectURL(imageUrl);
 
+      const correctedStageScores = applyKnownOcrSetCorrections(stageScores);
       setOcrText([`[OCR_PARSER_VERSION] ${OCR_PARSER_VERSION}`, ...stageTexts].join("\n\n"));
-      setParsedOcrScores({ rawNumbers: [], stages: stageScores });
+      setParsedOcrScores({ rawNumbers: [], stages: correctedStageScores });
       setOcrProgress(100);
       setOcrStatus("OCR完了");
     } catch (error) {
