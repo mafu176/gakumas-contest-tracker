@@ -1508,6 +1508,63 @@ export function applySmartphoneCrownBonusMemberExclusion(
   };
 }
 
+export function applySmartphoneSparseTrailingZeroPreservation(
+  selectedMembers,
+  selectedTotal,
+  totalReferences = [],
+  bonusCandidates = [],
+  options = {}
+) {
+  if (normalizeOcrMode(options.mode) !== "smartphone") {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  if (!Array.isArray(selectedMembers) || selectedMembers.length !== 3) {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  const totals = uniqueNumbers(totalReferences)
+    .filter((num) => Number.isFinite(num) && num >= 10000 && num < 5000000);
+  if (totals.length === 0) {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  const explicitBonuses = uniqueNumbers(bonusCandidates)
+    .filter((num) => Number.isFinite(num) && num >= 10000 && num < 400000);
+
+  for (const visibleCount of [1, 2]) {
+    const visibleMembers = selectedMembers.slice(0, visibleCount);
+    const trailingMembers = selectedMembers.slice(visibleCount);
+    const hasFilledTrailingSlot = trailingMembers.some((member) => member > 0);
+
+    if (!hasFilledTrailingSlot || visibleMembers.some((member) => member < 10000)) {
+      continue;
+    }
+
+    const visibleSum = visibleMembers.reduce((sum, value) => sum + value, 0);
+    for (const bonus of explicitBonuses) {
+      const trailingHasBonus = trailingMembers.some((member) => Math.abs(member - bonus) <= 1);
+      if (!trailingHasBonus) {
+        continue;
+      }
+
+      const bonusTotal = totals.find((total) => Math.abs(total - (visibleSum + bonus)) <= 1000);
+      if (bonusTotal) {
+        // Preserve only left-packed visible members. This avoids using explicit
+        // crown/plus values to fill intentionally empty trailing member slots.
+        return {
+          members: [...visibleMembers, ...Array(3 - visibleCount).fill(0)],
+          total: bonusTotal,
+          bonus,
+          applied: true,
+        };
+      }
+    }
+  }
+
+  return { members: selectedMembers, total: selectedTotal, applied: false };
+}
+
 export function normalizeMemberScore(num) {
   return num;
 }

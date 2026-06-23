@@ -115,6 +115,7 @@ import {
   pickTotalNumber,
   normalizeMemberScore,
   applySmartphoneCrownBonusMemberExclusion,
+  applySmartphoneSparseTrailingZeroPreservation,
   applyDesktopMemberShape,
   pickDesktopTotalFromMemberShape,
   pickMemberNumbers,
@@ -2595,6 +2596,23 @@ export default function Home() {
             return {
               members: explicitCrownExclusion.members,
               total: explicitCrownExclusion.total,
+            };
+          }
+
+          const sparseTrailingZero = applySmartphoneSparseTrailingZeroPreservation(
+            selectedMembers,
+            selectedTotal,
+            totalReferences,
+            bonusCandidates,
+            { mode: activeOcrMode }
+          );
+          if (sparseTrailingZero.applied) {
+            correctionLogs.push(
+              `sparseTrailingZeroPreservation chosen members=${sparseTrailingZero.members.join(",")} total=${sparseTrailingZero.total}${sparseTrailingZero.bonus ? ` bonus=${sparseTrailingZero.bonus}` : ""}`
+            );
+            return {
+              members: sparseTrailingZero.members,
+              total: sparseTrailingZero.total,
             };
           }
 
