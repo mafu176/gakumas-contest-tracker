@@ -116,6 +116,7 @@ import {
   normalizeMemberScore,
   applySmartphoneCrownBonusMemberExclusion,
   applySmartphoneSparseTrailingZeroPreservation,
+  applySmartphoneTotalLikeMemberSuppression,
   applyDesktopMemberShape,
   pickDesktopTotalFromMemberShape,
   pickMemberNumbers,
@@ -2613,6 +2614,24 @@ export default function Home() {
             return {
               members: sparseTrailingZero.members,
               total: sparseTrailingZero.total,
+            };
+          }
+
+          const totalLikeSuppression = applySmartphoneTotalLikeMemberSuppression(
+            selectedMembers,
+            selectedTotal,
+            totalReferences,
+            bonusCandidates,
+            rawCandidates,
+            { mode: activeOcrMode }
+          );
+          if (totalLikeSuppression.applied) {
+            correctionLogs.push(
+              `totalLikeMemberSuppression chosen members=${totalLikeSuppression.members.join(",")} total=${totalLikeSuppression.total}${totalLikeSuppression.bonus ? ` bonus=${totalLikeSuppression.bonus}` : ""}`
+            );
+            return {
+              members: totalLikeSuppression.members,
+              total: totalLikeSuppression.total,
             };
           }
 

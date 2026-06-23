@@ -1565,6 +1565,118 @@ export function applySmartphoneSparseTrailingZeroPreservation(
   return { members: selectedMembers, total: selectedTotal, applied: false };
 }
 
+export function applySmartphoneTotalLikeMemberSuppression(
+  selectedMembers,
+  selectedTotal,
+  totalReferences = [],
+  bonusCandidates = [],
+  rawCandidates = [],
+  options = {}
+) {
+  if (normalizeOcrMode(options.mode) !== "smartphone") {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  if (!Array.isArray(selectedMembers) || selectedMembers.length !== 3) {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  const rawNumbers = uniqueNumbers([
+    ...rawCandidates,
+    ...selectedMembers,
+    ...totalReferences,
+  ])
+    .map(Number)
+    .filter((num) => Number.isFinite(num) && num >= 1400 && num < 10000000)
+    .filter((num) => !isKnownNoiseNumber(num));
+
+  const explicitBonuses = uniqueNumbers(bonusCandidates)
+    .filter((num) => Number.isFinite(num) && num >= 10000 && num < 400000);
+  const selectedSum = selectedMembers.reduce((sum, value) => sum + value, 0);
+  const totalLikeCandidates = uniqueNumbers([...selectedMembers, ...totalReferences, ...rawNumbers])
+    .filter((total) => Number.isFinite(total) && total >= 50000 && total < 5000000)
+    .filter((total) =>
+      selectedMembers.some((member) => Math.abs(member - total) <= 3000)
+    );
+
+  const matches = [];
+  for (const displayedTotal of totalLikeCandidates) {
+    const memberCandidates = rawNumbers
+      .filter((num) => Math.abs(num - displayedTotal) > 1000)
+      .filter((num) => num >= 5000 && num < 3000000);
+
+    for (let first = 0; first < memberCandidates.length - 1; first += 1) {
+      for (let second = first + 1; second < memberCandidates.length; second += 1) {
+        const members = [memberCandidates[first], memberCandidates[second], 0];
+        const memberSum = members[0] + members[1];
+        const currentLooksReconstructed =
+          Math.abs(selectedSum - (displayedTotal + memberSum)) <= 1000;
+        if (
+          displayedTotal > Math.max(members[0], members[1]) &&
+          currentLooksReconstructed &&
+          Math.abs(memberSum - displayedTotal) <= 1000
+        ) {
+          matches.push({ members, total: displayedTotal, bonus: 0 });
+        }
+      }
+    }
+
+    for (let first = 0; first < memberCandidates.length - 2; first += 1) {
+      for (let second = first + 1; second < memberCandidates.length - 1; second += 1) {
+        for (let third = second + 1; third < memberCandidates.length; third += 1) {
+          const members = [
+            memberCandidates[first],
+            memberCandidates[second],
+            memberCandidates[third],
+          ];
+          const memberSum = members.reduce((sum, value) => sum + value, 0);
+          const noBonusMatches =
+            Math.abs(memberSum - displayedTotal) <= 1000 &&
+            selectedMembers.some((member) => Math.abs(member - displayedTotal) <= 3000);
+          const matchingBonus = explicitBonuses.find(
+            (bonus) =>
+              !members.some((member) => Math.abs(member - bonus) <= 1) &&
+              Math.abs(memberSum + bonus - displayedTotal) <= 1000
+          );
+
+          if (noBonusMatches || matchingBonus) {
+            matches.push({
+              members,
+              total: displayedTotal,
+              bonus: matchingBonus || 0,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  const uniqueMatches = matches.filter(
+    (match, index, all) =>
+      all.findIndex(
+        (other) =>
+          other.total === match.total &&
+          other.bonus === match.bonus &&
+          other.members.join(",") === match.members.join(",")
+      ) === index
+  );
+
+  // False-positive guard: only suppress a selected total-like member when a
+  // single alternate member equation explains that same value. This keeps
+  // legitimate high member scores and tiny sparse rows on the existing path.
+  if (uniqueMatches.length !== 1) {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  const match = uniqueMatches[0];
+  return {
+    members: match.members,
+    total: match.total,
+    bonus: match.bonus,
+    applied: true,
+  };
+}
+
 export function normalizeMemberScore(num) {
   return num;
 }

@@ -6,6 +6,7 @@ import Tesseract from "tesseract.js";
 import {
   applySmartphoneCrownBonusMemberExclusion,
   applySmartphoneSparseTrailingZeroPreservation,
+  applySmartphoneTotalLikeMemberSuppression,
 } from "../app/lib/ocr.js";
 import { applyKnownOcrCorrections, applyKnownOcrSetCorrections } from "../app/lib/ocrPostProcess.js";
 
@@ -2271,6 +2272,21 @@ async function runOcrForImage(imagePath, options = {}) {
         return {
           members: sparseTrailingZero.members,
           total: sparseTrailingZero.total,
+        };
+      }
+
+      const totalLikeSuppression = applySmartphoneTotalLikeMemberSuppression(
+        selectedMembers,
+        selectedTotal,
+        totalReferences,
+        bonusCandidates,
+        rawCandidates,
+        { mode: ocrSource }
+      );
+      if (totalLikeSuppression.applied) {
+        return {
+          members: totalLikeSuppression.members,
+          total: totalLikeSuppression.total,
         };
       }
 
