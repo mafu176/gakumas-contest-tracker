@@ -101,6 +101,7 @@ import {
   recognizeTotalCandidates,
   getCrownBonusZones,
   getMemberScoreSlotZones,
+  getDesktopStage3SelfRecoverySlotZones,
   inferCrownBonusFromMemberNumbers,
   recognizeCrownBonusCandidates,
   recognizeMemberScoreSlotCandidates,
@@ -2297,10 +2298,13 @@ export default function Home() {
             selfTotalReferences,
             selfCrownCandidates,
             {
+              allowDuplicateSingleMember: stage === 1,
               allowLeadingSingleMember: stage === 1,
               allowExactTwoMember: stage === 2,
+              allowRecoverExactTwoMemberFromTotal: stage === 2,
               allowExplicitSingleMember: stage === 3,
               allowExplicitTwoMember: stage === 3,
+              allowTrailingBonusForThreeMember: stage === 3,
             }
           );
           correctedEnemyMembers = applyDesktopMemberShape(
@@ -2382,6 +2386,29 @@ export default function Home() {
           correctedSelfMembers = [99664, 53021, 68069];
         }
 
+        let usedDesktopStage3SelfRecovery = false;
+        if (
+          activeOcrMode === "desktop" &&
+          stage === 3 &&
+          correctedSelfMembers.filter((value) => value > 0).length < 3
+        ) {
+          const recoveryNumbers = await recognizeMemberScoreSlotCandidates(
+            image,
+            getDesktopStage3SelfRecoverySlotZones(image)
+          );
+          if (recoveryNumbers.length >= 3) {
+            const recoveredMemberNumbers = [
+              ...new Set([...recoveryNumbers, ...selfMemberNumbers]),
+            ];
+            const recoveredSelfMembers = recoveryNumbers.slice(0, 3);
+            if (recoveredSelfMembers.length >= 3) {
+              selfMemberNumbers = recoveredMemberNumbers;
+              correctedSelfMembers = recoveredSelfMembers;
+              usedDesktopStage3SelfRecovery = true;
+            }
+          }
+        }
+
         const selfMemberSum = correctedSelfMembers.reduce(
           (sum, value) => sum + value,
           0
@@ -2416,6 +2443,15 @@ export default function Home() {
             selfTotalReferences
           );
           if (desktopSelfTotal > 0) selfTotal = desktopSelfTotal;
+        }
+        if (usedDesktopStage3SelfRecovery && correctedSelfMembers.length === 3) {
+          const recoveredDisplayedTotals = selfMemberNumbers
+            .filter((num) => num > selfMemberSum)
+            .filter((num) => num - selfMemberSum >= 10000 && num - selfMemberSum < 200000)
+            .sort((a, b) => a - b);
+          if (recoveredDisplayedTotals.length > 0) {
+            selfTotal = recoveredDisplayedTotals[0];
+          }
         }
 
         let enemyTotal = pickTotalWithMemberFallback(

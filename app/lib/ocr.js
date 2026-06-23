@@ -1005,6 +1005,27 @@ export function getMemberScoreSlotZones(image, stage, mode, side) {
   }));
 }
 
+export function getDesktopStage3SelfRecoverySlotZones(image) {
+  const layout = getDeviceOcrLayout("desktop");
+  const sideX = image.width * layout.leftX;
+  const sideWidth = image.width * layout.sideWidth;
+  const topRates = [0.645, 0.655, 0.665, 0.675];
+  const slotRates = [
+    { x: 0.00, width: 0.46 },
+    { x: 0.27, width: 0.46 },
+    { x: 0.54, width: 0.46 },
+  ];
+
+  return topRates.flatMap((topRate) =>
+    slotRates.map((slot) => ({
+      x: Math.max(0, Math.floor(sideX + sideWidth * slot.x)),
+      y: Math.max(0, Math.floor(image.height * topRate)),
+      width: Math.floor(sideWidth * slot.width),
+      height: Math.floor(image.height * 0.05),
+    }))
+  );
+}
+
 function extractCrownBonusNumbers(text, options = {}) {
   const source = String(text ?? "");
   const allowFallback = options.allowFallback !== false;
@@ -1413,6 +1434,55 @@ export function applyDesktopMemberShape(
     ...members.filter((num) => Number.isFinite(num) && num > 0),
     ...explicitBonuses,
   ]);
+
+  if (options.allowDuplicateSingleMember && numbers.length === 2) {
+    const [first, second] = numbers;
+    if (first === second && first >= 10000) {
+      return [first, 0, 0];
+    }
+  }
+
+  if (options.allowRecoverExactTwoMemberFromTotal && numbers.length === 2) {
+    const [displayedTotal, visibleMember] = numbers;
+    const missingMember = displayedTotal - visibleMember;
+    if (
+      displayedTotal > visibleMember &&
+      missingMember >= 100000 &&
+      missingMember < 1000000
+    ) {
+      return [missingMember, visibleMember, 0];
+    }
+  }
+
+  if (options.allowTrailingBonusForThreeMember && numbers.length === 4) {
+    const [firstMember, secondMember, thirdMember, bonusLike] = numbers;
+    const bonusIsExplicit = explicitBonuses.some(
+      (bonus) => Math.abs(bonus - bonusLike) <= 1000
+    );
+    if (
+      [firstMember, secondMember, thirdMember].every((member) => member >= 5000) &&
+      bonusLike >= 10000 &&
+      bonusLike < 200000 &&
+      bonusIsExplicit
+    ) {
+      return [firstMember, secondMember, thirdMember];
+    }
+  }
+
+  if (numbers.length === 4) {
+    const [displayedTotal, firstMember, secondMember, tinyThirdMember] = numbers;
+    const inferredThirdMember = displayedTotal - firstMember - secondMember;
+    if (
+      explicitTotals.some((total) => Math.abs(total - displayedTotal) <= 1) &&
+      tinyThirdMember >= 1400 &&
+      tinyThirdMember < 10000 &&
+      inferredThirdMember >= 10000 &&
+      inferredThirdMember < 200000 &&
+      inferredThirdMember > tinyThirdMember
+    ) {
+      return [firstMember, secondMember, inferredThirdMember];
+    }
+  }
 
   if (options.allowLeadingSingleMember && numbers.length >= 3) {
     const matches = [];

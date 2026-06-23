@@ -932,6 +932,55 @@ function applyDesktopLegacyMemberShape(
     ...explicitBonuses,
   ])];
 
+  if (options.allowDuplicateSingleMember && numbers.length === 2) {
+    const [first, second] = numbers;
+    if (first === second && first >= 10000) {
+      return [first, 0, 0];
+    }
+  }
+
+  if (options.allowRecoverExactTwoMemberFromTotal && numbers.length === 2) {
+    const [displayedTotal, visibleMember] = numbers;
+    const missingMember = displayedTotal - visibleMember;
+    if (
+      displayedTotal > visibleMember &&
+      missingMember >= 100000 &&
+      missingMember < 1000000
+    ) {
+      return [missingMember, visibleMember, 0];
+    }
+  }
+
+  if (options.allowTrailingBonusForThreeMember && numbers.length === 4) {
+    const [firstMember, secondMember, thirdMember, bonusLike] = numbers;
+    const bonusIsExplicit = explicitBonuses.some(
+      (bonus) => Math.abs(bonus - bonusLike) <= 1000
+    );
+    if (
+      [firstMember, secondMember, thirdMember].every((member) => member >= 5000) &&
+      bonusLike >= 10000 &&
+      bonusLike < 200000 &&
+      bonusIsExplicit
+    ) {
+      return [firstMember, secondMember, thirdMember];
+    }
+  }
+
+  if (numbers.length === 4) {
+    const [displayedTotal, firstMember, secondMember, tinyThirdMember] = numbers;
+    const inferredThirdMember = displayedTotal - firstMember - secondMember;
+    if (
+      explicitTotals.some((total) => Math.abs(total - displayedTotal) <= 1) &&
+      tinyThirdMember >= 1400 &&
+      tinyThirdMember < 10000 &&
+      inferredThirdMember >= 10000 &&
+      inferredThirdMember < 200000 &&
+      inferredThirdMember > tinyThirdMember
+    ) {
+      return [firstMember, secondMember, inferredThirdMember];
+    }
+  }
+
   if (options.allowLeadingSingleMember && numbers.length >= 3) {
     const matches = [];
     for (const displayedTotal of numbers) {
@@ -1915,10 +1964,13 @@ async function runOcrForImage(imagePath, options = {}) {
       selfCrownCandidates,
       ocrSource,
       {
+        allowDuplicateSingleMember: stage === 1,
         allowLeadingSingleMember: stage === 1,
         allowExactTwoMember: stage === 2,
+        allowRecoverExactTwoMemberFromTotal: stage === 2,
         allowExplicitSingleMember: stage === 3,
         allowExplicitTwoMember: stage === 3,
+        allowTrailingBonusForThreeMember: stage === 3,
       }
     );
     enemy = applyDesktopLegacyMemberShape(
