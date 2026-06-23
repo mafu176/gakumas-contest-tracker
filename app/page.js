@@ -2302,6 +2302,9 @@ export default function Home() {
               allowLeadingSingleMember: stage === 1,
               allowExactTwoMember: stage === 2,
               allowRecoverExactTwoMemberFromTotal: stage === 2,
+              allowSparseSingleMemberFromLeadingTotal: stage === 2,
+              allowExplicitTwoMemberWithTrailingBonus: stage === 1,
+              allowImplicitLowTrailingBonus: stage === 1 || stage === 2,
               allowExplicitSingleMember: stage === 3,
               allowExplicitTwoMember: stage === 3,
               allowTrailingBonusForThreeMember: stage === 3,
@@ -2311,7 +2314,10 @@ export default function Home() {
             correctedEnemyMembers,
             originalEnemyMemberNumbers,
             enemyTotalReferences,
-            enemyCrownCandidates
+            enemyCrownCandidates,
+            {
+              allowExactTwoMember: stage === 3,
+            }
           );
         }
         if (
@@ -2439,7 +2445,7 @@ export default function Home() {
         if (activeOcrMode === "desktop") {
           const desktopSelfTotal = pickDesktopTotalFromMemberShape(
             correctedSelfMembers,
-            originalSelfMemberNumbers,
+            [...originalSelfMemberNumbers, ...selfMemberNumbers],
             selfTotalReferences
           );
           if (desktopSelfTotal > 0) selfTotal = desktopSelfTotal;
@@ -2467,7 +2473,7 @@ export default function Home() {
         if (activeOcrMode === "desktop") {
           const desktopEnemyTotal = pickDesktopTotalFromMemberShape(
             correctedEnemyMembers,
-            originalEnemyMemberNumbers,
+            [...originalEnemyMemberNumbers, ...enemyMemberNumbers],
             enemyTotalReferences
           );
           if (desktopEnemyTotal > 0) enemyTotal = desktopEnemyTotal;

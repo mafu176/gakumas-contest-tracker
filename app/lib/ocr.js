@@ -1454,6 +1454,41 @@ export function applyDesktopMemberShape(
     }
   }
 
+  if (options.allowSparseSingleMemberFromLeadingTotal && numbers.length === 2) {
+    const [displayedTotal, visibleMember] = numbers;
+    const impliedBonus = displayedTotal - visibleMember;
+    if (
+      displayedTotal > visibleMember &&
+      visibleMember >= 10000 &&
+      impliedBonus >= 10000 &&
+      impliedBonus < 100000
+    ) {
+      return [visibleMember, 0, 0];
+    }
+  }
+
+  if (options.allowSparseSingleMemberFromLeadingTotal && numbers.length === 3) {
+    const [displayedTotal, visibleMember, bonusLike] = numbers;
+    const bonusIsExplicit = explicitBonuses.some(
+      (bonus) => Math.abs(bonus - bonusLike) <= 1000
+    );
+    const bonusCanBeImplicit =
+      options.allowImplicitLowTrailingBonus &&
+      bonusLike >= 10000 &&
+      bonusLike < 40000 &&
+      visibleMember >= 50000;
+    if (
+      (bonusIsExplicit || bonusCanBeImplicit) &&
+      displayedTotal > Math.max(visibleMember, bonusLike) &&
+      visibleMember >= 10000 &&
+      bonusLike >= 10000 &&
+      bonusLike < 100000 &&
+      Math.abs(displayedTotal - (visibleMember + bonusLike)) <= 1000
+    ) {
+      return [visibleMember, 0, 0];
+    }
+  }
+
   if (options.allowTrailingBonusForThreeMember && numbers.length === 4) {
     const [firstMember, secondMember, thirdMember, bonusLike] = numbers;
     const bonusIsExplicit = explicitBonuses.some(
@@ -1466,6 +1501,54 @@ export function applyDesktopMemberShape(
       bonusIsExplicit
     ) {
       return [firstMember, secondMember, thirdMember];
+    }
+  }
+
+  if (options.allowExplicitTwoMemberWithTrailingBonus && numbers.length === 3) {
+    const [firstMember, secondMember, bonusLike] = numbers;
+    const bonusIsExplicit = explicitBonuses.some(
+      (bonus) => Math.abs(bonus - bonusLike) <= 1000
+    );
+    const bonusCanBeImplicit =
+      options.allowImplicitLowTrailingBonus &&
+      bonusLike >= 10000 &&
+      bonusLike < 40000 &&
+      firstMember >= 50000 &&
+      secondMember >= 50000;
+    const matchingDisplayedTotal = explicitTotals.some(
+      (total) => Math.abs(total - (firstMember + secondMember + bonusLike)) <= 1000
+    );
+    if (
+      matchingDisplayedTotal &&
+      bonusLike >= 10000 &&
+      bonusLike < 100000 &&
+      (bonusIsExplicit || bonusCanBeImplicit)
+    ) {
+      return [firstMember, secondMember, 0];
+    }
+  }
+
+  if (options.allowExplicitTwoMemberWithTrailingBonus && numbers.length === 4) {
+    const [displayedTotal, firstMember, secondMember, bonusLike] = numbers;
+    const bonusIsExplicit = explicitBonuses.some(
+      (bonus) => Math.abs(bonus - bonusLike) <= 1000
+    );
+    const bonusCanBeImplicit =
+      options.allowImplicitLowTrailingBonus &&
+      bonusLike >= 10000 &&
+      bonusLike < 40000 &&
+      firstMember >= 50000 &&
+      secondMember >= 50000;
+    if (
+      displayedTotal > Math.max(firstMember, secondMember, bonusLike) &&
+      firstMember >= 10000 &&
+      secondMember >= 10000 &&
+      bonusLike >= 10000 &&
+      bonusLike < 100000 &&
+      (bonusIsExplicit || bonusCanBeImplicit) &&
+      Math.abs(displayedTotal - (firstMember + secondMember + bonusLike)) <= 1000
+    ) {
+      return [firstMember, secondMember, 0];
     }
   }
 
