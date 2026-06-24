@@ -2,7 +2,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
-import Tesseract from "tesseract.js";
+import Tesseract, { createWorker } from "tesseract.js";
 import {
   applySmartphoneCrownBonusMemberExclusion,
   applySmartphoneSparseTrailingZeroPreservation,
@@ -18,6 +18,7 @@ const markdownReportPath = path.join(rootDir, "docs", "ocr-test-report.md");
 const digitDropAuditReportPath = path.join(rootDir, "docs", "ocr-digit-drop-audit-detector-report.md");
 const rawTokenFragmentAuditReportPath = path.join(rootDir, "docs", "ocr-raw-token-fragment-audit.md");
 const memberOrderAuditReportPath = path.join(rootDir, "docs", "ocr-member-order-audit-report.md");
+const geometryAuditReportPath = path.join(rootDir, "docs", "ocr-geometry-audit-report.md");
 const nextDebugPath = path.join(rootDir, "docs", "next-debug.md");
 const unsupportedNextScreenMessage =
   "Next screen is unsupported for OCR. Use normal result or high-score screen.";
@@ -1522,6 +1523,184 @@ async function recognizeOcrZone(imagePath, zone, options = {}) {
     text: result.data.text || "",
     numbers: extractNumbersForZone(result.data.text || ""),
     pass: options.preset || "pass1",
+  };
+}
+
+let auditGeometryWorker = null;
+
+async function getAuditGeometryWorker() {
+  if (!auditGeometryWorker) {
+    auditGeometryWorker = await createWorker("eng");
+  }
+
+  return auditGeometryWorker;
+}
+
+async function terminateAuditGeometryWorker() {
+  if (!auditGeometryWorker) return;
+  await auditGeometryWorker.terminate();
+  auditGeometryWorker = null;
+}
+
+function shiftBbox(bbox, zone) {
+  if (!bbox) return null;
+  return {
+    x0: Math.round((bbox.x0 || 0) + zone.left),
+    y0: Math.round((bbox.y0 || 0) + zone.top),
+    x1: Math.round((bbox.x1 || 0) + zone.left),
+    y1: Math.round((bbox.y1 || 0) + zone.top),
+  };
+}
+
+function formatBbox(bbox) {
+  if (!bbox) return "-";
+  return `(${bbox.x0},${bbox.y0})-(${bbox.x1},${bbox.y1})`;
+}
+
+function mergeBboxes(items) {
+  const bboxes = items.map((item) => item.bbox).filter(Boolean);
+  if (bboxes.length === 0) return null;
+  return {
+    x0: Math.min(...bboxes.map((bbox) => bbox.x0)),
+    y0: Math.min(...bboxes.map((bbox) => bbox.y0)),
+    x1: Math.max(...bboxes.map((bbox) => bbox.x1)),
+    y1: Math.max(...bboxes.map((bbox) => bbox.y1)),
+  };
+}
+
+function normalizeDigits(value) {
+  return String(value ?? "").replace(/\D/g, "");
+}
+
+function traverseGeometryWords(blocks = []) {
+  const words = [];
+  const visitWords = (line, blockIndex, paragraphIndex, lineIndex) => {
+    (line.words || []).forEach((word, wordIndex) => {
+      const symbols = (word.symbols || []).map((symbol, symbolIndex) => ({
+        text: symbol.text || "",
+        confidence: symbol.confidence,
+        bbox: symbol.bbox || null,
+        symbolIndex,
+      }));
+      words.push({
+        text: word.text || "",
+        confidence: word.confidence,
+        bbox: word.bbox || null,
+        blockIndex,
+        paragraphIndex,
+        lineIndex,
+        wordIndex,
+        symbols,
+      });
+    });
+  };
+
+  (blocks || []).forEach((block, blockIndex) => {
+    (block.paragraphs || []).forEach((paragraph, paragraphIndex) => {
+      (paragraph.lines || []).forEach((line, lineIndex) => {
+        visitWords(line, blockIndex, paragraphIndex, lineIndex);
+      });
+    });
+  });
+
+  return words;
+}
+
+function findNumberSpansInWords(words = [], values = []) {
+  const uniqueValues = [...new Set(values.map((value) => Number(value) || 0).filter((value) => value > 0))];
+  const spans = [];
+
+  for (const word of words) {
+    const digitSymbols = (word.symbols || [])
+      .filter((symbol) => /\d/.test(symbol.text || ""))
+      .map((symbol) => ({
+        ...symbol,
+        digit: String(symbol.text).replace(/\D/g, ""),
+      }));
+    const digitText = digitSymbols.map((symbol) => symbol.digit).join("");
+
+    for (const value of uniqueValues) {
+      const needle = normalizeDigits(value);
+      if (!needle) continue;
+
+      let index = digitText.indexOf(needle);
+      while (index >= 0) {
+        const spanSymbols = digitSymbols.slice(index, index + needle.length);
+        spans.push({
+          value,
+          text: needle,
+          confidence: Math.min(...spanSymbols.map((symbol) => Number(symbol.confidence) || 0)),
+          bbox: mergeBboxes(spanSymbols),
+          lineIndex: word.lineIndex,
+          wordIndex: word.wordIndex,
+          sourceWord: word.text,
+        });
+        index = digitText.indexOf(needle, index + 1);
+      }
+    }
+  }
+
+  return spans;
+}
+
+function extractGeometryTokens(blocks = [], zone) {
+  const words = traverseGeometryWords(blocks);
+  return words.map((word) => {
+    const cropBbox = word.bbox || null;
+    const fullBbox = shiftBbox(cropBbox, zone);
+    const symbols = (word.symbols || []).map((symbol) => ({
+      text: symbol.text,
+      confidence: symbol.confidence,
+      cropBbox: symbol.bbox,
+      fullBbox: shiftBbox(symbol.bbox, zone),
+    }));
+    return {
+      text: word.text,
+      confidence: word.confidence,
+      numbers: extractNumbersForZone(word.text || ""),
+      cropBbox,
+      fullBbox,
+      lineIndex: word.lineIndex,
+      wordIndex: word.wordIndex,
+      symbols,
+    };
+  });
+}
+
+async function recognizeOcrZoneWithGeometry(imagePath, zone, options = {}) {
+  const image = await createPreprocessedStageBuffer(imagePath, zone, options);
+  const worker = await getAuditGeometryWorker();
+  const result = await worker.recognize(
+    image,
+    {
+      tessedit_char_whitelist: options.charWhitelist || "0123456789,.",
+      tessedit_pageseg_mode: options.pageSegMode || "6",
+      preserve_interword_spaces: "1",
+    },
+    {
+      text: true,
+      blocks: true,
+      hocr: true,
+      tsv: true,
+    }
+  );
+  const blocks = result.data.blocks || [];
+  const words = traverseGeometryWords(blocks);
+  const targetValues = options.targetValues || [];
+
+  return {
+    label: options.label || "zone",
+    zone,
+    text: result.data.text || "",
+    numbers: extractNumbersForZone(result.data.text || ""),
+    tokens: extractGeometryTokens(blocks, zone),
+    spans: findNumberSpansInWords(words, targetValues).map((span) => ({
+      ...span,
+      cropBbox: span.bbox,
+      fullBbox: shiftBbox(span.bbox, zone),
+    })),
+    tsv: result.data.tsv || "",
+    hocr: result.data.hocr || "",
   };
 }
 
@@ -3445,6 +3624,237 @@ function buildMemberOrderAuditReport(report) {
   return lines.join("\n");
 }
 
+function formatGeometryToken(token) {
+  const numbers = formatDebugNumbers(token.numbers || []);
+  return `| \`${formatDebugText(token.text)}\` | ${numbers} | ${formatBbox(token.cropBbox)} | ${formatBbox(token.fullBbox)} | ${token.confidence ?? "-"} |`;
+}
+
+function formatGeometrySpan(span, selectedMembers = [], expectedMembers = [], selectedTotal = 0, expectedTotal = 0) {
+  const selectedSlots = selectedMembers
+    .map((member, index) => (Math.abs((Number(member) || 0) - span.value) <= 1 ? `member${index + 1}` : ""))
+    .filter(Boolean);
+  if (Math.abs((Number(selectedTotal) || 0) - span.value) <= 1) selectedSlots.push("total");
+
+  const expectedSlots = expectedMembers
+    .map((member, index) => (Math.abs((Number(member) || 0) - span.value) <= 1 ? `member${index + 1}` : ""))
+    .filter(Boolean);
+  if (Math.abs((Number(expectedTotal) || 0) - span.value) <= 1) expectedSlots.push("total");
+
+  return `| ${formatNumber(span.value)} | ${selectedSlots.join(", ") || "-"} | ${expectedSlots.join(", ") || "-"} | ${formatBbox(span.cropBbox)} | ${formatBbox(span.fullBbox)} | \`${formatDebugText(span.sourceWord)}\` | ${span.confidence ?? "-"} |`;
+}
+
+function nonZeroSequence(values = []) {
+  return values.map((value) => Number(value) || 0).filter((value) => value > 0);
+}
+
+function sequenceEquals(left = [], right = []) {
+  return left.length === right.length && left.every((value, index) => Math.abs(value - right[index]) <= 1);
+}
+
+function getMemberZoneSpanOrder(geometryResults = [], expectedMembers = []) {
+  const expectedValues = nonZeroSequence(expectedMembers);
+  const memberSpans = geometryResults
+    .filter((result) => result.label.includes("member"))
+    .flatMap((result) =>
+      (result.spans || [])
+        .filter((span) => expectedValues.some((value) => Math.abs(value - span.value) <= 1))
+        .map((span) => ({ ...span, sourceLabel: result.label }))
+    );
+
+  const bestByValue = new Map();
+  for (const span of memberSpans) {
+    const key = String(span.value);
+    const previous = bestByValue.get(key);
+    if (!previous || (span.fullBbox?.x0 ?? Infinity) < (previous.fullBbox?.x0 ?? Infinity)) {
+      bestByValue.set(key, span);
+    }
+  }
+
+  return [...bestByValue.values()]
+    .sort((a, b) => {
+      const ay = a.fullBbox?.y0 ?? 0;
+      const by = b.fullBbox?.y0 ?? 0;
+      if (Math.abs(ay - by) > 20) return ay - by;
+      return (a.fullBbox?.x0 ?? 0) - (b.fullBbox?.x0 ?? 0);
+    })
+    .map((span) => span.value);
+}
+
+async function collectGeometryForStageSide(imagePath, image, stage, side, source, targetValues) {
+  const fixedZones = getFixedOcrZones(image, stage, source);
+  const directTotalZone = side === "self" ? fixedZones.selfTotal : fixedZones.enemyTotal;
+  const altTotalZones = getAlternativeTotalZones(image, stage, side, source);
+  const altMemberZones = getAlternativeMemberZones(image, stage, side, source);
+  const zones = [
+    { label: `${side} total direct`, zone: directTotalZone },
+    ...altTotalZones.map((zone, index) => ({ label: `${side} total candidate ${index + 1}`, zone })),
+    ...altMemberZones.map((zone, index) => ({ label: `${side} member candidate ${index + 1}`, zone })),
+  ];
+
+  const results = [];
+  for (const item of zones) {
+    results.push(
+      await recognizeOcrZoneWithGeometry(imagePath, item.zone, {
+        label: item.label,
+        targetValues,
+      })
+    );
+  }
+
+  return results;
+}
+
+async function buildGeometryAuditReport(report) {
+  const targetKeys = new Set([
+    "img_9240.png:stage3",
+    "img_9254.png:stage3",
+    "img_9281.png:stage3",
+  ]);
+  const generatedAt = new Date().toISOString();
+  const scopedItems = report.filter((item) => {
+    if (!item.result || item.source === "desktop") return false;
+    const disabled = (item.disabledKnownCorrections || []).map(normalizeKnownCorrectionKey);
+    return disabled.some((key) => targetKeys.has(key));
+  });
+  const lines = [
+    "# OCR Geometry Audit Report",
+    "",
+    `Generated: ${generatedAt}`,
+    "",
+    "## Scope",
+    "",
+    "This is runner-only audit output from `scripts/ocr-test-images.mjs`.",
+    "It uses Tesseract.js worker output options to capture `blocks`/symbol bounding boxes for audit targets only.",
+    "It does not change OCR selection, browser behavior, or known corrections.",
+    "",
+    "## Summary",
+    "",
+    `- audit images scanned: ${scopedItems.length}`,
+    "- geometry source: Tesseract.js `worker.recognize(..., { text: true, blocks: true, hocr: true, tsv: true })`",
+    "- bbox coordinates are reported as crop-relative and full-image-relative rectangles.",
+    "",
+  ];
+
+  if (scopedItems.length === 0) {
+    lines.push("No geometry audit targets found in this run.", "");
+    return lines.join("\n");
+  }
+
+  for (const item of scopedItems) {
+    const imagePath = path.join(testImagesDir, item.image);
+    const image = await readImageSize(imagePath);
+    lines.push(`## ${item.image}`, "");
+    lines.push(`- disabled known correction(s): ${(item.disabledKnownCorrections || []).join(", ") || "none"}`);
+    lines.push(`- expected JSON: ${item.expected ? "yes" : "no"}`);
+    lines.push(`- pass: ${item.pass ? "yes" : "no"}`);
+    lines.push(`- image size: ${image.width}x${image.height}`);
+    lines.push("");
+
+    for (const stage of stages) {
+      const stageKey = `stage${stage}`;
+      const stageResult = item.result?.[stageKey];
+      const disabledStage = (item.disabledKnownCorrections || []).some((key) =>
+        normalizeKnownCorrectionKey(key).endsWith(`:stage${stage}`)
+      );
+      if (!stageResult || !disabledStage) continue;
+
+      for (const side of sides) {
+        const failures = getStageSideFailures(item, stage, side);
+        if (failures.length === 0) continue;
+
+        const selectedMembers = stageResult[side] || [];
+        const selectedTotal = side === "self" ? stageResult.selfTotal : stageResult.enemyTotal;
+        const expectedStage = item.expectedData?.[stageKey];
+        const expectedMembers = expectedStage?.[`${side}Members`] || [];
+        const expectedTotal = expectedStage?.[side === "self" ? "selfTotal" : "enemyTotal"];
+        const targetValues = [
+          ...selectedMembers,
+          ...expectedMembers,
+          selectedTotal,
+          expectedTotal,
+        ].map((value) => Number(value) || 0).filter((value) => value > 0);
+        const geometryResults = await collectGeometryForStageSide(
+          imagePath,
+          image,
+          stage,
+          side,
+          item.source || "smartphone",
+          targetValues
+        );
+        const memberGeometryOrder = getMemberZoneSpanOrder(geometryResults, expectedMembers);
+        const expectedOrder = nonZeroSequence(expectedMembers);
+        const selectedOrder = nonZeroSequence(selectedMembers);
+        const expectedValuesAppearInOrder = sequenceEquals(memberGeometryOrder, expectedOrder);
+        const selectedOrderDiffersFromGeometry =
+          memberGeometryOrder.length > 0 && !sequenceEquals(memberGeometryOrder, selectedOrder);
+
+        lines.push(`### S${stage} ${side}`, "");
+        lines.push(`- failures: ${failures.map((failure) => `${failure.key} expected ${failure.expected} actual ${failure.actual}`).join("; ")}`);
+        lines.push(`- selected members: ${formatNumberListWithSlots(selectedMembers)}`);
+        lines.push(`- selected total: ${formatNumber(selectedTotal)}`);
+        lines.push(`- expected members: ${formatNumberListWithSlots(expectedMembers)}`);
+        lines.push(`- expected total: ${formatNumber(expectedTotal)}`);
+        lines.push(`- bbox-derived member-zone order for expected values: ${memberGeometryOrder.length > 0 ? formatDebugNumbers(memberGeometryOrder) : "(not found)"}`);
+        lines.push(`- values appear visually in expected order: ${expectedValuesAppearInOrder ? "yes" : "no/unknown"}`);
+        lines.push(`- selected order differs from bbox order: ${selectedOrderDiffersFromGeometry ? "yes" : "no/unknown"}`);
+        lines.push(`- future generic rule looks safe now: no`);
+        lines.push("");
+
+        lines.push("#### Geometry Span Matches", "");
+        lines.push("| value | selected slot(s) | expected slot(s) | crop bbox | full-image bbox | source word | min symbol confidence |");
+        lines.push("| ---: | --- | --- | --- | --- | --- | ---: |");
+        const allSpans = geometryResults.flatMap((result) =>
+          (result.spans || []).map((span) => ({ ...span, sourceLabel: result.label }))
+        );
+        const seenSpanKeys = new Set();
+        for (const span of allSpans) {
+          const key = `${span.value}:${span.fullBbox?.x0}:${span.fullBbox?.y0}:${span.sourceLabel}`;
+          if (seenSpanKeys.has(key)) continue;
+          seenSpanKeys.add(key);
+          lines.push(formatGeometrySpan(span, selectedMembers, expectedMembers, selectedTotal, expectedTotal));
+        }
+        if (seenSpanKeys.size === 0) lines.push("| (none) | - | - | - | - | - | - |");
+        lines.push("");
+
+        lines.push("#### OCR Zone Tokens", "");
+        for (const result of geometryResults) {
+          lines.push(`##### ${result.label}`, "");
+          lines.push(`- zone: left=${result.zone.left}, top=${result.zone.top}, width=${result.zone.width}, height=${result.zone.height}`);
+          lines.push(`- raw text: ${JSON.stringify(formatDebugText(result.text))}`);
+          lines.push(`- parsed zone numbers: ${formatDebugNumbers(result.numbers)}`);
+          lines.push("");
+          lines.push("| token text | normalized numeric value(s) | crop bbox | full-image bbox | confidence |");
+          lines.push("| --- | --- | --- | --- | ---: |");
+          const tokens = result.tokens || [];
+          for (const token of tokens.slice(0, 16)) {
+            lines.push(formatGeometryToken(token));
+          }
+          if (tokens.length === 0) lines.push("| (none) | (none) | - | - | - |");
+          if (tokens.length > 16) lines.push(`| ... ${tokens.length - 16} more token(s) omitted | | | | |`);
+          lines.push("");
+        }
+
+        lines.push("#### Assessment", "");
+        if (expectedValuesAppearInOrder) {
+          lines.push("- Geometry supports the expected member order in member candidate crops.");
+        } else {
+          lines.push("- Geometry does not yet prove the expected order for all values.");
+        }
+        lines.push("- This is still audit-only evidence; production member-order correction should wait for more repeated cases and a stricter rule.");
+        lines.push("");
+      }
+    }
+  }
+
+  lines.push("## Recommendation", "");
+  lines.push("- Keep geometry capture runner-only.");
+  lines.push("- Do not implement production member-order correction yet.");
+  lines.push("- The next useful step is to collect more bbox-backed examples and design a rule that requires member-zone span order plus equation consistency.");
+  lines.push("");
+
+  return lines.join("\n");
+}
+
 function buildRawTokenFragmentAuditReport(report) {
   const generatedAt = new Date().toISOString();
   const scopedItems = report.filter((item) =>
@@ -3646,6 +4056,8 @@ async function main() {
   await fs.writeFile(digitDropAuditReportPath, buildDigitDropAuditReport(report));
   await fs.writeFile(rawTokenFragmentAuditReportPath, buildRawTokenFragmentAuditReport(report));
   await fs.writeFile(memberOrderAuditReportPath, buildMemberOrderAuditReport(report));
+  await fs.writeFile(geometryAuditReportPath, await buildGeometryAuditReport(report));
+  await terminateAuditGeometryWorker();
   if (debugNext) {
     await fs.writeFile(nextDebugPath, buildNextDebugReport(report));
   }
@@ -3664,6 +4076,7 @@ async function main() {
         digitDropAuditReport: path.relative(rootDir, digitDropAuditReportPath).replaceAll("\\", "/"),
         rawTokenFragmentAuditReport: path.relative(rootDir, rawTokenFragmentAuditReportPath).replaceAll("\\", "/"),
         memberOrderAuditReport: path.relative(rootDir, memberOrderAuditReportPath).replaceAll("\\", "/"),
+        geometryAuditReport: path.relative(rootDir, geometryAuditReportPath).replaceAll("\\", "/"),
         nextDebug: debugNext ? path.relative(rootDir, nextDebugPath).replaceAll("\\", "/") : null,
         elapsedMs: report.map((item) => ({ image: item.image, elapsedMs: item.elapsedMs })),
         failures: failedResults.map((item) => ({
