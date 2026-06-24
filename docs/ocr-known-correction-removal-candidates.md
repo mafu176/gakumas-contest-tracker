@@ -8,15 +8,20 @@ This audit reviews filename-keyed OCR known corrections in `app/lib/ocrPostProce
 - `0d50108` Generalize mobile OCR sparse trailing zero preservation
 - `737d966` Generalize mobile OCR total-like member suppression
 
-No known corrections were removed in this audit. No production OCR logic was changed.
+This report is updated after removing two proven-safe entries:
 
-Important limitation: the normal regression runner still applies filename-keyed known corrections. This audit therefore treats removability conservatively. A correction is not marked as safe to remove unless there is exact no-known-correction proof or an equivalent browser/manual replay. In this pass, no such bypass proof was generated.
+- `IMG_9245.png:stage1`
+- `IMG_9074.png:stage2`
+
+No production OCR logic was changed during the audit passes.
+
+Important limitation: the normal regression runner still applies filename-keyed known corrections unless `--audit-disable-known-correction` is used. This audit therefore treats removability conservatively. A correction is not marked as safe to remove unless there is exact disabled-key runner proof or an equivalent browser/manual replay.
 
 ## A. Safe Removal Candidates
 
 | Correction key | Proof | Validation command | Result |
 | --- | --- | --- | --- |
-| `IMG_9245.png:stage1` | Proven with runner by temporarily disabling only this key. | `node scripts/ocr-test-images.mjs IMG_9245` | Generic rules alone produced Stage1 enemy `[124447, 188031, 31083]` and `enemyTotal: 343561`. |
+| `IMG_9245.png:stage2` | Proven with runner by disabling only this key while keeping generic OCR rules active. | `node scripts/ocr-test-images.mjs IMG_9245 --audit-disable-known-correction IMG_9245.png:stage2` | The full expected image still passed. Stage2 enemy remained `[211931, 147329, 219662]`, `enemyTotal: 578922`. |
 
 ## B. Likely Removal Candidates But Need Confirmation
 
@@ -71,7 +76,6 @@ Generic rule likely involved: smartphone total-like member suppression.
 | Correction key | Reason | What to verify |
 | --- | --- | --- |
 | `IMG_9165.png:stage2` | Displayed total was selected as a member in a two-member side. | Needs replay because earlier runner/browser recognition diverged for one member value. |
-| `IMG_9245.png:stage1` | Strong candidate: raw pattern had total-like `345561` entering members while `124447 + 188031 + 31083 = 343561`. | Disable key and confirm no-bonus 3-member equation wins. |
 
 ## C. Keep Individual For Now
 
@@ -152,25 +156,26 @@ These are intentionally kept individual. They correct very small sparse enemy sc
 | Category | Count |
 | --- | ---: |
 | Total filename-keyed corrections | 82 |
-| Unique image files | 50 |
+| Unique image files | 47 |
 | Safe removal candidates | 1 |
-| Likely candidates needing confirmation | 20 |
-| Keep individual for now | 61 |
+| Likely candidates needing confirmation | 17 |
+| Keep individual for now | 62 |
+| Not enough data / missing expected JSON | 20 |
 
 ## Top 5 Safest Next Candidates
 
 These are not approved for deletion yet, but they should be the first no-known replay targets.
 
-1. `IMG_9254.png:stage2`  
-   Crown bonus/member displacement candidate; verify exact Stage2 self members and total without the key.
-2. `IMG_9254.png:stage3`  
-   Crown/noise displacement candidate; verify exact Stage3 self members and total without the key.
+1. `IMG_9245.png:stage2`  
+   Now proven safe in the runner with the key disabled; this is the next deletion candidate.
+2. `IMG_9254.png:stage2`  
+   Crown bonus/member displacement candidate, but no expected JSON exists yet.
 3. `IMG_9257.png:stage2`  
-   Missing high member plus crown-as-member candidate; verify Stage2 enemy without the key.
+   Missing high member plus crown-as-member candidate, but no expected JSON exists yet.
 4. `IMG_9264.png:stage2`  
-   Missing high member plus crown-as-member candidate; verify Stage2 enemy without the key.
+   Missing high member plus crown-as-member candidate, but no expected JSON exists yet.
 5. `IMG_9264.png:stage3`  
-   Sparse two-member enemy case; verify blank third slot and crown-included total without the key.
+   Sparse two-member enemy case, but no expected JSON exists yet.
 
 ## Top Risks
 
@@ -221,4 +226,86 @@ Safety checks after batch:
 Cleanup notes:
 
 - `app/lib/ocrPostProcess.js` was restored after each temporary disable.
+- Generated OCR reports were restored after validation.
+
+## Broader Safe-Removal Audit: 2026-06-24
+
+Method: the runner-only `--audit-disable-known-correction` flag was used. No production OCR code was changed and no known corrections were removed in this pass.
+
+### Stage2 / High-Score Candidate Batch
+
+Command:
+
+```bash
+node scripts/ocr-test-images.mjs IMG_9165 IMG_9245 IMG_9254 IMG_9257 IMG_9264 IMG_9265 IMG_9266 IMG_9267 IMG_9268 IMG_9281 IMG_9282 IMG_9283 IMG_9284 IMG_9285 --audit-disable-known-correction IMG_9165.png:stage2,IMG_9245.png:stage2,IMG_9254.png:stage2,IMG_9257.png:stage2,IMG_9264.png:stage2,IMG_9265.png:stage2,IMG_9266.png:stage2,IMG_9267.png:stage2,IMG_9268.png:stage2,IMG_9281.png:stage2,IMG_9282.png:stage2,IMG_9283.png:stage2,IMG_9284.png:stage2,IMG_9285.png:stage2
+```
+
+Result summary:
+
+- images scanned: 15
+- expected images: 3
+- failed expected images: 2 (`IMG_9165` duplicate paths)
+- expected image newly proven safe: `IMG_9245.png:stage2`
+
+| Correction key | Classification | Evidence |
+| --- | --- | --- |
+| `IMG_9245.png:stage2` | A. safe removal candidate with runner proof | With this key disabled, `IMG_9245` still passed. Stage2 enemy remained `[211931, 147329, 219662]`, `enemyTotal: 578922`. |
+| `IMG_9165.png:stage2` | C. keep individual | With this key disabled, Stage2 self member2 became `78295` instead of expected `94205` in both duplicate paths. |
+| `IMG_9254.png:stage2` | D. not enough data / missing expected JSON | No expected JSON exists, so this cannot be proven safe by runner output. |
+| `IMG_9257.png:stage2` | D. not enough data / missing expected JSON | No expected JSON exists. |
+| `IMG_9264.png:stage2` | D. not enough data / missing expected JSON | No expected JSON exists. |
+| `IMG_9265.png:stage2` | D. not enough data / missing expected JSON | No expected JSON exists. |
+| `IMG_9266.png:stage2` | D. not enough data / missing expected JSON | No expected JSON exists. |
+| `IMG_9267.png:stage2` | D. not enough data / missing expected JSON | No expected JSON exists. |
+| `IMG_9268.png:stage2` | D. not enough data / missing expected JSON | No expected JSON exists. |
+| `IMG_9281.png:stage2` | D. not enough data / missing expected JSON | No expected JSON exists. |
+| `IMG_9282.png:stage2` | D. not enough data / missing expected JSON | No expected JSON exists. |
+| `IMG_9283.png:stage2` | D. not enough data / missing expected JSON | No expected JSON exists. |
+| `IMG_9284.png:stage2` | D. not enough data / missing expected JSON | No expected JSON exists. |
+| `IMG_9285.png:stage2` | D. not enough data / missing expected JSON | No expected JSON exists. |
+
+### Sparse Stage3 Candidate Batch
+
+Command:
+
+```bash
+node scripts/ocr-test-images.mjs IMG_9254 IMG_9264 IMG_9266 IMG_9281 IMG_9282 IMG_9283 IMG_9284 IMG_9285 --audit-disable-known-correction IMG_9254.png:stage3,IMG_9264.png:stage3,IMG_9266.png:stage3,IMG_9281.png:stage3,IMG_9282.png:stage3,IMG_9283.png:stage3,IMG_9284.png:stage3,IMG_9285.png:stage3
+```
+
+Result summary:
+
+- images scanned: 8
+- expected images: 0
+- failed expected images: 0
+- all entries remain D until expected JSON or browser-confirmed values are available
+
+| Correction key | Classification | Evidence |
+| --- | --- | --- |
+| `IMG_9254.png:stage3` | D. not enough data / missing expected JSON | No expected JSON exists. |
+| `IMG_9264.png:stage3` | D. not enough data / missing expected JSON | No expected JSON exists. |
+| `IMG_9266.png:stage3` | D. not enough data / missing expected JSON | No expected JSON exists. |
+| `IMG_9281.png:stage3` | D. not enough data / missing expected JSON | No expected JSON exists. |
+| `IMG_9282.png:stage3` | D. not enough data / missing expected JSON | No expected JSON exists. |
+| `IMG_9283.png:stage3` | D. not enough data / missing expected JSON | No expected JSON exists. |
+| `IMG_9284.png:stage3` | D. not enough data / missing expected JSON | No expected JSON exists. |
+| `IMG_9285.png:stage3` | D. not enough data / missing expected JSON | No expected JSON exists. |
+
+### Updated Classification Counts From This Broader Batch
+
+| Classification | Count |
+| --- | ---: |
+| A. safe removal candidate with runner proof | 1 |
+| B. promising but needs more evidence/browser confirmation | 0 |
+| C. keep individual | 1 |
+| D. not enough data / missing expected JSON | 20 |
+
+Safety checks after broader batch:
+
+- `node scripts/ocr-test-images.mjs IMG_9251 IMG_9180`: failed `0`
+- `node scripts/ocr-test-images.mjs --source desktop "desktop/スクリーンショット 2026-06-07 111730.png"`: PASS
+- `npm run build` was not run because no code changed.
+
+Cleanup notes:
+
+- `app/lib/ocrPostProcess.js` was not modified.
 - Generated OCR reports were restored after validation.
