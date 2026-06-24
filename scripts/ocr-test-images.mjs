@@ -17,6 +17,7 @@ const reportPath = path.join(rootDir, "regression-test", "ocr-report.json");
 const markdownReportPath = path.join(rootDir, "docs", "ocr-test-report.md");
 const digitDropAuditReportPath = path.join(rootDir, "docs", "ocr-digit-drop-audit-detector-report.md");
 const rawTokenFragmentAuditReportPath = path.join(rootDir, "docs", "ocr-raw-token-fragment-audit.md");
+const memberOrderAuditReportPath = path.join(rootDir, "docs", "ocr-member-order-audit-report.md");
 const nextDebugPath = path.join(rootDir, "docs", "next-debug.md");
 const unsupportedNextScreenMessage =
   "Next screen is unsupported for OCR. Use normal result or high-score screen.";
@@ -3230,6 +3231,220 @@ function formatTraceLines(traces = []) {
     .join("\n");
 }
 
+function formatNumberListWithSlots(values = []) {
+  if (!Array.isArray(values) || values.length === 0) return "(none)";
+  return values
+    .map((value, index) => `slot${index + 1}=${formatNumber(Number(value) || 0) || "0"}`)
+    .join(", ");
+}
+
+function formatSourceNumbers(numbers = []) {
+  if (!Array.isArray(numbers) || numbers.length === 0) return "(none)";
+  return numbers
+    .map((value, index) => `${index + 1}:${formatNumber(Number(value) || 0) || "0"}`)
+    .join(", ");
+}
+
+function sortedNonZeroValues(values = []) {
+  return values
+    .map((value) => Number(value) || 0)
+    .filter((value) => value > 0)
+    .sort((a, b) => a - b);
+}
+
+function hasSameNonZeroValueSet(left = [], right = []) {
+  const a = sortedNonZeroValues(left);
+  const b = sortedNonZeroValues(right);
+  return a.length === b.length && a.every((value, index) => Math.abs(value - b[index]) <= 1);
+}
+
+function getOrderedNumberSources(bundle) {
+  const sources = [];
+  const addSource = (label, text, trace = null) => {
+    const numbers = extractNumbersForZone(text || "");
+    if (numbers.length === 0 && !text) return;
+    sources.push({
+      label,
+      numbers,
+      text: formatDebugText(text || ""),
+      trace,
+    });
+  };
+
+  addSource("total direct crop", bundle.totalDirect);
+  (bundle.totalCandidateTraces || []).forEach((trace, index) => {
+    addSource(`total candidate trace ${index + 1}`, trace.text, trace);
+  });
+  addSource("selected member crop", bundle.members);
+
+  return sources;
+}
+
+function describeValueSource(value, sources) {
+  const target = Number(value) || 0;
+  if (target <= 0) return "blank/zero";
+
+  const matches = [];
+  for (const source of sources) {
+    (source.numbers || []).forEach((num, index) => {
+      if (Math.abs(num - target) <= 1) {
+        matches.push(`${source.label} #${index + 1}`);
+      }
+    });
+  }
+
+  return matches.length > 0 ? matches.join("; ") : "not observed in raw text numbers";
+}
+
+function buildMemberOrderAuditReport(report) {
+  const targetKeys = new Set([
+    "img_9240.png:stage3",
+    "img_9254.png:stage3",
+    "img_9281.png:stage3",
+  ]);
+  const generatedAt = new Date().toISOString();
+  const scopedItems = report.filter((item) => {
+    if (!item.result || item.source === "desktop") return false;
+    const disabled = (item.disabledKnownCorrections || []).map(normalizeKnownCorrectionKey);
+    return disabled.some((key) => targetKeys.has(key));
+  });
+
+  const lines = [
+    "# OCR Member Order / Slot Assignment Audit",
+    "",
+    `Generated: ${generatedAt}`,
+    "",
+    "## Scope",
+    "",
+    "This is runner-only audit output produced by `scripts/ocr-test-images.mjs`.",
+    "It does not change OCR output, browser behavior, or known corrections.",
+    "",
+    "## Available Evidence",
+    "",
+    "- OCR zone name/source is available at the crop level: direct total crop, alternative total candidate traces, and selected member crop.",
+    "- Raw OCR token order is available as returned text order from those crops.",
+    "- Numeric candidate order is available per crop via parsed numbers from each raw OCR text block.",
+    "- Tesseract word bounding boxes are not currently preserved by the runner, so this report cannot prove per-token x/y geometry yet.",
+    "",
+    "## Summary",
+    "",
+    `- audit images scanned: ${scopedItems.length}`,
+    "",
+  ];
+
+  if (scopedItems.length === 0) {
+    lines.push("No member-order audit targets found in this run.", "");
+    return lines.join("\n");
+  }
+
+  for (const item of scopedItems) {
+    lines.push(`## ${item.image}`, "");
+    lines.push(`- disabled known correction(s): ${(item.disabledKnownCorrections || []).join(", ") || "none"}`);
+    lines.push(`- expected JSON: ${item.expected ? "yes" : "no"}`);
+    lines.push(`- pass: ${item.pass ? "yes" : "no"}`);
+    lines.push("");
+
+    for (const stage of stages) {
+      const stageKey = `stage${stage}`;
+      const stageResult = item.result?.[stageKey];
+      const disabledStage = (item.disabledKnownCorrections || []).some((key) =>
+        normalizeKnownCorrectionKey(key).endsWith(`:stage${stage}`)
+      );
+      if (!stageResult || !disabledStage) continue;
+
+      for (const side of sides) {
+        const failures = getStageSideFailures(item, stage, side);
+        const selectedMembers = stageResult[side] || [];
+        const selectedTotal = side === "self" ? stageResult.selfTotal : stageResult.enemyTotal;
+        const expectedStage = item.expectedData?.[stageKey];
+        const expectedMembers = expectedStage?.[`${side}Members`] || [];
+        const expectedTotal = expectedStage?.[side === "self" ? "selfTotal" : "enemyTotal"];
+        const sameValueSet = hasSameNonZeroValueSet(selectedMembers, expectedMembers);
+        const bundle = getRawTextBundle(stageResult, side);
+        const sources = getOrderedNumberSources(bundle);
+        const rawNumbers = collectRawNumbers(stageResult, side);
+        const includeSide =
+          failures.length > 0 ||
+          sameValueSet ||
+          expectedMembers.some((value) => value > 0 && describeValueSource(value, sources) !== "not observed in raw text numbers");
+
+        if (!includeSide) continue;
+
+        const selectedSum = selectedMembers.reduce((sum, value) => sum + (Number(value) || 0), 0);
+        const expectedSum = expectedMembers.reduce((sum, value) => sum + (Number(value) || 0), 0);
+
+        lines.push(`### S${stage} ${side}`, "");
+        lines.push(`- failures: ${failures.length > 0 ? failures.map((failure) => `${failure.key} expected ${failure.expected} actual ${failure.actual}`).join("; ") : "none"}`);
+        lines.push(`- selected members: ${formatNumberListWithSlots(selectedMembers)}`);
+        lines.push(`- selected total: ${formatNumber(selectedTotal)}`);
+        lines.push(`- selected member sum: ${formatNumber(selectedSum)}`);
+        lines.push(`- expected members: ${formatNumberListWithSlots(expectedMembers)}`);
+        lines.push(`- expected total: ${formatNumber(expectedTotal)}`);
+        lines.push(`- expected member sum: ${formatNumber(expectedSum)}`);
+        lines.push(`- same non-zero member value set: ${sameValueSet ? "yes" : "no"}`);
+        lines.push(`- raw numeric candidates: ${formatDebugNumbers(rawNumbers)}`);
+        lines.push("");
+
+        lines.push("#### Source Occurrence Map", "");
+        const valuesToTrace = [...new Set([
+          ...selectedMembers,
+          ...expectedMembers,
+          selectedTotal,
+          expectedTotal,
+        ].map((value) => Number(value) || 0).filter((value) => value > 0))];
+        lines.push("| value | selected slot(s) | expected slot(s) | observed source(s) |");
+        lines.push("| ---: | --- | --- | --- |");
+        for (const value of valuesToTrace) {
+          const selectedSlots = selectedMembers
+            .map((member, index) => (Math.abs((Number(member) || 0) - value) <= 1 ? `member${index + 1}` : ""))
+            .filter(Boolean);
+          if (Math.abs((Number(selectedTotal) || 0) - value) <= 1) selectedSlots.push("total");
+          const expectedSlots = expectedMembers
+            .map((member, index) => (Math.abs((Number(member) || 0) - value) <= 1 ? `member${index + 1}` : ""))
+            .filter(Boolean);
+          if (Math.abs((Number(expectedTotal) || 0) - value) <= 1) expectedSlots.push("total");
+          lines.push(
+            `| ${formatNumber(value)} | ${selectedSlots.join(", ") || "-"} | ${expectedSlots.join(", ") || "-"} | ${describeValueSource(value, sources)} |`
+          );
+        }
+        lines.push("");
+
+        lines.push("#### Ordered Source Numbers", "");
+        for (const source of sources) {
+          lines.push(`- ${source.label}: ${formatSourceNumbers(source.numbers)}`);
+        }
+        lines.push("");
+
+        lines.push("#### Raw OCR Text", "");
+        lines.push("```text");
+        lines.push(`total direct: ${formatDebugText(bundle.totalDirect)}`);
+        lines.push("total candidate traces:");
+        lines.push(formatTraceLines(bundle.totalCandidateTraces));
+        lines.push(`members: ${formatDebugText(bundle.members)}`);
+        lines.push("```");
+        lines.push("");
+
+        const geometryAssessment = sameValueSet
+          ? "Values exist as the same set, but current runner output still lacks bounding-box proof for safe automatic reordering."
+          : "This is a broader slot-assignment issue, not a pure permutation; source-zone evidence is needed before any production rule.";
+        lines.push("#### Audit Assessment", "");
+        lines.push(`- ${geometryAssessment}`);
+        lines.push("- Current evidence is useful for designing the next audit, but not enough by itself for production correction.");
+        lines.push("");
+      }
+    }
+  }
+
+  lines.push("## Recommendation", "");
+  lines.push("- Keep this audit runner-only.");
+  lines.push("- Do not implement production member-order repair until selected values include per-token source geometry or explicit slot provenance.");
+  lines.push("- The most promising future target remains `IMG_9240.png:stage3`, because the selected and expected non-zero member sets are identical.");
+  lines.push("- `IMG_9254.png:stage3` and `IMG_9281.png:stage3` need total/member/crown slot provenance, not just value order.");
+  lines.push("");
+
+  return lines.join("\n");
+}
+
 function buildRawTokenFragmentAuditReport(report) {
   const generatedAt = new Date().toISOString();
   const scopedItems = report.filter((item) =>
@@ -3430,6 +3645,7 @@ async function main() {
   await fs.writeFile(markdownReportPath, buildMarkdownReport(report));
   await fs.writeFile(digitDropAuditReportPath, buildDigitDropAuditReport(report));
   await fs.writeFile(rawTokenFragmentAuditReportPath, buildRawTokenFragmentAuditReport(report));
+  await fs.writeFile(memberOrderAuditReportPath, buildMemberOrderAuditReport(report));
   if (debugNext) {
     await fs.writeFile(nextDebugPath, buildNextDebugReport(report));
   }
@@ -3447,6 +3663,7 @@ async function main() {
         markdownReport: path.relative(rootDir, markdownReportPath).replaceAll("\\", "/"),
         digitDropAuditReport: path.relative(rootDir, digitDropAuditReportPath).replaceAll("\\", "/"),
         rawTokenFragmentAuditReport: path.relative(rootDir, rawTokenFragmentAuditReportPath).replaceAll("\\", "/"),
+        memberOrderAuditReport: path.relative(rootDir, memberOrderAuditReportPath).replaceAll("\\", "/"),
         nextDebug: debugNext ? path.relative(rootDir, nextDebugPath).replaceAll("\\", "/") : null,
         elapsedMs: report.map((item) => ({ image: item.image, elapsedMs: item.elapsedMs })),
         failures: failedResults.map((item) => ({
