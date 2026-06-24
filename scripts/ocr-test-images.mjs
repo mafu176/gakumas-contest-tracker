@@ -15,6 +15,7 @@ const testImagesDir = path.join(rootDir, "test-images");
 const expectedDir = path.join(rootDir, "regression-test", "expected");
 const reportPath = path.join(rootDir, "regression-test", "ocr-report.json");
 const markdownReportPath = path.join(rootDir, "docs", "ocr-test-report.md");
+const digitDropAuditReportPath = path.join(rootDir, "docs", "ocr-digit-drop-audit-detector-report.md");
 const nextDebugPath = path.join(rootDir, "docs", "next-debug.md");
 const unsupportedNextScreenMessage =
   "Next screen is unsupported for OCR. Use normal result or high-score screen.";
@@ -45,6 +46,29 @@ const crownDiffCandidates = new Set([
 const displayedTotalCrownDiffCandidates = new Set([13612, 13987, 102080]);
 
 const enableNextScreenFallback = false;
+
+function normalizeKnownCorrectionKey(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function parseDisabledKnownCorrections(args) {
+  const disabled = [];
+  for (let index = 0; index < args.length; index += 1) {
+    if (args[index] !== "--audit-disable-known-correction") continue;
+    const rawValue = args[index + 1] || "";
+    rawValue
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .forEach((value) => disabled.push(value));
+  }
+  return disabled;
+}
+
+function shouldApplyKnownOcrCorrection(fileName, stage, disabledKnownCorrections = new Set()) {
+  const key = `${fileName}:stage${stage}`;
+  return !disabledKnownCorrections.has(normalizeKnownCorrectionKey(key));
+}
 
 function isKnownNoiseNumber(num) {
   return crownDiffCandidates.has(num) || totalPowerCandidates.has(num);
@@ -2175,12 +2199,14 @@ async function runOcrForImage(imagePath, options = {}) {
       enemyTotal = selectedEnemyCrownInference.total;
     }
 
-    ({ self, enemy, selfTotal, enemyTotal } = applyKnownOcrCorrections(fileName, stage, {
-      self,
-      enemy,
-      selfTotal,
-      enemyTotal,
-    }));
+    if (shouldApplyKnownOcrCorrection(fileName, stage, options.disabledKnownCorrections)) {
+      ({ self, enemy, selfTotal, enemyTotal } = applyKnownOcrCorrections(fileName, stage, {
+        self,
+        enemy,
+        selfTotal,
+        enemyTotal,
+      }));
+    }
 
     const dropNoiseThirdMemberWhenPartialBonusMatchesTotal = (
       selectedMembers,
@@ -2425,12 +2451,14 @@ async function runOcrForImage(imagePath, options = {}) {
       ]
     ));
 
-    ({ self, enemy, selfTotal, enemyTotal } = applyKnownOcrCorrections(fileName, stage, {
-      self,
-      enemy,
-      selfTotal,
-      enemyTotal,
-    }));
+    if (shouldApplyKnownOcrCorrection(fileName, stage, options.disabledKnownCorrections)) {
+      ({ self, enemy, selfTotal, enemyTotal } = applyKnownOcrCorrections(fileName, stage, {
+        self,
+        enemy,
+        selfTotal,
+        enemyTotal,
+      }));
+    }
 
     const stageResult = {
       selfTotal,
@@ -2943,6 +2971,203 @@ function buildNextDebugReport(report) {
   return lines.join("\n");
 }
 
+function numberText(num) {
+  return Number.isFinite(num) ? String(Math.trunc(Math.abs(num))) : "";
+}
+
+function isShortFragmentOf(fragment, full) {
+  const fragmentText = numberText(fragment);
+  const fullText = numberText(full);
+  if (fragmentText.length < 3 || fullText.length <= fragmentText.length) return false;
+  if (fragmentText.length > 5) return false;
+  return fullText.includes(fragmentText);
+}
+
+function classifyDigitDropFinding({ selected, expectedValue, rawMatch, totalMatch }) {
+  if (Number.isFinite(expectedValue) && expectedValue > 0 && isShortFragmentOf(selected, expectedValue)) {
+    return {
+      confidence: rawMatch ? "high" : "medium",
+      reason: rawMatch
+        ? `selected ${selected} is a substring of expected/observed value ${expectedValue}`
+        : `selected ${selected} is a substring of expected value ${expectedValue}`,
+    };
+  }
+
+  if (rawMatch) {
+    return {
+      confidence: "medium",
+      reason: `selected ${selected} is a substring of raw candidate ${rawMatch}`,
+    };
+  }
+
+  if (totalMatch) {
+    return {
+      confidence: "low",
+      reason: `selected ${selected} is a substring of total-like value ${totalMatch}`,
+    };
+  }
+
+  return null;
+}
+
+function collectDigitDropAuditFindings(report) {
+  const findings = [];
+
+  for (const item of report) {
+    if (!item.result || item.source === "desktop") continue;
+    const itemBaseName = path.basename(item.image).toLowerCase();
+    const itemDisabledKnownCorrections = (item.disabledKnownCorrections || []).filter((key) =>
+      normalizeKnownCorrectionKey(key).startsWith(`${itemBaseName}:`)
+    );
+
+    for (const stage of stages) {
+      const stageKey = `stage${stage}`;
+      const stageResult = item.result[stageKey];
+      const expectedStage = item.expectedData?.[stageKey];
+
+      for (const side of sides) {
+        const selectedMembers = stageResult[side] || [];
+        const selectedTotal = side === "self" ? stageResult.selfTotal : stageResult.enemyTotal;
+        const rawNumbers = collectRawNumbers(stageResult, side);
+        const rawTotalNumbers = side === "self" ? stageResult.raw.selfTotal : stageResult.raw.enemyTotal;
+        const expectedMembers = expectedStage?.[`${side}Members`] || [];
+        const expectedTotal = expectedStage?.[`${side}Total`];
+        const totalLikeNumbers = [
+          selectedTotal,
+          expectedTotal,
+          ...rawTotalNumbers,
+          ...rawNumbers.filter((num) => Number.isFinite(num) && num >= 50000),
+        ].filter((num) => Number.isFinite(num) && num > 0);
+
+        selectedMembers.forEach((member, index) => {
+          if (!Number.isFinite(member) || member <= 0) return;
+
+          const expectedValue = Number(expectedMembers[index] || 0);
+          const expectedMismatch = Number.isFinite(expectedValue) && expectedValue > 0 && Math.abs(member - expectedValue) > 1;
+          const rawMatch = rawNumbers.find(
+            (candidate) => candidate !== member && isShortFragmentOf(member, candidate)
+          );
+          const totalMatch = totalLikeNumbers.find(
+            (candidate) => candidate !== member && isShortFragmentOf(member, candidate)
+          );
+          const classification = classifyDigitDropFinding({
+            selected: member,
+            expectedValue: expectedMismatch ? expectedValue : NaN,
+            rawMatch,
+            totalMatch,
+          });
+
+          if (!classification) return;
+
+          const candidateRepair = expectedMismatch
+            ? expectedValue
+            : rawMatch || totalMatch || 0;
+          const repairedMembers = [...selectedMembers];
+          if (candidateRepair > 0) {
+            repairedMembers[index] = candidateRepair;
+          }
+          const repairedSum = repairedMembers.reduce((sum, value) => sum + (Number(value) || 0), 0);
+          const manualRequired =
+            !expectedMismatch ||
+            classification.confidence !== "high" ||
+            (Number.isFinite(expectedTotal) && Math.abs(repairedSum - expectedTotal) > 1000);
+
+          findings.push({
+            image: item.image,
+            disabledKnownCorrections: itemDisabledKnownCorrections,
+            stage,
+            side,
+            memberSlot: index + 1,
+            selected: member,
+            expectedValue: expectedMismatch ? expectedValue : null,
+            candidateRepair: candidateRepair || null,
+            selectedMembers,
+            expectedMembers,
+            selectedTotal,
+            expectedTotal: Number.isFinite(expectedTotal) ? expectedTotal : null,
+            rawNumbers,
+            reason: classification.reason,
+            confidence: classification.confidence,
+            manualRequired,
+          });
+        });
+      }
+    }
+  }
+
+  return findings;
+}
+
+function buildDigitDropAuditReport(report) {
+  const findings = collectDigitDropAuditFindings(report);
+  const generatedAt = new Date().toISOString();
+  const byConfidence = findings.reduce((counts, finding) => {
+    counts[finding.confidence] = (counts[finding.confidence] || 0) + 1;
+    return counts;
+  }, {});
+
+  const lines = [
+    "# OCR digit-drop audit detector report",
+    "",
+    `Generated: ${generatedAt}`,
+    "",
+    "## Scope",
+    "",
+    "This is an audit-only report produced by `scripts/ocr-test-images.mjs`.",
+    "It does not change OCR output and is not imported by the browser app.",
+    "When `--audit-disable-known-correction` is used, only the test runner skips the selected filename-keyed correction.",
+    "",
+    "## Summary",
+    "",
+    `- images scanned: ${report.length}`,
+    `- possible digit-drop / fragment findings: ${findings.length}`,
+    `- high confidence: ${byConfidence.high || 0}`,
+    `- medium confidence: ${byConfidence.medium || 0}`,
+    `- low confidence: ${byConfidence.low || 0}`,
+    "",
+    "## Findings",
+    "",
+  ];
+
+  if (findings.length === 0) {
+    lines.push("No possible digit-drop findings detected.", "");
+    return lines.join("\n");
+  }
+
+  lines.push("| image | disabled correction | stage | side | slot | selected | candidate repair | expected | confidence | manual/browser confirmation | reason |");
+  lines.push("| --- | --- | --- | --- | ---: | ---: | ---: | ---: | --- | --- | --- |");
+
+  for (const finding of findings) {
+    lines.push(
+      `| ${finding.image} | ${finding.disabledKnownCorrections.join(", ") || "-"} | S${finding.stage} | ${finding.side} | ${finding.memberSlot} | ${formatNumber(finding.selected)} | ${formatNumber(finding.candidateRepair)} | ${formatNumber(finding.expectedValue)} | ${finding.confidence} | ${finding.manualRequired ? "required" : "not required for runner proof"} | ${finding.reason} |`
+    );
+  }
+
+  lines.push("", "## Details", "");
+
+  for (const finding of findings) {
+    lines.push(`### ${finding.image} S${finding.stage} ${finding.side} member${finding.memberSlot}`, "");
+    lines.push(`- disabled known correction(s): ${finding.disabledKnownCorrections.join(", ") || "none"}`);
+    lines.push(`- selected members: ${formatDebugNumbers(finding.selectedMembers)}`);
+    lines.push(`- expected members: ${formatDebugNumbers(finding.expectedMembers)}`);
+    lines.push(`- selected total: ${formatNumber(finding.selectedTotal)}`);
+    lines.push(`- expected total: ${formatNumber(finding.expectedTotal)}`);
+    lines.push(`- raw candidates: ${formatDebugNumbers(finding.rawNumbers)}`);
+    lines.push(`- reason/evidence: ${finding.reason}`);
+    lines.push(`- confidence: ${finding.confidence}`);
+    lines.push(`- manual/browser confirmation: ${finding.manualRequired ? "required" : "not required for runner proof"}`);
+    lines.push("");
+  }
+
+  lines.push("## Safety Notes", "");
+  lines.push("- Findings are diagnostic only; no repair is applied.");
+  lines.push("- Tiny sparse enemy rows still require manual/signature handling.");
+  lines.push("- A future production rule should require exact equation support and should avoid inventing digits unless the repaired candidate was observed.");
+  lines.push("");
+
+  return lines.join("\n");
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const debugNext = args.includes("--debug-next");
@@ -2951,11 +3176,17 @@ async function main() {
   const forcedSource = ["smartphone", "desktop"].includes(sourceValue)
     ? sourceValue
     : "";
+  const disabledKnownCorrectionArgs = parseDisabledKnownCorrections(args);
+  const disabledKnownCorrections = new Set(
+    disabledKnownCorrectionArgs.map(normalizeKnownCorrectionKey)
+  );
   const filters = args
     .filter((value, index) =>
       value !== "--debug-next" &&
       value !== "--source" &&
-      !(sourceIndex >= 0 && index === sourceIndex + 1)
+      value !== "--audit-disable-known-correction" &&
+      !(sourceIndex >= 0 && index === sourceIndex + 1) &&
+      !(args[index - 1] === "--audit-disable-known-correction")
     )
     .map((value) => value.toLowerCase());
   const imagePaths = (await collectImages(testImagesDir))
@@ -2998,6 +3229,7 @@ async function main() {
       debugNext,
       fastNext: false,
       source,
+      disabledKnownCorrections,
     });
     const elapsedMs = Date.now() - startedAt;
     console.log(`OCR ${relative} ${elapsedMs}ms`);
@@ -3012,6 +3244,7 @@ async function main() {
       failures,
       elapsedMs,
       expectedData: expected,
+      disabledKnownCorrections: disabledKnownCorrectionArgs,
       result,
     });
   }
@@ -3020,6 +3253,7 @@ async function main() {
   await fs.mkdir(path.dirname(markdownReportPath), { recursive: true });
   await fs.writeFile(reportPath, JSON.stringify(report, null, 2));
   await fs.writeFile(markdownReportPath, buildMarkdownReport(report));
+  await fs.writeFile(digitDropAuditReportPath, buildDigitDropAuditReport(report));
   if (debugNext) {
     await fs.writeFile(nextDebugPath, buildNextDebugReport(report));
   }
@@ -3035,6 +3269,7 @@ async function main() {
         failed: failedResults.length,
         report: path.relative(rootDir, reportPath).replaceAll("\\", "/"),
         markdownReport: path.relative(rootDir, markdownReportPath).replaceAll("\\", "/"),
+        digitDropAuditReport: path.relative(rootDir, digitDropAuditReportPath).replaceAll("\\", "/"),
         nextDebug: debugNext ? path.relative(rootDir, nextDebugPath).replaceAll("\\", "/") : null,
         elapsedMs: report.map((item) => ({ image: item.image, elapsedMs: item.elapsedMs })),
         failures: failedResults.map((item) => ({
