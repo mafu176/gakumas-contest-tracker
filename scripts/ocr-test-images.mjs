@@ -16,6 +16,7 @@ const expectedDir = path.join(rootDir, "regression-test", "expected");
 const reportPath = path.join(rootDir, "regression-test", "ocr-report.json");
 const markdownReportPath = path.join(rootDir, "docs", "ocr-test-report.md");
 const digitDropAuditReportPath = path.join(rootDir, "docs", "ocr-digit-drop-audit-detector-report.md");
+const rawTokenFragmentAuditReportPath = path.join(rootDir, "docs", "ocr-raw-token-fragment-audit.md");
 const nextDebugPath = path.join(rootDir, "docs", "next-debug.md");
 const unsupportedNextScreenMessage =
   "Next screen is unsupported for OCR. Use normal result or high-score screen.";
@@ -1802,11 +1803,13 @@ async function recognizeTotalCandidates(imagePath, zones) {
 async function recognizeTotalCandidatesDetailed(imagePath, zones, options = {}) {
   const results = [];
   const debug = [];
+  const traces = [];
   const pass1Results = [];
   for (const zone of zones) {
     const result = await recognizeOcrZone(imagePath, zone);
     pass1Results.push({ zone, result });
     results.push(...result.numbers);
+    traces.push({ pass: result.pass, text: result.text, numbers: result.numbers });
     if (options.debugNext) debug.push({ pass1: result, fallback: null, selected: result });
   }
 
@@ -1820,10 +1823,16 @@ async function recognizeTotalCandidatesDetailed(imagePath, zones, options = {}) 
     );
     const merged = mergeOcrResults(result, secondPass || { text: "", numbers: [] });
     results.push(...merged.numbers);
+    traces.push({ pass: merged.pass, text: merged.text, numbers: merged.numbers });
     if (options.debugNext) debug[0] = { pass1: result, fallback: secondPass, selected: merged };
   }
 
-  return { numbers: results, debug };
+  return {
+    numbers: results,
+    debug,
+    text: traces.map((item) => item.text).filter(Boolean).join("\n"),
+    traces,
+  };
 }
 
 async function recognizeBestMemberZone(imagePath, zones) {
@@ -2470,6 +2479,16 @@ async function runOcrForImage(imagePath, options = {}) {
         selfMembers: selfMemberResult.numbers,
         enemyTotal: enemyTotalResult.numbers,
         enemyMembers: enemyMemberResult.numbers,
+      },
+      rawText: {
+        selfTotalDirect: selfTotalResult.text,
+        selfTotalCandidates: selfTotalCandidateResult.text,
+        selfTotalCandidateTraces: selfTotalCandidateResult.traces,
+        selfMembers: selfMemberResult.text,
+        enemyTotalDirect: enemyTotalResult.text,
+        enemyTotalCandidates: enemyTotalCandidateResult.text,
+        enemyTotalCandidateTraces: enemyTotalCandidateResult.traces,
+        enemyMembers: enemyMemberResult.text,
       },
     };
 
@@ -3168,6 +3187,162 @@ function buildDigitDropAuditReport(report) {
   return lines.join("\n");
 }
 
+function extractRawTextTokens(text) {
+  return String(text || "")
+    .replace(/[\uFF01-\uFF5E]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 65248))
+    .match(/[+\-]?\d[\d,.\sA-Za-z]{0,12}|\S+/g)
+    ?.map((token) => token.trim())
+    .filter(Boolean) ?? [];
+}
+
+function getStageSideFailures(item, stage, side) {
+  const label = `S${stage} ${sideLabels[side]}`;
+  return (item.failures || []).filter((failure) => failure.key.startsWith(label));
+}
+
+function getRawTextBundle(stageResult, side) {
+  const rawText = stageResult.rawText || {};
+  if (side === "self") {
+    return {
+      totalDirect: rawText.selfTotalDirect || "",
+      totalCandidates: rawText.selfTotalCandidates || "",
+      totalCandidateTraces: rawText.selfTotalCandidateTraces || [],
+      members: rawText.selfMembers || "",
+    };
+  }
+
+  return {
+    totalDirect: rawText.enemyTotalDirect || "",
+    totalCandidates: rawText.enemyTotalCandidates || "",
+    totalCandidateTraces: rawText.enemyTotalCandidateTraces || [],
+    members: rawText.enemyMembers || "",
+  };
+}
+
+function formatTraceLines(traces = []) {
+  if (!Array.isArray(traces) || traces.length === 0) return "- (none)";
+  return traces
+    .map((trace, index) => {
+      const text = formatDebugText(trace.text);
+      const numbers = formatDebugNumbers(trace.numbers || []);
+      return `- trace ${index + 1} [${trace.pass || "pass1"}]: text=${JSON.stringify(text)} numbers=${numbers}`;
+    })
+    .join("\n");
+}
+
+function buildRawTokenFragmentAuditReport(report) {
+  const generatedAt = new Date().toISOString();
+  const scopedItems = report.filter((item) =>
+    item.result &&
+    item.source !== "desktop" &&
+    ((item.disabledKnownCorrections || []).length > 0 || (item.failures || []).length > 0)
+  );
+  const lines = [
+    "# OCR Raw Token / Fragment Audit",
+    "",
+    `Generated: ${generatedAt}`,
+    "",
+    "## Scope",
+    "",
+    "This is a runner-only audit report produced by `scripts/ocr-test-images.mjs`.",
+    "It does not change OCR output and is not imported by the browser app.",
+    "",
+    "## Availability",
+    "",
+    "- Raw OCR text is available inside the runner from `recognizeOcrZone(...).text` before numeric parsing.",
+    "- Before this audit output, normal stage results preserved only numeric arrays under `result.stageN.raw`.",
+    "- This report preserves runner-only `rawText` fields for direct total crops, alternative total candidate crops, and selected member crops.",
+    "- It does not expose browser OCR text; app runtime code remains untouched.",
+    "",
+    "## Target Data Needed For IMG_9243 Stage2",
+    "",
+    "- Raw text for Stage2 enemy total direct crop.",
+    "- Raw text/traces for Stage2 enemy alternative total candidate crops.",
+    "- Raw text for Stage2 enemy member crop.",
+    "- Token fragments that might support a displayed total like `448 97 6m`.",
+    "",
+    "## Summary",
+    "",
+    `- images scanned: ${report.length}`,
+    `- mobile audit images with disabled corrections/failures: ${scopedItems.length}`,
+    "",
+  ];
+
+  if (scopedItems.length === 0) {
+    lines.push("No raw token audit targets found.", "");
+    return lines.join("\n");
+  }
+
+  lines.push("## Raw Token Details", "");
+
+  for (const item of scopedItems) {
+    lines.push(`### ${item.image}`, "");
+    lines.push(`- disabled known correction(s): ${(item.disabledKnownCorrections || []).join(", ") || "none"}`);
+    lines.push(`- expected: ${item.expected ? "yes" : "no"}`);
+    lines.push(`- pass: ${item.pass ? "yes" : "no"}`);
+    lines.push("");
+
+    for (const stage of stages) {
+      const stageKey = `stage${stage}`;
+      const stageResult = item.result?.[stageKey];
+      if (!stageResult) continue;
+
+      for (const side of sides) {
+        const failures = getStageSideFailures(item, stage, side);
+        const includeSide =
+          failures.length > 0 ||
+          (item.disabledKnownCorrections || []).some((key) =>
+            normalizeKnownCorrectionKey(key).endsWith(`:stage${stage}`)
+          );
+        if (!includeSide) continue;
+
+        const selectedMembers = stageResult[side] || [];
+        const selectedTotal = side === "self" ? stageResult.selfTotal : stageResult.enemyTotal;
+        const expectedStage = item.expectedData?.[stageKey];
+        const expectedMembers = expectedStage?.[`${side}Members`] || [];
+        const expectedTotal = expectedStage?.[side === "self" ? "selfTotal" : "enemyTotal"];
+        const rawNumbers = collectRawNumbers(stageResult, side);
+        const bundle = getRawTextBundle(stageResult, side);
+        const allText = [
+          bundle.totalDirect,
+          bundle.totalCandidates,
+          bundle.members,
+        ].filter(Boolean).join("\n");
+        const tokens = extractRawTextTokens(allText);
+
+        lines.push(`#### S${stage} ${side}`, "");
+        lines.push(`- failures: ${failures.length > 0 ? failures.map((failure) => `${failure.key} expected ${failure.expected} actual ${failure.actual}`).join("; ") : "none"}`);
+        lines.push(`- selected members: ${formatDebugNumbers(selectedMembers)}`);
+        lines.push(`- selected total: ${formatNumber(selectedTotal)}`);
+        lines.push(`- expected members: ${formatDebugNumbers(expectedMembers)}`);
+        lines.push(`- expected total: ${formatNumber(expectedTotal)}`);
+        lines.push(`- raw numeric candidates: ${formatDebugNumbers(rawNumbers)}`);
+        lines.push(`- extracted raw text tokens/fragments: ${tokens.length > 0 ? tokens.map((token) => `\`${token}\``).join(", ") : "(none)"}`);
+        lines.push("");
+        lines.push("Raw OCR text:");
+        lines.push("```text");
+        lines.push(`total direct: ${formatDebugText(bundle.totalDirect)}`);
+        lines.push("total candidate traces:");
+        lines.push(formatTraceLines(bundle.totalCandidateTraces));
+        lines.push(`members: ${formatDebugText(bundle.members)}`);
+        lines.push("```");
+        lines.push("");
+      }
+    }
+  }
+
+  lines.push("## Implementation Notes", "");
+  lines.push("- Raw text/fragments can be captured safely in the runner without production changes.");
+  lines.push("- Current token data can prove whether a complete value was observed, but may still miss visual fragments if Tesseract drops them before returning text.");
+  lines.push("- Production digit-drop recovery should wait for exact equation support plus either clean total candidates or total-fragment token evidence.");
+  lines.push("");
+  lines.push("## Recommendation", "");
+  lines.push("Continue with audit-only reporting. Do not implement production digit-drop recovery until multiple no-known replays show unique raw-member triplets and total-fragment support.");
+  lines.push("");
+
+  return lines.join("\n");
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const debugNext = args.includes("--debug-next");
@@ -3254,6 +3429,7 @@ async function main() {
   await fs.writeFile(reportPath, JSON.stringify(report, null, 2));
   await fs.writeFile(markdownReportPath, buildMarkdownReport(report));
   await fs.writeFile(digitDropAuditReportPath, buildDigitDropAuditReport(report));
+  await fs.writeFile(rawTokenFragmentAuditReportPath, buildRawTokenFragmentAuditReport(report));
   if (debugNext) {
     await fs.writeFile(nextDebugPath, buildNextDebugReport(report));
   }
@@ -3270,6 +3446,7 @@ async function main() {
         report: path.relative(rootDir, reportPath).replaceAll("\\", "/"),
         markdownReport: path.relative(rootDir, markdownReportPath).replaceAll("\\", "/"),
         digitDropAuditReport: path.relative(rootDir, digitDropAuditReportPath).replaceAll("\\", "/"),
+        rawTokenFragmentAuditReport: path.relative(rootDir, rawTokenFragmentAuditReportPath).replaceAll("\\", "/"),
         nextDebug: debugNext ? path.relative(rootDir, nextDebugPath).replaceAll("\\", "/") : null,
         elapsedMs: report.map((item) => ({ image: item.image, elapsedMs: item.elapsedMs })),
         failures: failedResults.map((item) => ({

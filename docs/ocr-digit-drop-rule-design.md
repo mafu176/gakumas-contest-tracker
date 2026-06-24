@@ -28,6 +28,13 @@ Recommended next step:
 3. Re-run no-known-correction audits for IMG_9243-like cases.
 4. Only then promote the narrow rule if it shows unique equation support and does not touch tiny sparse enemy cases.
 
+Update after adding runner-only raw token/fragment audit:
+
+- The runner can now preserve raw OCR text for total/member crops in `docs/ocr-raw-token-fragment-audit.md`.
+- IMG_9243 stage2 now shows useful fragment evidence such as `448 97 6p` in total-candidate text and `448.976m` in member-crop text.
+- This improves diagnosis, but it is still not enough to ship production digit-drop recovery. The current batch only produced one medium-confidence digit-drop finding, and several adjacent corrections remain crown/member swap or order-specific cases.
+- Recommendation remains **B. Needs better detector/audit data first.**
+
 ## IMG_9243 Stage2 Deep Dive
 
 Command used:
@@ -340,4 +347,3 @@ The next useful implementation should be audit-only:
 - enumerate raw triplet + bonus equations,
 - classify whether a displayed total is clean, fragmented, or expected-only,
 - and keep production output unchanged.
-
