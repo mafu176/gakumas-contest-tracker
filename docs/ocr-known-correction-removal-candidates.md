@@ -357,3 +357,55 @@ Cleanup notes:
 - No known corrections were removed.
 - `app/lib/ocrPostProcess.js` was not modified.
 - Generated OCR reports were restored after validation.
+
+## BBox-Backed Member-Order Audit: 2026-06-25
+
+Context: runner-only geometry audit tooling was added after the first member-order investigation. This pass used `--audit-disable-known-correction` plus Tesseract `blocks`/symbol bounding boxes to compare selected order, expected order, and crop-relative/full-image-relative geometry.
+
+Command:
+
+```bash
+node scripts/ocr-test-images.mjs IMG_9240 IMG_9250 IMG_9251 IMG_9254 IMG_9264 IMG_9266 IMG_9281 --audit-disable-known-correction IMG_9240.png:stage1,IMG_9240.png:stage3,IMG_9250.png:stage2,IMG_9250.png:stage3,IMG_9251.png:stage1,IMG_9251.png:stage2,IMG_9251.png:stage3,IMG_9254.png:stage2,IMG_9254.png:stage3,IMG_9264.png:stage2,IMG_9264.png:stage3,IMG_9266.png:stage2,IMG_9281.png:stage2,IMG_9281.png:stage3
+```
+
+Result summary:
+
+- correction keys audited: 14
+- images scanned: 7
+- expected images: 6
+- expected audit failures: 6, all caused by intentionally disabled known corrections
+- bbox evidence captured in `docs/ocr-geometry-audit-report.md`
+- member-order/source evidence captured in `docs/ocr-member-order-audit-report.md`
+
+| Correction key | Classification | BBox-backed evidence / reason |
+| --- | --- | --- |
+| `IMG_9240.png:stage1` | C. keep individual | BBox evidence shows expected order for visible values, but the disabled key leaves crown/member swap (`member3: 127099` instead of `70610`). This is not a safe member-order removal. |
+| `IMG_9240.png:stage3` | B. promising but needs more examples/evidence | Strongest bbox-backed member-order candidate. The expected member values appear left-to-right as `[287111, 331368, 281784]`, while disabled output selects `[331368, 281784, 287111]`. Same non-zero value set, but total is still OCR-deltaed (`966556` vs `966536`), so keep individual until a stricter production rule exists. |
+| `IMG_9250.png:stage2` | C. keep individual | Disabled output keeps member values but total is still missing crown (`2645730` vs `2851053`). This is total/crown handling, not member-order removal. |
+| `IMG_9250.png:stage3` | C. keep individual | Sparse enemy slot still fills blank member2 with crown bonus `92799`; bbox confirms source evidence, but this is sparse/crown-slot handling, not a safe order removal. |
+| `IMG_9251.png:stage1` | D. not enough data / missing expected JSON | No expected JSON was available for the runner comparison in this batch. Keep filename/whole-result fallback individual. |
+| `IMG_9251.png:stage2` | D. not enough data / missing expected JSON | No expected JSON was available for the runner comparison in this batch. Tiny sparse scores and browser fallback remain image-specific. |
+| `IMG_9251.png:stage3` | D. not enough data / missing expected JSON | No expected JSON was available for the runner comparison in this batch. Tiny sparse scores and browser fallback remain image-specific. |
+| `IMG_9254.png:stage2` | C. keep individual | BBox evidence supports expected visible order, but disabled output misses/replaces values (`[33969, 26657, 1780]`, total `115562` vs expected `[33969, 53156, 26657]`, total `113782`). This is missing-value/noise handling, not safe member-order removal. |
+| `IMG_9254.png:stage3` | B. promising but needs more examples/evidence | BBox evidence supports the expected member-zone order `[31440, 28286, 74178]`; disabled output assigns `74178` as total and `14835` as member3. This is promising slot provenance evidence, but total/member/bonus assignment confusion makes a production rule risky. |
+| `IMG_9264.png:stage2` | C. keep individual | BBox supports expected order for visible values, but disabled output misses high member `1254969` and uses crown-like `250993`. This is missing-high-member plus crown-as-member, not pure order. |
+| `IMG_9264.png:stage3` | C. keep individual | Sparse enemy third slot fills with `87733` and total inflates to `615393`. BBox evidence helps diagnose, but this remains sparse/crown handling. |
+| `IMG_9266.png:stage2` | C. keep individual | Disabled output shifts members and uses crown-like `217807` while missing high member `1089035`. BBox supports expected visual order, but the key is still needed until high-member/crown recovery is generalized safely. |
+| `IMG_9281.png:stage2` | C. keep individual | Disabled output keeps crown-like `203001` as member3 and misses high member `1015006`. This is not a safe order-only case. |
+| `IMG_9281.png:stage3` | B. promising but needs more examples/evidence | BBox evidence supports sparse expected order `[204908, 112716]`, while disabled output treats `204908` as total and shifts `112716` to member1. Promising slot-shift evidence, but sparse total/member confusion remains high-risk. |
+
+Classification counts for this bbox-backed batch:
+
+| Classification | Count |
+| --- | ---: |
+| A. bbox-backed safe removal candidate | 0 |
+| B. promising but needs more examples/evidence | 3 |
+| C. keep individual | 8 |
+| D. not enough data / missing expected JSON | 3 |
+
+Current recommendation:
+
+- Do not remove any of these known corrections yet.
+- Do not implement production member-order correction yet.
+- The most promising future generic-rule seed is `IMG_9240.png:stage3`, because bbox order supports the expected order and the selected/expected non-zero member value set is identical.
+- `IMG_9254.png:stage3` and `IMG_9281.png:stage3` remain promising but need a stricter rule that combines member-zone bbox order with total/member/crown equation guards.

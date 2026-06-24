@@ -386,3 +386,35 @@ BN: SUA A +68611 em NL
 - Do not implement production member-order repair until selected values include per-token source geometry or explicit slot provenance.
 - The most promising future target remains `IMG_9240.png:stage3`, because the selected and expected non-zero member sets are identical.
 - `IMG_9254.png:stage3` and `IMG_9281.png:stage3` need total/member/crown slot provenance, not just value order.
+
+## Broader BBox-Backed Batch Summary: 2026-06-25
+
+This pass reviewed 14 remaining filename-keyed known correction entries that may involve member order, slot assignment, sparse slot shift, or crown/total confusion. The detailed evidence above remains the source-level audit for the strongest member-order cases; this section adds the broader batch classification.
+
+| Correction key | Classification | Reason |
+| --- | --- | --- |
+| `IMG_9240.png:stage1` | C. keep individual | Crown/member swap remains; not a safe order-only removal. |
+| `IMG_9240.png:stage3` | B. promising but needs more examples/evidence | Same non-zero member value set in a different order; bbox supports expected order, but total still has OCR delta. |
+| `IMG_9250.png:stage2` | C. keep individual | Total is missing crown contribution; not member-order only. |
+| `IMG_9250.png:stage3` | C. keep individual | Sparse enemy slot fills a blank with crown bonus. |
+| `IMG_9251.png:stage1` | D. not enough data / missing expected JSON | No expected JSON in this batch; whole-result fallback remains individual. |
+| `IMG_9251.png:stage2` | D. not enough data / missing expected JSON | No expected JSON in this batch; tiny sparse/browser fallback remains individual. |
+| `IMG_9251.png:stage3` | D. not enough data / missing expected JSON | No expected JSON in this batch; tiny sparse/browser fallback remains individual. |
+| `IMG_9254.png:stage2` | C. keep individual | Missing value/noise issue, not safe order-only correction. |
+| `IMG_9254.png:stage3` | B. promising but needs more examples/evidence | Expected order is supported by member-zone evidence, but total/member/bonus assignment is confused. |
+| `IMG_9264.png:stage2` | C. keep individual | Missing high member plus crown-as-member pattern. |
+| `IMG_9264.png:stage3` | C. keep individual | Sparse/crown handling remains needed. |
+| `IMG_9266.png:stage2` | C. keep individual | Missing high member plus crown-like value in member slot. |
+| `IMG_9281.png:stage2` | C. keep individual | Crown-like value remains in member slot and high member is missing. |
+| `IMG_9281.png:stage3` | B. promising but needs more examples/evidence | Sparse slot-shift evidence is promising, but total/member confusion remains high-risk. |
+
+Classification counts:
+
+| Classification | Count |
+| --- | ---: |
+| A. bbox-backed safe removal candidate | 0 |
+| B. promising but needs more examples/evidence | 3 |
+| C. keep individual | 8 |
+| D. not enough data / missing expected JSON | 3 |
+
+Production recommendation: do not implement member-order correction yet. The next useful step is to gather more repeated bbox-backed examples or expose stronger slot provenance before attempting a generic rule.

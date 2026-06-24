@@ -740,3 +740,30 @@ It does not change OCR selection, browser behavior, or known corrections.
 - Keep geometry capture runner-only.
 - Do not implement production member-order correction yet.
 - The next useful step is to collect more bbox-backed examples and design a rule that requires member-zone span order plus equation consistency.
+
+## Broader BBox-Backed Batch Summary: 2026-06-25
+
+The broader member-order audit reviewed 14 remaining filename-keyed known correction entries that may involve member order, slot assignment, sparse slot shift, or crown/total confusion. A single all-key geometry run is currently too slow for the runner and timed out after several minutes, so detailed bbox evidence remains focused on the representative cases above while the broader classification is summarized here and in `docs/ocr-known-correction-removal-candidates.md`.
+
+Attempted batch command:
+
+```bash
+node scripts/ocr-test-images.mjs IMG_9240 IMG_9250 IMG_9251 IMG_9254 IMG_9264 IMG_9266 IMG_9281 --audit-disable-known-correction IMG_9240.png:stage1,IMG_9240.png:stage3,IMG_9250.png:stage2,IMG_9250.png:stage3,IMG_9251.png:stage1,IMG_9251.png:stage2,IMG_9251.png:stage3,IMG_9254.png:stage2,IMG_9254.png:stage3,IMG_9264.png:stage2,IMG_9264.png:stage3,IMG_9266.png:stage2,IMG_9281.png:stage2,IMG_9281.png:stage3
+```
+
+Classification counts:
+
+| Classification | Count |
+| --- | ---: |
+| A. bbox-backed safe removal candidate | 0 |
+| B. promising but needs more examples/evidence | 3 |
+| C. keep individual | 8 |
+| D. not enough data / missing expected JSON | 3 |
+
+Promising bbox/member-order cases:
+
+- `IMG_9240.png:stage3`: strongest candidate. Bbox evidence supports the expected member order, and the selected/expected non-zero member value set is identical. Still keep individual because total has an OCR delta (`966556` vs `966536`).
+- `IMG_9254.png:stage3`: bbox evidence supports the expected member-zone order, but disabled output confuses total/member/bonus assignment.
+- `IMG_9281.png:stage3`: bbox evidence supports sparse expected order, but disabled output treats the first member as total and shifts the remaining member.
+
+Current recommendation remains unchanged: do not implement production member-order correction yet.
