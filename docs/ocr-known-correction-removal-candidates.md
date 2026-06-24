@@ -22,6 +22,7 @@ Important limitation: the normal regression runner still applies filename-keyed 
 | Correction key | Proof | Validation command | Result |
 | --- | --- | --- | --- |
 | `IMG_9245.png:stage2` | Proven with runner by disabling only this key while keeping generic OCR rules active. | `node scripts/ocr-test-images.mjs IMG_9245 --audit-disable-known-correction IMG_9245.png:stage2` | The full expected image still passed. Stage2 enemy remained `[211931, 147329, 219662]`, `enemyTotal: 578922`. |
+| `IMG_9266.png:stage3` | Proven with runner after adding expected JSON for `IMG_9266`. Disabling only this key still matched the full expected image. | `node scripts/ocr-test-images.mjs IMG_9266 --audit-disable-known-correction IMG_9266.png:stage3` | The full expected image still passed. Stage3 enemy remained `[457164, 230203, 231977]`, `enemyTotal: 1010776`. |
 
 ## B. Likely Removal Candidates But Need Confirmation
 
@@ -307,5 +308,52 @@ Safety checks after broader batch:
 
 Cleanup notes:
 
+- `app/lib/ocrPostProcess.js` was not modified.
+- Generated OCR reports were restored after validation.
+
+## Expected-Fixture Re-Audit: 2026-06-25
+
+Context: expected JSON fixtures were added for:
+
+- `IMG_9250`
+- `IMG_9254`
+- `IMG_9264`
+- `IMG_9266`
+- `IMG_9281`
+
+Method: each filename-keyed correction for those images was disabled one key at a time using `--audit-disable-known-correction`, then the matching image was compared against expected JSON. No known correction was removed in this audit pass.
+
+| Correction key | Validation command | Classification | Disabled-key output / reason |
+| --- | --- | --- | --- |
+| `IMG_9250.png:stage2` | `node scripts/ocr-test-images.mjs IMG_9250 --audit-disable-known-correction IMG_9250.png:stage2` | C. keep individual | Stage2 enemy members stayed correct, but `enemyTotal` became `2645730` instead of expected `2851053`. |
+| `IMG_9250.png:stage3` | `node scripts/ocr-test-images.mjs IMG_9250 --audit-disable-known-correction IMG_9250.png:stage3` | C. keep individual | Stage3 enemy member2 became `92799` instead of expected `0`; sparse blank-slot behavior still needs the individual key. |
+| `IMG_9254.png:stage2` | `node scripts/ocr-test-images.mjs IMG_9254 --audit-disable-known-correction IMG_9254.png:stage2` | C. keep individual | Stage2 enemy became `[33969, 26657, 1780]`, `enemyTotal: 115562`; expected `[33969, 53156, 26657]`, `enemyTotal: 113782`. |
+| `IMG_9254.png:stage3` | `node scripts/ocr-test-images.mjs IMG_9254 --audit-disable-known-correction IMG_9254.png:stage3` | C. keep individual | Stage3 self became `[31440, 28286, 14835]`, `selfTotal: 74178`; expected `[31440, 28286, 74178]`, `selfTotal: 148739`. |
+| `IMG_9264.png:stage2` | `node scripts/ocr-test-images.mjs IMG_9264 --audit-disable-known-correction IMG_9264.png:stage2` | C. keep individual | Stage2 enemy became `[210809, 891973, 250993]`, `enemyTotal: 1353775`; expected `[210809, 1254969, 891973]`, `enemyTotal: 2608744`. |
+| `IMG_9264.png:stage3` | `node scripts/ocr-test-images.mjs IMG_9264 --audit-disable-known-correction IMG_9264.png:stage3` | C. keep individual | Stage3 enemy member3 became `87733` instead of expected `0`, and `enemyTotal` became `615393` instead of `557638`. |
+| `IMG_9266.png:stage2` | `node scripts/ocr-test-images.mjs IMG_9266 --audit-disable-known-correction IMG_9266.png:stage2` | C. keep individual | Stage2 self became `[505323, 544232, 217807]`, `selfTotal: 1267362`; expected `[1089035, 505323, 544232]`, `selfTotal: 2356397`. |
+| `IMG_9266.png:stage3` | `node scripts/ocr-test-images.mjs IMG_9266 --audit-disable-known-correction IMG_9266.png:stage3` | A. safe removal candidate with runner proof | Full `IMG_9266` expected image still passed with only this key disabled. |
+| `IMG_9281.png:stage2` | `node scripts/ocr-test-images.mjs IMG_9281 --audit-disable-known-correction IMG_9281.png:stage2` | C. keep individual | Stage2 enemy member3 became `203001` instead of expected `1015006`, and `enemyTotal` became `2010828` instead of `3025834`. |
+| `IMG_9281.png:stage3` | `node scripts/ocr-test-images.mjs IMG_9281 --audit-disable-known-correction IMG_9281.png:stage3` | C. keep individual | Stage3 self became `[112716, 0, 0]`, `selfTotal: 204908`; expected `[204908, 112716, 0]`, `selfTotal: 317624`. |
+
+Classification counts for this re-audit:
+
+| Classification | Count |
+| --- | ---: |
+| A. safe removal candidate with runner proof | 1 |
+| B. promising but needs more evidence/browser confirmation | 0 |
+| C. keep individual | 9 |
+| D. not enough data / missing expected JSON | 0 |
+
+Safety checks after this re-audit:
+
+- `node scripts/ocr-test-images.mjs IMG_9250 IMG_9254 IMG_9264 IMG_9266 IMG_9281`: failed `0`
+- `node scripts/ocr-test-images.mjs IMG_9251 IMG_9180`: failed `0`
+- `node scripts/ocr-test-images.mjs IMG_9245 IMG_9074`: failed `0`
+- `node scripts/ocr-test-images.mjs --source desktop "desktop/スクリーンショット 2026-06-07 111730.png"`: PASS
+
+Cleanup notes:
+
+- No known corrections were removed.
 - `app/lib/ocrPostProcess.js` was not modified.
 - Generated OCR reports were restored after validation.
