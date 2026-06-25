@@ -12,6 +12,8 @@ Created draft expected JSON:
 - `regression-test/expected/IMG_9254.json`
 - `regression-test/expected/IMG_9264.json`
 - `regression-test/expected/IMG_9266.json`
+- `regression-test/expected/IMG_9265.json`
+- `regression-test/expected/IMG_9267.json`
 - `regression-test/expected/IMG_9281.json`
 
 ## IMG_9250.png
@@ -86,6 +88,42 @@ Manual/browser confirmation needed:
 
 - Confirm S2 enemy and S3 self runner-derived values.
 - Confirm S3 enemy total includes the crown bonus as expected by the known correction.
+
+## IMG_9265.png
+
+Expected JSON path: `regression-test/expected/IMG_9265.json`
+
+| Stage | Side | Members | Total | Source |
+| --- | --- | --- | ---: | --- |
+| S1 | self | 392912 / 315942 / 72195 | 859631 | visual image confirmation + runner OCR output |
+| S1 | enemy | 112831 / 125029 / 361819 | 599679 | visual image confirmation + runner OCR output |
+| S2 | self | 813754 / 163188 / 726897 | 1703839 | visual image confirmation + runner OCR output |
+| S2 | enemy | 958341 / 1283744 / 650240 | 3149073 | visual image confirmation + known correction `IMG_9265.png:stage2` |
+| S3 | self | 214463 / 19753 / 67004 | 301220 | visual image confirmation + runner OCR output |
+| S3 | enemy | 250041 / 204352 / 204352 | 708753 | visual image confirmation + runner OCR output |
+
+Manual/browser confirmation notes:
+
+- S2 enemy is the total-only bonus case: member sum `2892325` plus visible `+256748` equals total `3149073`.
+- S3 enemy has duplicated visible member scores `204352 / 204352`; this was confirmed from the source image rather than assumed from OCR output.
+
+## IMG_9267.png
+
+Expected JSON path: `regression-test/expected/IMG_9267.json`
+
+| Stage | Side | Members | Total | Source |
+| --- | --- | --- | ---: | --- |
+| S1 | self | 65243 / 310968 / 132524 | 508735 | visual image confirmation + runner OCR output |
+| S1 | enemy | 393908 / 116161 / 265540 | 854390 | visual image confirmation; current runner misreads member2 as `16161` |
+| S2 | self | 1187687 / 666434 / 696773 | 2788431 | visual image confirmation + known correction `IMG_9267.png:stage2` |
+| S2 | enemy | 667979 / 192696 / 675265 | 1535940 | visual image confirmation + runner OCR output |
+| S3 | self | 412456 / 54145 / 125425 | 592026 | visual image confirmation + runner OCR output |
+| S3 | enemy | 204661 / 477913 / 102032 | 880188 | visual image confirmation + runner OCR output |
+
+Manual/browser confirmation notes:
+
+- S2 self is the total-only bonus case: member sum `2550894` plus visible `+237537` equals total `2788431`.
+- S1 enemy is independently visible in the source image as `393908 / 116161 / 265540`, total `854390` with visible `+78781`; current runner output without a known correction reads `16161` and total `675609`, so adding this fixture is expected to expose an existing OCR failure until a separate correction is added.
 
 ## IMG_9281.png
 
