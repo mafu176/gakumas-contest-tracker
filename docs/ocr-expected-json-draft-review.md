@@ -142,3 +142,110 @@ Manual/browser confirmation needed:
 
 - Confirm S1, S2 self, and S3 enemy runner-derived values.
 - Confirm S3 self sparse two-member formation.
+
+## IMG_9283.png
+
+Expected JSON path: `regression-test/expected/IMG_9283.json`
+
+Status: confirmed fixture; committed in the passing split batch.
+
+| Stage | Side | Members | Total | Source |
+| --- | --- | --- | ---: | --- |
+| S1 | self | 102964 / 384018 / 122494 | 686279 | visual image confirmation + runner OCR output |
+| S1 | enemy | 380332 / 227781 / 202265 | 810378 | visual image confirmation + runner OCR output |
+| S2 | self | 824061 / 483384 / 1044188 | 2560470 | visual image confirmation + known correction `IMG_9283.png:stage2` |
+| S2 | enemy | 458374 / 834329 / 72665 | 1365368 | visual image confirmation + runner OCR output |
+| S3 | self | 177045 / 0 / 0 | 177045 | visual image confirmation + known correction `IMG_9283.png:stage3` |
+| S3 | enemy | 63337 / 263411 / 261118 | 640548 | visual image confirmation + runner OCR output |
+
+Manual/browser confirmation notes:
+
+- S2 self is the closest remaining total-only/crown candidate: member sum `2351633` plus visible `+208837` equals `2560470`.
+- S3 self is a sparse one-member formation with two empty slots.
+- This image now looks useful for future removal proof of `IMG_9283.png:stage2` and `IMG_9283.png:stage3`, but both should be tested separately with `--audit-disable-known-correction`.
+
+## IMG_9285.png
+
+Expected JSON path: `regression-test/expected/IMG_9285.json`
+
+Status: draft/blocker; not committed yet because targeted validation fails.
+
+| Stage | Side | Members | Total | Source |
+| --- | --- | --- | ---: | --- |
+| S1 | self | 498418 / 320768 / 165542 | 1084411 | visual image confirmation + runner OCR output |
+| S1 | enemy | 317359 / 113070 / 132893 | 563322 | visual image confirmation + runner OCR output |
+| S2 | self | 1001539 / 721827 / 659907 | 2583580 | visual image confirmation + known correction `IMG_9285.png:stage2` |
+| S2 | enemy | 598088 / 281951 / 467563 | 1347602 | visual image confirmation; current runner output is wrong |
+| S3 | self | 243617 / 0 / 0 | 292340 | visual image confirmation + known correction `IMG_9285.png:stage3` |
+| S3 | enemy | 72249 / 33984 / 27179 | 133412 | visual image confirmation + runner OCR output |
+
+Manual/browser confirmation notes:
+
+- S2 enemy is clearly visible as `598088 / 281951 / 467563`, total `1347602`; the current runner previously returned total `1445690`, so this fixture exposes an existing OCR issue unrelated to the known correction key.
+- Validation blocker: `IMG_9285` S2 enemy total expected `1347602`, actual `1445690`.
+- S3 self is a sparse one-member formation with visible `+48723`.
+- Future removal proof for `IMG_9285.png:stage2` and `IMG_9285.png:stage3` is blocked until the exposed S2 enemy OCR issue is handled or intentionally documented.
+
+## IMG_9282.png
+
+Expected JSON path: `regression-test/expected/IMG_9282.json`
+
+Status: draft/blocker; not committed yet because targeted validation fails.
+
+| Stage | Side | Members | Total | Source |
+| --- | --- | --- | ---: | --- |
+| S1 | self | 306578 / 352393 / 94156 | 823605 | visual image confirmation + runner OCR output |
+| S1 | enemy | 128016 / 192931 / 201276 | 522223 | visual image confirmation + runner OCR output |
+| S2 | self | 1204215 / 1259738 / 1086075 | 3801975 | visual image confirmation + known correction `IMG_9282.png:stage2` |
+| S2 | enemy | 629383 / 877206 / 270747 | 1777336 | visual image confirmation + runner OCR output |
+| S3 | self | 285046 / 0 / 0 | 342055 | visual image confirmation + known correction `IMG_9282.png:stage3` |
+| S3 | enemy | 254591 / 273656 / 0 | 528247 | visual image confirmation; current runner output is wrong |
+
+Manual/browser confirmation notes:
+
+- S3 enemy is visually a sparse two-member formation: `254591 / 273656 / -`, total `528247`. The current runner previously selected only `273656`, total `317858`, so this fixture exposes an existing OCR issue.
+- Validation blockers: `IMG_9282` S3 enemy member1 expected `254591`, actual `273656`; member2 expected `273656`, actual `0`; total expected `528247`, actual `317858`.
+- S2 self is a high-score row with visible `+251947`; member sum plus bonus equals `3801975`.
+- Future removal proof for `IMG_9282.png:stage2` and `IMG_9282.png:stage3` is blocked until the exposed S3 enemy OCR issue is handled or intentionally documented.
+
+## IMG_9284.png
+
+Expected JSON path: `regression-test/expected/IMG_9284.json`
+
+Status: confirmed fixture; committed in the passing split batch.
+
+| Stage | Side | Members | Total | Source |
+| --- | --- | --- | ---: | --- |
+| S1 | self | 294058 / 91830 / 111325 | 497213 | visual image confirmation + runner OCR output |
+| S1 | enemy | 163703 / 514118 / 77594 | 858238 | visual image confirmation + runner OCR output |
+| S2 | self | 633933 / 745845 / 1003018 | 2583399 | visual image confirmation + known correction `IMG_9284.png:stage2` |
+| S2 | enemy | 894065 / 0 / 0 | 894065 | visual image confirmation + known correction `IMG_9284.png:stage2` |
+| S3 | self | 322817 / 0 / 0 | 322817 | visual image confirmation + known correction `IMG_9284.png:stage3` |
+| S3 | enemy | 523896 / 211497 / 372503 | 1212675 | visual image confirmation + runner OCR output |
+
+Manual/browser confirmation notes:
+
+- S2 enemy and S3 self are sparse one-member formations.
+- S2 self is a high-score row with visible `+200603`.
+- This image is useful for future proof, but `IMG_9284.png:stage2` is a multi-field key and should not be removed unless both self and enemy sides pass with the key disabled.
+
+## IMG_9268.png
+
+Expected JSON path: `regression-test/expected/IMG_9268.json`
+
+Status: draft/blocker; not committed yet because targeted validation fails.
+
+| Stage | Side | Members | Total | Source |
+| --- | --- | --- | ---: | --- |
+| S1 | self | 428375 / 227149 / 111124 | 766648 | visual image confirmation + runner OCR output |
+| S1 | enemy | 151111 / 476282 / 161555 | 884204 | visual image confirmation + runner OCR output |
+| S2 | self | 1479757 / 685860 / 808810 | 3270378 | visual image confirmation + known correction `IMG_9268.png:stage2` |
+| S2 | enemy | 1155957 / 872801 / 1073008 | 3101766 | visual image confirmation + runner OCR output |
+| S3 | self | 254674 / 42324 / 100984 | 397982 | visual image confirmation + runner OCR output |
+| S3 | enemy | 319401 / 258461 / 386247 | 1041358 | visual image confirmation + runner OCR output |
+
+Manual/browser confirmation notes:
+
+- S2 self is a high-score row with visible `+295951`; member sum plus bonus equals `3270378`.
+- Validation blocker: `IMG_9268` S3 enemy total expected `1041358`, actual `964109`.
+- This is a likely future proof target for `IMG_9268.png:stage2`, but the key should be tested with `--audit-disable-known-correction` before removal.
