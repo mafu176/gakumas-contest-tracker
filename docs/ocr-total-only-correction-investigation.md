@@ -20,12 +20,12 @@ Inputs reviewed:
 
 | Category | Count |
 | --- | ---: |
-| Pure total-only known correction entries | 13 |
-| Primary total-fix entries with member values also present | 9 |
-| Strong total-only candidates | 3 |
+| Pure total-only known correction entries | 12 |
+| Primary total-fix entries with member values also present | 6 |
+| Strong total-only candidates remaining | 0 |
 | Likely covered by existing generic rules | 1 |
 | Should remain individual for now | 10 |
-| Needs expected JSON / replay / browser confirmation | 8 |
+| Needs expected JSON / replay / browser confirmation | 5 |
 
 Notes:
 
@@ -35,13 +35,15 @@ Notes:
 
 ## B. Strong Total-Only Candidates
 
-These are the best future candidates for removal or a narrow total repair rule, but none should be removed yet without targeted replay proof.
+The previously strongest total-only candidates have now been handled by the smartphone total crown bonus recovery rule committed in `8639930`.
 
 | Correction key | Known corrected values | Observed disabled-key evidence | Assessment |
 | --- | --- | --- | --- |
-| `IMG_9250.png:stage2` | `enemy: [813535, 805577, 1026618]`, `enemyTotal: 2851053` | Existing audit shows disabled output kept the enemy members correct but `enemyTotal` became `2645730`. | Strong total/crown candidate. The known correction primarily restores the crown-included total once members are already correct. |
-| `IMG_9265.png:stage2` | `enemy: [958341, 1283744, 650240]`, `enemyTotal: 3149073` | No expected JSON yet. User-provided reason says members are correct and total is missing bonus `256748`. | Strong pattern match, but blocked by missing expected JSON. |
-| `IMG_9267.png:stage2` | `self: [1187687, 666434, 696773]`, `selfTotal: 2788431` | No expected JSON yet. User-provided reason says members are correct and total is missing bonus `237537`. | Strong pattern match, but blocked by missing expected JSON. |
+| `IMG_9250.png:stage2` | `enemy: [813535, 805577, 1026618]`, `enemyTotal: 2851053` | Disabled-key replay showed members were correct and total was member sum only. | Removed after generic rule. |
+| `IMG_9265.png:stage2` | `enemy: [958341, 1283744, 650240]`, `enemyTotal: 3149073` | Disabled-key replay with expected JSON showed members were correct and total was member sum only. | Removed after generic rule. |
+| `IMG_9267.png:stage2` | `self: [1187687, 666434, 696773]`, `selfTotal: 2788431` | Disabled-key replay with expected JSON showed members were correct and total was member sum only. | Removed after generic rule. |
+
+No active remaining correction is currently classified as a strong total-only removal candidate.
 
 ## C. Candidates Likely Covered By Existing Generic Rules
 
@@ -72,9 +74,7 @@ These either need the individual key based on existing replay evidence, or are o
 
 | Correction key | Known corrected values | Needed evidence |
 | --- | --- | --- |
-| `IMG_9265.png:stage2` | `enemyTotal: 3149073` | Add expected JSON and replay with key disabled. |
-| `IMG_9267.png:stage2` | `selfTotal: 2788431` | Add expected JSON and replay with key disabled. |
-| `IMG_9283.png:stage2` | `selfTotal: 2560470` | Add expected JSON and replay; user history suggests members may already be correct but total misses crown. |
+| `IMG_9283.png:stage2` | `selfTotal: 2560470` | Add expected JSON and replay; user history suggests members may already be correct but total misses crown. This is the closest remaining total-only-like candidate. |
 | `IMG_8942.png:stage2` | `enemyTotal: 362105` | Legacy total-only correction; needs targeted no-known replay and raw candidates. |
 | `IMG_8943.png:stage1` | `enemyTotal: 248127` | Legacy total-only correction; needs targeted no-known replay and raw candidates. |
 | `IMG_8944.png:stage3` | `selfTotal: 874690` | Legacy total-only correction; needs targeted no-known replay and raw candidates. |
@@ -100,34 +100,30 @@ Recommendation for a future rule, not implemented here:
 6. Do not apply to tiny sparse enemy-score cases such as `IMG_9251.png:*`.
 7. Do not apply when member slots are also changing, unless the member repair has already been proven by a separate rule.
 
-This shape would likely cover the `IMG_9250.png:stage2` class, and may eventually cover `IMG_9265.png:stage2`, `IMG_9267.png:stage2`, and `IMG_9283.png:stage2` after expected JSON exists.
+This shape now covers the `IMG_9250.png:stage2`, `IMG_9265.png:stage2`, and `IMG_9267.png:stage2` class through `applySmartphoneTotalCrownBonusRecovery(...)`. It may eventually cover `IMG_9283.png:stage2` after expected JSON and disabled-key proof exist.
 
 ## G. Recommendation
 
-Classification: **C. needs more data**.
+Classification: **C. needs more data** for any further total-only removals.
 
-Production implementation is not recommended yet.
+No additional production total-only implementation is recommended yet.
 
 Why:
 
-- The strongest active proven example, `IMG_9250.png:stage2`, still needs a narrow total+crown rule that can distinguish explicit crown totals from unrelated aggregate values.
-- Several promising cases are blocked by missing expected JSON.
+- The strongest three examples were already generalized and removed in `8639930`.
+- Remaining promising cases are blocked by missing expected JSON or mixed sparse/member-order behavior.
 - Legacy total-only corrections do not have enough disabled-key/raw-candidate evidence.
 - Sparse rows mix total repair with blank-slot preservation, which is already high-risk.
 
 Recommended next steps:
 
-1. Add expected JSON for `IMG_9265`, `IMG_9267`, and `IMG_9283`.
+1. Add expected JSON for `IMG_9283` and any other remaining total-only-like user reports.
 2. Re-run `--audit-disable-known-correction` for:
-   - `IMG_9250.png:stage2`
-   - `IMG_9265.png:stage2`
-   - `IMG_9267.png:stage2`
    - `IMG_9283.png:stage2`
-3. If at least three cases show "members unchanged, total missing explicit crown", design a small smartphone-only total+crown restoration rule.
-4. Keep all existing total-only known corrections until replay proof exists.
+3. Keep all existing remaining total-only known corrections until replay proof exists.
 
 ## Validation Notes
 
-Attempted grouped replay commands for total-only candidates timed out in this environment. No production files were changed.
+Earlier grouped replay commands for total-only candidates timed out in this environment. Later targeted replays and expected fixtures supported the `8639930` generic rule.
 
-Normal safety checks were not re-run to completion in this pass because OCR commands were timing out; generated OCR reports were restored afterward.
+Refresh after `8639930`: targeted safety checks were rerun for the current total crown bonus class and related smoke images. Generated OCR reports were restored afterward.

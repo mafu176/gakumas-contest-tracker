@@ -7,22 +7,56 @@ This audit reviews filename-keyed OCR known corrections in `app/lib/ocrPostProce
 - `3d578d0` Generalize mobile OCR crown bonus exclusion
 - `0d50108` Generalize mobile OCR sparse trailing zero preservation
 - `737d966` Generalize mobile OCR total-like member suppression
+- `8639930` Generalize mobile OCR total crown bonus recovery
 
-This report is updated after removing two proven-safe entries:
+This report is refreshed after removing these proven-safe entries:
 
 - `IMG_9245.png:stage1`
+- `IMG_9245.png:stage2`
 - `IMG_9074.png:stage2`
+- `IMG_9266.png:stage3`
+- `IMG_9250.png:stage2`
+- `IMG_9265.png:stage2`
+- `IMG_9267.png:stage2`
 
 No production OCR logic was changed during the audit passes.
 
 Important limitation: the normal regression runner still applies filename-keyed known corrections unless `--audit-disable-known-correction` is used. This audit therefore treats removability conservatively. A correction is not marked as safe to remove unless there is exact disabled-key runner proof or an equivalent browser/manual replay.
 
+## Current Refresh After Total Crown Bonus Recovery
+
+Current active filename-keyed known corrections:
+
+| Metric | Count |
+| --- | ---: |
+| Remaining filename-keyed corrections | 76 |
+| Unique image files with remaining corrections | 47 |
+| Removed proven-safe corrections to date | 7 |
+| Newly safe candidates found in this refresh | 0 |
+
+Refresh checks after `8639930`:
+
+| Correction key checked | Result | Classification |
+| --- | --- | --- |
+| `IMG_9254.png:stage2` | Disabling the key still failed Stage2 enemy: member2/member3 and total were wrong. | C. keep individual |
+| `IMG_9264.png:stage3` | Disabling the key still filled the sparse third enemy slot with `87733` and inflated total to `615393`. | C. keep individual |
+| `IMG_9281.png:stage2` | Disabling the key still selected crown bonus `203001` as member3 and total stayed too low. | C. keep individual |
+
+The total crown bonus recovery rule removed the three intended total-only Stage2 corrections, but it did not make a new correction safely removable in this pass.
+
 ## A. Safe Removal Candidates
 
-| Correction key | Proof | Validation command | Result |
-| --- | --- | --- | --- |
-| `IMG_9245.png:stage2` | Proven with runner by disabling only this key while keeping generic OCR rules active. | `node scripts/ocr-test-images.mjs IMG_9245 --audit-disable-known-correction IMG_9245.png:stage2` | The full expected image still passed. Stage2 enemy remained `[211931, 147329, 219662]`, `enemyTotal: 578922`. |
-| `IMG_9266.png:stage3` | Proven with runner after adding expected JSON for `IMG_9266`. Disabling only this key still matched the full expected image. | `node scripts/ocr-test-images.mjs IMG_9266 --audit-disable-known-correction IMG_9266.png:stage3` | The full expected image still passed. Stage3 enemy remained `[457164, 230203, 231977]`, `enemyTotal: 1010776`. |
+No remaining filename-keyed correction is currently classified as safe to remove.
+
+Previously proven entries have already been removed:
+
+- `IMG_9245.png:stage1`
+- `IMG_9245.png:stage2`
+- `IMG_9074.png:stage2`
+- `IMG_9266.png:stage3`
+- `IMG_9250.png:stage2`
+- `IMG_9265.png:stage2`
+- `IMG_9267.png:stage2`
 
 ## B. Likely Removal Candidates But Need Confirmation
 
@@ -37,15 +71,11 @@ Generic rule likely involved: smartphone crown bonus exclusion from member slots
 | `IMG_9222.png:stage1` | Crown/member swap pattern. | Disable key and confirm Stage1 self/enemy members and totals still match expected. |
 | `IMG_9240.png:stage1` | Crown/member swap pattern. | Confirm member3 remains member and crown does not enter members. |
 | `IMG_9240.png:stage3` | Crown total handling with bonus-like candidate. | Confirm total and members remain exact without key. |
-| `IMG_9250.png:stage2` | Crown bonus was used as a member while a real high member was missing. | Confirm Stage2 enemy selects the high member and preserves total. |
 | `IMG_9254.png:stage2` | Crown bonus was used as member1 and real member3 was missing. | Confirm Stage2 self exact members/total. |
 | `IMG_9254.png:stage3` | Crown/merged noise displaced members and total. | Confirm Stage3 self exact members/total. |
 | `IMG_9257.png:stage2` | Crown bonus was used as member3 and real high member was missing. | Confirm Stage2 enemy exact members/total. |
 | `IMG_9264.png:stage2` | Crown bonus was used as member3 and real high member was missing. | Confirm Stage2 enemy exact members/total. |
-| `IMG_9265.png:stage2` | Total missing crown bonus. | Confirm Stage2 enemy total includes crown. |
 | `IMG_9266.png:stage2` | Crown bonus was used as member3 and real high member was missing. | Confirm Stage2 self exact members/total. |
-| `IMG_9266.png:stage3` | Total missing crown bonus. | Confirm Stage3 enemy total includes crown. |
-| `IMG_9267.png:stage2` | Members correct but total missing crown bonus. | Confirm Stage2 self total includes crown. |
 | `IMG_9268.png:stage2` | Crown bonus was used as member3 and real high member was missing. | Confirm Stage2 self exact members/total. |
 | `IMG_9281.png:stage2` | Crown bonus was used as member3 and real high member was missing. | Confirm Stage2 enemy exact members/total. |
 | `IMG_9282.png:stage2` | High-score row displaced by bonus/member confusion. | Confirm Stage2 self exact members/total. |
@@ -156,27 +186,25 @@ These are intentionally kept individual. They correct very small sparse enemy sc
 
 | Category | Count |
 | --- | ---: |
-| Total filename-keyed corrections | 82 |
+| Total filename-keyed corrections | 76 |
 | Unique image files | 47 |
-| Safe removal candidates | 1 |
-| Likely candidates needing confirmation | 17 |
-| Keep individual for now | 62 |
-| Not enough data / missing expected JSON | 20 |
+| Safe removal candidates | 0 |
+| Removed proven-safe corrections | 7 |
+| Refresh-checked candidates kept individual | 3 |
+| Likely candidates needing confirmation | 23 |
+| Not enough data / missing expected JSON | 17 |
 
 ## Top 5 Safest Next Candidates
 
 These are not approved for deletion yet, but they should be the first no-known replay targets.
 
-1. `IMG_9245.png:stage2`  
-   Now proven safe in the runner with the key disabled; this is the next deletion candidate.
-2. `IMG_9254.png:stage2`  
-   Crown bonus/member displacement candidate, but no expected JSON exists yet.
+1. `IMG_9254.png:stage3`: Member-order/slot-assignment candidate with bbox evidence, but still risky and not removal-safe.
+2. `IMG_9281.png:stage3`: Sparse/member-order candidate with bbox evidence; needs more examples before generic removal.
 3. `IMG_9257.png:stage2`  
    Missing high member plus crown-as-member candidate, but no expected JSON exists yet.
 4. `IMG_9264.png:stage2`  
-   Missing high member plus crown-as-member candidate, but no expected JSON exists yet.
-5. `IMG_9264.png:stage3`  
-   Sparse two-member enemy case, but no expected JSON exists yet.
+   Missing high member plus crown-as-member candidate; expected JSON exists for adjacent high-priority images, but this key still needs no-known replay proof.
+5. `IMG_9268.png:stage2`: Missing high member plus crown-as-member candidate, but no expected JSON exists yet.
 
 ## Top Risks
 
