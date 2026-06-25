@@ -175,6 +175,7 @@ export function applyKnownOcrCorrections(fileName, stage, stageState) {
     "IMG_9264.png:stage3": { enemy: [438665, 31240, 0], enemyTotal: 557638 },
     "IMG_9265.png:stage2": { enemy: [958341, 1283744, 650240], enemyTotal: 3149073 },
     "IMG_9266.png:stage2": { self: [1089035, 505323, 544232], selfTotal: 2356397 },
+    "IMG_9267.png:stage1": { enemy: [393908, 116161, 265540], enemyTotal: 854390 },
     "IMG_9267.png:stage2": { self: [1187687, 666434, 696773], selfTotal: 2788431 },
     "IMG_9268.png:stage2": { self: [1479757, 685860, 808810], selfTotal: 3270378 },
     "IMG_9281.png:stage2": { enemy: [993384, 814443, 1015006], enemyTotal: 3025834 },
