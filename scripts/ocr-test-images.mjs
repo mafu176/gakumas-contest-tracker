@@ -7,6 +7,7 @@ import {
   applySmartphoneCrownBonusMemberExclusion,
   applySmartphoneSparseTrailingZeroPreservation,
   applySmartphoneTotalLikeMemberSuppression,
+  applySmartphoneTotalCrownBonusRecovery,
 } from "../app/lib/ocr.js";
 import { applyKnownOcrCorrections, applyKnownOcrSetCorrections } from "../app/lib/ocrPostProcess.js";
 
@@ -2502,6 +2503,20 @@ async function runOcrForImage(imagePath, options = {}) {
         return {
           members: totalLikeSuppression.members,
           total: totalLikeSuppression.total,
+        };
+      }
+
+      const totalCrownBonusRecovery = applySmartphoneTotalCrownBonusRecovery(
+        selectedMembers,
+        selectedTotal,
+        bonusCandidates,
+        rawCandidates,
+        { mode: ocrSource, stage }
+      );
+      if (totalCrownBonusRecovery.applied) {
+        return {
+          members: totalCrownBonusRecovery.members,
+          total: totalCrownBonusRecovery.total,
         };
       }
 

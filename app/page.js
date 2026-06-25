@@ -117,6 +117,7 @@ import {
   applySmartphoneCrownBonusMemberExclusion,
   applySmartphoneSparseTrailingZeroPreservation,
   applySmartphoneTotalLikeMemberSuppression,
+  applySmartphoneTotalCrownBonusRecovery,
   applyDesktopMemberShape,
   pickDesktopTotalFromMemberShape,
   pickMemberNumbers,
@@ -2632,6 +2633,23 @@ export default function Home() {
             return {
               members: totalLikeSuppression.members,
               total: totalLikeSuppression.total,
+            };
+          }
+
+          const totalCrownBonusRecovery = applySmartphoneTotalCrownBonusRecovery(
+            selectedMembers,
+            selectedTotal,
+            bonusCandidates,
+            rawCandidates,
+            { mode: activeOcrMode, stage }
+          );
+          if (totalCrownBonusRecovery.applied) {
+            correctionLogs.push(
+              `totalCrownBonusRecovery kept members=${totalCrownBonusRecovery.members.join(",")} total=${totalCrownBonusRecovery.total} bonus=${totalCrownBonusRecovery.bonus}`
+            );
+            return {
+              members: totalCrownBonusRecovery.members,
+              total: totalCrownBonusRecovery.total,
             };
           }
 

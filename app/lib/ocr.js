@@ -1677,6 +1677,61 @@ export function applySmartphoneTotalLikeMemberSuppression(
   };
 }
 
+export function applySmartphoneTotalCrownBonusRecovery(
+  selectedMembers,
+  selectedTotal,
+  bonusCandidates = [],
+  rawCandidates = [],
+  options = {}
+) {
+  if (normalizeOcrMode(options.mode) !== "smartphone") {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  if (!Array.isArray(selectedMembers) || selectedMembers.length !== 3) {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  if (options.stage !== 2) {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  // False-positive guard: this only repairs full high-score rows where OCR
+  // already selected three stable members and used their bare sum as total.
+  // Sparse/tiny rows and already crown-included totals stay on the normal path.
+  if (selectedMembers.some((member) => !Number.isFinite(member) || member < 100000)) {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  const memberSum = selectedMembers.reduce((sum, value) => sum + value, 0);
+  if (memberSum < 500000 || Math.abs(selectedTotal - memberSum) > 1) {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  const explicitBonuses = uniqueNumbers([...bonusCandidates, ...rawCandidates])
+    .filter((num) => Number.isFinite(num) && num >= 10000 && num < 400000)
+    .filter((num) => !selectedMembers.some((member) => Math.abs(member - num) <= 1))
+    .filter((num) => Math.abs(num - selectedTotal) > 1000)
+    .sort((a, b) => b - a);
+
+  if (explicitBonuses.length !== 1) {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  const bonus = explicitBonuses[0];
+  const recoveredTotal = memberSum + bonus;
+  if (recoveredTotal <= selectedTotal || recoveredTotal >= 5000000) {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  return {
+    members: selectedMembers,
+    total: recoveredTotal,
+    bonus,
+    applied: true,
+  };
+}
+
 export function normalizeMemberScore(num) {
   return num;
 }
