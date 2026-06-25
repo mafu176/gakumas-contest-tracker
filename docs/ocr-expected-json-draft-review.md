@@ -183,6 +183,10 @@ Manual/browser confirmation notes:
 
 - S2 enemy is clearly visible as `598088 / 281951 / 467563`, total `1347602`; the current runner previously returned total `1445690`, so this fixture exposes an existing OCR issue unrelated to the known correction key.
 - Validation blocker: `IMG_9285` S2 enemy total expected `1347602`, actual `1445690`.
+- Latest runner observation without a committed fixture: S2 enemy members are already correct as `598088 / 281951 / 467563`, but total is `1445690`.
+- Raw OCR evidence: the total candidate trace contains `1,347,6025` with members `598,088 281,951 467,563`, which supports displayed total `1347602`. Another direct crop reads `$98,088 281,951 467,563`, producing `98088`; this likely came from the first member `598088`, not a crown bonus.
+- Classification: C. possible narrow generic-rule candidate. This looks like an over-recovery/false-positive total crown bonus case where a malformed member read (`$98,088`) is treated as bonus and added to the correct member sum.
+- Recommended next action: investigate the mobile total crown bonus recovery guard so it ignores bonus-like candidates that are digit substrings/fragments of an already-selected member in the same side. Do not commit the expected fixture until this is fixed or a narrowly scoped known correction is accepted.
 - S3 self is a sparse one-member formation with visible `+48723`.
 - Future removal proof for `IMG_9285.png:stage2` and `IMG_9285.png:stage3` is blocked until the exposed S2 enemy OCR issue is handled or intentionally documented.
 
@@ -205,6 +209,10 @@ Manual/browser confirmation notes:
 
 - S3 enemy is visually a sparse two-member formation: `254591 / 273656 / -`, total `528247`. The current runner previously selected only `273656`, total `317858`, so this fixture exposes an existing OCR issue.
 - Validation blockers: `IMG_9282` S3 enemy member1 expected `254591`, actual `273656`; member2 expected `273656`, actual `0`; total expected `528247`, actual `317858`.
+- Latest runner observation without a committed fixture: S3 enemy is parsed as members `[273656]`, total `317858`.
+- Raw OCR evidence: the S3 enemy total candidate trace contains `528,247` followed by `254,591 273,656 -`; parsed numbers are `[528247, 254591, 273656]`. A second trace misreads the total as `228247`, but still contains the same two member values.
+- Classification: C. possible narrow generic-rule candidate. This is a sparse two-member row where a single total-candidate crop contains the displayed total and both real members in visual order; the member crop also contains `254.591 273,656 -`.
+- Recommended next action: consider a smartphone-only sparse row recovery rule that can use a total candidate trace containing `total + one/two members + blank marker` when the selected result dropped the leading member and reconstructed a smaller total. A filename-keyed known correction is also safe if browser confirmation is preferred first.
 - S2 self is a high-score row with visible `+251947`; member sum plus bonus equals `3801975`.
 - Future removal proof for `IMG_9282.png:stage2` and `IMG_9282.png:stage3` is blocked until the exposed S3 enemy OCR issue is handled or intentionally documented.
 
@@ -248,4 +256,8 @@ Manual/browser confirmation notes:
 
 - S2 self is a high-score row with visible `+295951`; member sum plus bonus equals `3270378`.
 - Validation blocker: `IMG_9268` S3 enemy total expected `1041358`, actual `964109`.
+- Latest runner observation without a committed fixture: S3 enemy members are correct as `319401 / 258461 / 386247`, but total is `964109`, exactly the member sum.
+- Raw OCR evidence: the S3 enemy total candidate trace contains `1,041 358m` with members `319,401 258,461 386,247`, which visually supports displayed total `1041358` but is not parsed as a clean numeric candidate. Another trace parses `1,041,508`, an OCR delta from the displayed total. The visible crown bonus is `+77249`, and `319401 + 258461 + 386247 + 77249 = 1041358`.
+- Classification: C. possible narrow generic-rule candidate, but blocked by incomplete explicit bonus extraction. This is a member-sum-only total where the displayed total/bonus evidence exists visually, but the runner does not currently produce a clean `77249` bonus candidate.
+- Recommended next action: investigate bonus crop parsing or a guarded displayed-total repair using nearby total candidate traces before adding this expected fixture. A filename-keyed known correction is also possible after browser confirmation, but a broad rule should wait for better raw bonus evidence.
 - This is a likely future proof target for `IMG_9268.png:stage2`, but the key should be tested with `--audit-disable-known-correction` before removal.
