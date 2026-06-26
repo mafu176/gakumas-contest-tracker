@@ -1398,5 +1398,25 @@ export const idolDb = [
     "plan": "アノマリー",
     "rarity": "SSR",
     "image": "/idols/140.png"
+  },
+  {
+    "id": "花海_咲季_GO_MY_WAY",
+    "name": "GO MY WAY！！ 花海咲季",
+    "short": "GO MY WAY咲季",
+    "character": "花海咲季",
+    "title": "GO MY WAY！！",
+    "plan": "センス",
+    "rarity": "SSR",
+    "image": "/idols/141.png"
+  },
+  {
+    "id": "藤田_ことね_GO_MY_WAY",
+    "name": "GO MY WAY！！ 藤田ことね",
+    "short": "GO MY WAYことね",
+    "character": "藤田ことね",
+    "title": "GO MY WAY！！",
+    "plan": "アノマリー",
+    "rarity": "SSR",
+    "image": "/idols/142.png"
   }
 ];
