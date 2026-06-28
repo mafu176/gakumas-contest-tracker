@@ -1708,9 +1708,22 @@ export function applySmartphoneTotalCrownBonusRecovery(
     return { members: selectedMembers, total: selectedTotal, applied: false };
   }
 
+  const isSelectedMemberDigitFragment = (candidate) => {
+    const candidateText = String(Math.trunc(Math.abs(candidate)));
+    if (candidateText.length < 5) return false;
+    return selectedMembers.some((member) => {
+      const memberText = String(Math.trunc(Math.abs(member)));
+      return memberText !== candidateText && memberText.includes(candidateText);
+    });
+  };
+
   const explicitBonuses = uniqueNumbers([...bonusCandidates, ...rawCandidates])
     .filter((num) => Number.isFinite(num) && num >= 10000 && num < 400000)
     .filter((num) => !selectedMembers.some((member) => Math.abs(member - num) <= 1))
+    // Total-candidate crops can produce member fragments such as "$98,088"
+    // from an actual selected member "598,088". Do not let those fragments
+    // masquerade as crown bonuses and inflate an already-correct member sum.
+    .filter((num) => !isSelectedMemberDigitFragment(num))
     .filter((num) => Math.abs(num - selectedTotal) > 1000)
     .sort((a, b) => b - a);
 

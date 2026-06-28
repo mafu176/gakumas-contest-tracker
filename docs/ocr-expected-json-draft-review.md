@@ -168,7 +168,7 @@ Manual/browser confirmation notes:
 
 Expected JSON path: `regression-test/expected/IMG_9285.json`
 
-Status: draft/blocker; not committed yet because targeted validation fails.
+Status: confirmed fixture after tightening the mobile total crown bonus recovery guard.
 
 | Stage | Side | Members | Total | Source |
 | --- | --- | --- | ---: | --- |
@@ -181,14 +181,12 @@ Status: draft/blocker; not committed yet because targeted validation fails.
 
 Manual/browser confirmation notes:
 
-- S2 enemy is clearly visible as `598088 / 281951 / 467563`, total `1347602`; the current runner previously returned total `1445690`, so this fixture exposes an existing OCR issue unrelated to the known correction key.
-- Validation blocker: `IMG_9285` S2 enemy total expected `1347602`, actual `1445690`.
-- Latest runner observation without a committed fixture: S2 enemy members are already correct as `598088 / 281951 / 467563`, but total is `1445690`.
-- Raw OCR evidence: the total candidate trace contains `1,347,6025` with members `598,088 281,951 467,563`, which supports displayed total `1347602`. Another direct crop reads `$98,088 281,951 467,563`, producing `98088`; this likely came from the first member `598088`, not a crown bonus.
-- Classification: C. possible narrow generic-rule candidate. This looks like an over-recovery/false-positive total crown bonus case where a malformed member read (`$98,088`) is treated as bonus and added to the correct member sum.
-- Recommended next action: investigate the mobile total crown bonus recovery guard so it ignores bonus-like candidates that are digit substrings/fragments of an already-selected member in the same side. Do not commit the expected fixture until this is fixed or a narrowly scoped known correction is accepted.
+- S2 enemy is clearly visible as `598088 / 281951 / 467563`, total `1347602`; the runner previously returned total `1445690`.
+- Root cause: the mobile total crown bonus recovery guard accepted raw total-crop value `98088` from malformed `$98,088` as a bonus candidate. That value is a digit fragment of selected member `598088`, not an explicit crown bonus, so it inflated the correct member sum `1347602` to `1445690`.
+- Guard change: bonus candidates that are digit fragments of already-selected member values are now rejected before total crown bonus recovery can apply.
+- Validation: after the guard change, `IMG_9285` S2 enemy remains `598088 / 281951 / 467563` with total `1347602`, and `regression-test/expected/IMG_9285.json` was added.
 - S3 self is a sparse one-member formation with visible `+48723`.
-- Future removal proof for `IMG_9285.png:stage2` and `IMG_9285.png:stage3` is blocked until the exposed S2 enemy OCR issue is handled or intentionally documented.
+- Future removal proof for `IMG_9285.png:stage2` and `IMG_9285.png:stage3` can now be tested against the committed fixture.
 
 ## IMG_9282.png
 
