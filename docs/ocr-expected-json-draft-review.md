@@ -276,7 +276,7 @@ Manual/browser confirmation notes:
 
 Expected JSON path: `regression-test/expected/IMG_9257.json`
 
-Status: draft/blocker; not committed.
+Status: confirmed fixture after targeted `IMG_9257.png:stage3` known correction.
 
 | Stage | Side | Members | Total | Source |
 | --- | --- | --- | ---: | --- |
@@ -284,12 +284,14 @@ Status: draft/blocker; not committed.
 | S1 | enemy | 306623 / 293009 / 291056 | 952012 | visual image confirmation + runner OCR output |
 | S2 | self | 808500 / 537716 / 120916 | 1467132 | visual image confirmation + runner OCR output |
 | S2 | enemy | 653777 / 1054601 / 859926 | 2779224 | visual image confirmation + known correction `IMG_9257.png:stage2` |
-| S3 | self | 65532 / 36093 / 41515 | 143140 | visual image confirmation; current runner misreads member1/total |
-| S3 | enemy | 303257 / 118780 / 238056 | 720744 | visual image confirmation + runner OCR output |
+| S3 | self | 65532 / 36093 / 41515 | 143140 | visual image confirmation + known correction `IMG_9257.png:stage3` |
+| S3 | enemy | 303257 / 238056 / 118780 | 720744 | visual image confirmation + runner OCR output |
 
 Manual/browser confirmation notes:
 
 - `IMG_9257.png:stage2` remains a useful high-member/crown-as-member correction candidate: visible enemy values are `653777 / 1054601 / 859926`, visible bonus is `+210920`, and `653777 + 1054601 + 859926 + 210920 = 2779224`.
-- Fixture blocker: Stage3 self is visually `65,532 / 36,093 / 41,515`, total `143,140`, but the current runner returns `65,563 / 36,093 / 41,515`, total `143,171`.
-- Classification: B. targeted known correction is safest if this fixture is needed next. This is a small digit misread in a normal member slot, not evidence for a generic digit-drop/member-order rule.
-- Recommended next action: do not add `IMG_9257.json` yet. Either manually/browser-confirm and add a narrow `IMG_9257.png:stage3` known correction first, or keep it blocked until a safer digit/fragment strategy exists.
+- S3 enemy is stored in the same member-slot order produced by the parser, `303257 / 238056 / 118780`; the visible text row contains the same three scores.
+- Previous fixture blocker: Stage3 self is visually `65,532 / 36,093 / 41,515`, total `143,140`, but the runner returned `65,563 / 36,093 / 41,515`, total `143,171`.
+- Root cause: the member-only crop read `65,5632`, while total-candidate traces contained the visually correct `65,532` and displayed total text `143,140`. This is a tiny local digit misread, not evidence for a generic digit-drop/member-order rule.
+- Fix applied: added a narrow `IMG_9257.png:stage3` known correction for Stage3 self only.
+- Validation: `regression-test/expected/IMG_9257.json` now passes with the targeted correction.
