@@ -2309,6 +2309,8 @@ export default function Home() {
               allowSparseSingleMemberFromLeadingTotal: stage === 2,
               allowExplicitTwoMemberWithTrailingBonus: stage === 1,
               allowImplicitLowTrailingBonus: stage === 1 || stage === 2,
+              allowLeadingThreeMemberWithTrailingBonus: stage === 1,
+              allowImplicitLeadingThreeMemberWithTrailingBonus: stage === 1,
               allowExplicitSingleMember: stage === 3,
               allowExplicitTwoMember: stage === 3,
               allowTrailingBonusForThreeMember: stage === 3,
@@ -2321,6 +2323,7 @@ export default function Home() {
             enemyCrownCandidates,
             {
               allowExactTwoMember: stage === 3,
+              allowLeadingThreeMemberWithTrailingBonus: stage === 2,
             }
           );
         }

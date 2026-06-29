@@ -1888,6 +1888,42 @@ export function applyDesktopMemberShape(
     }
   }
 
+  if (options.allowLeadingThreeMemberWithTrailingBonus && numbers.length >= 4) {
+    const [firstMember, secondMember, thirdMember, bonusLike] = numbers;
+    const totalCropPickedFirstMember = explicitTotals.some(
+      (total) => Math.abs(total - firstMember) <= 1
+    );
+    const trailingThreeSum = secondMember + thirdMember + bonusLike;
+    const firstLooksLikeDisplayedTotal = Math.abs(firstMember - trailingThreeSum) <= 3000;
+    const displayedTotalBonus = firstMember - trailingThreeSum;
+    const hasDisplayedTotalBonus =
+      displayedTotalBonus >= 10000 &&
+      displayedTotalBonus < 200000 &&
+      numbers.slice(4).some((num) => Math.abs(num - displayedTotalBonus) <= 1000);
+    const implicitHighBonusShape =
+      options.allowImplicitLeadingThreeMemberWithTrailingBonus &&
+      numbers.length === 4 &&
+      firstMember >= 200000 &&
+      secondMember >= 10000 &&
+      secondMember < 100000 &&
+      thirdMember >= 10000 &&
+      thirdMember < 100000 &&
+      bonusLike >= 100000 &&
+      bonusLike < 200000;
+    if (
+      (totalCropPickedFirstMember || implicitHighBonusShape) &&
+      !firstLooksLikeDisplayedTotal &&
+      !hasDisplayedTotalBonus &&
+      firstMember >= 100000 &&
+      secondMember >= 5000 &&
+      thirdMember >= 5000 &&
+      bonusLike >= 10000 &&
+      bonusLike < 200000
+    ) {
+      return [firstMember, secondMember, thirdMember];
+    }
+  }
+
   if (numbers.length === 4) {
     const [displayedTotal, firstMember, secondMember, tinyThirdMember] = numbers;
     const inferredThirdMember = displayedTotal - firstMember - secondMember;
@@ -2158,6 +2194,26 @@ export function pickDesktopTotalFromMemberShape(members, memberNumbers, totalNum
 
     if (matchingBonus) {
       return total;
+    }
+  }
+
+  if (
+    numbers.length >= 4 &&
+    members.length === 3 &&
+    members.every((member, index) => Math.abs(member - numbers[index]) <= 1) &&
+    (totalNumbers.some((total) => Math.abs(total - members[0]) <= 1) ||
+      totalNumbers.length === 0)
+  ) {
+    const trailingBonus = numbers[3];
+    const inferredTotal = memberSum + trailingBonus;
+    if (
+      trailingBonus >= 10000 &&
+      trailingBonus < 200000 &&
+      (totalNumbers.length > 0 || trailingBonus >= 100000) &&
+      inferredTotal > memberSum &&
+      inferredTotal < 3000000
+    ) {
+      return inferredTotal;
     }
   }
 

@@ -1082,6 +1082,42 @@ function applyDesktopLegacyMemberShape(
     }
   }
 
+  if (options.allowLeadingThreeMemberWithTrailingBonus && numbers.length >= 4) {
+    const [firstMember, secondMember, thirdMember, bonusLike] = numbers;
+    const totalCropPickedFirstMember = explicitTotals.some(
+      (total) => Math.abs(total - firstMember) <= 1
+    );
+    const trailingThreeSum = secondMember + thirdMember + bonusLike;
+    const firstLooksLikeDisplayedTotal = Math.abs(firstMember - trailingThreeSum) <= 3000;
+    const displayedTotalBonus = firstMember - trailingThreeSum;
+    const hasDisplayedTotalBonus =
+      displayedTotalBonus >= 10000 &&
+      displayedTotalBonus < 200000 &&
+      numbers.slice(4).some((num) => Math.abs(num - displayedTotalBonus) <= 1000);
+    const implicitHighBonusShape =
+      options.allowImplicitLeadingThreeMemberWithTrailingBonus &&
+      numbers.length === 4 &&
+      firstMember >= 200000 &&
+      secondMember >= 10000 &&
+      secondMember < 100000 &&
+      thirdMember >= 10000 &&
+      thirdMember < 100000 &&
+      bonusLike >= 100000 &&
+      bonusLike < 200000;
+    if (
+      (totalCropPickedFirstMember || implicitHighBonusShape) &&
+      !firstLooksLikeDisplayedTotal &&
+      !hasDisplayedTotalBonus &&
+      firstMember >= 100000 &&
+      secondMember >= 5000 &&
+      thirdMember >= 5000 &&
+      bonusLike >= 10000 &&
+      bonusLike < 200000
+    ) {
+      return [firstMember, secondMember, thirdMember];
+    }
+  }
+
   if (numbers.length === 4) {
     const [displayedTotal, firstMember, secondMember, tinyThirdMember] = numbers;
     const inferredThirdMember = displayedTotal - firstMember - secondMember;
@@ -1357,6 +1393,26 @@ function pickDesktopTotalFromMemberShape(members, memberNumbers, totalNumbers, s
 
     if (matchingBonus) {
       return total;
+    }
+  }
+
+  if (
+    numbers.length >= 4 &&
+    members.length === 3 &&
+    members.every((member, index) => Math.abs(member - numbers[index]) <= 1) &&
+    (totalCandidateNumbers.some((total) => Math.abs(total - members[0]) <= 1) ||
+      totalCandidateNumbers.length === 0)
+  ) {
+    const trailingBonus = numbers[3];
+    const inferredTotal = memberSum + trailingBonus;
+    if (
+      trailingBonus >= 10000 &&
+      trailingBonus < 200000 &&
+      (totalCandidateNumbers.length > 0 || trailingBonus >= 100000) &&
+      inferredTotal > memberSum &&
+      inferredTotal < 3000000
+    ) {
+      return inferredTotal;
     }
   }
 
@@ -2273,6 +2329,8 @@ async function runOcrForImage(imagePath, options = {}) {
         allowSparseSingleMemberFromLeadingTotal: stage === 2,
         allowExplicitTwoMemberWithTrailingBonus: stage === 1,
         allowImplicitLowTrailingBonus: stage === 1 || stage === 2,
+        allowLeadingThreeMemberWithTrailingBonus: stage === 1,
+        allowImplicitLeadingThreeMemberWithTrailingBonus: stage === 1,
         allowExplicitSingleMember: stage === 3,
         allowExplicitTwoMember: stage === 3,
         allowTrailingBonusForThreeMember: stage === 3,
@@ -2286,6 +2344,7 @@ async function runOcrForImage(imagePath, options = {}) {
       ocrSource,
       {
         allowExactTwoMember: stage === 3,
+        allowLeadingThreeMemberWithTrailingBonus: stage === 2,
       }
     );
 
