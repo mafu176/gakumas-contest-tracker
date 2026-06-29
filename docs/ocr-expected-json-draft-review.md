@@ -192,7 +192,7 @@ Manual/browser confirmation notes:
 
 Expected JSON path: `regression-test/expected/IMG_9282.json`
 
-Status: draft/blocker; not committed yet because targeted validation fails.
+Status: confirmed fixture after targeted `IMG_9282.png:stage3` known correction update.
 
 | Stage | Side | Members | Total | Source |
 | --- | --- | --- | ---: | --- |
@@ -201,18 +201,19 @@ Status: draft/blocker; not committed yet because targeted validation fails.
 | S2 | self | 1204215 / 1259738 / 1086075 | 3801975 | visual image confirmation + known correction `IMG_9282.png:stage2` |
 | S2 | enemy | 629383 / 877206 / 270747 | 1777336 | visual image confirmation + runner OCR output |
 | S3 | self | 285046 / 0 / 0 | 342055 | visual image confirmation + known correction `IMG_9282.png:stage3` |
-| S3 | enemy | 254591 / 273656 / 0 | 528247 | visual image confirmation; current runner output is wrong |
+| S3 | enemy | 254591 / 273656 / 0 | 528247 | visual image confirmation + targeted known correction `IMG_9282.png:stage3` |
 
 Manual/browser confirmation notes:
 
-- S3 enemy is visually a sparse two-member formation: `254591 / 273656 / -`, total `528247`. The current runner previously selected only `273656`, total `317858`, so this fixture exposes an existing OCR issue.
-- Validation blockers: `IMG_9282` S3 enemy member1 expected `254591`, actual `273656`; member2 expected `273656`, actual `0`; total expected `528247`, actual `317858`.
-- Latest runner observation without a committed fixture: S3 enemy is parsed as members `[273656]`, total `317858`.
+- S3 enemy is visually a sparse two-member formation: `254591 / 273656 / -`, total `528247`.
+- Reproduced pre-fix runner output: members `[273656]`, total `317858`.
+- Failure shape: member crop text contains `254.591 273,656 -`, but the parser only extracted `273656` from that crop because `254.591` was not normalized as `254591`.
 - Raw OCR evidence: the S3 enemy total candidate trace contains `528,247` followed by `254,591 273,656 -`; parsed numbers are `[528247, 254591, 273656]`. A second trace misreads the total as `228247`, but still contains the same two member values.
-- Classification: C. possible narrow generic-rule candidate. This is a sparse two-member row where a single total-candidate crop contains the displayed total and both real members in visual order; the member crop also contains `254.591 273,656 -`.
-- Recommended next action: consider a smartphone-only sparse row recovery rule that can use a total candidate trace containing `total + one/two members + blank marker` when the selected result dropped the leading member and reconstructed a smaller total. A filename-keyed known correction is also safe if browser confirmation is preferred first.
+- Classification: B. targeted known correction is safest. A generic sparse-row recovery rule is plausible, but promoting total-candidate traces into missing member slots would overlap with member-order/digit-fragment risk and needs a separate design with more examples.
+- Fix applied: extended existing `IMG_9282.png:stage3` known correction to also set S3 enemy members `[254591, 273656, 0]` and `enemyTotal: 528247`.
+- Validation: `regression-test/expected/IMG_9282.json` now passes with the targeted correction.
 - S2 self is a high-score row with visible `+251947`; member sum plus bonus equals `3801975`.
-- Future removal proof for `IMG_9282.png:stage2` and `IMG_9282.png:stage3` is blocked until the exposed S3 enemy OCR issue is handled or intentionally documented.
+- Future removal proof for `IMG_9282.png:stage2` and `IMG_9282.png:stage3` is now unblocked by the committed fixture, but both keys should remain individual until no-known replay proves generic coverage.
 
 ## IMG_9284.png
 
