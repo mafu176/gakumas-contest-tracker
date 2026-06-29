@@ -53,6 +53,15 @@ Previous refresh checks after `8639930`:
 
 The total crown bonus recovery rule removed the three intended total-only Stage2 corrections. The later fixture/blocker fixes did not make a new correction safely removable in this pass.
 
+Disabled-key replay after `146d7c3`:
+
+| Correction key checked | Disabled-key result | Classification |
+| --- | --- | --- |
+| `IMG_9282.png:stage2` | Stage2 self regressed to total `1086075` with members `[259738, 251947, 0]` instead of `[1204215, 1259738, 1086075]` / `3801975`. | C. keep individual |
+| `IMG_9282.png:stage3` | Stage3 self regressed to `[57009, 24267, 0]` / `285046`; Stage3 enemy regressed to `[273656, 0, 0]` / `317858`. | C. keep individual |
+| `IMG_9285.png:stage2` | Stage2 self regressed to `[721827, 659907, 200507]` / `1782548` instead of `[1001539, 721827, 659907]` / `2583580`. | C. keep individual |
+| `IMG_9285.png:stage3` | Stage3 self still filled the sparse slot with `48723` and read total `292540` instead of `[243617, 0, 0]` / `292340`. | C. keep individual |
+
 ## A. Safe Removal Candidates
 
 No remaining filename-keyed correction is currently classified as safe to remove.
@@ -87,10 +96,10 @@ Generic rule likely involved: smartphone crown bonus exclusion from member slots
 | `IMG_9266.png:stage2` | Crown bonus was used as member3 and real high member was missing. | Confirm Stage2 self exact members/total. |
 | `IMG_9268.png:stage2` | Crown bonus was used as member3 and real high member was missing. | Confirm Stage2 self exact members/total. |
 | `IMG_9281.png:stage2` | Crown bonus was used as member3 and real high member was missing. | Confirm Stage2 enemy exact members/total. |
-| `IMG_9282.png:stage2` | High-score row displaced by bonus/member confusion. Expected JSON now exists. | Disable key and confirm Stage2 self exact members/total. |
+| `IMG_9282.png:stage2` | High-score row displaced by bonus/member confusion. Expected JSON now exists, but disabled-key replay still fails. | Keep individual. |
 | `IMG_9283.png:stage2` | Members correct but total missing crown bonus. | Confirm Stage2 self total includes crown. |
 | `IMG_9284.png:stage2` | Crown bonus was used as member3 and real high member was missing. | Confirm Stage2 self exact members/total. |
-| `IMG_9285.png:stage2` | Total-like/member displacement with high member recovery. Expected JSON now exists. | Disable key and confirm Stage2 self exact members/total. |
+| `IMG_9285.png:stage2` | Total-like/member displacement with high member recovery. Expected JSON now exists, but disabled-key replay still fails. | Keep individual. |
 
 ### Sparse Trailing Zero Preservation
 
@@ -104,10 +113,10 @@ Generic rule likely involved: smartphone sparse trailing-zero preservation.
 | `IMG_9250.png:stage3` | Sparse self/enemy fields are corrected in one key. | Verify both self and enemy corrections are now structurally covered before removing. |
 | `IMG_9264.png:stage3` | Sparse two-member enemy formation with bonus-like candidate in blank slot. | Confirm third member stays `0` and total remains crown-included. |
 | `IMG_9281.png:stage3` | Sparse two-member self formation. | Confirm trailing blank remains `0`. |
-| `IMG_9282.png:stage3` | Sparse self/enemy formation; expected JSON now exists and targeted correction is active. | Disable key and confirm all Stage3 self/enemy fields. |
+| `IMG_9282.png:stage3` | Sparse self/enemy formation; expected JSON now exists, but disabled-key replay still fails. | Keep individual. |
 | `IMG_9283.png:stage3` | Sparse one-member self formation. | Confirm total is not inflated by nearby value. |
 | `IMG_9284.png:stage3` | Sparse one-member self formation. | Confirm total is not inflated by nearby value. |
-| `IMG_9285.png:stage3` | Sparse one-member self formation; expected JSON now exists. | Disable key and confirm member2/member3 remain `0` and total is exact. |
+| `IMG_9285.png:stage3` | Sparse one-member self formation; expected JSON now exists, but disabled-key replay still fails. | Keep individual. |
 
 ### Total-Like Member Suppression
 
@@ -199,26 +208,27 @@ These are intentionally kept individual. They correct very small sparse enemy sc
 | Unique image files | 47 |
 | Safe removal candidates | 0 |
 | Removed proven-safe corrections | 7 |
-| Refresh-checked candidates kept individual | 3 |
-| Likely candidates needing confirmation | 23 |
+| Refresh-checked candidates kept individual | 7 |
+| Likely candidates needing confirmation | 19 |
 | Not enough data / missing expected JSON | 15 |
-| Newly fixture-backed candidates needing disabled-key replay | 4 |
+| Newly fixture-backed candidates needing disabled-key replay | 0 |
 
 ## Top 5 Safest Next Candidates
 
 These are not approved for deletion yet, but they should be the first no-known replay targets.
 
-1. `IMG_9285.png:stage2`: Expected JSON now exists; replay with key disabled to see whether the total bonus guard and generic member rules cover it.
-2. `IMG_9285.png:stage3`: Expected JSON now exists; replay with key disabled to test sparse one-member coverage.
-3. `IMG_9282.png:stage2`: Expected JSON now exists; replay with key disabled to test high-score crown/member displacement coverage.
-4. `IMG_9282.png:stage3`: Expected JSON now exists, but this key contains the newly targeted sparse row correction and may remain individual.
-5. `IMG_9283.png:stage2`: Expected JSON exists and this remains the closest total-only/crown candidate after the Stage2 bonus recovery rule.
+1. `IMG_9283.png:stage2`: Expected JSON exists and this remains the closest total-only/crown candidate after the Stage2 bonus recovery rule.
+2. `IMG_9283.png:stage3`: Expected JSON exists; replay with key disabled to test sparse one-member coverage.
+3. `IMG_9284.png:stage2`: Expected JSON exists, but the key is multi-field; replay must prove every corrected field.
+4. `IMG_9284.png:stage3`: Expected JSON exists; replay with key disabled to test sparse one-member coverage.
+5. `IMG_9257.png:stage2`: Missing expected JSON, but it is a compact high-member/crown-as-member case worth fixture work.
 
 ## Top Risks
 
 - `IMG_9251.png:*` should remain individual for now. These are tiny sparse enemy score corrections and a browser fallback signature, not safe generic-rule candidates.
 - `IMG_9268.png` remains blocked: visual Stage3 enemy bonus `77249` is not extracted as a reliable structured candidate, so adding/removing corrections based on that fixture would be premature.
 - `IMG_9282.png:stage3` should be treated carefully despite having expected JSON now; it is a sparse-row targeted correction, not proof of a safe generic sparse recovery rule.
+- `IMG_9282.png:stage2`, `IMG_9282.png:stage3`, `IMG_9285.png:stage2`, and `IMG_9285.png:stage3` have fixture-backed disabled-key proof that they are still required.
 - Multi-field keys such as `IMG_9250.png:stage3` should not be removed unless every field in the key is proven covered.
 - Total-only corrections are risky without raw before-value proof. They may need a separate total-repair audit.
 - Old fixtures and broad stage replacements lack enough raw candidate evidence.
