@@ -34,6 +34,7 @@ The next useful fixtures are images that still have filename-keyed known correct
 - `IMG_9268`
 
 `IMG_9268` is still high value but currently blocked: Stage3 enemy visually needs a crown-included total, but the runner does not extract the visual `+77249` bonus as a reliable structured numeric candidate.
+`IMG_9257` is now also blocked: Stage2 enemy is confirmable, but Stage3 self is visually `65532 / 36093 / 41515`, total `143140`, while the runner reads `65563` and total `143171`.
 
 All listed images are expected under:
 
@@ -48,6 +49,7 @@ These images should be reviewed first because they unlock either repeated proof 
 | Image | Known correction keys | Expected JSON status | Why it matters | Likely correction type | Priority | Manual values needed |
 | --- | --- | --- | --- | --- | --- | --- |
 | `IMG_9268.png` | `IMG_9268.png:stage2` | missing / blocked | Single Stage2 high-member recovery case, but the full fixture is blocked by Stage3 enemy total evidence: visual `964109 + 77249 = 1041358`, while `77249` is not extracted as a reliable structured bonus candidate. | crown/bonus, missing high member, Stage3 total crown blocker | high | Full 3-stage expected values. Confirm S2 self members `[1479757, 685860, 808810]` and total `3270378`; separately confirm S3 enemy bonus `77249` and total `1041358` before adding a fixture. |
+| `IMG_9257.png` | `IMG_9257.png:stage2` | missing / blocked | Single Stage2 high-member/crown-as-member case, but the full fixture is blocked by Stage3 self digit misread: visual `65532 / 36093 / 41515`, total `143140`; runner returns `65563` and `143171`. | crown/bonus, missing high member, Stage3 member digit misread | high | Confirm whether a narrow `IMG_9257.png:stage3` known correction should be added before creating the fixture. |
 
 ## C. Medium Priority Expected JSON Additions
 
@@ -55,7 +57,7 @@ These are valuable but either cover fewer correction keys or are likely to remai
 
 | Image | Known correction keys | Expected JSON status | Why it matters | Likely correction type | Priority | Manual values needed |
 | --- | --- | --- | --- | --- | --- | --- |
-| `IMG_9257.png` | `IMG_9257.png:stage2` | missing | Single high-member/crown-as-member case. It would provide another seven-digit member recovery example, but it has lower payoff than the multi-key `IMG_928x` images. | crown/bonus, missing high member | medium | Full expected JSON. Confirm S2 enemy members `[653777, 1054601, 859926]`, total `2779224`, and visible bonus `210920`. |
+| Legacy/unreviewed user reports with one known-correction key | missing | Lower payoff until `IMG_9257` and `IMG_9268` are unblocked. | unknown | medium | Select only after checking the current audit for expected JSON gaps. |
 
 ## D. Low Priority / Postpone
 
@@ -97,17 +99,17 @@ These images already have expected JSON and can be used for disabled-key proof w
 
 ## F. Recommended Next Batch Size
 
-Recommended next manual/browser verification batch: **2 images**.
+Recommended next manual/browser verification batch: **2 blocked images**.
 
 Best next batch:
 
-1. `IMG_9268.png`
-2. `IMG_9257.png`
+1. `IMG_9268.png`: confirm or repair Stage3 enemy total/bonus evidence.
+2. `IMG_9257.png`: confirm Stage3 self `65532` / `143140` and decide whether to add a narrow Stage3 known correction.
 
 Why this batch:
 
-- `IMG_9268` is the only former high-priority fixture still blocked, and resolving its Stage3 enemy bonus evidence would unlock the full fixture.
-- `IMG_9257` is the remaining compact high-member/crown-as-member case without expected JSON.
+- `IMG_9268` is still the strongest blocker: resolving its Stage3 enemy bonus evidence would unlock the full fixture.
+- `IMG_9257` is the remaining compact high-member/crown-as-member case, but the full fixture now needs a Stage3 self digit-misread decision first.
 - The former `IMG_9282`/`IMG_9283`/`IMG_9284`/`IMG_9285` batch now has fixtures, so the next work there should be disabled-key proof rather than fixture creation.
 
 ## G. Exact Next Manual / Browser Verification Checklist

@@ -271,3 +271,25 @@ Manual/browser confirmation notes:
 - Decision: no production OCR change and no expected fixture in this pass. Do not broaden the Stage2 total crown bonus recovery rule to Stage3 until the runner can extract the explicit bonus or a clean displayed total candidate.
 - Recommended next action: improve audit/debug extraction for crown bonus zones or total-fragment parsing first. A filename-keyed known correction remains possible after browser confirmation, but it should be a separate targeted decision rather than a generic Stage3 rule.
 - This is a likely future proof target for `IMG_9268.png:stage2`, but the key should be tested with `--audit-disable-known-correction` before removal.
+
+## IMG_9257.png
+
+Expected JSON path: `regression-test/expected/IMG_9257.json`
+
+Status: draft/blocker; not committed.
+
+| Stage | Side | Members | Total | Source |
+| --- | --- | --- | ---: | --- |
+| S1 | self | 71617 / 263885 / 84700 | 420202 | visual image confirmation + runner OCR output |
+| S1 | enemy | 306623 / 293009 / 291056 | 952012 | visual image confirmation + runner OCR output |
+| S2 | self | 808500 / 537716 / 120916 | 1467132 | visual image confirmation + runner OCR output |
+| S2 | enemy | 653777 / 1054601 / 859926 | 2779224 | visual image confirmation + known correction `IMG_9257.png:stage2` |
+| S3 | self | 65532 / 36093 / 41515 | 143140 | visual image confirmation; current runner misreads member1/total |
+| S3 | enemy | 303257 / 118780 / 238056 | 720744 | visual image confirmation + runner OCR output |
+
+Manual/browser confirmation notes:
+
+- `IMG_9257.png:stage2` remains a useful high-member/crown-as-member correction candidate: visible enemy values are `653777 / 1054601 / 859926`, visible bonus is `+210920`, and `653777 + 1054601 + 859926 + 210920 = 2779224`.
+- Fixture blocker: Stage3 self is visually `65,532 / 36,093 / 41,515`, total `143,140`, but the current runner returns `65,563 / 36,093 / 41,515`, total `143,171`.
+- Classification: B. targeted known correction is safest if this fixture is needed next. This is a small digit misread in a normal member slot, not evidence for a generic digit-drop/member-order rule.
+- Recommended next action: do not add `IMG_9257.json` yet. Either manually/browser-confirm and add a narrow `IMG_9257.png:stage3` known correction first, or keep it blocked until a safer digit/fragment strategy exists.

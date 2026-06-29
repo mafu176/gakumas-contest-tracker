@@ -91,7 +91,7 @@ Generic rule likely involved: smartphone crown bonus exclusion from member slots
 | `IMG_9240.png:stage3` | Crown total handling with bonus-like candidate. | Confirm total and members remain exact without key. |
 | `IMG_9254.png:stage2` | Crown bonus was used as member1 and real member3 was missing. | Confirm Stage2 self exact members/total. |
 | `IMG_9254.png:stage3` | Crown/merged noise displaced members and total. | Confirm Stage3 self exact members/total. |
-| `IMG_9257.png:stage2` | Crown bonus was used as member3 and real high member was missing. | Confirm Stage2 enemy exact members/total. |
+| `IMG_9257.png:stage2` | Crown bonus was used as member3 and real high member was missing. Full fixture is currently blocked by an unrelated Stage3 self digit misread. | Keep blocked until `IMG_9257.json` can be added. |
 | `IMG_9264.png:stage2` | Crown bonus was used as member3 and real high member was missing. | Confirm Stage2 enemy exact members/total. |
 | `IMG_9266.png:stage2` | Crown bonus was used as member3 and real high member was missing. | Confirm Stage2 self exact members/total. |
 | `IMG_9268.png:stage2` | Crown bonus was used as member3 and real high member was missing. | Confirm Stage2 self exact members/total. |
@@ -221,7 +221,7 @@ These are not approved for deletion yet, but they should be the first no-known r
 2. `IMG_9283.png:stage3`: Expected JSON exists; replay with key disabled to test sparse one-member coverage.
 3. `IMG_9284.png:stage2`: Expected JSON exists, but the key is multi-field; replay must prove every corrected field.
 4. `IMG_9284.png:stage3`: Expected JSON exists; replay with key disabled to test sparse one-member coverage.
-5. `IMG_9257.png:stage2`: Missing expected JSON, but it is a compact high-member/crown-as-member case worth fixture work.
+5. `IMG_9257.png:stage2`: Compact high-member/crown-as-member case, but fixture work is blocked by a Stage3 self digit misread (`65532` read as `65563`).
 
 ## Top Risks
 
@@ -229,6 +229,7 @@ These are not approved for deletion yet, but they should be the first no-known r
 - `IMG_9268.png` remains blocked: visual Stage3 enemy bonus `77249` is not extracted as a reliable structured candidate, so adding/removing corrections based on that fixture would be premature.
 - `IMG_9282.png:stage3` should be treated carefully despite having expected JSON now; it is a sparse-row targeted correction, not proof of a safe generic sparse recovery rule.
 - `IMG_9282.png:stage2`, `IMG_9282.png:stage3`, `IMG_9285.png:stage2`, and `IMG_9285.png:stage3` have fixture-backed disabled-key proof that they are still required.
+- `IMG_9257.png` should not get a fixture until its unrelated Stage3 self digit misread is handled or explicitly accepted as a targeted known correction.
 - Multi-field keys such as `IMG_9250.png:stage3` should not be removed unless every field in the key is proven covered.
 - Total-only corrections are risky without raw before-value proof. They may need a separate total-repair audit.
 - Old fixtures and broad stage replacements lack enough raw candidate evidence.
