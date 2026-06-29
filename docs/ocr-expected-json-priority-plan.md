@@ -4,7 +4,7 @@
 
 This plan identifies missing expected JSON files that would most improve proof for reducing filename-keyed OCR known corrections.
 
-Current state after `545bceb`:
+Current state after the fixture blocker fixes through `b81d8b2`:
 
 - Remaining filename-keyed known corrections: `76`
 - Proven removed known corrections: `7`
@@ -23,15 +23,17 @@ Current state after `545bceb`:
   - `IMG_9266`
   - `IMG_9267`
   - `IMG_9281`
+  - `IMG_9282`
+  - `IMG_9283`
+  - `IMG_9284`
+  - `IMG_9285`
 
-The next useful fixtures are images that still have filename-keyed known corrections but no expected JSON. These are mostly:
+The next useful fixtures are images that still have filename-keyed known corrections but no expected JSON. These are now mostly:
 
 - `IMG_9257`
 - `IMG_9268`
-- `IMG_9282`
-- `IMG_9283`
-- `IMG_9284`
-- `IMG_9285`
+
+`IMG_9268` is still high value but currently blocked: Stage3 enemy visually needs a crown-included total, but the runner does not extract the visual `+77249` bonus as a reliable structured numeric candidate.
 
 All listed images are expected under:
 
@@ -45,11 +47,7 @@ These images should be reviewed first because they unlock either repeated proof 
 
 | Image | Known correction keys | Expected JSON status | Why it matters | Likely correction type | Priority | Manual values needed |
 | --- | --- | --- | --- | --- | --- | --- |
-| `IMG_9283.png` | `IMG_9283.png:stage2`, `IMG_9283.png:stage3` | missing | Stage2 is the closest remaining total-only-like case after total crown bonus recovery. Stage3 is sparse one-member total inflation. This image can test whether the new total recovery should eventually cover another case or whether it remains individual. | total-only/crown, sparse trailing zero, possible total inflation | high | Full 3-stage expected values. Confirm S2 self members/total and visible bonus; confirm S3 self one-member sparse total. |
-| `IMG_9285.png` | `IMG_9285.png:stage2`, `IMG_9285.png:stage3` | missing | Covers a Stage2 high-member/total-like displacement and a Stage3 sparse one-member total correction. The raw-token audit already flagged it as blocked by missing expected JSON. | total-like member suppression, sparse trailing zero, total delta | high | Full 3-stage expected values. Confirm S2 self members/total and S3 self `[member1, 0, 0]` / total. |
-| `IMG_9282.png` | `IMG_9282.png:stage2`, `IMG_9282.png:stage3` | missing | Two correction keys. Stage2 is a high-score row with bonus/member displacement; Stage3 is sparse one-member with crown total. Adds coverage for seven-digit members and sparse preservation. | crown/bonus, high-score row, sparse trailing zero | high | Full 3-stage expected values. Confirm S2 self high-score members/total and S3 self sparse one-member total. |
-| `IMG_9284.png` | `IMG_9284.png:stage2`, `IMG_9284.png:stage3` | missing | Stage2 has a multi-field key correcting both self and enemy, and Stage3 is sparse one-member. This is high payoff, but more complex than single-side keys. | crown/bonus, sparse trailing zero, multi-field stage correction | high | Full 3-stage expected values. Confirm S2 self, S2 enemy `[member1, 0, 0]`, and S3 self sparse total. |
-| `IMG_9268.png` | `IMG_9268.png:stage2` | missing | Single Stage2 high-member recovery case. Useful repeated evidence for crown bonus exclusion where a seven-digit member is missing and bonus is selected as a member. | crown/bonus, missing high member | high | Full 3-stage expected values. Confirm S2 self members `[1479757, 685860, 808810]` and total `3270378`, plus all other stages. |
+| `IMG_9268.png` | `IMG_9268.png:stage2` | missing / blocked | Single Stage2 high-member recovery case, but the full fixture is blocked by Stage3 enemy total evidence: visual `964109 + 77249 = 1041358`, while `77249` is not extracted as a reliable structured bonus candidate. | crown/bonus, missing high member, Stage3 total crown blocker | high | Full 3-stage expected values. Confirm S2 self members `[1479757, 685860, 808810]` and total `3270378`; separately confirm S3 enemy bonus `77249` and total `1041358` before adding a fixture. |
 
 ## C. Medium Priority Expected JSON Additions
 
@@ -91,27 +89,26 @@ These images already have expected JSON and can be used for disabled-key proof w
 | `IMG_9266` | exists | Stage3 correction removed; Stage2 remains individual. |
 | `IMG_9267` | exists | Stage2 correction removed by total crown bonus recovery; Stage1 remains individual. |
 | `IMG_9281` | exists | Stage2/Stage3 remain individual; expected JSON is no longer the blocker. |
+| `IMG_9282` | exists | Added after the sparse row blocker was fixed with a targeted known correction. Replay `IMG_9282.png:stage2` and `IMG_9282.png:stage3` individually before removal decisions. |
+| `IMG_9283` | exists | Stage2/Stage3 remain useful disabled-key replay targets. |
+| `IMG_9284` | exists | Stage2/Stage3 remain useful disabled-key replay targets. |
+| `IMG_9285` | exists | Added after tightening the Stage2 total bonus recovery guard. Replay Stage2/Stage3 keys individually before removal decisions. |
 | `IMG_9074` | exists | Known correction already removed after runner proof. |
 
 ## F. Recommended Next Batch Size
 
-Recommended next manual/browser verification batch: **5 images**.
+Recommended next manual/browser verification batch: **2 images**.
 
 Best next batch:
 
-1. `IMG_9283.png`
-2. `IMG_9285.png`
-3. `IMG_9282.png`
-4. `IMG_9284.png`
-5. `IMG_9268.png`
+1. `IMG_9268.png`
+2. `IMG_9257.png`
 
 Why this batch:
 
-- It covers `9` remaining filename-keyed correction keys across `5` images.
-- It includes the closest remaining total-only-like candidate: `IMG_9283.png:stage2`.
-- It includes several sparse one-member/two-member cases needed to evaluate trailing-zero preservation limits.
-- It adds more seven-digit member / crown-as-member examples without touching production logic.
-- It avoids cases where expected JSON already exists and the blocker is now digit-drop/member-order risk rather than fixture coverage.
+- `IMG_9268` is the only former high-priority fixture still blocked, and resolving its Stage3 enemy bonus evidence would unlock the full fixture.
+- `IMG_9257` is the remaining compact high-member/crown-as-member case without expected JSON.
+- The former `IMG_9282`/`IMG_9283`/`IMG_9284`/`IMG_9285` batch now has fixtures, so the next work there should be disabled-key proof rather than fixture creation.
 
 ## G. Exact Next Manual / Browser Verification Checklist
 
@@ -133,21 +130,14 @@ For each image in the next batch:
 6. Run targeted validation:
 
 ```bash
-node scripts/ocr-test-images.mjs IMG_9283 IMG_9285 IMG_9282 IMG_9284 IMG_9268
+node scripts/ocr-test-images.mjs IMG_9268 IMG_9257
 ```
 
 7. Then replay removal proof one key at a time:
 
 ```bash
-node scripts/ocr-test-images.mjs IMG_9283 --audit-disable-known-correction IMG_9283.png:stage2
-node scripts/ocr-test-images.mjs IMG_9283 --audit-disable-known-correction IMG_9283.png:stage3
-node scripts/ocr-test-images.mjs IMG_9285 --audit-disable-known-correction IMG_9285.png:stage2
-node scripts/ocr-test-images.mjs IMG_9285 --audit-disable-known-correction IMG_9285.png:stage3
-node scripts/ocr-test-images.mjs IMG_9282 --audit-disable-known-correction IMG_9282.png:stage2
-node scripts/ocr-test-images.mjs IMG_9282 --audit-disable-known-correction IMG_9282.png:stage3
-node scripts/ocr-test-images.mjs IMG_9284 --audit-disable-known-correction IMG_9284.png:stage2
-node scripts/ocr-test-images.mjs IMG_9284 --audit-disable-known-correction IMG_9284.png:stage3
 node scripts/ocr-test-images.mjs IMG_9268 --audit-disable-known-correction IMG_9268.png:stage2
+node scripts/ocr-test-images.mjs IMG_9257 --audit-disable-known-correction IMG_9257.png:stage2
 ```
 
 8. Classify each key:
