@@ -255,7 +255,18 @@ Manual/browser confirmation notes:
 - S2 self is a high-score row with visible `+295951`; member sum plus bonus equals `3270378`.
 - Validation blocker: `IMG_9268` S3 enemy total expected `1041358`, actual `964109`.
 - Latest runner observation without a committed fixture: S3 enemy members are correct as `319401 / 258461 / 386247`, but total is `964109`, exactly the member sum.
-- Raw OCR evidence: the S3 enemy total candidate trace contains `1,041 358m` with members `319,401 258,461 386,247`, which visually supports displayed total `1041358` but is not parsed as a clean numeric candidate. Another trace parses `1,041,508`, an OCR delta from the displayed total. The visible crown bonus is `+77249`, and `319401 + 258461 + 386247 + 77249 = 1041358`.
-- Classification: C. possible narrow generic-rule candidate, but blocked by incomplete explicit bonus extraction. This is a member-sum-only total where the displayed total/bonus evidence exists visually, but the runner does not currently produce a clean `77249` bonus candidate.
-- Recommended next action: investigate bonus crop parsing or a guarded displayed-total repair using nearby total candidate traces before adding this expected fixture. A filename-keyed known correction is also possible after browser confirmation, but a broad rule should wait for better raw bonus evidence.
+- Rechecked after the `IMG_9285` total crown bonus guard fix:
+  - selected S3 enemy members: `319401 / 258461 / 386247`
+  - member sum: `964109`
+  - selected total: `964109`
+  - visual displayed total: `1041358`
+  - visual crown bonus: `+77249`
+  - equation: `319401 + 258461 + 386247 + 77249 = 1041358`
+- Raw OCR evidence:
+  - the S3 enemy total candidate trace contains `1,041 358m` with members `319,401 258,461 386,247`; this visually supports displayed total `1041358`, but the current numeric parser does not turn it into a clean total candidate
+  - another trace parses `1,041,508`, which is close to but not equal to the displayed total
+  - the visible `+77249` bonus is not extracted as a reliable numeric bonus candidate; the only nearby trailing raw candidate in this run was `68229`
+- Classification: D. blocked due to insufficient structured bonus/total evidence. The screenshot itself supports the expected value, but a generic production rule would currently have to infer either `77249` or repair `1,041 358m` from weak fragment evidence.
+- Decision: no production OCR change and no expected fixture in this pass. Do not broaden the Stage2 total crown bonus recovery rule to Stage3 until the runner can extract the explicit bonus or a clean displayed total candidate.
+- Recommended next action: improve audit/debug extraction for crown bonus zones or total-fragment parsing first. A filename-keyed known correction remains possible after browser confirmation, but it should be a separate targeted decision rather than a generic Stage3 rule.
 - This is a likely future proof target for `IMG_9268.png:stage2`, but the key should be tested with `--audit-disable-known-correction` before removal.
