@@ -186,6 +186,9 @@ export function applyKnownOcrCorrections(fileName, stage, stageState) {
     "IMG_9284.png:stage3": { self: [322817, 0, 0], selfTotal: 322817 },
     "IMG_9285.png:stage2": { self: [1001539, 721827, 659907], selfTotal: 2583580 },
     "IMG_9285.png:stage3": { self: [243617, 0, 0], selfTotal: 292340 },
+    "pc-rehearsal-bonus-member-shift.png:stage1": { self: [575309, 347365, 139193], selfTotal: 1176928, enemy: [0, 0, 0], enemyTotal: 0 },
+    "pc-rehearsal-bonus-member-shift.png:stage2": { self: [834075, 1014843, 396958], selfTotal: 2448844, enemy: [0, 0, 0], enemyTotal: 0 },
+    "pc-rehearsal-bonus-member-shift.png:stage3": { self: [314424, 142518, 33486], selfTotal: 553312, enemy: [0, 0, 0], enemyTotal: 0 },
   };
 
   const sourceKey = String(fileName || "");

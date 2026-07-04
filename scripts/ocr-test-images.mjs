@@ -4062,7 +4062,12 @@ async function main() {
       !(sourceIndex >= 0 && index === sourceIndex + 1) &&
       !(args[index - 1] === "--audit-disable-known-correction")
     )
-    .map((value) => value.toLowerCase());
+    .map((value) =>
+      value
+        .replaceAll("\\", "/")
+        .replace(/^\.?\/*test-images\//i, "")
+        .toLowerCase()
+    );
   const imagePaths = (await collectImages(testImagesDir))
     .filter((imagePath) => {
       if (filters.length === 0) return true;
