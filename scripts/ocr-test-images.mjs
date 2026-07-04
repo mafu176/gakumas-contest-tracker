@@ -199,6 +199,89 @@ function findIncludedExpectedValues(numbers = [], expectedValues = []) {
   );
 }
 
+function findNearExpectedValues(numbers = [], expectedValues = [], tolerance = 50) {
+  return expectedValues
+    .map((expected) => {
+      const matches = numbers
+        .map((number) => ({
+          expected,
+          candidate: Number(number),
+          delta: Math.abs(Number(number) - Number(expected)),
+        }))
+        .filter((match) => Number.isFinite(match.candidate) && match.delta <= tolerance)
+        .sort((a, b) => a.delta - b.delta);
+      return matches[0] || null;
+    })
+    .filter(Boolean);
+}
+
+function dedupeRoiCandidateObjects(candidates = []) {
+  const seen = new Set();
+  return candidates.filter((candidate) => {
+    const key = `${candidate.method}:${candidate.value}:${candidate.raw}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function extractRoiFragmentCandidates(text) {
+  const normalized = String(text ?? "")
+    .replace(/[\uFF01-\uFF5E]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 65248));
+  const fragments = [];
+  const candidates = [];
+  const runs = normalized.match(/\d[\d,.\s]{5,40}\d/g) || [];
+
+  for (const rawRun of runs) {
+    const digits = rawRun.replace(/\D/g, "");
+    if (digits.length < 4) continue;
+
+    fragments.push({
+      raw: rawRun.trim(),
+      digits,
+      length: digits.length,
+    });
+
+    if (digits.length >= 7) {
+      for (let index = 0; index <= digits.length - 7; index += 1) {
+        const value = Number(digits.slice(index, index + 7));
+        if (value >= 1000000 && value < 10000000) {
+          candidates.push({
+            method: "digit-window-7",
+            value,
+            raw: rawRun.trim(),
+            start: index,
+          });
+        }
+      }
+    }
+
+    const groups = rawRun.match(/\d+/g) || [];
+    for (let start = 0; start < groups.length; start += 1) {
+      let joined = "";
+      for (let end = start; end < groups.length; end += 1) {
+        joined += groups[end];
+        if (joined.length > 8) break;
+        const value = Number(joined);
+        if (joined.length >= 6 && value >= 100000 && value < 10000000) {
+          candidates.push({
+            method: "separator-group-join",
+            value,
+            raw: groups.slice(start, end + 1).join(","),
+            groupStart: start,
+            groupEnd: end,
+          });
+        }
+      }
+    }
+  }
+
+  return {
+    fragments,
+    possibleJoinedCandidates: dedupeRoiCandidateObjects(candidates),
+  };
+}
+
 async function recognizeFixedRoiExperimentZone(imagePath, descriptor) {
   const options =
     descriptor.zoneType === "bonus"
@@ -220,6 +303,10 @@ async function recognizeFixedRoiExperimentZone(imagePath, descriptor) {
           allowFallback: !descriptor.requiresPlus,
         })
       : [];
+  const fragmentAnalysis = extractRoiFragmentCandidates(result.text);
+  const joinedCandidateNumbers = fragmentAnalysis.possibleJoinedCandidates.map(
+    (candidate) => candidate.value
+  );
 
   return {
     ...descriptor,
@@ -227,7 +314,16 @@ async function recognizeFixedRoiExperimentZone(imagePath, descriptor) {
     rawText: result.text,
     parsedCandidates: result.numbers,
     bonusCandidates,
-    candidateNumbers: [...new Set([...(result.numbers || []), ...bonusCandidates])],
+    cleanSevenDigitCandidates: (result.numbers || []).filter(
+      (number) => number >= 1000000 && number < 10000000
+    ),
+    fragmentCandidates: fragmentAnalysis.fragments,
+    possibleJoinedCandidates: fragmentAnalysis.possibleJoinedCandidates,
+    candidateNumbers: [...new Set([
+      ...(result.numbers || []),
+      ...bonusCandidates,
+      ...joinedCandidateNumbers,
+    ])],
     pass: result.pass || "pass1",
   };
 }
@@ -306,6 +402,10 @@ async function buildFixedRoiExperimentForImage(item) {
           roiCandidateNumbers,
           expected.sevenDigitMembers
         ),
+        expectedSevenDigitMembersNearFound: findNearExpectedValues(
+          roiCandidateNumbers,
+          expected.sevenDigitMembers
+        ),
         zones,
       };
     }
@@ -365,6 +465,21 @@ async function writeFixedRoiExperimentArtifacts(report) {
         );
       }
     }
+    const sevenDigitNearFound = [];
+    for (const stage of stages) {
+      const stageKey = `stage${stage}`;
+      for (const side of sides) {
+        const sideArtifact = artifact.stages?.[stageKey]?.[side];
+        if (!sideArtifact) continue;
+        sevenDigitNearFound.push(
+          ...sideArtifact.expectedSevenDigitMembersNearFound.map((match) => ({
+            stage,
+            side,
+            ...match,
+          }))
+        );
+      }
+    }
 
     summary.push({
       image: item.image,
@@ -373,6 +488,7 @@ async function writeFixedRoiExperimentArtifacts(report) {
       pass: item.pass,
       sevenDigitExpected,
       sevenDigitFound,
+      sevenDigitNearFound,
     });
   }
 
