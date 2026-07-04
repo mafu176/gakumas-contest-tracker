@@ -21,6 +21,7 @@ const rawTokenFragmentAuditReportPath = path.join(rootDir, "docs", "ocr-raw-toke
 const memberOrderAuditReportPath = path.join(rootDir, "docs", "ocr-member-order-audit-report.md");
 const geometryAuditReportPath = path.join(rootDir, "docs", "ocr-geometry-audit-report.md");
 const nextDebugPath = path.join(rootDir, "docs", "next-debug.md");
+const debugArtifactsDir = path.join(rootDir, "tmp", "ocr-debug-artifacts");
 const unsupportedNextScreenMessage =
   "Next screen is unsupported for OCR. Use normal result or high-score screen.";
 
@@ -72,6 +73,98 @@ function parseDisabledKnownCorrections(args) {
 function shouldApplyKnownOcrCorrection(fileName, stage, disabledKnownCorrections = new Set()) {
   const key = `${fileName}:stage${stage}`;
   return !disabledKnownCorrections.has(normalizeKnownCorrectionKey(key));
+}
+
+function cloneStageState(state) {
+  return {
+    self: [...(state.self || [])],
+    enemy: [...(state.enemy || [])],
+    selfTotal: Number(state.selfTotal || 0),
+    enemyTotal: Number(state.enemyTotal || 0),
+  };
+}
+
+function stageStateEquals(left, right) {
+  const sameArray = (a = [], b = []) =>
+    a.length === b.length && a.every((value, index) => Number(value || 0) === Number(b[index] || 0));
+  return (
+    sameArray(left?.self, right?.self) &&
+    sameArray(left?.enemy, right?.enemy) &&
+    Number(left?.selfTotal || 0) === Number(right?.selfTotal || 0) &&
+    Number(left?.enemyTotal || 0) === Number(right?.enemyTotal || 0)
+  );
+}
+
+function correctionDelta(before, after) {
+  return {
+    applied: !stageStateEquals(before, after),
+    before: cloneStageState(before),
+    after: cloneStageState(after),
+  };
+}
+
+function safeArtifactName(value) {
+  return String(value || "image")
+    .replaceAll("\\", "/")
+    .split("/")
+    .filter(Boolean)
+    .join("__")
+    .replace(/[<>:"|?*\x00-\x1F]/g, "_");
+}
+
+function pickDebugStages(result) {
+  const debugStages = {};
+  for (const stage of stages) {
+    const key = `stage${stage}`;
+    const artifact = result?.[key]?.debugArtifact;
+    if (artifact) {
+      debugStages[key] = artifact;
+    }
+  }
+  return debugStages;
+}
+
+async function writeDebugArtifacts(report) {
+  await fs.rm(debugArtifactsDir, { recursive: true, force: true });
+  await fs.mkdir(debugArtifactsDir, { recursive: true });
+
+  const written = [];
+  const summary = [];
+
+  for (const item of report) {
+    const debugStages = pickDebugStages(item.result);
+    if (Object.keys(debugStages).length === 0) continue;
+
+    const artifact = {
+      image: item.image,
+      category: item.category,
+      source: item.source,
+      expected: item.expected,
+      pass: item.pass,
+      failures: item.failures,
+      elapsedMs: item.elapsedMs,
+      disabledKnownCorrections: item.disabledKnownCorrections,
+      stages: debugStages,
+    };
+    const fileName = `${safeArtifactName(item.image)}.debug.json`;
+    const artifactPath = path.join(debugArtifactsDir, fileName);
+    await fs.writeFile(artifactPath, JSON.stringify(artifact, null, 2));
+    const relativePath = path.relative(rootDir, artifactPath).replaceAll("\\", "/");
+    written.push(relativePath);
+    summary.push({
+      image: item.image,
+      artifact: relativePath,
+      expected: item.expected,
+      pass: item.pass,
+      failures: item.failures.length,
+    });
+  }
+
+  const summaryPath = path.join(debugArtifactsDir, "summary.json");
+  await fs.writeFile(summaryPath, JSON.stringify(summary, null, 2));
+  written.push(path.relative(rootDir, summaryPath).replaceAll("\\", "/"));
+
+  return written;
 }
 
 function isKnownNoiseNumber(num) {
@@ -2448,6 +2541,8 @@ async function runOcrForImage(imagePath, options = {}) {
       enemyTotal = selectedEnemyCrownInference.total;
     }
 
+    const knownCorrectionDeltas = [];
+    const beforeKnownCorrection1 = cloneStageState({ self, enemy, selfTotal, enemyTotal });
     if (shouldApplyKnownOcrCorrection(fileName, stage, options.disabledKnownCorrections)) {
       ({ self, enemy, selfTotal, enemyTotal } = applyKnownOcrCorrections(fileName, stage, {
         self,
@@ -2455,6 +2550,14 @@ async function runOcrForImage(imagePath, options = {}) {
         selfTotal,
         enemyTotal,
       }));
+    }
+    const afterKnownCorrection1 = cloneStageState({ self, enemy, selfTotal, enemyTotal });
+    const knownCorrectionDelta1 = correctionDelta(beforeKnownCorrection1, afterKnownCorrection1);
+    if (knownCorrectionDelta1.applied) {
+      knownCorrectionDeltas.push({
+        pass: "before-generic-smartphone-postprocess",
+        ...knownCorrectionDelta1,
+      });
     }
 
     const dropNoiseThirdMemberWhenPartialBonusMatchesTotal = (
@@ -2714,6 +2817,7 @@ async function runOcrForImage(imagePath, options = {}) {
       ]
     ));
 
+    const beforeKnownCorrection2 = cloneStageState({ self, enemy, selfTotal, enemyTotal });
     if (shouldApplyKnownOcrCorrection(fileName, stage, options.disabledKnownCorrections)) {
       ({ self, enemy, selfTotal, enemyTotal } = applyKnownOcrCorrections(fileName, stage, {
         self,
@@ -2721,6 +2825,14 @@ async function runOcrForImage(imagePath, options = {}) {
         selfTotal,
         enemyTotal,
       }));
+    }
+    const afterKnownCorrection2 = cloneStageState({ self, enemy, selfTotal, enemyTotal });
+    const knownCorrectionDelta2 = correctionDelta(beforeKnownCorrection2, afterKnownCorrection2);
+    if (knownCorrectionDelta2.applied) {
+      knownCorrectionDeltas.push({
+        pass: "after-generic-smartphone-postprocess",
+        ...knownCorrectionDelta2,
+      });
     }
 
     const stageResult = {
@@ -2746,6 +2858,96 @@ async function runOcrForImage(imagePath, options = {}) {
       },
     };
 
+    if (options.debugArtifacts && ocrSource === "smartphone") {
+      const buildSideArtifact = (side) => {
+        const isSelf = side === "self";
+        const members = isSelf ? self : enemy;
+        const finalTotal = isSelf ? selfTotal : enemyTotal;
+        const totalResult = isSelf ? selfTotalResult : enemyTotalResult;
+        const totalCandidateResult = isSelf ? selfTotalCandidateResult : enemyTotalCandidateResult;
+        const originalMemberNumbers = isSelf ? originalSelfMemberNumbers : originalEnemyMemberNumbers;
+        const selectedMemberNumbers = isSelf ? selfMemberNumbers : enemyMemberNumbers;
+        const memberResult = isSelf ? selfMemberResult : enemyMemberResult;
+        const totalReferences = isSelf ? selfTotalReferences : enemyTotalReferences;
+        const crownCandidates = isSelf ? selfCrownCandidates : enemyCrownCandidates;
+        const recognizedCrownCandidates = isSelf
+          ? recognizedSelfCrownCandidates
+          : recognizedEnemyCrownCandidates;
+        const inferredCrown = isSelf ? inferredSelfCrown : inferredEnemyCrown;
+        const inferredOriginalCrown = isSelf
+          ? inferredOriginalSelfCrown
+          : inferredOriginalEnemyCrown;
+        const selectedCrownInference = isSelf
+          ? selectedSelfCrownInference
+          : selectedEnemyCrownInference;
+        const usedSparseSlotMembers = isSelf ? usedSparseSelfSlotMembers : usedSparseEnemySlotMembers;
+        const memberSum = members.reduce((sum, value) => sum + value, 0);
+
+        return {
+          final: {
+            members,
+            total: finalTotal,
+            memberSum,
+            totalMinusMemberSum: finalTotal - memberSum,
+          },
+          equationContext: {
+            memberSum,
+            totalReferences,
+            bonusCandidates: crownCandidates,
+            recognizedCrownCandidates,
+            finalTotal,
+            totalMinusMemberSum: finalTotal - memberSum,
+            exactMemberSumTotal: Math.abs(finalTotal - memberSum) <= 1,
+            matchingBonusCandidates: crownCandidates.filter(
+              (bonus) => Math.abs(memberSum + bonus - finalTotal) <= 1000
+            ),
+          },
+          candidateSources: {
+            totalDirect: {
+              tag: `${side}.total.direct`,
+              text: totalResult.text,
+              numbers: totalResult.numbers,
+              pass: totalResult.pass || "pass1",
+            },
+            totalCandidates: {
+              tag: `${side}.total.alternatives`,
+              text: totalCandidateResult.text,
+              numbers: totalCandidateResult.numbers,
+              traces: totalCandidateResult.traces,
+            },
+            memberCandidates: {
+              tag: `${side}.members.selected-row`,
+              text: memberResult.text,
+              numbers: memberResult.numbers,
+              score: memberResult.score,
+              pass: memberResult.pass || "pass1",
+            },
+            memberNumbersAfterSlotFallback: selectedMemberNumbers,
+            originalMemberNumbers,
+          },
+          selectionContext: {
+            usedSparseSlotMembers,
+            inferredCrown,
+            inferredOriginalCrown,
+            selectedCrownInference,
+          },
+        };
+      };
+
+      stageResult.debugArtifact = {
+        stage,
+        mode: ocrSource,
+        image: {
+          fileName,
+          width: image.width,
+          height: image.height,
+        },
+        knownCorrectionDeltas,
+        self: buildSideArtifact("self"),
+        enemy: buildSideArtifact("enemy"),
+      };
+    }
+
     if (options.debugNext) {
       stageResult.debug = {
         self: {
@@ -2764,7 +2966,23 @@ async function runOcrForImage(imagePath, options = {}) {
     results[`stage${stage}`] = stageResult;
   }
 
-  return applyKnownOcrSetCorrections(results);
+  const correctedResults = applyKnownOcrSetCorrections(results);
+  if (options.debugArtifacts && ocrSource === "smartphone") {
+    for (const stage of stages) {
+      const key = `stage${stage}`;
+      const before = cloneStageState(results[key]);
+      const after = cloneStageState(correctedResults[key]);
+      const delta = correctionDelta(before, after);
+      if (delta.applied && correctedResults[key]?.debugArtifact) {
+        correctedResults[key].debugArtifact.knownCorrectionDeltas.push({
+          pass: "whole-result-known-correction",
+          ...delta,
+        });
+      }
+    }
+  }
+
+  return correctedResults;
 }
 
 async function collectImages(dir) {
@@ -4045,6 +4263,8 @@ function buildRawTokenFragmentAuditReport(report) {
 async function main() {
   const args = process.argv.slice(2);
   const debugNext = args.includes("--debug-next");
+  const debugArtifacts =
+    args.includes("--debug-artifacts") || args.includes("--debug-ocr-artifacts");
   const sourceIndex = args.indexOf("--source");
   const sourceValue = sourceIndex >= 0 ? args[sourceIndex + 1] : "";
   const forcedSource = ["smartphone", "desktop"].includes(sourceValue)
@@ -4057,6 +4277,8 @@ async function main() {
   const filters = args
     .filter((value, index) =>
       value !== "--debug-next" &&
+      value !== "--debug-artifacts" &&
+      value !== "--debug-ocr-artifacts" &&
       value !== "--source" &&
       value !== "--audit-disable-known-correction" &&
       !(sourceIndex >= 0 && index === sourceIndex + 1) &&
@@ -4106,6 +4328,7 @@ async function main() {
     console.log(`OCR ${relative}`);
     const result = await runOcrForImage(imagePath, {
       debugNext,
+      debugArtifacts,
       fastNext: false,
       source,
       disabledKnownCorrections,
@@ -4140,6 +4363,7 @@ async function main() {
   if (debugNext) {
     await fs.writeFile(nextDebugPath, buildNextDebugReport(report));
   }
+  const debugArtifactFiles = debugArtifacts ? await writeDebugArtifacts(report) : [];
 
   const expectedResults = report.filter((item) => item.expected);
   const failedResults = report.filter((item) => !item.pass);
@@ -4157,6 +4381,10 @@ async function main() {
         memberOrderAuditReport: path.relative(rootDir, memberOrderAuditReportPath).replaceAll("\\", "/"),
         geometryAuditReport: path.relative(rootDir, geometryAuditReportPath).replaceAll("\\", "/"),
         nextDebug: debugNext ? path.relative(rootDir, nextDebugPath).replaceAll("\\", "/") : null,
+        debugArtifacts: debugArtifacts
+          ? path.relative(rootDir, debugArtifactsDir).replaceAll("\\", "/")
+          : null,
+        debugArtifactFiles,
         elapsedMs: report.map((item) => ({ image: item.image, elapsedMs: item.elapsedMs })),
         failures: failedResults.map((item) => ({
           image: item.image,
