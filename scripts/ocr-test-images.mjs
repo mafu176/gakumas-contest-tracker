@@ -22,6 +22,7 @@ const memberOrderAuditReportPath = path.join(rootDir, "docs", "ocr-member-order-
 const geometryAuditReportPath = path.join(rootDir, "docs", "ocr-geometry-audit-report.md");
 const nextDebugPath = path.join(rootDir, "docs", "next-debug.md");
 const debugArtifactsDir = path.join(rootDir, "tmp", "ocr-debug-artifacts");
+const fixedRoiExperimentDir = path.join(rootDir, "tmp", "ocr-roi-experiment");
 const unsupportedNextScreenMessage =
   "Next screen is unsupported for OCR. Use normal result or high-score screen.";
 
@@ -161,6 +162,221 @@ async function writeDebugArtifacts(report) {
   }
 
   const summaryPath = path.join(debugArtifactsDir, "summary.json");
+  await fs.writeFile(summaryPath, JSON.stringify(summary, null, 2));
+  written.push(path.relative(rootDir, summaryPath).replaceAll("\\", "/"));
+
+  return written;
+}
+
+function normalizeRoiZone(zone) {
+  return {
+    left: Math.round(zone.left),
+    top: Math.round(zone.top),
+    width: Math.round(zone.width),
+    height: Math.round(zone.height),
+  };
+}
+
+function expectedValuesForSide(expectedStage, side) {
+  if (!expectedStage) {
+    return { members: [], total: 0, all: [], sevenDigitMembers: [] };
+  }
+
+  const members = expectedStage[`${side}Members`] || [];
+  const total = expectedStage[side === "self" ? "selfTotal" : "enemyTotal"] || 0;
+  const all = [...members, total].map((value) => Number(value) || 0).filter((value) => value > 0);
+  return {
+    members,
+    total,
+    all,
+    sevenDigitMembers: members.filter((value) => Number(value) >= 1000000),
+  };
+}
+
+function findIncludedExpectedValues(numbers = [], expectedValues = []) {
+  return expectedValues.filter((expected) =>
+    numbers.some((number) => Math.abs(Number(number) - Number(expected)) <= 1)
+  );
+}
+
+async function recognizeFixedRoiExperimentZone(imagePath, descriptor) {
+  const options =
+    descriptor.zoneType === "bonus"
+      ? {
+          preset: "crown-bonus",
+          pageSegMode: "7",
+          charWhitelist: "0123456789,+",
+        }
+      : descriptor.zoneType === "member-slot"
+      ? {
+          preset: "score-slot",
+          pageSegMode: "7",
+        }
+      : {};
+  const result = await recognizeOcrZone(imagePath, descriptor.zone, options);
+  const bonusCandidates =
+    descriptor.zoneType === "bonus"
+      ? extractCrownBonusNumbers(result.text, {
+          allowFallback: !descriptor.requiresPlus,
+        })
+      : [];
+
+  return {
+    ...descriptor,
+    zone: normalizeRoiZone(descriptor.zone),
+    rawText: result.text,
+    parsedCandidates: result.numbers,
+    bonusCandidates,
+    candidateNumbers: [...new Set([...(result.numbers || []), ...bonusCandidates])],
+    pass: result.pass || "pass1",
+  };
+}
+
+async function buildFixedRoiExperimentForImage(item) {
+  if (item.source !== "smartphone" || !item.result) return null;
+
+  const imagePath = path.join(testImagesDir, item.image);
+  const image = await readImageSize(imagePath);
+  const stagesOut = {};
+
+  for (const stage of stages) {
+    const stageKey = `stage${stage}`;
+    const expectedStage = item.expectedData?.[stageKey];
+    const currentStage = item.result?.[stageKey];
+    const fixedZones = getFixedOcrZones(image, stage, "smartphone");
+    const stageOut = {};
+
+    for (const side of sides) {
+      const totalZone = side === "self" ? fixedZones.selfTotal : fixedZones.enemyTotal;
+      const memberRowZone = side === "self" ? fixedZones.selfMembers : fixedZones.enemyMembers;
+      const memberSlotZones = getMemberScoreSlotZones(image, stage, side, "smartphone");
+      const bonusZones = getCrownBonusZones(image, stage, side, "smartphone");
+      const descriptors = [
+        {
+          stage,
+          side,
+          zoneType: "total",
+          zoneRole: "direct-total-band",
+          zone: totalZone,
+        },
+        {
+          stage,
+          side,
+          zoneType: "member-row",
+          zoneRole: "direct-member-row-band",
+          zone: memberRowZone,
+        },
+        ...memberSlotZones.map((zone, index) => ({
+          stage,
+          side,
+          zoneType: "member-slot",
+          zoneRole: `member-slot-${index + 1}`,
+          slotIndex: index + 1,
+          zone,
+        })),
+        ...bonusZones.map((zone, index) => ({
+          stage,
+          side,
+          zoneType: "bonus",
+          zoneRole: index === 0 ? "bonus-wide-plus-band" : `bonus-slot-band-${index}`,
+          requiresPlus: Boolean(zone.requiresPlus),
+          zone,
+        })),
+      ];
+
+      const zones = [];
+      for (const descriptor of descriptors) {
+        zones.push(await recognizeFixedRoiExperimentZone(imagePath, descriptor));
+      }
+
+      const expected = expectedValuesForSide(expectedStage, side);
+      const roiCandidateNumbers = [...new Set(zones.flatMap((zone) => zone.candidateNumbers || []))];
+      const currentMembers = currentStage?.[side] || [];
+      const currentTotal = side === "self" ? currentStage?.selfTotal : currentStage?.enemyTotal;
+
+      stageOut[side] = {
+        current: {
+          members: currentMembers,
+          total: Number(currentTotal || 0),
+        },
+        expected,
+        roiCandidateNumbers,
+        expectedValuesFound: findIncludedExpectedValues(roiCandidateNumbers, expected.all),
+        expectedSevenDigitMembersFound: findIncludedExpectedValues(
+          roiCandidateNumbers,
+          expected.sevenDigitMembers
+        ),
+        zones,
+      };
+    }
+
+    stagesOut[stageKey] = stageOut;
+  }
+
+  return {
+    image: item.image,
+    source: item.source,
+    category: item.category,
+    imageSize: image,
+    expected: item.expected,
+    pass: item.pass,
+    failures: item.failures,
+    stages: stagesOut,
+  };
+}
+
+async function writeFixedRoiExperimentArtifacts(report) {
+  await fs.rm(fixedRoiExperimentDir, { recursive: true, force: true });
+  await fs.mkdir(fixedRoiExperimentDir, { recursive: true });
+
+  const written = [];
+  const summary = [];
+
+  for (const item of report) {
+    const artifact = await buildFixedRoiExperimentForImage(item);
+    if (!artifact) continue;
+
+    const fileName = `${safeArtifactName(item.image)}.roi.json`;
+    const artifactPath = path.join(fixedRoiExperimentDir, fileName);
+    await fs.writeFile(artifactPath, JSON.stringify(artifact, null, 2));
+    const relativePath = path.relative(rootDir, artifactPath).replaceAll("\\", "/");
+    written.push(relativePath);
+
+    const sevenDigitExpected = [];
+    const sevenDigitFound = [];
+    for (const stage of stages) {
+      const stageKey = `stage${stage}`;
+      for (const side of sides) {
+        const sideArtifact = artifact.stages?.[stageKey]?.[side];
+        if (!sideArtifact) continue;
+        sevenDigitExpected.push(
+          ...sideArtifact.expected.sevenDigitMembers.map((value) => ({
+            stage,
+            side,
+            value,
+          }))
+        );
+        sevenDigitFound.push(
+          ...sideArtifact.expectedSevenDigitMembersFound.map((value) => ({
+            stage,
+            side,
+            value,
+          }))
+        );
+      }
+    }
+
+    summary.push({
+      image: item.image,
+      artifact: relativePath,
+      expected: item.expected,
+      pass: item.pass,
+      sevenDigitExpected,
+      sevenDigitFound,
+    });
+  }
+
+  const summaryPath = path.join(fixedRoiExperimentDir, "summary.json");
   await fs.writeFile(summaryPath, JSON.stringify(summary, null, 2));
   written.push(path.relative(rootDir, summaryPath).replaceAll("\\", "/"));
 
@@ -4265,6 +4481,8 @@ async function main() {
   const debugNext = args.includes("--debug-next");
   const debugArtifacts =
     args.includes("--debug-artifacts") || args.includes("--debug-ocr-artifacts");
+  const fixedRoiExperiment =
+    args.includes("--fixed-roi-experiment") || args.includes("--smartphone-roi-experiment");
   const sourceIndex = args.indexOf("--source");
   const sourceValue = sourceIndex >= 0 ? args[sourceIndex + 1] : "";
   const forcedSource = ["smartphone", "desktop"].includes(sourceValue)
@@ -4279,6 +4497,8 @@ async function main() {
       value !== "--debug-next" &&
       value !== "--debug-artifacts" &&
       value !== "--debug-ocr-artifacts" &&
+      value !== "--fixed-roi-experiment" &&
+      value !== "--smartphone-roi-experiment" &&
       value !== "--source" &&
       value !== "--audit-disable-known-correction" &&
       !(sourceIndex >= 0 && index === sourceIndex + 1) &&
@@ -4364,6 +4584,9 @@ async function main() {
     await fs.writeFile(nextDebugPath, buildNextDebugReport(report));
   }
   const debugArtifactFiles = debugArtifacts ? await writeDebugArtifacts(report) : [];
+  const fixedRoiExperimentFiles = fixedRoiExperiment
+    ? await writeFixedRoiExperimentArtifacts(report)
+    : [];
 
   const expectedResults = report.filter((item) => item.expected);
   const failedResults = report.filter((item) => !item.pass);
@@ -4385,6 +4608,10 @@ async function main() {
           ? path.relative(rootDir, debugArtifactsDir).replaceAll("\\", "/")
           : null,
         debugArtifactFiles,
+        fixedRoiExperiment: fixedRoiExperiment
+          ? path.relative(rootDir, fixedRoiExperimentDir).replaceAll("\\", "/")
+          : null,
+        fixedRoiExperimentFiles,
         elapsedMs: report.map((item) => ({ image: item.image, elapsedMs: item.elapsedMs })),
         failures: failedResults.map((item) => ({
           image: item.image,
