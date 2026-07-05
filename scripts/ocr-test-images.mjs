@@ -295,7 +295,23 @@ function buildSparseTotalAsMemberSimulation({
     rejectionReasons.push("missing-displayed-total-candidate-for-proposed-sum");
   }
 
-  const exactTotalRowTrace = (totalCandidateTraces || []).find((trace) => {
+  const orderedTotalRowTraces = (totalCandidateTraces || [])
+    .map((trace) => ({
+      pass: trace?.pass,
+      text: trace?.text,
+      numbers: (trace?.numbers || []).map((value) => Number(value) || 0),
+    }))
+    .filter((trace) => {
+      const numbers = trace.numbers;
+      if (numbers.length < 4) return false;
+      const traceTotal = numbers[0] || 0;
+      const traceMembers = numbers.slice(1, 4);
+      if (traceMembers.some((value) => value < 10000 || value >= 1000000)) return false;
+      if (traceMembers.some((value) => Math.abs(value - traceTotal) <= 1)) return false;
+      return Math.abs(traceTotal - traceMembers.reduce((sum, value) => sum + value, 0)) <= 1;
+    });
+
+  const exactTotalRowTraces = orderedTotalRowTraces.filter((trace) => {
     const numbers = (trace?.numbers || []).map((value) => Number(value) || 0);
     return (
       Math.abs((numbers[0] || 0) - proposedTotal) <= 1 &&
@@ -304,8 +320,18 @@ function buildSparseTotalAsMemberSimulation({
       Math.abs((numbers[3] || 0) - proposedMembers[2]) <= 1
     );
   });
+  const exactTotalRowTrace = exactTotalRowTraces[0] || null;
   if (!exactTotalRowTrace) {
     rejectionReasons.push("missing-exact-total-plus-member-row-trace");
+  }
+  if (exactTotalRowTraces.length > 1) {
+    rejectionReasons.push("multiple-exact-total-plus-member-row-traces");
+  }
+  if (orderedTotalRowTraces.length > 1) {
+    rejectionReasons.push("multiple-valid-ordered-total-row-interpretations");
+  }
+  if (memberNumbers.some((value) => Math.abs(value - proposedTotal) <= 1)) {
+    rejectionReasons.push("proposed-total-reused-as-member-candidate");
   }
 
   const rowSequenceIndex = memberNumbers.findIndex(
@@ -316,6 +342,9 @@ function buildSparseTotalAsMemberSimulation({
   );
   if (rowSequenceIndex < 0) {
     rejectionReasons.push("member-row-does-not-contain-total-member-shift-sequence");
+  }
+  if (rowSequenceIndex > 0) {
+    rejectionReasons.push("total-member-shift-sequence-not-at-row-start");
   }
 
   const competingDisplayedTotals = refs.filter(
@@ -358,6 +387,13 @@ function buildSparseTotalAsMemberSimulation({
             numbers: exactTotalRowTrace.numbers,
           }
         : null,
+      exactTotalRowTraceCount: exactTotalRowTraces.length,
+      validOrderedTotalRowTraceCount: orderedTotalRowTraces.length,
+      validOrderedTotalRowTraces: orderedTotalRowTraces.map((trace) => ({
+        pass: trace.pass,
+        text: trace.text,
+        numbers: trace.numbers,
+      })),
       competingDisplayedTotalCandidates: competingDisplayedTotals,
     },
     note:

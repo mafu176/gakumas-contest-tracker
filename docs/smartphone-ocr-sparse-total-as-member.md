@@ -51,8 +51,31 @@ It proposes a repair only when all of these are true:
 - proposed members are `[currentTotal, currentMember1, currentMember2]`
 - proposed total equals the proposed member sum
 - an exact displayed total candidate exists
-- a single OCR trace contains the exact sequence: `proposedTotal / proposedMember1 / proposedMember2 / proposedMember3`
+- exactly one ordered OCR trace contains the exact sequence: `proposedTotal / proposedMember1 / proposedMember2 / proposedMember3`
+- exactly one ordered OCR trace in the side can be interpreted as `total / member1 / member2 / member3`
 - the selected member row contains `proposedMember1 / proposedMember2 / proposedMember3`
+- the selected member row sequence starts at the beginning of the row trace
+- `proposedTotal` is not reused as a member candidate
+
+The stricter trace guard is intentionally narrow: if noisy candidates create another
+valid total/member interpretation, the simulation rejects the repair instead of
+choosing between plausible rows.
+
+## Current Simulation Result
+
+| Image | wouldApply | Accepted side | Primary rejection / ambiguity notes |
+| --- | --- | --- | --- |
+| `IMG_9310` | yes | Stage3 enemy -> `113556 / 58192 / 54710`, total `226458` | One exact ordered total/member trace; competing numeric noise remains recorded but does not form another valid ordered interpretation for the accepted side. |
+| `IMG_9308` | no | - | Row shape or exact total/member trace missing; no sparse total-as-member repair. |
+| `IMG_9309` | no | - | Bonus candidates and missing exact trace block the repair. |
+| `IMG_9311` | no | - | Current equations are already exact or row shape does not match. |
+| `IMG_9312` | no | - | Bonus candidates and missing exact trace block the repair. |
+| `IMG_9243` | no | - | Current equations are already exact or row shape does not match. |
+| `IMG_9257` | no | - | Current equations are already exact or row shape does not match. |
+| `IMG_9282` | no | - | Missing exact trace or ambiguous row evidence blocks the repair. |
+| `IMG_9285` | no | - | Current equations are already exact or row shape does not match. |
+| `IMG_9251` | no | - | Current equations are already exact or row shape does not match. |
+| `IMG_9180` | no | - | Bonus candidates and missing exact trace block the repair. |
 
 ## Negative Controls
 
@@ -76,12 +99,15 @@ Only `IMG_9310.png` Stage3 enemy produced `wouldApply: true`.
 
 Do not enable this in production yet.
 
-The guard is promising, but it has only one positive example. The target crop also
-contains competing numeric noise such as `220400` and `61197`, so more samples are
-needed before this becomes a browser/runtime OCR rule.
+The guard is stronger now, but confidence is still limited because there is only one
+positive example. The target crop also contains numeric noise such as `220400` and
+`61197`; the stricter ordered-trace checks prevent that noise from becoming a valid
+repair today, but one sample is not enough to prove the pattern is generally safe.
 
 Recommended next step:
 
 - keep collecting debug artifacts for sparse Stage3 failures
-- look for at least two more cases with the same exact total/member trace shape
+- look for at least two more independent cases with the same exact total/member trace shape
+- require those additional cases to have no selected/raw bonus candidate and no competing valid ordered total/member trace
+- keep negative-control batches at zero accepted repairs
 - only then consider a smartphone-only production helper
