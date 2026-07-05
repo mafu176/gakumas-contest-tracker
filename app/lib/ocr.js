@@ -1855,8 +1855,11 @@ export function applySmartphoneRowZoneSevenDigitRecovery(
       proposedMembers[0] >= 1000000 &&
       currentMembers[0] === proposedMembers[1] &&
       currentMembers[1] === proposedMembers[2] &&
-      currentMembers[2] === proposedBonus &&
-      Math.abs(currentTotal - currentMemberSum) <= 1;
+      Math.abs(currentMembers[2] - inferredBonus) <= 1 &&
+      (
+        Math.abs(currentTotal - currentMemberSum) <= 1 ||
+        Math.abs(currentTotal - (currentMemberSum + inferredBonus)) <= 1000
+      );
 
     if (!singleFirstSlotReplacement && !leadingSevenDigitShiftWithBonusMember) {
       continue;
