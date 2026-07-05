@@ -258,6 +258,87 @@ function uniqueNumbers(numbers = []) {
   return [...new Set(numbers.map((number) => Number(number)).filter(Number.isFinite))];
 }
 
+function evaluateStrictRowZoneProposal({
+  current,
+  proposedMembers,
+  proposedBonus,
+  proposedTotal,
+  cleanSevenDigitCandidates,
+}) {
+  const rejectionReasons = [];
+  const currentMembers = [...(current.members || [])].map((value) => Number(value) || 0);
+  while (currentMembers.length < 3) currentMembers.push(0);
+  const proposed = [...(proposedMembers || [])].map((value) => Number(value) || 0);
+  const cleanSevenDigits = new Set((cleanSevenDigitCandidates || []).map((value) => Number(value) || 0));
+  const exactCleanSevenDigitMembers = proposed.filter(
+    (value) => value >= 1000000 && value < 10000000 && cleanSevenDigits.has(value)
+  );
+  const currentMemberSum = currentMembers.reduce((sum, value) => sum + value, 0);
+  const proposedMemberSum = proposed.reduce((sum, value) => sum + value, 0);
+  const currentTotal = Number(current.total || 0);
+
+  if (proposed.length !== 3 || proposed.some((value) => value <= 0)) {
+    rejectionReasons.push("proposal-does-not-have-three-positive-members");
+  }
+  if (exactCleanSevenDigitMembers.length !== 1) {
+    rejectionReasons.push("requires-exactly-one-clean-seven-digit-member");
+  }
+  if (!(Number(proposedBonus || 0) > 0)) {
+    rejectionReasons.push("missing-positive-row-bonus");
+  }
+  if (proposed[0] === currentTotal) {
+    rejectionReasons.push("leading-row-value-is-current-total");
+  }
+  if (Number(proposedTotal || 0) !== proposedMemberSum + Number(proposedBonus || 0)) {
+    rejectionReasons.push("proposal-total-equation-not-exact");
+  }
+  if (Number(proposedTotal || 0) <= currentTotal) {
+    rejectionReasons.push("proposal-does-not-increase-current-total");
+  }
+
+  const singleFirstSlotReplacement =
+    proposed[0] >= 1000000 &&
+    cleanSevenDigits.has(proposed[0]) &&
+    currentMembers[0] !== proposed[0] &&
+    currentMembers[1] === proposed[1] &&
+    currentMembers[2] === proposed[2] &&
+    currentTotal === currentMemberSum + Number(proposedBonus || 0);
+
+  const leadingSevenDigitShiftWithBonusMember =
+    proposed[0] >= 1000000 &&
+    cleanSevenDigits.has(proposed[0]) &&
+    currentMembers[0] === proposed[1] &&
+    currentMembers[1] === proposed[2] &&
+    currentMembers[2] === Number(proposedBonus || 0) &&
+    currentTotal === currentMemberSum;
+
+  let matchedPattern = null;
+  if (singleFirstSlotReplacement) matchedPattern = "single-first-slot-replacement";
+  if (leadingSevenDigitShiftWithBonusMember) {
+    matchedPattern = "leading-seven-digit-shift-with-bonus-member";
+  }
+  if (!matchedPattern) {
+    rejectionReasons.push("does-not-match-supported-row-zone-pattern");
+  }
+
+  return {
+    wouldAdoptUnderStrictRowZoneGuards: rejectionReasons.length === 0,
+    matchedPattern,
+    rejectionReasons,
+    equationDelta: {
+      currentTotal,
+      currentMemberSum,
+      proposedMemberSum,
+      proposedBonus: Number(proposedBonus || 0),
+      proposedTotal: Number(proposedTotal || 0),
+      currentTotalErrorToProposal: Math.abs(currentTotal - Number(proposedTotal || 0)),
+      proposedTotalError: Math.abs(
+        Number(proposedTotal || 0) - (proposedMemberSum + Number(proposedBonus || 0))
+      ),
+    },
+  };
+}
+
 function dedupeRoiCandidateObjects(candidates = []) {
   const seen = new Set();
   return candidates.filter((candidate) => {
@@ -670,6 +751,13 @@ function buildRoiAdoptionSimulationForSide(sideArtifact) {
       members: proposedMembers,
       total: proposedTotal,
     };
+    const strictRowZoneGuardEvaluation = evaluateStrictRowZoneProposal({
+      current,
+      proposedMembers,
+      proposedBonus,
+      proposedTotal,
+      cleanSevenDigitCandidates: zone.cleanSevenDigitCandidates || [],
+    });
     const currentComparisonForProposal = compareSideToExpected(current, sideArtifact.expected);
     const proposedComparison = compareSideToExpected(proposed, sideArtifact.expected);
     const currentMismatchForProposal = currentComparisonForProposal
@@ -706,6 +794,7 @@ function buildRoiAdoptionSimulationForSide(sideArtifact) {
         current: currentComparisonForProposal,
         proposed: proposedComparison,
       },
+      strictRowZoneGuardEvaluation,
       outcome,
       note:
         "Runner-only broad row-zone proposal. This is not production adoption; slot-level evidence is still required before enabling.",
@@ -782,6 +871,10 @@ async function writeRoiAdoptionSimulationArtifacts(report) {
           rowZoneExperimentalRegressed: simulation.rowZoneExperimentalProposals.filter(
             (proposal) => proposal.outcome === "regressed"
           ).length,
+          strictRowZoneGuardAccepted: simulation.rowZoneExperimentalProposals.filter(
+            (proposal) =>
+              proposal.strictRowZoneGuardEvaluation?.wouldAdoptUnderStrictRowZoneGuards
+          ).length,
         });
       }
     }
@@ -817,6 +910,10 @@ async function writeRoiAdoptionSimulationArtifacts(report) {
       ),
       rowZoneExperimentalRegressed: outcomes.reduce(
         (sum, outcome) => sum + outcome.rowZoneExperimentalRegressed,
+        0
+      ),
+      strictRowZoneGuardAccepted: outcomes.reduce(
+        (sum, outcome) => sum + outcome.strictRowZoneGuardAccepted,
         0
       ),
     });
