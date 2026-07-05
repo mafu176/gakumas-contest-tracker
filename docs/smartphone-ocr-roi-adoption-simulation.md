@@ -119,6 +119,117 @@ values were already fixture-correct in the cases with expected JSON.
 - Result: unchanged because the known correction already covers the target
   value and no exact equation-improving slot replacement remains.
 
+## User-reported IMG_9308-IMG_9312 row-zone experiment
+
+The user-reported sample batch added in `812503a` exposed a useful distinction:
+the strict simulated adoption result must remain unchanged, but broad row-zone
+evidence can still be reported as an audit-only proposal.
+
+The simulation now includes `rowZoneExperimentalProposals` for direct
+member-row bands. These proposals:
+
+- are runner-only and do not mutate the normal OCR result,
+- require a clean exact 7-digit value in the parsed row,
+- treat the first three parsed row values as a proposed member set and the
+  fourth value as a proposed bonus,
+- compare the proposal against expected fixtures when available,
+- are explicitly not production adoption because broad row bands can include
+  totals or joined neighboring text.
+
+Run:
+
+```bash
+node scripts/ocr-test-images.mjs IMG_9308 IMG_9309 IMG_9310 IMG_9311 IMG_9312 --roi-adoption-sim
+```
+
+Result summary:
+
+| Image | Strict simulated adoption | Row-zone experimental proposal |
+| --- | --- | --- |
+| `IMG_9308.png` | unchanged | no safe S2 proposal; S1 row proposal regresses because the row starts with a total |
+| `IMG_9309.png` | unchanged | no row-zone 7-digit member proposal |
+| `IMG_9310.png` | unchanged | S2 self improves to `1199099 / 798677 / 884569`, total `3122164` |
+| `IMG_9311.png` | unchanged | S2 self improves to `1124177 / 478609 / 438608`, total `2266229` |
+| `IMG_9312.png` | unchanged | S1 row proposal regresses because the row starts with a total |
+
+### IMG_9310
+
+Current S2 self:
+
+```text
+members 144104 / 798677 / 884569
+total   2067169
+```
+
+The direct member-row OCR text contains:
+
+```text
+1,199,099798,677 884,569
++239819
+```
+
+The row-zone proposal produces:
+
+```text
+members 1199099 / 798677 / 884569
+bonus   239819
+total   3122164
+```
+
+This exactly matches the expected S2 self fixture. The candidate is still broad
+row-zone evidence, not slot-level evidence, so it remains simulation-only.
+
+### IMG_9311
+
+Current S2 self:
+
+```text
+members 478609 / 438608 / 224835
+total   1142052
+```
+
+The direct member-row OCR text contains:
+
+```text
+1,124,177478,609 438,608
++224835
+```
+
+The row-zone proposal produces:
+
+```text
+members 1124177 / 478609 / 438608
+bonus   224835
+total   2266229
+```
+
+This exactly matches the expected S2 self fixture. It is a strong candidate for
+future ROI work, but not for production adoption yet because broad row parsing
+still needs a slot/geometry guard.
+
+### Why IMG_9308 remains unsafe
+
+`IMG_9308` S2 self only has a near candidate:
+
+```text
+expected 1020198
+ROI near 1020194
+```
+
+The simulation must not use near candidates. It also does not cleanly recover
+the second expected 7-digit member `1200635`. This remains blocked for a
+separate digit/segmentation strategy.
+
+### Why IMG_9309 and IMG_9312 are separate
+
+Both failures are total/bonus digit-confusion cases with correct member scores:
+
+- `IMG_9309` S1 self total: expected `1123775`, current `1125775`
+- `IMG_9312` S1 self total: expected `1236139`, current `1256139`
+
+They should not be handled by member ROI adoption. They need a separate
+total/bonus candidate selection strategy.
+
 ### IMG_9285
 
 - S2 self expected 7-digit member `1001539` is already present in the final

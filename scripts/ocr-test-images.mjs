@@ -642,6 +642,76 @@ function buildRoiAdoptionSimulationForSide(sideArtifact) {
     }
   }
 
+  const rowZoneExperimentalProposals = [];
+  for (const zone of zones) {
+    if (zone.zoneType !== "member-row") continue;
+    if (!String(zone.zoneRole || "").includes("member-row")) continue;
+
+    const parsedValues = uniqueNumbers(
+      (zone.parsedCandidates || [])
+        .map((value) => Number(value) || 0)
+        .filter((value) => value > 0)
+    );
+    if (parsedValues.length < 4) continue;
+
+    const proposedMembers = parsedValues.slice(0, 3);
+    const proposedBonus = parsedValues[3];
+    const hasExactSevenDigitMember = proposedMembers.some(
+      (value) =>
+        value >= 1000000 &&
+        value < 10000000 &&
+        (zone.cleanSevenDigitCandidates || []).includes(value)
+    );
+    if (!hasExactSevenDigitMember) continue;
+
+    const proposedMemberSum = proposedMembers.reduce((sum, value) => sum + value, 0);
+    const proposedTotal = proposedMemberSum + proposedBonus;
+    const proposed = {
+      members: proposedMembers,
+      total: proposedTotal,
+    };
+    const currentComparisonForProposal = compareSideToExpected(current, sideArtifact.expected);
+    const proposedComparison = compareSideToExpected(proposed, sideArtifact.expected);
+    const currentMismatchForProposal = currentComparisonForProposal
+      ? currentComparisonForProposal.memberMismatches + currentComparisonForProposal.totalMismatch
+      : null;
+    const proposedMismatch = proposedComparison
+      ? proposedComparison.memberMismatches + proposedComparison.totalMismatch
+      : null;
+
+    let outcome = "unvalidated";
+    if (currentMismatchForProposal !== null && proposedMismatch !== null) {
+      if (proposedMismatch < currentMismatchForProposal) outcome = "improved";
+      else if (proposedMismatch > currentMismatchForProposal) outcome = "regressed";
+      else outcome = "unchanged";
+    }
+
+    rowZoneExperimentalProposals.push({
+      zoneRole: zone.zoneRole,
+      zoneType: zone.zoneType,
+      zone: zone.zone,
+      rawText: zone.rawText,
+      parsedValues,
+      cleanSevenDigitCandidates: zone.cleanSevenDigitCandidates || [],
+      proposedMembers,
+      proposedBonus,
+      proposedTotal,
+      proposed,
+      equation: {
+        memberSum: proposedMemberSum,
+        bonus: proposedBonus,
+        total: proposedTotal,
+      },
+      comparison: {
+        current: currentComparisonForProposal,
+        proposed: proposedComparison,
+      },
+      outcome,
+      note:
+        "Runner-only broad row-zone proposal. This is not production adoption; slot-level evidence is still required before enabling.",
+    });
+  }
+
   const simulatedEquation = equationError(simulated.members, simulated.total, bonusCandidates);
   const currentComparison = compareSideToExpected(current, sideArtifact.expected);
   const simulatedComparison = compareSideToExpected(simulated, sideArtifact.expected);
@@ -675,6 +745,7 @@ function buildRoiAdoptionSimulationForSide(sideArtifact) {
     },
     adoptedCandidates,
     rejectedCandidates,
+    rowZoneExperimentalProposals,
     outcome,
   };
 }
@@ -704,6 +775,13 @@ async function writeRoiAdoptionSimulationArtifacts(report) {
           outcome: simulation.outcome,
           adopted: simulation.adoptedCandidates.length,
           rejected: simulation.rejectedCandidates.length,
+          rowZoneExperimental: simulation.rowZoneExperimentalProposals.length,
+          rowZoneExperimentalImproved: simulation.rowZoneExperimentalProposals.filter(
+            (proposal) => proposal.outcome === "improved"
+          ).length,
+          rowZoneExperimentalRegressed: simulation.rowZoneExperimentalProposals.filter(
+            (proposal) => proposal.outcome === "regressed"
+          ).length,
         });
       }
     }
@@ -733,6 +811,14 @@ async function writeRoiAdoptionSimulationArtifacts(report) {
       regressed: outcomes.filter((outcome) => outcome.outcome === "regressed").length,
       changedUnvalidated: outcomes.filter((outcome) => outcome.outcome === "changed-unvalidated").length,
       unchanged: outcomes.filter((outcome) => outcome.outcome === "unchanged").length,
+      rowZoneExperimentalImproved: outcomes.reduce(
+        (sum, outcome) => sum + outcome.rowZoneExperimentalImproved,
+        0
+      ),
+      rowZoneExperimentalRegressed: outcomes.reduce(
+        (sum, outcome) => sum + outcome.rowZoneExperimentalRegressed,
+        0
+      ),
     });
   }
 
