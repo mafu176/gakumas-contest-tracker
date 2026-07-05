@@ -23,6 +23,7 @@ const geometryAuditReportPath = path.join(rootDir, "docs", "ocr-geometry-audit-r
 const nextDebugPath = path.join(rootDir, "docs", "next-debug.md");
 const debugArtifactsDir = path.join(rootDir, "tmp", "ocr-debug-artifacts");
 const fixedRoiExperimentDir = path.join(rootDir, "tmp", "ocr-roi-experiment");
+const roiAdoptionSimDir = path.join(rootDir, "tmp", "ocr-roi-adoption-sim");
 const unsupportedNextScreenMessage =
   "Next screen is unsupported for OCR. Use normal result or high-score screen.";
 
@@ -213,6 +214,48 @@ function findNearExpectedValues(numbers = [], expectedValues = [], tolerance = 5
       return matches[0] || null;
     })
     .filter(Boolean);
+}
+
+function compareNumberArrays(left = [], right = []) {
+  const maxLength = Math.max(left.length, right.length);
+  let mismatches = 0;
+  for (let index = 0; index < maxLength; index += 1) {
+    if (Number(left[index] || 0) !== Number(right[index] || 0)) mismatches += 1;
+  }
+  return mismatches;
+}
+
+function compareSideToExpected(sideState, expected) {
+  if (!expected || expected.all.length === 0) return null;
+  return {
+    memberMismatches: compareNumberArrays(sideState.members, expected.members),
+    totalMismatch: Number(sideState.total || 0) === Number(expected.total || 0) ? 0 : 1,
+  };
+}
+
+function equationError(members = [], total = 0, bonusCandidates = []) {
+  const memberSum = members.reduce((sum, value) => sum + (Number(value) || 0), 0);
+  const candidates = [
+    {
+      expectedTotal: memberSum,
+      bonus: 0,
+      error: Math.abs(Number(total || 0) - memberSum),
+    },
+    ...bonusCandidates.map((bonus) => ({
+      expectedTotal: memberSum + (Number(bonus) || 0),
+      bonus: Number(bonus) || 0,
+      error: Math.abs(Number(total || 0) - (memberSum + (Number(bonus) || 0))),
+    })),
+  ].sort((a, b) => a.error - b.error);
+
+  return {
+    memberSum,
+    best: candidates[0] || { expectedTotal: 0, bonus: 0, error: 0 },
+  };
+}
+
+function uniqueNumbers(numbers = []) {
+  return [...new Set(numbers.map((number) => Number(number)).filter(Number.isFinite))];
 }
 
 function dedupeRoiCandidateObjects(candidates = []) {
@@ -493,6 +536,207 @@ async function writeFixedRoiExperimentArtifacts(report) {
   }
 
   const summaryPath = path.join(fixedRoiExperimentDir, "summary.json");
+  await fs.writeFile(summaryPath, JSON.stringify(summary, null, 2));
+  written.push(path.relative(rootDir, summaryPath).replaceAll("\\", "/"));
+
+  return written;
+}
+
+function buildRoiAdoptionSimulationForSide(sideArtifact) {
+  const current = {
+    members: [...(sideArtifact.current?.members || [])].map((value) => Number(value) || 0),
+    total: Number(sideArtifact.current?.total || 0),
+  };
+  const simulated = {
+    members: [...current.members],
+    total: current.total,
+  };
+  while (simulated.members.length < 3) simulated.members.push(0);
+
+  const zones = sideArtifact.zones || [];
+  const bonusCandidates = uniqueNumbers(
+    zones
+      .filter((zone) => zone.zoneType === "bonus")
+      .flatMap((zone) => zone.bonusCandidates || [])
+      .filter((value) => value > 0)
+  );
+  const currentEquation = equationError(current.members, current.total, bonusCandidates);
+  const adoptedCandidates = [];
+  const rejectedCandidates = [];
+
+  const reject = (candidate, reason) => {
+    rejectedCandidates.push({ ...candidate, reason });
+  };
+
+  for (const zone of zones) {
+    const zoneBase = {
+      zoneRole: zone.zoneRole,
+      zoneType: zone.zoneType,
+      slotIndex: zone.slotIndex || null,
+      zone: zone.zone,
+      rawText: zone.rawText,
+    };
+
+    for (const value of zone.cleanSevenDigitCandidates || []) {
+      const candidate = { ...zoneBase, value, candidateType: "clean-seven-digit" };
+      if (zone.zoneType !== "member-slot") {
+        reject(candidate, "not-member-slot-zone");
+        continue;
+      }
+      if (!zone.slotIndex || zone.slotIndex < 1 || zone.slotIndex > 3) {
+        reject(candidate, "missing-slot-index");
+        continue;
+      }
+
+      const slot = zone.slotIndex - 1;
+      const currentValue = Number(simulated.members[slot] || 0);
+      if (currentValue === Number(value)) {
+        reject(candidate, "already-selected");
+        continue;
+      }
+      if (currentValue >= 1000000) {
+        reject(candidate, "high-confidence-current-slot");
+        continue;
+      }
+
+      const candidateMembers = [...simulated.members];
+      candidateMembers[slot] = Number(value);
+      const candidateEquation = equationError(candidateMembers, simulated.total, bonusCandidates);
+      if (candidateEquation.best.error > 1) {
+        reject({
+          ...candidate,
+          beforeEquationError: currentEquation.best.error,
+          afterEquationError: candidateEquation.best.error,
+        }, "no-exact-equation");
+        continue;
+      }
+      if (candidateEquation.best.error >= currentEquation.best.error) {
+        reject({
+          ...candidate,
+          beforeEquationError: currentEquation.best.error,
+          afterEquationError: candidateEquation.best.error,
+        }, "does-not-improve-equation");
+        continue;
+      }
+
+      simulated.members = candidateMembers;
+      adoptedCandidates.push({
+        ...candidate,
+        replacedValue: currentValue,
+        beforeEquationError: currentEquation.best.error,
+        afterEquationError: candidateEquation.best.error,
+        equationBonus: candidateEquation.best.bonus,
+      });
+    }
+
+    for (const candidate of zone.possibleJoinedCandidates || []) {
+      const value = Number(candidate.value || 0);
+      if (value >= 1000000 && value < 10000000) {
+        reject({
+          ...zoneBase,
+          value,
+          candidateType: candidate.method || "joined",
+          raw: candidate.raw,
+        }, "joined-or-near-candidate-audit-only");
+      }
+    }
+  }
+
+  const simulatedEquation = equationError(simulated.members, simulated.total, bonusCandidates);
+  const currentComparison = compareSideToExpected(current, sideArtifact.expected);
+  const simulatedComparison = compareSideToExpected(simulated, sideArtifact.expected);
+  const currentMismatchCount = currentComparison
+    ? currentComparison.memberMismatches + currentComparison.totalMismatch
+    : null;
+  const simulatedMismatchCount = simulatedComparison
+    ? simulatedComparison.memberMismatches + simulatedComparison.totalMismatch
+    : null;
+
+  let outcome = "unchanged";
+  if (simulatedMismatchCount !== null && currentMismatchCount !== null) {
+    if (simulatedMismatchCount < currentMismatchCount) outcome = "improved";
+    if (simulatedMismatchCount > currentMismatchCount) outcome = "regressed";
+  } else if (adoptedCandidates.length > 0) {
+    outcome = "changed-unvalidated";
+  }
+
+  return {
+    current,
+    simulated,
+    expected: sideArtifact.expected,
+    bonusCandidates,
+    equation: {
+      before: currentEquation,
+      after: simulatedEquation,
+    },
+    comparison: {
+      current: currentComparison,
+      simulated: simulatedComparison,
+    },
+    adoptedCandidates,
+    rejectedCandidates,
+    outcome,
+  };
+}
+
+async function writeRoiAdoptionSimulationArtifacts(report) {
+  await fs.rm(roiAdoptionSimDir, { recursive: true, force: true });
+  await fs.mkdir(roiAdoptionSimDir, { recursive: true });
+
+  const written = [];
+  const summary = [];
+
+  for (const item of report) {
+    const roiArtifact = await buildFixedRoiExperimentForImage(item);
+    if (!roiArtifact) continue;
+
+    const stagesOut = {};
+    const outcomes = [];
+    for (const stage of stages) {
+      const stageKey = `stage${stage}`;
+      stagesOut[stageKey] = {};
+      for (const side of sides) {
+        const simulation = buildRoiAdoptionSimulationForSide(roiArtifact.stages?.[stageKey]?.[side]);
+        stagesOut[stageKey][side] = simulation;
+        outcomes.push({
+          stage,
+          side,
+          outcome: simulation.outcome,
+          adopted: simulation.adoptedCandidates.length,
+          rejected: simulation.rejectedCandidates.length,
+        });
+      }
+    }
+
+    const artifact = {
+      image: item.image,
+      source: item.source,
+      category: item.category,
+      expected: item.expected,
+      pass: item.pass,
+      failures: item.failures,
+      stages: stagesOut,
+    };
+    const fileName = `${safeArtifactName(item.image)}.roi-adoption-sim.json`;
+    const artifactPath = path.join(roiAdoptionSimDir, fileName);
+    await fs.writeFile(artifactPath, JSON.stringify(artifact, null, 2));
+    const relativePath = path.relative(rootDir, artifactPath).replaceAll("\\", "/");
+    written.push(relativePath);
+
+    summary.push({
+      image: item.image,
+      artifact: relativePath,
+      expected: item.expected,
+      pass: item.pass,
+      outcomes,
+      improved: outcomes.filter((outcome) => outcome.outcome === "improved").length,
+      regressed: outcomes.filter((outcome) => outcome.outcome === "regressed").length,
+      changedUnvalidated: outcomes.filter((outcome) => outcome.outcome === "changed-unvalidated").length,
+      unchanged: outcomes.filter((outcome) => outcome.outcome === "unchanged").length,
+    });
+  }
+
+  const summaryPath = path.join(roiAdoptionSimDir, "summary.json");
   await fs.writeFile(summaryPath, JSON.stringify(summary, null, 2));
   written.push(path.relative(rootDir, summaryPath).replaceAll("\\", "/"));
 
@@ -4599,6 +4843,8 @@ async function main() {
     args.includes("--debug-artifacts") || args.includes("--debug-ocr-artifacts");
   const fixedRoiExperiment =
     args.includes("--fixed-roi-experiment") || args.includes("--smartphone-roi-experiment");
+  const roiAdoptionSimulation =
+    args.includes("--roi-adoption-sim") || args.includes("--simulate-roi-adoption");
   const sourceIndex = args.indexOf("--source");
   const sourceValue = sourceIndex >= 0 ? args[sourceIndex + 1] : "";
   const forcedSource = ["smartphone", "desktop"].includes(sourceValue)
@@ -4615,6 +4861,8 @@ async function main() {
       value !== "--debug-ocr-artifacts" &&
       value !== "--fixed-roi-experiment" &&
       value !== "--smartphone-roi-experiment" &&
+      value !== "--roi-adoption-sim" &&
+      value !== "--simulate-roi-adoption" &&
       value !== "--source" &&
       value !== "--audit-disable-known-correction" &&
       !(sourceIndex >= 0 && index === sourceIndex + 1) &&
@@ -4703,6 +4951,9 @@ async function main() {
   const fixedRoiExperimentFiles = fixedRoiExperiment
     ? await writeFixedRoiExperimentArtifacts(report)
     : [];
+  const roiAdoptionSimulationFiles = roiAdoptionSimulation
+    ? await writeRoiAdoptionSimulationArtifacts(report)
+    : [];
 
   const expectedResults = report.filter((item) => item.expected);
   const failedResults = report.filter((item) => !item.pass);
@@ -4728,6 +4979,10 @@ async function main() {
           ? path.relative(rootDir, fixedRoiExperimentDir).replaceAll("\\", "/")
           : null,
         fixedRoiExperimentFiles,
+        roiAdoptionSimulation: roiAdoptionSimulation
+          ? path.relative(rootDir, roiAdoptionSimDir).replaceAll("\\", "/")
+          : null,
+        roiAdoptionSimulationFiles,
         elapsedMs: report.map((item) => ({ image: item.image, elapsedMs: item.elapsedMs })),
         failures: failedResults.map((item) => ({
           image: item.image,
