@@ -3580,10 +3580,26 @@ async function runOcrForImage(imagePath, options = {}) {
     const rowZoneSelfRecovery = applySmartphoneRowZoneSevenDigitRecovery(
       self,
       selfTotal,
-      originalSelfMemberNumbers,
+      [
+        ...selfTotalReferences,
+        ...originalSelfMemberNumbers,
+        ...selfMemberNumbers,
+        ...selfCrownCandidates,
+      ],
       { mode: ocrSource, stage, side: "self" }
     );
     if (rowZoneSelfRecovery.applied) {
+      knownCorrectionDeltas.push({
+        pass: "rowZone7DigitRecovery applied",
+        before: cloneStageState({ self, enemy, selfTotal, enemyTotal }),
+        after: cloneStageState({
+          self: rowZoneSelfRecovery.members,
+          enemy,
+          selfTotal: rowZoneSelfRecovery.total,
+          enemyTotal,
+        }),
+        message: `rowZone7DigitRecovery applied members=${rowZoneSelfRecovery.members.join(",")} total=${rowZoneSelfRecovery.total} bonus=${rowZoneSelfRecovery.bonus} pattern=${rowZoneSelfRecovery.matchedPattern}`,
+      });
       self = rowZoneSelfRecovery.members;
       selfTotal = rowZoneSelfRecovery.total;
     }
@@ -3591,10 +3607,26 @@ async function runOcrForImage(imagePath, options = {}) {
     const rowZoneEnemyRecovery = applySmartphoneRowZoneSevenDigitRecovery(
       enemy,
       enemyTotal,
-      originalEnemyMemberNumbers,
+      [
+        ...enemyTotalReferences,
+        ...originalEnemyMemberNumbers,
+        ...enemyMemberNumbers,
+        ...enemyCrownCandidates,
+      ],
       { mode: ocrSource, stage, side: "enemy" }
     );
     if (rowZoneEnemyRecovery.applied) {
+      knownCorrectionDeltas.push({
+        pass: "rowZone7DigitRecovery applied",
+        before: cloneStageState({ self, enemy, selfTotal, enemyTotal }),
+        after: cloneStageState({
+          self,
+          enemy: rowZoneEnemyRecovery.members,
+          selfTotal,
+          enemyTotal: rowZoneEnemyRecovery.total,
+        }),
+        message: `rowZone7DigitRecovery applied enemy members=${rowZoneEnemyRecovery.members.join(",")} total=${rowZoneEnemyRecovery.total} bonus=${rowZoneEnemyRecovery.bonus} pattern=${rowZoneEnemyRecovery.matchedPattern}`,
+      });
       enemy = rowZoneEnemyRecovery.members;
       enemyTotal = rowZoneEnemyRecovery.total;
     }

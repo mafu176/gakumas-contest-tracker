@@ -1806,12 +1806,28 @@ export function applySmartphoneRowZoneSevenDigitRecovery(
     }
 
     const proposedMemberSum = proposedMembers.reduce((sum, value) => sum + value, 0);
-    const proposedTotal = proposedMemberSum + proposedBonus;
+    const rawProposedTotal = proposedMemberSum + proposedBonus;
+    const displayedTotalCandidates = rowValues
+      .filter((value, index) => index < start || index > start + 3)
+      .filter((value) => value >= 1000000 && value < 5000000)
+      .filter((value) => Math.abs(value - rawProposedTotal) <= 1000);
+    const proposedTotal =
+      displayedTotalCandidates.length === 1
+        ? displayedTotalCandidates[0]
+        : rawProposedTotal;
+    const inferredBonus = proposedTotal - proposedMemberSum;
+    if (inferredBonus < 10000 || inferredBonus >= 400000) {
+      continue;
+    }
+    if (Math.abs(inferredBonus - proposedBonus) > 1000) {
+      continue;
+    }
     const outsideSevenDigitValues = rowValues.filter(
       (value, index) =>
         (index < start || index > start + 3) &&
         value >= 1000000 &&
         value < 10000000 &&
+        !proposedMembers.some((member) => Math.abs(member - value) <= 1) &&
         Math.abs(value - proposedTotal) > 1
     );
 
@@ -1849,18 +1865,29 @@ export function applySmartphoneRowZoneSevenDigitRecovery(
     matches.push({
       members: proposedMembers,
       total: proposedTotal,
-      bonus: proposedBonus,
+      bonus: inferredBonus,
       matchedPattern: singleFirstSlotReplacement
         ? "single-first-slot-replacement"
         : "leading-seven-digit-shift-with-bonus-member",
     });
   }
 
-  if (matches.length !== 1) {
+  const uniqueMatches = matches.filter(
+    (match, index, all) =>
+      all.findIndex(
+        (other) =>
+          other.total === match.total &&
+          other.bonus === match.bonus &&
+          other.members.join(",") === match.members.join(",") &&
+          other.matchedPattern === match.matchedPattern
+      ) === index
+  );
+
+  if (uniqueMatches.length !== 1) {
     return { members: selectedMembers, total: selectedTotal, applied: false };
   }
 
-  const match = matches[0];
+  const match = uniqueMatches[0];
   return {
     members: match.members,
     total: match.total,

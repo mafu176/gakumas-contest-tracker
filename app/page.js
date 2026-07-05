@@ -2855,12 +2855,17 @@ export default function Home() {
         const rowZoneSelfRecovery = applySmartphoneRowZoneSevenDigitRecovery(
           correctedSelfMembers,
           selfTotal,
-          originalSelfMemberNumbers,
+          [
+            ...selfTotalReferences,
+            ...originalSelfMemberNumbers,
+            ...selfMemberNumbers,
+            ...selfCrownCandidates,
+          ],
           { mode: activeOcrMode, stage, side: "self" }
         );
         if (rowZoneSelfRecovery.applied) {
           correctionLogs.push(
-            `rowZoneSevenDigitRecovery chosen members=${rowZoneSelfRecovery.members.join(",")} total=${rowZoneSelfRecovery.total} bonus=${rowZoneSelfRecovery.bonus} pattern=${rowZoneSelfRecovery.matchedPattern}`
+            `rowZone7DigitRecovery applied members=${rowZoneSelfRecovery.members.join(",")} total=${rowZoneSelfRecovery.total} bonus=${rowZoneSelfRecovery.bonus} pattern=${rowZoneSelfRecovery.matchedPattern}`
           );
           correctedSelfMembers = rowZoneSelfRecovery.members;
           selfTotal = rowZoneSelfRecovery.total;
@@ -2869,12 +2874,17 @@ export default function Home() {
         const rowZoneEnemyRecovery = applySmartphoneRowZoneSevenDigitRecovery(
           correctedEnemyMembers,
           enemyTotal,
-          originalEnemyMemberNumbers,
+          [
+            ...enemyTotalReferences,
+            ...originalEnemyMemberNumbers,
+            ...enemyMemberNumbers,
+            ...enemyCrownCandidates,
+          ],
           { mode: activeOcrMode, stage, side: "enemy" }
         );
         if (rowZoneEnemyRecovery.applied) {
           correctionLogs.push(
-            `rowZoneSevenDigitRecovery enemy members=${rowZoneEnemyRecovery.members.join(",")} total=${rowZoneEnemyRecovery.total} bonus=${rowZoneEnemyRecovery.bonus} pattern=${rowZoneEnemyRecovery.matchedPattern}`
+            `rowZone7DigitRecovery applied enemy members=${rowZoneEnemyRecovery.members.join(",")} total=${rowZoneEnemyRecovery.total} bonus=${rowZoneEnemyRecovery.bonus} pattern=${rowZoneEnemyRecovery.matchedPattern}`
           );
           correctedEnemyMembers = rowZoneEnemyRecovery.members;
           enemyTotal = rowZoneEnemyRecovery.total;
