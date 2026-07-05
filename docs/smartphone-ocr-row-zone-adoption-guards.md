@@ -2,13 +2,14 @@
 
 ## Scope
 
-This note documents a runner-only guard evaluation for broad smartphone ROI
-row-zone proposals. It does not change production OCR output, browser behavior,
-known corrections, or the strict ROI adoption simulation result.
+This note originally documented a runner-only guard evaluation for broad
+smartphone ROI row-zone proposals. A narrow production candidate has now been
+promoted for the two confirmed user-reported Stage2 self patterns while the
+broader ROI adoption simulation remains audit-only.
 
-The guard evaluation was added to help decide whether row-zone evidence could
-ever be safe enough to promote into a future production rule. For now it remains
-audit-only.
+The production rule is intentionally smaller than the experiment: it is
+smartphone-only, Stage2 self only, clean exact 7-digit row-zone values only, and
+it still rejects near/joined/sliding-window evidence.
 
 ## Command
 
@@ -27,7 +28,7 @@ Generated artifacts are debug output and should not be committed.
 
 ## Guard Evaluation Fields
 
-Each `rowZoneExperimentalProposals` entry now includes
+Each `rowZoneExperimentalProposals` entry includes
 `strictRowZoneGuardEvaluation`:
 
 - `wouldAdoptUnderStrictRowZoneGuards`: whether the audit-only proposal passes
@@ -38,15 +39,18 @@ Each `rowZoneExperimentalProposals` entry now includes
 
 The per-image summary also includes `strictRowZoneGuardAccepted`.
 
-## Proposed Future Guards
+## Production Guard
 
-The current runner-only guard evaluation accepts only narrow, equation-backed
-row-zone shapes:
+The production recovery accepts only narrow, equation-backed row-zone shapes:
 
 - Proposal must contain exactly three positive member values.
 - Proposal must contain exactly one clean exact 7-digit member candidate from
   direct row-zone OCR text.
 - Proposal must contain a positive row bonus.
+- Every proposed member must be at least `300000`; this rejects
+  `IMG_9308`-like rows where a 200k fragment/near value would otherwise look
+  tempting.
+- The rule is limited to smartphone Stage2 self rows.
 - Proposal must not start with the current selected total, which is a strong
   total-as-member signal.
 - Proposed total must exactly equal proposed member sum plus the row bonus.
@@ -72,14 +76,14 @@ Rejected evidence remains useful for analysis, but must not be promoted:
 
 | Image | Result | Reason |
 | --- | --- | --- |
-| `IMG_9308.png` | rejected | S2 still has only near `1020194` for expected `1020198`; S1 row-zone proposal starts with the current total and regresses. |
+| `IMG_9308.png` | rejected | S2 still has only near `1020194` for expected `1020198`, and the row contains a low `200635` fragment that fails the production member floor. |
 | `IMG_9309.png` | rejected | No safe member-row 7-digit proposal; the failure is total/bonus digit confusion. |
-| `IMG_9310.png` | accepted by guard evaluation | S2 self matches `single-first-slot-replacement`: `1199099 / 798677 / 884569`, bonus `239819`, total `3122164`. |
-| `IMG_9311.png` | accepted by guard evaluation | S2 self matches `leading-seven-digit-shift-with-bonus-member`: `1124177 / 478609 / 438608`, bonus `224835`, total `2266229`. |
+| `IMG_9310.png` | S2 self recovered | Matches `single-first-slot-replacement`: `1199099 / 798677 / 884569`, bonus `239819`, total `3122164`. The image still has unrelated Stage3 OCR failures. |
+| `IMG_9311.png` | recovered | Matches `leading-seven-digit-shift-with-bonus-member`: `1124177 / 478609 / 438608`, bonus `224835`, total `2266229`. |
 | `IMG_9312.png` | rejected | S1 row-zone proposal starts with the current total and regresses; the failure is total/bonus digit confusion. |
 
-The strict production-like adoption simulation remains unchanged for all five
-samples. These guard results are proposal analysis only.
+The remaining rejected samples are intentionally not covered by this production
+candidate.
 
 ## Negative Control Results
 
@@ -96,17 +100,17 @@ The guard evaluation accepted no proposals for the existing control set:
 This is important because some broad row-zone proposals in the control set are
 known to be noisy or regressive. The guard correctly leaves them audit-only.
 
-## Recommendation
+## Remaining Blockers
 
-Do not enable row-zone ROI adoption in production yet.
+Do not broaden row-zone ROI adoption beyond this narrow Stage2 self production
+candidate yet.
 
-The guard evaluation is promising for the two user-reported S2 self failures,
-but it is still based on broad row-zone text rather than slot-level geometry.
-The next safe step is to collect more examples where:
+The next safe step is still to collect more examples where:
 
 - the same supported pattern appears,
 - the proposal has exact fixture/browser confirmation,
 - negative controls continue to reject noisy total/bonus rows,
 - slot-level or bbox evidence can prove the 7-digit value belongs to member1.
 
-Until then, row-zone proposals should stay runner-only.
+Near candidates, Stage1/Stage3 cases, total/bonus digit-confusion cases, and
+member-order recovery should remain outside this rule.

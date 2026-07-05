@@ -8,6 +8,7 @@ import {
   applySmartphoneSparseTrailingZeroPreservation,
   applySmartphoneTotalLikeMemberSuppression,
   applySmartphoneTotalCrownBonusRecovery,
+  applySmartphoneRowZoneSevenDigitRecovery,
 } from "../app/lib/ocr.js";
 import { applyKnownOcrCorrections, applyKnownOcrSetCorrections } from "../app/lib/ocrPostProcess.js";
 
@@ -3575,6 +3576,28 @@ async function runOcrForImage(imagePath, options = {}) {
         ...enemyCrownCandidates,
       ]
     ));
+
+    const rowZoneSelfRecovery = applySmartphoneRowZoneSevenDigitRecovery(
+      self,
+      selfTotal,
+      originalSelfMemberNumbers,
+      { mode: ocrSource, stage, side: "self" }
+    );
+    if (rowZoneSelfRecovery.applied) {
+      self = rowZoneSelfRecovery.members;
+      selfTotal = rowZoneSelfRecovery.total;
+    }
+
+    const rowZoneEnemyRecovery = applySmartphoneRowZoneSevenDigitRecovery(
+      enemy,
+      enemyTotal,
+      originalEnemyMemberNumbers,
+      { mode: ocrSource, stage, side: "enemy" }
+    );
+    if (rowZoneEnemyRecovery.applied) {
+      enemy = rowZoneEnemyRecovery.members;
+      enemyTotal = rowZoneEnemyRecovery.total;
+    }
 
     const beforeKnownCorrection2 = cloneStageState({ self, enemy, selfTotal, enemyTotal });
     if (shouldApplyKnownOcrCorrection(fileName, stage, options.disabledKnownCorrections)) {

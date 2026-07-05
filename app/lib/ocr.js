@@ -1745,6 +1745,131 @@ export function applySmartphoneTotalCrownBonusRecovery(
   };
 }
 
+export function applySmartphoneRowZoneSevenDigitRecovery(
+  selectedMembers,
+  selectedTotal,
+  rowCandidates = [],
+  options = {}
+) {
+  if (normalizeOcrMode(options.mode) !== "smartphone") {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  // Start with the observed S2 self shape only. Broad row-zone OCR can mix
+  // totals and bonus text, so keep this guarded until more production samples
+  // prove the pattern beyond the two user-reported S2 self cases.
+  if (options.stage !== 2 || options.side !== "self") {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  if (!Array.isArray(selectedMembers) || selectedMembers.length !== 3) {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  const currentMembers = selectedMembers.map((value) => Number(value) || 0);
+  if (currentMembers.some((value) => value <= 0)) {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  const rowValues = (rowCandidates || [])
+    .map((value) => Number(value) || 0)
+    .filter((value) => Number.isFinite(value) && value > 0);
+  if (rowValues.length < 4) {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  const currentTotal = Number(selectedTotal || 0);
+  const currentMemberSum = currentMembers.reduce((sum, value) => sum + value, 0);
+
+  const matches = [];
+  for (let start = 0; start <= rowValues.length - 4; start += 1) {
+    const proposedMembers = rowValues.slice(start, start + 3);
+    const proposedBonus = rowValues[start + 3];
+    const proposedSevenDigitMembers = proposedMembers.filter(
+      (value) => value >= 1000000 && value < 10000000
+    );
+    if (proposedMembers.some((value) => value <= 0)) {
+      continue;
+    }
+    if (proposedSevenDigitMembers.length !== 1) {
+      continue;
+    }
+    // Guard against IMG_9308-like near/fragment rows. The currently proven
+    // row-zone recovery cases are high-score S2 rows where the non-7-digit
+    // members are stable 6-digit members, not 200k fragments of a missing
+    // 7-digit score.
+    if (proposedMembers.some((value) => value < 300000)) {
+      continue;
+    }
+    if (proposedBonus < 10000 || proposedBonus >= 400000) {
+      continue;
+    }
+
+    const proposedMemberSum = proposedMembers.reduce((sum, value) => sum + value, 0);
+    const proposedTotal = proposedMemberSum + proposedBonus;
+    const outsideSevenDigitValues = rowValues.filter(
+      (value, index) =>
+        (index < start || index > start + 3) &&
+        value >= 1000000 &&
+        value < 10000000 &&
+        Math.abs(value - proposedTotal) > 1
+    );
+
+    if (outsideSevenDigitValues.length > 0) {
+      continue;
+    }
+    if (proposedMembers[0] === currentTotal) {
+      continue;
+    }
+    if (proposedTotal <= currentTotal || proposedTotal >= 5000000) {
+      continue;
+    }
+    if (Math.abs(currentTotal - proposedTotal) <= 1) {
+      continue;
+    }
+
+    const singleFirstSlotReplacement =
+      proposedMembers[0] >= 1000000 &&
+      currentMembers[0] !== proposedMembers[0] &&
+      currentMembers[1] === proposedMembers[1] &&
+      currentMembers[2] === proposedMembers[2] &&
+      Math.abs(currentTotal - (currentMemberSum + proposedBonus)) <= 1;
+
+    const leadingSevenDigitShiftWithBonusMember =
+      proposedMembers[0] >= 1000000 &&
+      currentMembers[0] === proposedMembers[1] &&
+      currentMembers[1] === proposedMembers[2] &&
+      currentMembers[2] === proposedBonus &&
+      Math.abs(currentTotal - currentMemberSum) <= 1;
+
+    if (!singleFirstSlotReplacement && !leadingSevenDigitShiftWithBonusMember) {
+      continue;
+    }
+
+    matches.push({
+      members: proposedMembers,
+      total: proposedTotal,
+      bonus: proposedBonus,
+      matchedPattern: singleFirstSlotReplacement
+        ? "single-first-slot-replacement"
+        : "leading-seven-digit-shift-with-bonus-member",
+    });
+  }
+
+  if (matches.length !== 1) {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  const match = matches[0];
+  return {
+    members: match.members,
+    total: match.total,
+    bonus: match.bonus,
+    applied: true,
+    matchedPattern: match.matchedPattern,
+  };
+}
+
 export function normalizeMemberScore(num) {
   return num;
 }
