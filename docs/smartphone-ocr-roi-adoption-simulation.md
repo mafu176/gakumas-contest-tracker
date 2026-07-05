@@ -101,6 +101,62 @@ This is the intended conservative baseline. The current runner already includes
 known corrections for the fixture-backed targets, and the simulation correctly
 refuses to adopt joined/near/noisy ROI candidates.
 
+## Why The Initial Simulation Produced No Changes
+
+The zero-improvement result is acceptable for this first simulation batch. The
+target images were run through the normal pipeline with existing generic rules
+and filename-keyed known corrections still enabled, so the final `current`
+values were already fixture-correct in the cases with expected JSON.
+
+### IMG_9257
+
+- S2 enemy expected 7-digit member `1054601` is already present in the final
+  current OCR result.
+- The clean `1054601` ROI evidence appears in broad member/total text, but not
+  as a clean adoptable `member-slot-*` replacement.
+- Slot-level and row-level joined values are rejected as
+  `joined-or-near-candidate-audit-only`.
+- Result: unchanged because the known correction already covers the target
+  value and no exact equation-improving slot replacement remains.
+
+### IMG_9285
+
+- S2 self expected 7-digit member `1001539` is already present in the final
+  current OCR result.
+- Clean 7-digit values such as `1001539` and noisy `1200507` appear in
+  non-adoptable zones such as broad member rows or bonus/wide bands.
+- The simulation rejects these as `not-member-slot-zone` or
+  `joined-or-near-candidate-audit-only`.
+- Result: unchanged, which is desirable because this image previously exposed
+  a malformed bonus/total guard risk.
+
+### IMG_9282
+
+- S2 self is already fixture-correct after known correction:
+  `1204215 / 1259738 / 1086075`.
+- ROI evidence for this row is still mostly joined/split text:
+  `1086075` is visible as joined evidence, while `1204215` and `1259738` remain
+  near candidates with OCR digit deltas.
+- The simulation intentionally rejects all of these as audit-only joined/near
+  candidates.
+- Result: unchanged because the current result is already correct and the ROI
+  evidence is not clean enough for safe adoption.
+
+## Stop Or Continue?
+
+This phase should stop here for production adoption. The simulation is doing its
+job: it proves the documented guards do not perturb passing OCR output, but the
+current sample set does not contain an uncorrected fixture-backed failure where
+ROI has a clean slot-level value and current OCR is wrong.
+
+The next useful work is not to loosen the guards. Instead, use the simulation
+with selected known corrections disabled or add a new fixture-backed image where:
+
+- current OCR is wrong before a known correction,
+- a clean exact 7-digit candidate appears in the matching `member-slot-*` ROI,
+- replacing that slot improves the total equation exactly, and
+- negative-control images such as IMG_9243 remain unchanged.
+
 ## Next Step
 
 Use this simulation with disabled known corrections when testing whether a
