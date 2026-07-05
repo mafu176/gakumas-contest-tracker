@@ -255,6 +255,116 @@ function equationError(members = [], total = 0, bonusCandidates = []) {
   };
 }
 
+function buildSparseTotalAsMemberSimulation({
+  members = [],
+  total = 0,
+  totalReferences = [],
+  totalCandidateTraces = [],
+  memberCandidateNumbers = [],
+  bonusCandidates = [],
+  recognizedCrownCandidates = [],
+}) {
+  const selectedMembers = [...members].map((value) => Number(value) || 0);
+  while (selectedMembers.length < 3) selectedMembers.push(0);
+  const selectedTotal = Number(total || 0);
+  const selectedMemberSum = selectedMembers.reduce((sum, value) => sum + value, 0);
+  const refs = uniqueNumbers(totalReferences);
+  const memberNumbers = [...(memberCandidateNumbers || [])].map((value) => Number(value) || 0);
+  const bonuses = uniqueNumbers([...(bonusCandidates || []), ...(recognizedCrownCandidates || [])])
+    .filter((value) => value > 0);
+  const proposedMembers = [selectedTotal, selectedMembers[0], selectedMembers[1]];
+  const proposedTotal = proposedMembers.reduce((sum, value) => sum + value, 0);
+  const rejectionReasons = [];
+
+  if (!(selectedMembers[0] > 0 && selectedMembers[1] > 0 && selectedMembers[2] === 0)) {
+    rejectionReasons.push("requires-two-selected-members-and-empty-third-slot");
+  }
+  if (!(selectedTotal >= 10000 && selectedTotal < 1000000)) {
+    rejectionReasons.push("selected-total-not-plausible-member-score");
+  }
+  if (Math.abs(selectedTotal - selectedMemberSum) <= 1) {
+    rejectionReasons.push("current-equation-already-exact");
+  }
+  if (bonuses.length > 0) {
+    rejectionReasons.push("bonus-candidate-present");
+  }
+  if (proposedMembers.some((value) => value < 10000 || value >= 1000000)) {
+    rejectionReasons.push("proposed-member-outside-sparse-stage-range");
+  }
+  if (!refs.some((value) => Math.abs(value - proposedTotal) <= 1)) {
+    rejectionReasons.push("missing-displayed-total-candidate-for-proposed-sum");
+  }
+
+  const exactTotalRowTrace = (totalCandidateTraces || []).find((trace) => {
+    const numbers = (trace?.numbers || []).map((value) => Number(value) || 0);
+    return (
+      Math.abs((numbers[0] || 0) - proposedTotal) <= 1 &&
+      Math.abs((numbers[1] || 0) - proposedMembers[0]) <= 1 &&
+      Math.abs((numbers[2] || 0) - proposedMembers[1]) <= 1 &&
+      Math.abs((numbers[3] || 0) - proposedMembers[2]) <= 1
+    );
+  });
+  if (!exactTotalRowTrace) {
+    rejectionReasons.push("missing-exact-total-plus-member-row-trace");
+  }
+
+  const rowSequenceIndex = memberNumbers.findIndex(
+    (value, index) =>
+      Math.abs(value - proposedMembers[0]) <= 1 &&
+      Math.abs((memberNumbers[index + 1] || 0) - proposedMembers[1]) <= 1 &&
+      Math.abs((memberNumbers[index + 2] || 0) - proposedMembers[2]) <= 1
+  );
+  if (rowSequenceIndex < 0) {
+    rejectionReasons.push("member-row-does-not-contain-total-member-shift-sequence");
+  }
+
+  const competingDisplayedTotals = refs.filter(
+    (value) =>
+      value >= 10000 &&
+      value < 1000000 &&
+      Math.abs(value - proposedTotal) > 1 &&
+      !proposedMembers.some((member) => Math.abs(value - member) <= 1)
+  );
+  if (!exactTotalRowTrace && competingDisplayedTotals.length > 0) {
+    rejectionReasons.push("competing-displayed-total-candidates");
+  }
+
+  return {
+    wouldApply: rejectionReasons.length === 0,
+    rejectionReasons,
+    current: {
+      members: selectedMembers,
+      total: selectedTotal,
+      memberSum: selectedMemberSum,
+      totalMinusMemberSum: selectedTotal - selectedMemberSum,
+    },
+    proposed: {
+      members: proposedMembers,
+      total: proposedTotal,
+      memberSum: proposedTotal,
+    },
+    evidence: {
+      totalReferences: refs,
+      memberCandidateNumbers: memberNumbers,
+      rowSequenceIndex,
+      bonusCandidates: bonuses,
+      matchingDisplayedTotalCandidates: refs.filter(
+        (value) => Math.abs(value - proposedTotal) <= 1
+      ),
+      exactTotalRowTrace: exactTotalRowTrace
+        ? {
+            pass: exactTotalRowTrace.pass,
+            text: exactTotalRowTrace.text,
+            numbers: exactTotalRowTrace.numbers,
+          }
+        : null,
+      competingDisplayedTotalCandidates: competingDisplayedTotals,
+    },
+    note:
+      "Runner-only simulation. It does not change OCR output; production adoption would need more negative controls.",
+  };
+}
+
 function uniqueNumbers(numbers = []) {
   return [...new Set(numbers.map((number) => Number(number)).filter(Number.isFinite))];
 }
@@ -3696,6 +3806,15 @@ async function runOcrForImage(imagePath, options = {}) {
           : selectedEnemyCrownInference;
         const usedSparseSlotMembers = isSelf ? usedSparseSelfSlotMembers : usedSparseEnemySlotMembers;
         const memberSum = members.reduce((sum, value) => sum + value, 0);
+        const sparseTotalAsMemberSimulation = buildSparseTotalAsMemberSimulation({
+          members,
+          total: finalTotal,
+          totalReferences,
+          totalCandidateTraces: totalCandidateResult.traces,
+          memberCandidateNumbers: originalMemberNumbers,
+          bonusCandidates: crownCandidates,
+          recognizedCrownCandidates,
+        });
 
         return {
           final: {
@@ -3745,6 +3864,7 @@ async function runOcrForImage(imagePath, options = {}) {
             inferredOriginalCrown,
             selectedCrownInference,
           },
+          sparseTotalAsMemberSimulation,
         };
       };
 
