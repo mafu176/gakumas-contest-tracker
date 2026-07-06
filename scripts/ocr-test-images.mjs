@@ -407,7 +407,11 @@ function buildStage3SelfSevenDigitDisplacementSimulation({
   members = [],
   total = 0,
   totalReferences = [],
+  totalDirectText = "",
+  totalDirectNumbers = [],
+  totalCandidateText = "",
   totalCandidateTraces = [],
+  memberCandidateText = "",
   memberCandidateNumbers = [],
   bonusCandidates = [],
   recognizedCrownCandidates = [],
@@ -419,7 +423,7 @@ function buildStage3SelfSevenDigitDisplacementSimulation({
   const traceNumbers = (totalCandidateTraces || []).flatMap((trace) =>
     (trace?.numbers || []).map((value) => Number(value) || 0)
   );
-  const refs = uniqueNumbers([...totalReferences, ...traceNumbers]);
+  const refs = uniqueNumbers([...totalReferences, ...totalDirectNumbers, ...traceNumbers]);
   const memberNumbers = uniqueNumbers(memberCandidateNumbers || []);
   const allCandidateNumbers = uniqueNumbers([...memberNumbers, ...refs]);
   const cleanSevenDigitCandidates = allCandidateNumbers.filter(
@@ -436,6 +440,14 @@ function buildStage3SelfSevenDigitDisplacementSimulation({
   const selectedThirdAsBonus =
     selectedMembers[2] > 0 && selectedMembers[2] < 500000 ? selectedMembers[2] : 0;
   const bonusPool = uniqueNumbers([...explicitBonuses, selectedThirdAsBonus].filter(Boolean));
+  const totalEvidenceSources = buildStage3TotalEvidenceSources({
+    totalDirectText,
+    totalDirectNumbers,
+    totalCandidateText,
+    totalCandidateTraces,
+    memberCandidateText,
+    memberCandidateNumbers,
+  });
   const proposals = [];
 
   for (const candidate of cleanSevenDigitCandidates) {
@@ -443,6 +455,7 @@ function buildStage3SelfSevenDigitDisplacementSimulation({
       const proposedMembers = [candidate, selectedMembers[0], selectedMembers[1]];
       const proposedTotal = proposedMembers.reduce((sum, value) => sum + value, 0) + bonus;
       const matchingDisplayedTotals = refs.filter((value) => Math.abs(value - proposedTotal) <= 1);
+      const totalEvidence = getStage3TotalEvidenceForValue(proposedTotal, totalEvidenceSources);
       proposals.push({
         candidate,
         bonus,
@@ -450,6 +463,7 @@ function buildStage3SelfSevenDigitDisplacementSimulation({
         proposedTotal,
         currentTotalDelta: proposedTotal - selectedTotal,
         matchingDisplayedTotals,
+        totalEvidence,
         candidateInMemberRow: memberNumbers.some((value) => Math.abs(value - candidate) <= 1),
         selectedThirdMatchesBonus: Math.abs(selectedMembers[2] - bonus) <= 1,
       });
@@ -462,7 +476,15 @@ function buildStage3SelfSevenDigitDisplacementSimulation({
       proposal.candidateInMemberRow &&
       proposal.selectedThirdMatchesBonus
   );
+  const enhancedExactProposals = proposals.filter(
+    (proposal) =>
+      proposal.candidateInMemberRow &&
+      proposal.selectedThirdMatchesBonus &&
+      proposal.totalEvidence.hasExactEvidence &&
+      proposal.totalEvidence.ambiguousExactEvidence === false
+  );
   const rejectionReasons = [];
+  const enhancedRejectionReasons = [];
 
   if (!(stage === 3 && side === "self")) {
     rejectionReasons.push("not-stage3-self");
@@ -488,10 +510,23 @@ function buildStage3SelfSevenDigitDisplacementSimulation({
   if (exactProposals.length > 1) {
     rejectionReasons.push("multiple-exact-seven-digit-plus-bonus-equations");
   }
+  if (enhancedExactProposals.length === 0) {
+    enhancedRejectionReasons.push("missing-enhanced-total-evidence");
+  }
+  if (enhancedExactProposals.length > 1) {
+    enhancedRejectionReasons.push("multiple-enhanced-total-evidence-equations");
+  }
 
   return {
     wouldApply: rejectionReasons.length === 0,
+    wouldApplyWithEnhancedTotalEvidence:
+      rejectionReasons.filter(
+        (reason) =>
+          reason !== "missing-exact-seven-digit-plus-bonus-equation" &&
+          reason !== "multiple-exact-seven-digit-plus-bonus-equations"
+      ).length === 0 && enhancedRejectionReasons.length === 0,
     rejectionReasons,
+    enhancedRejectionReasons,
     current: {
       members: selectedMembers,
       total: selectedTotal,
@@ -510,14 +545,198 @@ function buildStage3SelfSevenDigitDisplacementSimulation({
       cleanSevenDigitCandidates,
       memberCandidateNumbers: memberNumbers,
       totalReferences: refs,
+      totalCandidateSources: totalEvidenceSources,
       bonusCandidates: bonusPool,
       explicitBonusCandidates: explicitBonuses,
       selectedThirdAsBonus,
       proposals,
       exactProposalCount: exactProposals.length,
+      enhancedExactProposalCount: enhancedExactProposals.length,
+      missingTotalEvidence: exactProposals.length === 0,
+      enhancedProposalSummary: enhancedExactProposals.map((proposal) => ({
+        candidate: proposal.candidate,
+        bonus: proposal.bonus,
+        proposedMembers: proposal.proposedMembers,
+        proposedTotal: proposal.proposedTotal,
+        totalEvidence: proposal.totalEvidence,
+      })),
     },
     note:
       "Runner-only simulation. It does not change OCR output; production adoption would need broader negative controls and stronger candidate-source guarantees.",
+  };
+}
+
+function extractDigitGroups(text = "") {
+  const normalized = String(text ?? "").replace(/[\uFF10-\uFF19]/g, (char) =>
+    String.fromCharCode(char.charCodeAt(0) - 0xfee0)
+  );
+  return [...normalized.matchAll(/\d+/g)].map((match) => ({
+    text: match[0],
+    index: match.index ?? 0,
+  }));
+}
+
+function buildJoinedTotalCandidates(text = "") {
+  const groups = extractDigitGroups(text);
+  const candidates = [];
+  for (let start = 0; start < groups.length; start += 1) {
+    let joined = "";
+    for (let end = start; end < Math.min(groups.length, start + 5); end += 1) {
+      joined += groups[end].text;
+      if (joined.length < 6 || joined.length > 8) continue;
+      const value = Number(joined);
+      if (!Number.isFinite(value) || value < 100000 || value >= 10000000) continue;
+      candidates.push({
+        value,
+        parts: groups.slice(start, end + 1).map((group) => group.text),
+        startIndex: groups[start].index,
+        endIndex: groups[end].index + groups[end].text.length,
+      });
+    }
+  }
+  return candidates;
+}
+
+function buildStage3TotalEvidenceSources({
+  totalDirectText = "",
+  totalDirectNumbers = [],
+  totalCandidateText = "",
+  totalCandidateTraces = [],
+  memberCandidateText = "",
+  memberCandidateNumbers = [],
+}) {
+  const sourceInputs = [
+    {
+      label: "total-direct",
+      sourceType: "total",
+      text: totalDirectText,
+      parsedNumbers: totalDirectNumbers,
+    },
+    {
+      label: "total-candidate-combined",
+      sourceType: "total",
+      text: totalCandidateText,
+      parsedNumbers: extractNumbersForZone(totalCandidateText),
+    },
+    ...(totalCandidateTraces || []).map((trace, index) => ({
+      label: `total-candidate-trace-${index + 1}`,
+      sourceType: "total",
+      text: trace?.text || "",
+      parsedNumbers: trace?.numbers || [],
+      pass: trace?.pass || "pass1",
+    })),
+    {
+      label: "member-row",
+      sourceType: "member",
+      text: memberCandidateText,
+      parsedNumbers: memberCandidateNumbers,
+    },
+  ];
+
+  return sourceInputs
+    .filter((source) => source.text || (source.parsedNumbers || []).length > 0)
+    .map((source) => {
+      const parsedNumbers = uniqueNumbers(source.parsedNumbers || []);
+      const joinedCandidates = buildJoinedTotalCandidates(source.text || "");
+      return {
+        label: source.label,
+        sourceType: source.sourceType,
+        pass: source.pass,
+        text: formatDebugText(source.text || ""),
+        parsedNumbers,
+        largeParsedNumbers: parsedNumbers.filter((value) => value >= 1000000 && value < 10000000),
+        joinedCandidates,
+        largeJoinedCandidates: joinedCandidates.filter(
+          (candidate) => candidate.value >= 1000000 && candidate.value < 10000000
+        ),
+      };
+    });
+}
+
+function getStage3TotalEvidenceForValue(targetValue, sources = []) {
+  const target = Number(targetValue) || 0;
+  const exactParsedSources = [];
+  const exactJoinedSources = [];
+  const nearParsedSources = [];
+  const largeCandidateSources = [];
+
+  for (const source of sources) {
+    const parsedMatches = (source.parsedNumbers || []).filter(
+      (value) => Math.abs(Number(value) - target) <= 1
+    );
+    if (parsedMatches.length > 0) {
+      exactParsedSources.push({
+        label: source.label,
+        sourceType: source.sourceType,
+        values: parsedMatches,
+        text: source.text,
+      });
+    }
+
+    const joinedMatches = (source.joinedCandidates || []).filter(
+      (candidate) => Math.abs(Number(candidate.value) - target) <= 1
+    );
+    if (joinedMatches.length > 0) {
+      exactJoinedSources.push({
+        label: source.label,
+        sourceType: source.sourceType,
+        candidates: joinedMatches,
+        text: source.text,
+        auditOnly: true,
+      });
+    }
+
+    const nearMatches = (source.parsedNumbers || [])
+      .map((value) => ({
+        value,
+        delta: Math.abs(Number(value) - target),
+      }))
+      .filter((match) => match.delta > 1 && match.delta <= 5000)
+      .sort((a, b) => a.delta - b.delta)
+      .slice(0, 3);
+    if (nearMatches.length > 0) {
+      nearParsedSources.push({
+        label: source.label,
+        sourceType: source.sourceType,
+        matches: nearMatches,
+        text: source.text,
+      });
+    }
+
+    const largeValues = uniqueNumbers([
+      ...(source.largeParsedNumbers || []),
+      ...(source.largeJoinedCandidates || []).map((candidate) => candidate.value),
+    ]);
+    if (largeValues.length > 0) {
+      largeCandidateSources.push({
+        label: source.label,
+        sourceType: source.sourceType,
+        values: largeValues,
+      });
+    }
+  }
+
+  const exactTotalSources = [...exactParsedSources, ...exactJoinedSources].filter(
+    (source) => source.sourceType === "total"
+  );
+  const hasExactParsedTotalEvidence = exactParsedSources.some(
+    (source) => source.sourceType === "total"
+  );
+  const hasExactJoinedTotalEvidence = exactJoinedSources.some(
+    (source) => source.sourceType === "total"
+  );
+
+  return {
+    target,
+    hasExactEvidence: hasExactParsedTotalEvidence || hasExactJoinedTotalEvidence,
+    hasExactParsedTotalEvidence,
+    hasExactJoinedTotalEvidence,
+    exactTotalSourceCount: exactTotalSources.length,
+    ambiguousExactEvidence: exactTotalSources.length === 0,
+    exactParsedSources,
+    exactJoinedSources,
+    nearParsedSources,
+    largeCandidateSources,
   };
 }
 
@@ -3978,7 +4197,11 @@ async function runOcrForImage(imagePath, options = {}) {
             members,
             total: finalTotal,
             totalReferences,
+            totalDirectText: totalResult.text,
+            totalDirectNumbers: totalResult.numbers,
+            totalCandidateText: totalCandidateResult.text,
             totalCandidateTraces: totalCandidateResult.traces,
+            memberCandidateText: memberResult.text,
             memberCandidateNumbers: originalMemberNumbers,
             bonusCandidates: crownCandidates,
             recognizedCrownCandidates,

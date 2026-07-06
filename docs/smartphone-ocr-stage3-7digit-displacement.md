@@ -33,8 +33,9 @@ It records:
 - current members, total, member sum, and total-minus-member-sum
 - clean 7-digit candidates seen in member/total/debug candidate pools
 - explicit and inferred bonus candidates
+- total evidence sources, including direct total crop, alternative total traces, selected member row text, parsed large total-like candidates, and audit-only split/joined digit candidates
 - equation proposals using `[sevenDigitCandidate, currentMember1, currentMember2] + bonus`
-- `wouldApply` and rejection reasons
+- `wouldApply`, `wouldApplyWithEnhancedTotalEvidence`, and rejection reasons
 
 The simulation only proposes a repair when:
 
@@ -46,25 +47,42 @@ The simulation only proposes a repair when:
 - the candidate plus current member1/member2 plus bonus exactly matches a displayed total candidate
 - exactly one such equation is found
 
+The enhanced total evidence reporting is still runner-only. It can show exact
+split/joined totals such as `2` + `714` + `080` -> `2714080`, but those joined
+values are marked audit-only and are not used by production OCR.
+
 ## IMG_9315-IMG_9319 Classification
 
 | Image | Current Stage3 self | Expected Stage3 self | Classification | Simulation |
 | --- | --- | --- | --- | --- |
 | `IMG_9315.png` | `899249 / 252319 / 205294`, total `1377391` | `899249 / 252319 / 1026470`, total `2383332` | 7-digit member available, bonus selected as member, but current total is not selected-member sum and displayed-total evidence is inconsistent. | rejects |
-| `IMG_9316.png` | `696275 / 382517 / 254602`, total `1333394` | `1273010 / 696275 / 382517`, total `2606404` | Leading 7-digit member dropped; bonus selected as member3. | rejects because exact displayed total equation is not present in current candidate refs |
-| `IMG_9317.png` | `276500 / 804645 / 212015`, total `1293160` | `1060079 / 276500 / 804645`, total `2353239` | Leading 7-digit member dropped; bonus selected as member3. | rejects because exact displayed total equation is not present in current candidate refs |
-| `IMG_9318.png` | `812662 / 938864 / 200281`, total `1951807` | `1001405 / 812662 / 938864`, total `2953212` | Leading 7-digit member dropped; bonus selected as member3. | rejects because exact displayed total equation is not present in current candidate refs |
-| `IMG_9319.png` | `736949 / 549609 / 237920`, total `1524478` | `1189602 / 736949 / 549609`, total `2714080` | Leading 7-digit member dropped; bonus selected as member3. | `wouldApply: true` |
+| `IMG_9316.png` | `696275 / 382517 / 254602`, total `1333394` | `1273010 / 696275 / 382517`, total `2606404` | Leading 7-digit member dropped; bonus selected as member3. | rejects because exact displayed total evidence is still missing |
+| `IMG_9317.png` | `276500 / 804645 / 212015`, total `1293160` | `1060079 / 276500 / 804645`, total `2353239` | Leading 7-digit member dropped; bonus selected as member3. | rejects because exact displayed total evidence is still missing |
+| `IMG_9318.png` | `812662 / 938864 / 200281`, total `1951807` | `1001405 / 812662 / 938864`, total `2953212` | Leading 7-digit member dropped; bonus selected as member3. | rejects because exact displayed total evidence is still missing |
+| `IMG_9319.png` | `736949 / 549609 / 237920`, total `1524478` | `1189602 / 736949 / 549609`, total `2714080` | Leading 7-digit member dropped; bonus selected as member3. | `wouldApply: true`; enhanced total evidence also passes |
 
 ## Simulation Evidence
 
 | Image | Clean 7-digit candidates | Bonus candidates | Result |
 | --- | --- | --- | --- |
-| `IMG_9315.png` | `1026470`, `2583533`, `2385532` | `20529`, `205294` | Rejects: current total is not selected-member sum; no exact equation. |
-| `IMG_9316.png` | `1273010`, `2000404` | `254602` | Rejects: no exact displayed-total equation. |
-| `IMG_9317.png` | `1060079`, `2323239` | `212015` | Rejects: no exact displayed-total equation. |
-| `IMG_9318.png` | `1001405`, `2955212`, `2925212` | `200281` | Rejects: no exact displayed-total equation. |
-| `IMG_9319.png` | `1189602`, `2714080` | `237920` | Would propose `1189602 / 736949 / 549609`, bonus `237920`, total `2714080`. |
+| `IMG_9315.png` | `1026470`, `2583533`, `2385532` | `20529`, `205294` | Rejects: current total is not selected-member sum; proposed visual total `2383332` has only near wrong evidence `2385532` (delta `2200`). |
+| `IMG_9316.png` | `1273010`, `2000404` | `254602` | Rejects: proposed total `2606404` has no parsed or joined exact total evidence. |
+| `IMG_9317.png` | `1060079`, `2323239` | `212015` | Rejects: proposed total `2353239` has no parsed or joined exact total evidence. |
+| `IMG_9318.png` | `1001405`, `2955212`, `2925212` | `200281` | Rejects: proposed visual total `2953212` has only near wrong evidence `2955212` (delta `2000`). |
+| `IMG_9319.png` | `1189602`, `2714080` | `237920` | Would propose `1189602 / 736949 / 549609`, bonus `237920`, total `2714080`; exact parsed and split/joined total evidence is present. |
+
+## Enhanced Total Evidence Result
+
+The enhanced reporting did not unlock `IMG_9316`, `IMG_9317`, or `IMG_9318`.
+Those samples still lack exact displayed total evidence in the runner artifacts:
+
+| Image | Expected total | Enhanced exact total evidence | Result |
+| --- | ---: | --- | --- |
+| `IMG_9315.png` | `2383332` | no; nearest parsed total-like value is `2385532` | rejected |
+| `IMG_9316.png` | `2606404` | no exact parsed or split/joined candidate | rejected |
+| `IMG_9317.png` | `2353239` | no exact parsed or split/joined candidate | rejected |
+| `IMG_9318.png` | `2953212` | no; nearest parsed total-like value is `2955212` | rejected |
+| `IMG_9319.png` | `2714080` | yes; parsed `2714080` and split/joined `2` + `714` + `080` | `wouldApply` |
 
 ## Controls
 
@@ -83,6 +101,7 @@ The simulation was also checked against:
 - `IMG_9180`
 
 No false-positive `wouldApply` appeared in these controls.
+No false-positive `wouldApplyWithEnhancedTotalEvidence` appeared either.
 
 ## Production Recommendation
 
@@ -93,7 +112,7 @@ enough for a browser/runtime rule:
 
 - only `IMG_9319` passes the strict equation guard
 - `IMG_9316`-`IMG_9318` have the correct 7-digit candidate, but the displayed total
-  is not reliably extracted as an exact candidate
+  is still not extracted as an exact parsed or split/joined candidate
 - `IMG_9315` has additional total inconsistency and competing total-like candidates
 - a future rule would need stronger Stage3 self total extraction or ROI evidence
 

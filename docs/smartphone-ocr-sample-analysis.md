@@ -285,11 +285,17 @@ Result for the new samples:
 
 | Image | Simulation result | Notes |
 | --- | --- | --- |
-| `IMG_9315.png` | rejects | 7-digit candidate `1026470` is visible, but total evidence is inconsistent. |
-| `IMG_9316.png` | rejects | 7-digit candidate `1273010` is visible, but exact displayed total equation is missing. |
-| `IMG_9317.png` | rejects | 7-digit candidate `1060079` is visible, but exact displayed total equation is missing. |
-| `IMG_9318.png` | rejects | 7-digit candidate `1001405` is visible, but exact displayed total equation is missing. |
-| `IMG_9319.png` | `wouldApply` | Would propose `1189602 / 736949 / 549609`, bonus `237920`, total `2714080`. |
+| `IMG_9315.png` | rejects | 7-digit candidate `1026470` is visible, but current total is not selected-member sum and total evidence is inconsistent. |
+| `IMG_9316.png` | rejects | 7-digit candidate `1273010` is visible, but exact displayed total evidence is still missing. |
+| `IMG_9317.png` | rejects | 7-digit candidate `1060079` is visible, but exact displayed total evidence is still missing. |
+| `IMG_9318.png` | rejects | 7-digit candidate `1001405` is visible, but exact displayed total evidence is still missing. |
+| `IMG_9319.png` | `wouldApply` | Would propose `1189602 / 736949 / 549609`, bonus `237920`, total `2714080`; enhanced total evidence also finds parsed and split/joined exact total evidence. |
+
+The latest runner-only total evidence reporting adds direct total crop, alternative
+total trace, selected member-row, large total-like candidate, and split/joined
+candidate evidence to the debug artifacts. It did not add exact total evidence
+for `IMG_9316`, `IMG_9317`, or `IMG_9318`; `IMG_9315` remains rejected with
+near-but-wrong total evidence, while `IMG_9319` remains the only strict positive.
 
 No false-positive `wouldApply` appeared in the existing controls:
 
