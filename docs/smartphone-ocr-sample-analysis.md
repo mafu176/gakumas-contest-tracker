@@ -262,3 +262,45 @@ Production recommendation:
   ROI/debug artifacts
 - keep `IMG_9319` S2 enemy as a separate sparse small-row/digit-confusion
   investigation target
+
+## Stage3 self 7-digit displacement investigation
+
+A runner-only debug simulation was added for this family of failures:
+
+```text
+stage3SelfSevenDigitDisplacementSimulation
+```
+
+It is documented in `docs/smartphone-ocr-stage3-7digit-displacement.md`.
+
+The simulation does not change production OCR output. It checks whether Stage3 self
+has:
+
+- a clean exact 7-digit candidate,
+- current member3 acting like the crown/bonus,
+- current total equal to the wrong selected member sum,
+- an exact displayed total equation for `[sevenDigitCandidate, currentMember1, currentMember2] + bonus`.
+
+Result for the new samples:
+
+| Image | Simulation result | Notes |
+| --- | --- | --- |
+| `IMG_9315.png` | rejects | 7-digit candidate `1026470` is visible, but total evidence is inconsistent. |
+| `IMG_9316.png` | rejects | 7-digit candidate `1273010` is visible, but exact displayed total equation is missing. |
+| `IMG_9317.png` | rejects | 7-digit candidate `1060079` is visible, but exact displayed total equation is missing. |
+| `IMG_9318.png` | rejects | 7-digit candidate `1001405` is visible, but exact displayed total equation is missing. |
+| `IMG_9319.png` | `wouldApply` | Would propose `1189602 / 736949 / 549609`, bonus `237920`, total `2714080`. |
+
+No false-positive `wouldApply` appeared in the existing controls:
+
+- `IMG_9308`-`IMG_9312`
+- `IMG_9243`
+- `IMG_9257`
+- `IMG_9282`
+- `IMG_9285`
+- `IMG_9251`
+- `IMG_9180`
+
+Production implementation is still blocked. The pattern is strong, but only one
+sample currently passes the strict equation guard; the other samples need better
+Stage3 self total extraction or ROI evidence before a general runtime rule is safe.

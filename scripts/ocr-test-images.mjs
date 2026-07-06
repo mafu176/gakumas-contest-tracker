@@ -401,6 +401,126 @@ function buildSparseTotalAsMemberSimulation({
   };
 }
 
+function buildStage3SelfSevenDigitDisplacementSimulation({
+  stage = 0,
+  side = "",
+  members = [],
+  total = 0,
+  totalReferences = [],
+  totalCandidateTraces = [],
+  memberCandidateNumbers = [],
+  bonusCandidates = [],
+  recognizedCrownCandidates = [],
+}) {
+  const selectedMembers = [...members].map((value) => Number(value) || 0);
+  while (selectedMembers.length < 3) selectedMembers.push(0);
+  const selectedTotal = Number(total || 0);
+  const selectedMemberSum = selectedMembers.reduce((sum, value) => sum + value, 0);
+  const traceNumbers = (totalCandidateTraces || []).flatMap((trace) =>
+    (trace?.numbers || []).map((value) => Number(value) || 0)
+  );
+  const refs = uniqueNumbers([...totalReferences, ...traceNumbers]);
+  const memberNumbers = uniqueNumbers(memberCandidateNumbers || []);
+  const allCandidateNumbers = uniqueNumbers([...memberNumbers, ...refs]);
+  const cleanSevenDigitCandidates = allCandidateNumbers.filter(
+    (value) =>
+      value >= 1000000 &&
+      value < 10000000 &&
+      !selectedMembers.some((member) => Math.abs(member - value) <= 1) &&
+      Math.abs(selectedTotal - value) > 1
+  );
+  const explicitBonuses = uniqueNumbers([
+    ...(bonusCandidates || []),
+    ...(recognizedCrownCandidates || []),
+  ]).filter((value) => value > 0 && value < 1000000);
+  const selectedThirdAsBonus =
+    selectedMembers[2] > 0 && selectedMembers[2] < 500000 ? selectedMembers[2] : 0;
+  const bonusPool = uniqueNumbers([...explicitBonuses, selectedThirdAsBonus].filter(Boolean));
+  const proposals = [];
+
+  for (const candidate of cleanSevenDigitCandidates) {
+    for (const bonus of bonusPool) {
+      const proposedMembers = [candidate, selectedMembers[0], selectedMembers[1]];
+      const proposedTotal = proposedMembers.reduce((sum, value) => sum + value, 0) + bonus;
+      const matchingDisplayedTotals = refs.filter((value) => Math.abs(value - proposedTotal) <= 1);
+      proposals.push({
+        candidate,
+        bonus,
+        proposedMembers,
+        proposedTotal,
+        currentTotalDelta: proposedTotal - selectedTotal,
+        matchingDisplayedTotals,
+        candidateInMemberRow: memberNumbers.some((value) => Math.abs(value - candidate) <= 1),
+        selectedThirdMatchesBonus: Math.abs(selectedMembers[2] - bonus) <= 1,
+      });
+    }
+  }
+
+  const exactProposals = proposals.filter(
+    (proposal) =>
+      proposal.matchingDisplayedTotals.length > 0 &&
+      proposal.candidateInMemberRow &&
+      proposal.selectedThirdMatchesBonus
+  );
+  const rejectionReasons = [];
+
+  if (!(stage === 3 && side === "self")) {
+    rejectionReasons.push("not-stage3-self");
+  }
+  if (Math.abs(selectedTotal - selectedMemberSum) > 1) {
+    rejectionReasons.push("current-total-is-not-selected-member-sum");
+  }
+  if (!(selectedMembers[0] > 0 && selectedMembers[1] > 0 && selectedMembers[2] > 0)) {
+    rejectionReasons.push("requires-three-selected-nonzero-values");
+  }
+  if (selectedThirdAsBonus <= 0) {
+    rejectionReasons.push("selected-third-not-plausible-bonus");
+  }
+  if (cleanSevenDigitCandidates.length === 0) {
+    rejectionReasons.push("missing-clean-seven-digit-candidate");
+  }
+  if (bonusPool.length === 0) {
+    rejectionReasons.push("missing-bonus-candidate");
+  }
+  if (exactProposals.length === 0) {
+    rejectionReasons.push("missing-exact-seven-digit-plus-bonus-equation");
+  }
+  if (exactProposals.length > 1) {
+    rejectionReasons.push("multiple-exact-seven-digit-plus-bonus-equations");
+  }
+
+  return {
+    wouldApply: rejectionReasons.length === 0,
+    rejectionReasons,
+    current: {
+      members: selectedMembers,
+      total: selectedTotal,
+      memberSum: selectedMemberSum,
+      totalMinusMemberSum: selectedTotal - selectedMemberSum,
+    },
+    proposed: exactProposals[0]
+      ? {
+          members: exactProposals[0].proposedMembers,
+          bonus: exactProposals[0].bonus,
+          total: exactProposals[0].proposedTotal,
+          memberSum: exactProposals[0].proposedMembers.reduce((sum, value) => sum + value, 0),
+        }
+      : null,
+    evidence: {
+      cleanSevenDigitCandidates,
+      memberCandidateNumbers: memberNumbers,
+      totalReferences: refs,
+      bonusCandidates: bonusPool,
+      explicitBonusCandidates: explicitBonuses,
+      selectedThirdAsBonus,
+      proposals,
+      exactProposalCount: exactProposals.length,
+    },
+    note:
+      "Runner-only simulation. It does not change OCR output; production adoption would need broader negative controls and stronger candidate-source guarantees.",
+  };
+}
+
 function uniqueNumbers(numbers = []) {
   return [...new Set(numbers.map((number) => Number(number)).filter(Number.isFinite))];
 }
@@ -3851,6 +3971,18 @@ async function runOcrForImage(imagePath, options = {}) {
           bonusCandidates: crownCandidates,
           recognizedCrownCandidates,
         });
+        const stage3SelfSevenDigitDisplacementSimulation =
+          buildStage3SelfSevenDigitDisplacementSimulation({
+            stage,
+            side,
+            members,
+            total: finalTotal,
+            totalReferences,
+            totalCandidateTraces: totalCandidateResult.traces,
+            memberCandidateNumbers: originalMemberNumbers,
+            bonusCandidates: crownCandidates,
+            recognizedCrownCandidates,
+          });
 
         return {
           final: {
@@ -3901,6 +4033,7 @@ async function runOcrForImage(imagePath, options = {}) {
             selectedCrownInference,
           },
           sparseTotalAsMemberSimulation,
+          stage3SelfSevenDigitDisplacementSimulation,
         };
       };
 
