@@ -5,8 +5,8 @@
 This report documents a runner-only simulation for a Stage3 self failure pattern
 seen in the `IMG_9315`-`IMG_9319` user samples.
 
-No production OCR behavior is changed. No filename/stage-specific known correction
-was added.
+Production OCR now includes the strict version of this recovery for Stage3 self
+only. No filename/stage-specific known correction was added.
 
 ## Pattern
 
@@ -20,7 +20,7 @@ The common shape is:
 This differs from `sparseTotalAsMemberSimulation`: it is not a sparse enemy row
 where the selected total is actually member1.
 
-## Runner-Only Simulation
+## Simulation And Production Guard
 
 The debug artifact field is:
 
@@ -37,19 +37,22 @@ It records:
 - equation proposals using `[sevenDigitCandidate, currentMember1, currentMember2] + bonus`
 - `wouldApply`, `wouldApplyWithEnhancedTotalEvidence`, and rejection reasons
 
-The simulation only proposes a repair when:
+The production recovery follows the same strict shape and only applies when:
 
+- the source is smartphone OCR
 - the side is exactly Stage3 self
 - current total equals the selected member sum
 - three non-zero values are selected as members
 - selected member3 is a plausible bonus value
 - a clean exact 7-digit candidate is available
-- the candidate plus current member1/member2 plus bonus exactly matches a displayed total candidate
+- the 7-digit candidate is present in member-row candidates
+- the candidate plus current member1/member2 plus bonus exactly matches an extracted displayed total candidate
 - exactly one such equation is found
 
 The enhanced total evidence reporting is still runner-only. It can show exact
 split/joined totals such as `2` + `714` + `080` -> `2714080`, but those joined
-values are marked audit-only and are not used by production OCR.
+values are marked audit-only and are not used by production OCR unless they are
+already present as parsed numeric total candidates.
 
 ## IMG_9315-IMG_9319 Classification
 
@@ -59,7 +62,7 @@ values are marked audit-only and are not used by production OCR.
 | `IMG_9316.png` | `696275 / 382517 / 254602`, total `1333394` | `1273010 / 696275 / 382517`, total `2606404` | Leading 7-digit member dropped; bonus selected as member3. | rejects because exact displayed total evidence is still missing |
 | `IMG_9317.png` | `276500 / 804645 / 212015`, total `1293160` | `1060079 / 276500 / 804645`, total `2353239` | Leading 7-digit member dropped; bonus selected as member3. | rejects because exact displayed total evidence is still missing |
 | `IMG_9318.png` | `812662 / 938864 / 200281`, total `1951807` | `1001405 / 812662 / 938864`, total `2953212` | Leading 7-digit member dropped; bonus selected as member3. | rejects because exact displayed total evidence is still missing |
-| `IMG_9319.png` | `736949 / 549609 / 237920`, total `1524478` | `1189602 / 736949 / 549609`, total `2714080` | Leading 7-digit member dropped; bonus selected as member3. | `wouldApply: true`; enhanced total evidence also passes |
+| `IMG_9319.png` | `736949 / 549609 / 237920`, total `1524478` | `1189602 / 736949 / 549609`, total `2714080` | Leading 7-digit member dropped; bonus selected as member3. | production recovery applies |
 
 ## Simulation Evidence
 
@@ -82,7 +85,7 @@ Those samples still lack exact displayed total evidence in the runner artifacts:
 | `IMG_9316.png` | `2606404` | no exact parsed or split/joined candidate | rejected |
 | `IMG_9317.png` | `2353239` | no exact parsed or split/joined candidate | rejected |
 | `IMG_9318.png` | `2953212` | no; nearest parsed total-like value is `2955212` | rejected |
-| `IMG_9319.png` | `2714080` | yes; parsed `2714080` and split/joined `2` + `714` + `080` | `wouldApply` |
+| `IMG_9319.png` | `2714080` | yes; parsed `2714080` and split/joined `2` + `714` + `080` | production recovery applies |
 
 ## Controls
 
@@ -103,22 +106,22 @@ The simulation was also checked against:
 No false-positive `wouldApply` appeared in these controls.
 No false-positive `wouldApplyWithEnhancedTotalEvidence` appeared either.
 
-## Production Recommendation
+## Production Status
 
-Do not enable this in production yet.
+Strict production recovery is enabled for exact Stage3 self cases only.
 
-The pattern is real and repeated, but the current candidate evidence is not strong
-enough for a browser/runtime rule:
+The current implementation intentionally fixes only the safe positive:
 
-- only `IMG_9319` passes the strict equation guard
+- `IMG_9319` Stage3 self recovers to `1189602 / 736949 / 549609`, total `2714080`
+
+The other samples remain blocked:
+
+- `IMG_9315` has current-total inconsistency and near-wrong total evidence
 - `IMG_9316`-`IMG_9318` have the correct 7-digit candidate, but the displayed total
   is still not extracted as an exact parsed or split/joined candidate
-- `IMG_9315` has additional total inconsistency and competing total-like candidates
-- a future rule would need stronger Stage3 self total extraction or ROI evidence
 
-Recommended next step:
+Recommended next step for broader coverage:
 
 - improve runner-only Stage3 self ROI total/member extraction
 - look for more samples where the exact displayed total is captured cleanly
-- keep this as simulation-only until at least two more positive examples pass the
-  strict guard with zero negative-control accepts
+- do not loosen production beyond the strict exact-total guard

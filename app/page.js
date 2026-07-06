@@ -119,6 +119,7 @@ import {
   applySmartphoneTotalLikeMemberSuppression,
   applySmartphoneTotalCrownBonusRecovery,
   applySmartphoneRowZoneSevenDigitRecovery,
+  applySmartphoneStage3SelfSevenDigitDisplacementRecovery,
   applyDesktopMemberShape,
   pickDesktopTotalFromMemberShape,
   pickMemberNumbers,
@@ -2869,6 +2870,23 @@ export default function Home() {
           );
           correctedSelfMembers = rowZoneSelfRecovery.members;
           selfTotal = rowZoneSelfRecovery.total;
+        }
+
+        const stage3SelfSevenDigitRecovery =
+          applySmartphoneStage3SelfSevenDigitDisplacementRecovery(
+            correctedSelfMembers,
+            selfTotal,
+            [...originalSelfMemberNumbers, ...selfMemberNumbers],
+            selfTotalReferences,
+            selfCrownCandidates,
+            { mode: activeOcrMode, stage, side: "self" }
+          );
+        if (stage3SelfSevenDigitRecovery.applied) {
+          correctionLogs.push(
+            `stage3SelfSevenDigitDisplacementRecovery applied members=${stage3SelfSevenDigitRecovery.members.join(",")} total=${stage3SelfSevenDigitRecovery.total} bonus=${stage3SelfSevenDigitRecovery.bonus} candidate=${stage3SelfSevenDigitRecovery.candidate}`
+          );
+          correctedSelfMembers = stage3SelfSevenDigitRecovery.members;
+          selfTotal = stage3SelfSevenDigitRecovery.total;
         }
 
         const rowZoneEnemyRecovery = applySmartphoneRowZoneSevenDigitRecovery(

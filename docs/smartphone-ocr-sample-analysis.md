@@ -289,7 +289,7 @@ Result for the new samples:
 | `IMG_9316.png` | rejects | 7-digit candidate `1273010` is visible, but exact displayed total evidence is still missing. |
 | `IMG_9317.png` | rejects | 7-digit candidate `1060079` is visible, but exact displayed total evidence is still missing. |
 | `IMG_9318.png` | rejects | 7-digit candidate `1001405` is visible, but exact displayed total evidence is still missing. |
-| `IMG_9319.png` | `wouldApply` | Would propose `1189602 / 736949 / 549609`, bonus `237920`, total `2714080`; enhanced total evidence also finds parsed and split/joined exact total evidence. |
+| `IMG_9319.png` | production recovery applies | Recovers Stage3 self to `1189602 / 736949 / 549609`, bonus `237920`, total `2714080`; enhanced total evidence also finds parsed and split/joined exact total evidence. |
 
 The latest runner-only total evidence reporting adds direct total crop, alternative
 total trace, selected member-row, large total-like candidate, and split/joined
@@ -307,6 +307,9 @@ No false-positive `wouldApply` appeared in the existing controls:
 - `IMG_9251`
 - `IMG_9180`
 
-Production implementation is still blocked. The pattern is strong, but only one
-sample currently passes the strict equation guard; the other samples need better
-Stage3 self total extraction or ROI evidence before a general runtime rule is safe.
+Strict production recovery is now enabled only for the exact Stage3 self guard
+documented in `docs/smartphone-ocr-stage3-7digit-displacement.md`.
+
+It does not add filename/stage-specific known corrections and does not loosen
+row-zone Stage2 recovery. The only current positive is `IMG_9319`; `IMG_9315`
+through `IMG_9318` remain blocked until their displayed total evidence is exact.

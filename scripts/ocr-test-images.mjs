@@ -9,6 +9,7 @@ import {
   applySmartphoneTotalLikeMemberSuppression,
   applySmartphoneTotalCrownBonusRecovery,
   applySmartphoneRowZoneSevenDigitRecovery,
+  applySmartphoneStage3SelfSevenDigitDisplacementRecovery,
 } from "../app/lib/ocr.js";
 import { applyKnownOcrCorrections, applyKnownOcrSetCorrections } from "../app/lib/ocrPostProcess.js";
 
@@ -4087,6 +4088,31 @@ async function runOcrForImage(imagePath, options = {}) {
       });
       self = rowZoneSelfRecovery.members;
       selfTotal = rowZoneSelfRecovery.total;
+    }
+
+    const stage3SelfSevenDigitRecovery =
+      applySmartphoneStage3SelfSevenDigitDisplacementRecovery(
+        self,
+        selfTotal,
+        [...originalSelfMemberNumbers, ...selfMemberNumbers],
+        selfTotalReferences,
+        selfCrownCandidates,
+        { mode: ocrSource, stage, side: "self" }
+      );
+    if (stage3SelfSevenDigitRecovery.applied) {
+      knownCorrectionDeltas.push({
+        pass: "stage3SelfSevenDigitDisplacementRecovery applied",
+        before: cloneStageState({ self, enemy, selfTotal, enemyTotal }),
+        after: cloneStageState({
+          self: stage3SelfSevenDigitRecovery.members,
+          enemy,
+          selfTotal: stage3SelfSevenDigitRecovery.total,
+          enemyTotal,
+        }),
+        message: `stage3SelfSevenDigitDisplacementRecovery applied members=${stage3SelfSevenDigitRecovery.members.join(",")} total=${stage3SelfSevenDigitRecovery.total} bonus=${stage3SelfSevenDigitRecovery.bonus} candidate=${stage3SelfSevenDigitRecovery.candidate}`,
+      });
+      self = stage3SelfSevenDigitRecovery.members;
+      selfTotal = stage3SelfSevenDigitRecovery.total;
     }
 
     const rowZoneEnemyRecovery = applySmartphoneRowZoneSevenDigitRecovery(

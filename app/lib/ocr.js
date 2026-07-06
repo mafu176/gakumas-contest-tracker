@@ -1900,6 +1900,124 @@ export function applySmartphoneRowZoneSevenDigitRecovery(
   };
 }
 
+export function applySmartphoneStage3SelfSevenDigitDisplacementRecovery(
+  selectedMembers,
+  selectedTotal,
+  memberCandidates = [],
+  totalCandidates = [],
+  bonusCandidates = [],
+  options = {}
+) {
+  if (normalizeOcrMode(options.mode) !== "smartphone") {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  if (options.stage !== 3 || options.side !== "self") {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  if (!Array.isArray(selectedMembers) || selectedMembers.length !== 3) {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  const currentMembers = selectedMembers.map((value) => Number(value) || 0);
+  if (currentMembers.some((value) => value <= 0)) {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  const currentTotal = Number(selectedTotal || 0);
+  const currentMemberSum = currentMembers.reduce((sum, value) => sum + value, 0);
+  if (Math.abs(currentTotal - currentMemberSum) > 1) {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  const selectedThirdAsBonus =
+    currentMembers[2] >= 10000 && currentMembers[2] < 500000 ? currentMembers[2] : 0;
+  if (selectedThirdAsBonus <= 0) {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  const memberNumbers = uniqueNumbers(
+    (memberCandidates || [])
+      .map((value) => Number(value) || 0)
+      .filter((value) => Number.isFinite(value) && value > 0)
+  );
+  const totalNumbers = uniqueNumbers(
+    (totalCandidates || [])
+      .map((value) => Number(value) || 0)
+      .filter((value) => Number.isFinite(value) && value > 0)
+  );
+  const bonusPool = uniqueNumbers([
+    ...(bonusCandidates || [])
+      .map((value) => Number(value) || 0)
+      .filter((value) => Number.isFinite(value) && value > 0),
+    selectedThirdAsBonus,
+  ]).filter((value) => value >= 10000 && value < 500000);
+
+  if (memberNumbers.length === 0 || totalNumbers.length === 0 || bonusPool.length === 0) {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  const cleanSevenDigitCandidates = uniqueNumbers([...memberNumbers, ...totalNumbers]).filter(
+    (value) =>
+      value >= 1000000 &&
+      value < 10000000 &&
+      !currentMembers.some((member) => Math.abs(member - value) <= 1) &&
+      Math.abs(currentTotal - value) > 1 &&
+      memberNumbers.some((memberValue) => Math.abs(memberValue - value) <= 1)
+  );
+
+  const matches = [];
+  for (const candidate of cleanSevenDigitCandidates) {
+    for (const bonus of bonusPool) {
+      if (Math.abs(currentMembers[2] - bonus) > 1) continue;
+
+      const proposedMembers = [candidate, currentMembers[0], currentMembers[1]];
+      const proposedMemberSum = proposedMembers.reduce((sum, value) => sum + value, 0);
+      const proposedTotal = proposedMemberSum + bonus;
+      const matchingDisplayedTotals = totalNumbers.filter(
+        (value) => Math.abs(value - proposedTotal) <= 1
+      );
+
+      if (matchingDisplayedTotals.length === 0) continue;
+      if (proposedTotal <= currentTotal || proposedTotal >= 5000000) continue;
+
+      matches.push({
+        members: proposedMembers,
+        total: proposedTotal,
+        bonus,
+        candidate,
+        matchingDisplayedTotals,
+      });
+    }
+  }
+
+  const uniqueMatches = matches.filter(
+    (match, index, all) =>
+      all.findIndex(
+        (other) =>
+          other.total === match.total &&
+          other.bonus === match.bonus &&
+          other.candidate === match.candidate &&
+          other.members.join(",") === match.members.join(",")
+      ) === index
+  );
+
+  if (uniqueMatches.length !== 1) {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  const match = uniqueMatches[0];
+  return {
+    members: match.members,
+    total: match.total,
+    bonus: match.bonus,
+    candidate: match.candidate,
+    applied: true,
+    matchedPattern: "stage3-self-leading-seven-digit-with-bonus-member",
+  };
+}
+
 export function normalizeMemberScore(num) {
   return num;
 }
