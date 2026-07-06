@@ -197,3 +197,68 @@ Production adoption should remain paused until the runner can prove:
 - bonus candidate excluded from member slots,
 - equation improves against displayed total evidence,
 - no regression on existing mobile safety images.
+
+## Additional user samples: IMG_9315-IMG_9319
+
+Five more user-reported smartphone screenshots were added under
+`test-images/user-reports/unreviewed/` with expected fixtures in
+`regression-test/expected/`.
+
+No filename/stage-specific known correction was added for these images. The user
+preference remains to use these as evidence for generalizable OCR improvements,
+not as individual hardcoded fixes.
+
+| Image | Current runner result | Main failure type | sparseTotalAsMemberSimulation |
+| --- | --- | --- | --- |
+| `IMG_9315.png` | FAIL | S2 self digit error; S3 self misses 7-digit member `1026470` and promotes bonus `205294` as member3 | no `wouldApply` |
+| `IMG_9316.png` | FAIL | S3 self drops leading 7-digit member `1273010`, shifts members left, and promotes bonus `254602` as member3 | no `wouldApply` |
+| `IMG_9317.png` | FAIL | S3 self drops leading 7-digit member `1060079`, shifts members left, and promotes bonus `212015` as member3 | no `wouldApply` |
+| `IMG_9318.png` | FAIL | S3 self drops leading 7-digit member `1001405`, shifts members left, and promotes bonus `200281` as member3 | no `wouldApply` |
+| `IMG_9319.png` | FAIL | S2 self small digit error; S2 enemy sparse/total-as-member-like small row shift; S3 self misses 7-digit member `1189602` and promotes bonus `237920` as member3 | no `wouldApply` |
+
+Current OCR failures:
+
+| Image | Field | Expected | Actual |
+| --- | --- | ---: | ---: |
+| `IMG_9315.png` | S2 self member3 | `162915` | `162515` |
+| `IMG_9315.png` | S3 self total | `2383332` | `1377391` |
+| `IMG_9315.png` | S3 self member3 | `1026470` | `205294` |
+| `IMG_9316.png` | S3 self total | `2606404` | `1333394` |
+| `IMG_9316.png` | S3 self member1 | `1273010` | `696275` |
+| `IMG_9316.png` | S3 self member2 | `696275` | `382517` |
+| `IMG_9316.png` | S3 self member3 | `382517` | `254602` |
+| `IMG_9317.png` | S3 self total | `2353239` | `1293160` |
+| `IMG_9317.png` | S3 self member1 | `1060079` | `276500` |
+| `IMG_9317.png` | S3 self member2 | `276500` | `804645` |
+| `IMG_9317.png` | S3 self member3 | `804645` | `212015` |
+| `IMG_9318.png` | S3 self total | `2953212` | `1951807` |
+| `IMG_9318.png` | S3 self member1 | `1001405` | `812662` |
+| `IMG_9318.png` | S3 self member2 | `812662` | `938864` |
+| `IMG_9318.png` | S3 self member3 | `938864` | `200281` |
+| `IMG_9319.png` | S2 self member1 | `208530` | `208330` |
+| `IMG_9319.png` | S2 enemy total | `39242` | `178484` |
+| `IMG_9319.png` | S2 enemy member1 | `11845` | `39242` |
+| `IMG_9319.png` | S2 enemy member2 | `16081` | `111845` |
+| `IMG_9319.png` | S2 enemy member3 | `11316` | `16081` |
+| `IMG_9319.png` | S3 self total | `2714080` | `1524478` |
+| `IMG_9319.png` | S3 self member3 | `1189602` | `237920` |
+
+The new batch strengthens the evidence for a broader Stage3 self pattern: a
+leading 7-digit member is dropped from the member set while the crown bonus is
+selected as a member. This is related to the ROI/row-zone work, but it is not the
+sparse total-as-member pattern from `IMG_9310` Stage3 enemy.
+
+`IMG_9319` also has a small-score S2 enemy row shift where the displayed total
+`39242` is selected as member1 and a nearby `111845` appears where `11845` is
+expected. That resembles total/member displacement plus digit confusion, so it
+should not be folded into the current sparse total-as-member simulation without
+separate evidence.
+
+Production recommendation:
+
+- keep sparse total-as-member recovery out of production for now
+- do not add filename/stage-specific corrections for `IMG_9315`-`IMG_9319`
+- investigate a separate general Stage3 self 7-digit member recovery path using
+  ROI/debug artifacts
+- keep `IMG_9319` S2 enemy as a separate sparse small-row/digit-confusion
+  investigation target

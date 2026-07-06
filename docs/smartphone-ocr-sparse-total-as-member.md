@@ -76,6 +76,11 @@ choosing between plausible rows.
 | `IMG_9285` | no | - | Current equations are already exact or row shape does not match. |
 | `IMG_9251` | no | - | Current equations are already exact or row shape does not match. |
 | `IMG_9180` | no | - | Bonus candidates and missing exact trace block the repair. |
+| `IMG_9315` | no | - | New sample; Stage3 self is a 7-digit member/bonus displacement case, not sparse total-as-member. |
+| `IMG_9316` | no | - | New sample; Stage3 self drops the leading 7-digit member and promotes bonus, not sparse total-as-member. |
+| `IMG_9317` | no | - | New sample; Stage3 self drops the leading 7-digit member and promotes bonus, not sparse total-as-member. |
+| `IMG_9318` | no | - | New sample; Stage3 self drops the leading 7-digit member and promotes bonus, not sparse total-as-member. |
+| `IMG_9319` | no | - | New sample; mixed small-score shift and Stage3 7-digit member/bonus displacement, not sparse total-as-member. |
 
 ## Negative Controls
 
@@ -92,6 +97,11 @@ The simulation was run over:
 - `IMG_9285`
 - `IMG_9251`
 - `IMG_9180`
+- `IMG_9315`
+- `IMG_9316`
+- `IMG_9317`
+- `IMG_9318`
+- `IMG_9319`
 
 Only `IMG_9310.png` Stage3 enemy produced `wouldApply: true`.
 
@@ -103,6 +113,8 @@ The guard is stronger now, but confidence is still limited because there is only
 positive example. The target crop also contains numeric noise such as `220400` and
 `61197`; the stricter ordered-trace checks prevent that noise from becoming a valid
 repair today, but one sample is not enough to prove the pattern is generally safe.
+The `IMG_9315`-`IMG_9319` batch added five negative controls and no new positive
+examples.
 
 Recommended next step:
 
