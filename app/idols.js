@@ -1418,5 +1418,15 @@ export const idolDb = [
     "plan": "アノマリー",
     "rarity": "SSR",
     "image": "/idols/142.png"
+  },
+  {
+    "id": "花海_佑芽_GO_MY_WAY",
+    "name": "GO MY WAY!! 花海佑芽",
+    "short": "GO MY WAY!!",
+    "character": "花海佑芽",
+    "title": "GO MY WAY!!",
+    "plan": "ロジック",
+    "rarity": "SSR",
+    "image": "/idols/143.png"
   }
 ];
