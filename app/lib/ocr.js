@@ -2356,8 +2356,16 @@ export function applySmartphoneStage3EnemySevenDigitRecovery(
     return { members: selectedMembers, total: selectedTotal, applied: false };
   }
 
+  const rawEvidenceNumbers = uniqueNumbers(
+    (options.rawCandidates || [])
+      .map((value) => Number(value) || 0)
+      .filter((value) => Number.isFinite(value) && value > 0)
+  );
+  const memberEvidenceNumbers = isTwoMemberSelection
+    ? [...rawEvidenceNumbers, ...(memberCandidates || [])]
+    : memberCandidates || [];
   const memberNumbers = uniqueNumbers(
-    (memberCandidates || [])
+    memberEvidenceNumbers
       .map((value) => Number(value) || 0)
       .filter((value) => Number.isFinite(value) && value > 0)
   );

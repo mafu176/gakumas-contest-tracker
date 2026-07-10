@@ -4275,6 +4275,12 @@ async function runOcrForImage(imagePath, options = {}) {
           enemyTotalCandidateResult.text,
           ...(enemyTotalCandidateResult.traces || []).map((trace) => trace.text),
         ],
+        rawCandidates: [
+          ...enemyTotalReferences,
+          ...originalEnemyMemberNumbers,
+          ...enemyMemberNumbers,
+          ...enemyCrownCandidates,
+        ],
       }
     );
     if (stage3EnemySevenDigitRecovery.applied) {
@@ -4385,6 +4391,7 @@ async function runOcrForImage(imagePath, options = {}) {
           enemyTotalCandidateResult.text,
           ...(enemyTotalCandidateResult.traces || []).map((trace) => trace.text),
         ],
+        rawCandidates: finalEnemyDebugCandidates,
       }
     );
     if (lateStage3EnemySevenDigitRecovery.applied) {
