@@ -119,6 +119,7 @@ import {
   applySmartphoneSparseTrailingZeroPreservation,
   applySmartphoneTotalLikeMemberSuppression,
   applySmartphoneTotalCrownBonusRecovery,
+  applySmartphoneStage2EnemyBonusRecovery,
   applySmartphoneRowZoneSevenDigitRecovery,
   applySmartphoneStage3SelfSevenDigitDisplacementRecovery,
   applySmartphoneStage3EnemySevenDigitRecovery,
@@ -2550,6 +2551,24 @@ export default function Home() {
             };
           }
 
+          const stage2EnemyBonusRecovery = applySmartphoneStage2EnemyBonusRecovery(
+            selectedMembers,
+            selectedTotal,
+            totalReferences,
+            bonusCandidates,
+            rawCandidates,
+            { mode: activeOcrMode, stage, side }
+          );
+          if (stage2EnemyBonusRecovery.applied) {
+            correctionLogs.push(
+              `stage2EnemyBonusRecovery applied members=${stage2EnemyBonusRecovery.members.join(",")} total=${stage2EnemyBonusRecovery.total} bonus=${stage2EnemyBonusRecovery.bonus}`
+            );
+            return {
+              members: stage2EnemyBonusRecovery.members,
+              total: stage2EnemyBonusRecovery.total,
+            };
+          }
+
           const rawBonusesForCompleteCombo = uniqueNumbers(bonusCandidates)
             .filter((num) => num >= 10000 && num < 100000);
           const rawLowBonusLikeForCompleteCombo = rawNumbers
@@ -3014,6 +3033,53 @@ export default function Home() {
           );
           correctedSelfMembers = lateLeadingBonusRecovery.members;
           selfTotal = lateLeadingBonusRecovery.total;
+        }
+
+        const finalEnemyDebugCandidates = [
+          ...enemyTotalReferences,
+          ...originalEnemyMemberNumbers,
+          ...enemyMemberNumbers,
+          ...enemyCrownCandidates,
+        ];
+        const lateStage2EnemyBonusRecovery = applySmartphoneStage2EnemyBonusRecovery(
+          correctedEnemyMembers,
+          enemyTotal,
+          enemyTotalReferences,
+          enemyCrownCandidates,
+          finalEnemyDebugCandidates,
+          { mode: activeOcrMode, stage, side: "enemy" }
+        );
+        if (lateStage2EnemyBonusRecovery.applied) {
+          correctionLogs.push(
+            `stage2EnemyBonusRecovery applied members=${lateStage2EnemyBonusRecovery.members.join(",")} total=${lateStage2EnemyBonusRecovery.total} bonus=${lateStage2EnemyBonusRecovery.bonus}`
+          );
+          correctedEnemyMembers = lateStage2EnemyBonusRecovery.members;
+          enemyTotal = lateStage2EnemyBonusRecovery.total;
+        }
+
+        const lateStage3EnemySevenDigitRecovery = applySmartphoneStage3EnemySevenDigitRecovery(
+          correctedEnemyMembers,
+          enemyTotal,
+          [...originalEnemyMemberNumbers, ...enemyMemberNumbers],
+          enemyTotalReferences,
+          enemyCrownCandidates,
+          {
+            mode: activeOcrMode,
+            stage,
+            side: "enemy",
+            totalCandidateTexts: [
+              enemyTotalResult.text,
+              enemyTotalCandidateResult.text,
+              ...(enemyTotalCandidateResult.traces || []).map((trace) => trace.text),
+            ],
+          }
+        );
+        if (lateStage3EnemySevenDigitRecovery.applied) {
+          correctionLogs.push(
+            `stage3EnemySevenDigitRecovery applied members=${lateStage3EnemySevenDigitRecovery.members.join(",")} total=${lateStage3EnemySevenDigitRecovery.total} bonus=${lateStage3EnemySevenDigitRecovery.bonus} candidate=${lateStage3EnemySevenDigitRecovery.candidate}`
+          );
+          correctedEnemyMembers = lateStage3EnemySevenDigitRecovery.members;
+          enemyTotal = lateStage3EnemySevenDigitRecovery.total;
         }
 
         const formatDebugNumbers = (numbers) =>

@@ -1891,6 +1891,88 @@ export function applySmartphoneTotalCrownBonusRecovery(
   };
 }
 
+export function applySmartphoneStage2EnemyBonusRecovery(
+  selectedMembers,
+  selectedTotal,
+  totalCandidates = [],
+  bonusCandidates = [],
+  rawCandidates = [],
+  options = {}
+) {
+  if (normalizeOcrMode(options.mode) !== "smartphone") {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  if (options.stage !== 2 || options.side !== "enemy") {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  if (!Array.isArray(selectedMembers) || selectedMembers.length !== 3) {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  const members = selectedMembers.map((value) => Number(value) || 0);
+  if (members.some((value) => value < 10000 || value >= 1000000)) {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  const currentTotal = Number(selectedTotal || 0);
+  const memberSum = members.reduce((sum, value) => sum + value, 0);
+  if (memberSum < 100000 || Math.abs(currentTotal - memberSum) > 1) {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  const allNumbers = uniqueNumbers([
+    ...(totalCandidates || []),
+    ...(bonusCandidates || []),
+    ...(rawCandidates || []),
+  ])
+    .map((value) => Number(value) || 0)
+    .filter((value) => Number.isFinite(value) && value > 0);
+  const displayedTotals = allNumbers
+    .filter((value) => value >= 100000 && value < 3000000)
+    .filter((value) => value > currentTotal)
+    .filter((value) => !members.some((member) => Math.abs(member - value) <= 1));
+  const bonuses = allNumbers
+    .filter((value) => value >= 10000 && value < 200000)
+    .filter((value) => !members.some((member) => Math.abs(member - value) <= 1))
+    .filter((value) => Math.abs(value - currentTotal) > 1000);
+
+  const matches = [];
+  for (const displayedTotal of displayedTotals) {
+    for (const bonus of bonuses) {
+      if (memberSum + bonus !== displayedTotal) continue;
+      matches.push({
+        members,
+        total: displayedTotal,
+        bonus,
+      });
+    }
+  }
+
+  const uniqueMatches = matches.filter(
+    (match, index, all) =>
+      all.findIndex(
+        (other) =>
+          other.total === match.total &&
+          other.bonus === match.bonus &&
+          other.members.join(",") === match.members.join(",")
+      ) === index
+  );
+
+  if (uniqueMatches.length !== 1) {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  const match = uniqueMatches[0];
+  return {
+    members: match.members,
+    total: match.total,
+    bonus: match.bonus,
+    applied: true,
+  };
+}
+
 export function applySmartphoneRowZoneSevenDigitRecovery(
   selectedMembers,
   selectedTotal,
@@ -2253,13 +2335,19 @@ export function applySmartphoneStage3EnemySevenDigitRecovery(
   }
 
   const selectedNumbers = selectedMembers.map((value) => Number(value) || 0);
-  if (selectedNumbers.some((value) => value <= 0)) {
+  const currentMembers = selectedNumbers.filter((value) => value > 0);
+  const isTrailingBlankThird =
+    selectedNumbers.length >= 3 && selectedNumbers[0] > 0 && selectedNumbers[1] > 0 && selectedNumbers[2] <= 0;
+  const isTwoMemberSelection = currentMembers.length === 2 && isTrailingBlankThird;
+  if (!(currentMembers.length === 3 || isTwoMemberSelection)) {
     return { members: selectedMembers, total: selectedTotal, applied: false };
   }
 
   const selectedThirdAsBonus =
-    selectedNumbers[2] >= 10000 && selectedNumbers[2] < 500000 ? selectedNumbers[2] : 0;
-  if (selectedThirdAsBonus <= 0) {
+    currentMembers.length === 3 && selectedNumbers[2] >= 10000 && selectedNumbers[2] < 500000
+      ? selectedNumbers[2]
+      : 0;
+  if (currentMembers.length === 3 && selectedThirdAsBonus <= 0) {
     return { members: selectedMembers, total: selectedTotal, applied: false };
   }
 
@@ -2273,7 +2361,7 @@ export function applySmartphoneStage3EnemySevenDigitRecovery(
       .map((value) => Number(value) || 0)
       .filter((value) => Number.isFinite(value) && value > 0)
   );
-  if (memberNumbers.length < 4) {
+  if (memberNumbers.length < 3) {
     return { members: selectedMembers, total: selectedTotal, applied: false };
   }
 
@@ -2299,17 +2387,16 @@ export function applySmartphoneStage3EnemySevenDigitRecovery(
     (value) =>
       value >= 1000000 &&
       value < 10000000 &&
-      !selectedNumbers.some((member) => Math.abs(member - value) <= 1) &&
-      Math.abs(currentTotal - value) > 1
+      !currentMembers.some((member) => Math.abs(member - value) <= 1)
   );
-  if (cleanSevenDigitCandidates.length === 0 || observedBonusCandidates.length === 0) {
+  if (cleanSevenDigitCandidates.length === 0) {
     return { members: selectedMembers, total: selectedTotal, applied: false };
   }
 
   const matches = [];
-  for (let index = 0; index <= memberNumbers.length - 4; index += 1) {
+  for (let index = 0; index <= memberNumbers.length - 3; index += 1) {
     const proposedMembers = memberNumbers.slice(index, index + 3);
-    const rowBonus = memberNumbers[index + 3];
+    const rowBonus = memberNumbers[index + 3] || 0;
 
     const proposedSevenDigitMembers = proposedMembers.filter((member) =>
       cleanSevenDigitCandidates.some((value) => Math.abs(value - member) <= 1)
@@ -2318,24 +2405,35 @@ export function applySmartphoneStage3EnemySevenDigitRecovery(
       continue;
     }
     const candidate = proposedSevenDigitMembers[0];
-    if (Math.abs(rowBonus - selectedThirdAsBonus) > 1) {
-      continue;
-    }
     const proposedWithoutSevenDigit = proposedMembers.filter(
       (member) => Math.abs(member - candidate) > 1
     );
     if (
       proposedWithoutSevenDigit.length !== 2 ||
-      Math.abs(proposedWithoutSevenDigit[0] - selectedNumbers[0]) > 1 ||
-      Math.abs(proposedWithoutSevenDigit[1] - selectedNumbers[1]) > 1
+      Math.abs(proposedWithoutSevenDigit[0] - currentMembers[0]) > 1 ||
+      Math.abs(proposedWithoutSevenDigit[1] - currentMembers[1]) > 1
     ) {
       continue;
     }
 
-    for (const bonus of observedBonusCandidates) {
-      if (Math.abs(bonus - selectedThirdAsBonus) > 1) continue;
+    const proposedMemberSum = proposedMembers.reduce((sum, value) => sum + value, 0);
+    const displayedTotals = uniqueNumbers([
+      ...totalNumbers,
+      ...joinedTotalNumbers.map((candidateTotal) => candidateTotal.value),
+    ]).filter((value) => value > currentTotal && value < 5000000);
 
-      const proposedMemberSum = proposedMembers.reduce((sum, value) => sum + value, 0);
+    const bonusPool =
+      selectedThirdAsBonus > 0
+        ? observedBonusCandidates.filter((bonus) => Math.abs(bonus - selectedThirdAsBonus) <= 1)
+        : displayedTotals
+            .map((displayedTotal) => displayedTotal - proposedMemberSum)
+            .filter((bonus) => bonus >= 10000 && bonus < 500000);
+
+    if (rowBonus > 0 && selectedThirdAsBonus > 0 && Math.abs(rowBonus - selectedThirdAsBonus) > 1) {
+      continue;
+    }
+
+    for (const bonus of uniqueNumbers(bonusPool)) {
       const proposedTotal = proposedMemberSum + bonus;
       if (proposedTotal <= currentTotal || proposedTotal >= 5000000) continue;
 
@@ -2359,6 +2457,7 @@ export function applySmartphoneStage3EnemySevenDigitRecovery(
           proposedMembers[0] === candidate
             ? "stage3-enemy-leading-seven-digit-with-bonus-member"
             : "stage3-enemy-middle-seven-digit-with-bonus-member",
+        bonusEvidence: selectedThirdAsBonus > 0 ? "selected-third" : "inferred-from-exact-total",
       });
     }
   }
@@ -2387,6 +2486,7 @@ export function applySmartphoneStage3EnemySevenDigitRecovery(
     applied: true,
     matchedPattern: match.matchedPattern,
     exactTotalSourceCount: match.exactTotalSourceCount,
+    bonusEvidence: match.bonusEvidence,
   };
 }
 

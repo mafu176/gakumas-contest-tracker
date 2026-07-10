@@ -9,6 +9,7 @@ import {
   applySmartphoneSparseTrailingZeroPreservation,
   applySmartphoneTotalLikeMemberSuppression,
   applySmartphoneTotalCrownBonusRecovery,
+  applySmartphoneStage2EnemyBonusRecovery,
   applySmartphoneRowZoneSevenDigitRecovery,
   applySmartphoneStage3SelfSevenDigitDisplacementRecovery,
   applySmartphoneStage3EnemySevenDigitRecovery,
@@ -3894,6 +3895,32 @@ async function runOcrForImage(imagePath, options = {}) {
         };
       }
 
+      const stage2EnemyBonusRecovery = applySmartphoneStage2EnemyBonusRecovery(
+        selectedMembers,
+        selectedTotal,
+        totalReferences,
+        bonusCandidates,
+        rawCandidates,
+        { mode: ocrSource, stage, side }
+      );
+      if (stage2EnemyBonusRecovery.applied) {
+        knownCorrectionDeltas.push({
+          pass: "stage2EnemyBonusRecovery applied",
+          before: cloneStageState({ self, enemy, selfTotal, enemyTotal }),
+          after: cloneStageState({
+            self,
+            enemy: side === "enemy" ? stage2EnemyBonusRecovery.members : enemy,
+            selfTotal,
+            enemyTotal: side === "enemy" ? stage2EnemyBonusRecovery.total : enemyTotal,
+          }),
+          message: `stage2EnemyBonusRecovery applied members=${stage2EnemyBonusRecovery.members.join(",")} total=${stage2EnemyBonusRecovery.total} bonus=${stage2EnemyBonusRecovery.bonus}`,
+        });
+        return {
+          members: stage2EnemyBonusRecovery.members,
+          total: stage2EnemyBonusRecovery.total,
+        };
+      }
+
       const rawBonusesForCompleteCombo = [...new Set(bonusCandidates)]
         .filter((num) => num >= 10000 && num < 100000);
       const rawLowBonusLikeForCompleteCombo = rawNumbers
@@ -4311,6 +4338,69 @@ async function runOcrForImage(imagePath, options = {}) {
       });
       self = lateLeadingBonusRecovery.members;
       selfTotal = lateLeadingBonusRecovery.total;
+    }
+
+    const finalEnemyDebugCandidates = [
+      ...enemyTotalReferences,
+      ...originalEnemyMemberNumbers,
+      ...enemyMemberNumbers,
+      ...enemyCrownCandidates,
+    ];
+    const lateStage2EnemyBonusRecovery = applySmartphoneStage2EnemyBonusRecovery(
+      enemy,
+      enemyTotal,
+      enemyTotalReferences,
+      enemyCrownCandidates,
+      finalEnemyDebugCandidates,
+      { mode: ocrSource, stage, side: "enemy" }
+    );
+    if (lateStage2EnemyBonusRecovery.applied) {
+      knownCorrectionDeltas.push({
+        pass: "stage2EnemyBonusRecovery applied",
+        before: cloneStageState({ self, enemy, selfTotal, enemyTotal }),
+        after: cloneStageState({
+          self,
+          enemy: lateStage2EnemyBonusRecovery.members,
+          selfTotal,
+          enemyTotal: lateStage2EnemyBonusRecovery.total,
+        }),
+        message: `stage2EnemyBonusRecovery applied members=${lateStage2EnemyBonusRecovery.members.join(",")} total=${lateStage2EnemyBonusRecovery.total} bonus=${lateStage2EnemyBonusRecovery.bonus}`,
+      });
+      enemy = lateStage2EnemyBonusRecovery.members;
+      enemyTotal = lateStage2EnemyBonusRecovery.total;
+    }
+
+    const lateStage3EnemySevenDigitRecovery = applySmartphoneStage3EnemySevenDigitRecovery(
+      enemy,
+      enemyTotal,
+      [...originalEnemyMemberNumbers, ...enemyMemberNumbers],
+      enemyTotalReferences,
+      enemyCrownCandidates,
+      {
+        mode: ocrSource,
+        stage,
+        side: "enemy",
+        totalCandidateTexts: [
+          enemyTotalResult.text,
+          enemyTotalCandidateResult.text,
+          ...(enemyTotalCandidateResult.traces || []).map((trace) => trace.text),
+        ],
+      }
+    );
+    if (lateStage3EnemySevenDigitRecovery.applied) {
+      knownCorrectionDeltas.push({
+        pass: "stage3EnemySevenDigitRecovery applied",
+        before: cloneStageState({ self, enemy, selfTotal, enemyTotal }),
+        after: cloneStageState({
+          self,
+          enemy: lateStage3EnemySevenDigitRecovery.members,
+          selfTotal,
+          enemyTotal: lateStage3EnemySevenDigitRecovery.total,
+        }),
+        message: `stage3EnemySevenDigitRecovery applied members=${lateStage3EnemySevenDigitRecovery.members.join(",")} total=${lateStage3EnemySevenDigitRecovery.total} bonus=${lateStage3EnemySevenDigitRecovery.bonus} candidate=${lateStage3EnemySevenDigitRecovery.candidate}`,
+      });
+      enemy = lateStage3EnemySevenDigitRecovery.members;
+      enemyTotal = lateStage3EnemySevenDigitRecovery.total;
     }
 
     const stageResult = {
