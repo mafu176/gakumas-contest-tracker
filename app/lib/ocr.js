@@ -1601,6 +1601,14 @@ export function applySmartphoneLeadingBonusMemberRecovery(
 
   const fixedMembers = currentMembers.slice(1);
   const inferredDisplayedBonus = total - currentMembers.reduce((sum, value) => sum + value, 0);
+  if (
+    inferredDisplayedBonus < 10000 ||
+    inferredDisplayedBonus >= 500000 ||
+    leadingBonus >= inferredDisplayedBonus
+  ) {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
   const matches = rawNumbers
     .filter((value) => value >= 10000 && value < 1000000)
     .filter((value) => !currentMembers.some((member) => Math.abs(member - value) <= 1))

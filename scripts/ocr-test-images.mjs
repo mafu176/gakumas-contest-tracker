@@ -4204,6 +4204,35 @@ async function runOcrForImage(imagePath, options = {}) {
       });
     }
 
+    const finalSelfDebugCandidates = [
+      ...selfTotalReferences,
+      ...originalSelfMemberNumbers,
+      ...selfMemberNumbers,
+      ...selfCrownCandidates,
+    ];
+    const lateLeadingBonusRecovery = applySmartphoneLeadingBonusMemberRecovery(
+      self,
+      selfTotal,
+      finalSelfDebugCandidates,
+      selfCrownCandidates,
+      { mode: ocrSource, stage, side: "self" }
+    );
+    if (lateLeadingBonusRecovery.applied) {
+      knownCorrectionDeltas.push({
+        pass: "stage2SelfLeadingBonusRecovery applied",
+        before: cloneStageState({ self, enemy, selfTotal, enemyTotal }),
+        after: cloneStageState({
+          self: lateLeadingBonusRecovery.members,
+          enemy,
+          selfTotal: lateLeadingBonusRecovery.total,
+          enemyTotal,
+        }),
+        message: `stage2SelfLeadingBonusRecovery applied members=${lateLeadingBonusRecovery.members.join(",")} total=${lateLeadingBonusRecovery.total} bonus=${lateLeadingBonusRecovery.bonus} candidate=${lateLeadingBonusRecovery.candidate}`,
+      });
+      self = lateLeadingBonusRecovery.members;
+      selfTotal = lateLeadingBonusRecovery.total;
+    }
+
     const stageResult = {
       selfTotal,
       enemyTotal,

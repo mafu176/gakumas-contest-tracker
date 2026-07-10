@@ -2969,6 +2969,27 @@ export default function Home() {
           );
         }
 
+        const finalSelfDebugCandidates = [
+          ...selfTotalReferences,
+          ...originalSelfMemberNumbers,
+          ...selfMemberNumbers,
+          ...selfCrownCandidates,
+        ];
+        const lateLeadingBonusRecovery = applySmartphoneLeadingBonusMemberRecovery(
+          correctedSelfMembers,
+          selfTotal,
+          finalSelfDebugCandidates,
+          selfCrownCandidates,
+          { mode: activeOcrMode, stage, side: "self" }
+        );
+        if (lateLeadingBonusRecovery.applied) {
+          correctionLogs.push(
+            `stage2SelfLeadingBonusRecovery applied members=${lateLeadingBonusRecovery.members.join(",")} total=${lateLeadingBonusRecovery.total} bonus=${lateLeadingBonusRecovery.bonus} candidate=${lateLeadingBonusRecovery.candidate}`
+          );
+          correctedSelfMembers = lateLeadingBonusRecovery.members;
+          selfTotal = lateLeadingBonusRecovery.total;
+        }
+
         const formatDebugNumbers = (numbers) =>
           uniqueNumbers(numbers)
             .map((num) => Number(num))
@@ -3024,10 +3045,7 @@ export default function Home() {
           ].join("\n");
         };
         const selfDebugCandidates = [
-          ...selfTotalReferences,
-          ...originalSelfMemberNumbers,
-          ...selfMemberNumbers,
-          ...selfCrownCandidates,
+          ...finalSelfDebugCandidates,
         ];
         const enemyDebugCandidates = [
           ...enemyTotalReferences,
