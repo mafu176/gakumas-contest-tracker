@@ -121,6 +121,7 @@ import {
   applySmartphoneTotalCrownBonusRecovery,
   applySmartphoneRowZoneSevenDigitRecovery,
   applySmartphoneStage3SelfSevenDigitDisplacementRecovery,
+  applySmartphoneStage3EnemySevenDigitRecovery,
   applyDesktopMemberShape,
   pickDesktopTotalFromMemberShape,
   pickMemberNumbers,
@@ -2944,6 +2945,31 @@ export default function Home() {
           );
           correctedEnemyMembers = rowZoneEnemyRecovery.members;
           enemyTotal = rowZoneEnemyRecovery.total;
+        }
+
+        const stage3EnemySevenDigitRecovery = applySmartphoneStage3EnemySevenDigitRecovery(
+          correctedEnemyMembers,
+          enemyTotal,
+          [...originalEnemyMemberNumbers, ...enemyMemberNumbers],
+          enemyTotalReferences,
+          enemyCrownCandidates,
+          {
+            mode: activeOcrMode,
+            stage,
+            side: "enemy",
+            totalCandidateTexts: [
+              enemyTotalResult.text,
+              enemyTotalCandidateResult.text,
+              ...(enemyTotalCandidateResult.traces || []).map((trace) => trace.text),
+            ],
+          }
+        );
+        if (stage3EnemySevenDigitRecovery.applied) {
+          correctionLogs.push(
+            `stage3EnemySevenDigitRecovery applied members=${stage3EnemySevenDigitRecovery.members.join(",")} total=${stage3EnemySevenDigitRecovery.total} bonus=${stage3EnemySevenDigitRecovery.bonus} candidate=${stage3EnemySevenDigitRecovery.candidate}`
+          );
+          correctedEnemyMembers = stage3EnemySevenDigitRecovery.members;
+          enemyTotal = stage3EnemySevenDigitRecovery.total;
         }
 
         const beforeFinalKnownCorrection = {

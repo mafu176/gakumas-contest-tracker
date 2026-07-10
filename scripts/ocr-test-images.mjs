@@ -11,6 +11,7 @@ import {
   applySmartphoneTotalCrownBonusRecovery,
   applySmartphoneRowZoneSevenDigitRecovery,
   applySmartphoneStage3SelfSevenDigitDisplacementRecovery,
+  applySmartphoneStage3EnemySevenDigitRecovery,
 } from "../app/lib/ocr.js";
 import { applyKnownOcrCorrections, applyKnownOcrSetCorrections } from "../app/lib/ocrPostProcess.js";
 
@@ -451,8 +452,47 @@ function buildStage3SelfSevenDigitDisplacementSimulation({
     memberCandidateNumbers,
   });
   const proposals = [];
+  const isStage3Self = stage === 3 && side === "self";
+  const isStage3Enemy = stage === 3 && side === "enemy";
 
-  for (const candidate of cleanSevenDigitCandidates) {
+  if (isStage3Enemy) {
+    for (let index = 0; index <= memberNumbers.length - 4; index += 1) {
+      const proposedMembers = memberNumbers.slice(index, index + 3);
+      const rowBonus = memberNumbers[index + 3];
+      const proposedSevenDigitMembers = proposedMembers.filter((member) =>
+        cleanSevenDigitCandidates.some((value) => Math.abs(value - member) <= 1)
+      );
+      if (proposedSevenDigitMembers.length !== 1) continue;
+
+      const candidate = proposedSevenDigitMembers[0];
+      const proposedWithoutSevenDigit = proposedMembers.filter(
+        (member) => Math.abs(member - candidate) > 1
+      );
+      const selectedRowMatches =
+        proposedWithoutSevenDigit.length === 2 &&
+        Math.abs(proposedWithoutSevenDigit[0] - selectedMembers[0]) <= 1 &&
+        Math.abs(proposedWithoutSevenDigit[1] - selectedMembers[1]) <= 1;
+
+      for (const bonus of bonusPool) {
+        const proposedTotal = proposedMembers.reduce((sum, value) => sum + value, 0) + bonus;
+        const matchingDisplayedTotals = refs.filter((value) => Math.abs(value - proposedTotal) <= 1);
+        const totalEvidence = getStage3TotalEvidenceForValue(proposedTotal, totalEvidenceSources);
+        proposals.push({
+          candidate,
+          bonus,
+          proposedMembers,
+          proposedTotal,
+          currentTotalDelta: proposedTotal - selectedTotal,
+          matchingDisplayedTotals,
+          totalEvidence,
+          candidateInMemberRow: true,
+          selectedThirdMatchesBonus: Math.abs(selectedMembers[2] - bonus) <= 1,
+          selectedRowMatches,
+        });
+      }
+    }
+  } else {
+    for (const candidate of cleanSevenDigitCandidates) {
     for (const bonus of bonusPool) {
       const proposedMembers = [candidate, selectedMembers[0], selectedMembers[1]];
       const proposedTotal = proposedMembers.reduce((sum, value) => sum + value, 0) + bonus;
@@ -468,7 +508,9 @@ function buildStage3SelfSevenDigitDisplacementSimulation({
         totalEvidence,
         candidateInMemberRow: memberNumbers.some((value) => Math.abs(value - candidate) <= 1),
         selectedThirdMatchesBonus: Math.abs(selectedMembers[2] - bonus) <= 1,
+        selectedRowMatches: true,
       });
+    }
     }
   }
 
@@ -476,22 +518,24 @@ function buildStage3SelfSevenDigitDisplacementSimulation({
     (proposal) =>
       proposal.matchingDisplayedTotals.length > 0 &&
       proposal.candidateInMemberRow &&
-      proposal.selectedThirdMatchesBonus
+      proposal.selectedThirdMatchesBonus &&
+      proposal.selectedRowMatches
   );
   const enhancedExactProposals = proposals.filter(
     (proposal) =>
       proposal.candidateInMemberRow &&
       proposal.selectedThirdMatchesBonus &&
+      proposal.selectedRowMatches &&
       proposal.totalEvidence.hasExactEvidence &&
       proposal.totalEvidence.ambiguousExactEvidence === false
   );
   const rejectionReasons = [];
   const enhancedRejectionReasons = [];
 
-  if (!(stage === 3 && side === "self")) {
-    rejectionReasons.push("not-stage3-self");
+  if (!isStage3Self && !isStage3Enemy) {
+    rejectionReasons.push("not-stage3-self-or-enemy");
   }
-  if (Math.abs(selectedTotal - selectedMemberSum) > 1) {
+  if (isStage3Self && Math.abs(selectedTotal - selectedMemberSum) > 1) {
     rejectionReasons.push("current-total-is-not-selected-member-sum");
   }
   if (!(selectedMembers[0] > 0 && selectedMembers[1] > 0 && selectedMembers[2] > 0)) {
@@ -530,6 +574,9 @@ function buildStage3SelfSevenDigitDisplacementSimulation({
     rejectionReasons,
     enhancedRejectionReasons,
     current: {
+      recoveryKind: isStage3Enemy
+        ? "stage3EnemySevenDigitRecovery"
+        : "stage3SelfSevenDigitDisplacementRecovery",
       members: selectedMembers,
       total: selectedTotal,
       memberSum: selectedMemberSum,
@@ -4186,6 +4233,39 @@ async function runOcrForImage(imagePath, options = {}) {
       enemyTotal = rowZoneEnemyRecovery.total;
     }
 
+    const stage3EnemySevenDigitRecovery = applySmartphoneStage3EnemySevenDigitRecovery(
+      enemy,
+      enemyTotal,
+      [...originalEnemyMemberNumbers, ...enemyMemberNumbers],
+      enemyTotalReferences,
+      enemyCrownCandidates,
+      {
+        mode: ocrSource,
+        stage,
+        side: "enemy",
+        totalCandidateTexts: [
+          enemyTotalResult.text,
+          enemyTotalCandidateResult.text,
+          ...(enemyTotalCandidateResult.traces || []).map((trace) => trace.text),
+        ],
+      }
+    );
+    if (stage3EnemySevenDigitRecovery.applied) {
+      knownCorrectionDeltas.push({
+        pass: "stage3EnemySevenDigitRecovery applied",
+        before: cloneStageState({ self, enemy, selfTotal, enemyTotal }),
+        after: cloneStageState({
+          self,
+          enemy: stage3EnemySevenDigitRecovery.members,
+          selfTotal,
+          enemyTotal: stage3EnemySevenDigitRecovery.total,
+        }),
+        message: `stage3EnemySevenDigitRecovery applied members=${stage3EnemySevenDigitRecovery.members.join(",")} total=${stage3EnemySevenDigitRecovery.total} bonus=${stage3EnemySevenDigitRecovery.bonus} candidate=${stage3EnemySevenDigitRecovery.candidate}`,
+      });
+      enemy = stage3EnemySevenDigitRecovery.members;
+      enemyTotal = stage3EnemySevenDigitRecovery.total;
+    }
+
     const beforeKnownCorrection2 = cloneStageState({ self, enemy, selfTotal, enemyTotal });
     if (shouldApplyKnownOcrCorrection(fileName, stage, options.disabledKnownCorrections)) {
       ({ self, enemy, selfTotal, enemyTotal } = applyKnownOcrCorrections(fileName, stage, {
@@ -4356,6 +4436,8 @@ async function runOcrForImage(imagePath, options = {}) {
           },
           sparseTotalAsMemberSimulation,
           stage3SelfSevenDigitDisplacementSimulation,
+          stage3EnemySevenDigitRecoverySimulation:
+            side === "enemy" ? stage3SelfSevenDigitDisplacementSimulation : null,
         };
       };
 

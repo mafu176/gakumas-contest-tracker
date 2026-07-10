@@ -356,16 +356,16 @@ Remaining failures were not auto-corrected:
 | Image | Classification |
 | --- | --- |
 | `IMG_9320` | Stage2 enemy small-row member shift; unsafe small-score/digit-confusion pattern. |
-| `IMG_9321` | Stage3 enemy 7-digit/member/bonus displacement; recovery is self-side only for now. |
-| `IMG_9322` | Stage3 enemy displacement with conflicting member/total selection. |
+| `IMG_9321` | Stage3 enemy 7-digit/member/bonus displacement; now recovered by the guarded Stage3 enemy rule. |
+| `IMG_9322` | Stage3 enemy displacement with conflicting member/total selection; remains blocked because it does not match the exact selected-third-as-bonus row guard. |
 | `IMG_9323` | Stage2 self row shift plus severe Stage3 self displacement; no exact guarded production proposal. |
 | `IMG_9324` | Stage3 self displacement remains blocked by guard evidence. |
 | `IMG_9328` | Stage3 self partial displacement remains blocked by guard evidence. |
 | `IMG_9333` | Stage2 self row shift plus Stage3 enemy displacement. |
-| `IMG_9334` | Stage3 self order/slot issue and Stage3 enemy displacement. |
-| `IMG_9335` | Stage2 enemy order issue plus Stage3 enemy displacement. |
+| `IMG_9334` | Stage3 self order/slot issue remains; Stage3 enemy is now recovered by the guarded middle-7-digit enemy rule. |
+| `IMG_9335` | Stage2 enemy order issue remains; Stage3 enemy is now recovered by the guarded leading-7-digit enemy rule. |
 | `IMG_9336` | Stage3 self displacement remains blocked by guard evidence. |
-| `IMG_9337` | Stage1 self row shift plus Stage3 self and enemy displacement. |
+| `IMG_9337` | Stage1 self row shift and Stage3 self displacement remain; Stage3 enemy is now recovered by the guarded leading-7-digit enemy rule. |
 
 No filename/stage-specific corrections were added. No near-match totals or
 arbitrary digit inference were used.
@@ -377,3 +377,24 @@ Control observations:
 - `IMG_9329` is the only new pass from the production change.
 - Desktop safety image `pc-rehearsal-bonus-member-shift.png` still reports zero
   failures.
+
+## Stage3 enemy 7-digit recovery follow-up
+
+The Stage3 enemy follow-up is documented in
+`docs/smartphone-ocr-stage3-enemy-7digit.md`.
+
+Four independent positives shared a strict ordered-row pattern:
+
+- the selected enemy row dropped one clean observed 7-digit member
+- the remaining two selected enemy members preserved row order
+- selected enemy member3 was the exact bonus-like value
+- the member row contained `[three proposed members, selected bonus]`
+- proposed members plus selected bonus matched an exact displayed total
+- exactly one proposal matched
+
+Production recovery was added for that pattern only. It recovered Stage3 enemy
+for `IMG_9321`, `IMG_9334`, `IMG_9335`, and `IMG_9337`.
+
+`IMG_9322` remains intentionally blocked because its expected 7-digit member is
+selected as the total and the selected third value is a near-but-wrong
+bonus-like value, so the exact ordered-row guard does not apply.

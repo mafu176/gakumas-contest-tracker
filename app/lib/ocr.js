@@ -2232,6 +2232,164 @@ export function applySmartphoneStage3SelfSevenDigitDisplacementRecovery(
   };
 }
 
+export function applySmartphoneStage3EnemySevenDigitRecovery(
+  selectedMembers,
+  selectedTotal,
+  memberCandidates = [],
+  totalCandidates = [],
+  bonusCandidates = [],
+  options = {}
+) {
+  if (normalizeOcrMode(options.mode) !== "smartphone") {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  if (options.stage !== 3 || options.side !== "enemy") {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  if (!Array.isArray(selectedMembers) || selectedMembers.length !== 3) {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  const selectedNumbers = selectedMembers.map((value) => Number(value) || 0);
+  if (selectedNumbers.some((value) => value <= 0)) {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  const selectedThirdAsBonus =
+    selectedNumbers[2] >= 10000 && selectedNumbers[2] < 500000 ? selectedNumbers[2] : 0;
+  if (selectedThirdAsBonus <= 0) {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  const currentTotal = Number(selectedTotal || 0);
+  if (currentTotal <= 0) {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  const memberNumbers = uniqueNumbers(
+    (memberCandidates || [])
+      .map((value) => Number(value) || 0)
+      .filter((value) => Number.isFinite(value) && value > 0)
+  );
+  if (memberNumbers.length < 4) {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  const totalNumbers = uniqueNumbers(
+    (totalCandidates || [])
+      .map((value) => Number(value) || 0)
+      .filter((value) => Number.isFinite(value) && value > 0)
+  );
+  const totalTextCandidates = (options.totalCandidateTexts || [])
+    .map((value) => String(value ?? ""))
+    .filter(Boolean);
+  const joinedTotalNumbers = totalTextCandidates.flatMap((text) =>
+    buildJoinedTotalCandidates(text)
+  );
+  const observedBonusCandidates = uniqueNumbers([
+    ...(bonusCandidates || [])
+      .map((value) => Number(value) || 0)
+      .filter((value) => Number.isFinite(value) && value > 0),
+    selectedThirdAsBonus,
+  ]).filter((value) => value >= 10000 && value < 500000);
+
+  const cleanSevenDigitCandidates = memberNumbers.filter(
+    (value) =>
+      value >= 1000000 &&
+      value < 10000000 &&
+      !selectedNumbers.some((member) => Math.abs(member - value) <= 1) &&
+      Math.abs(currentTotal - value) > 1
+  );
+  if (cleanSevenDigitCandidates.length === 0 || observedBonusCandidates.length === 0) {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  const matches = [];
+  for (let index = 0; index <= memberNumbers.length - 4; index += 1) {
+    const proposedMembers = memberNumbers.slice(index, index + 3);
+    const rowBonus = memberNumbers[index + 3];
+
+    const proposedSevenDigitMembers = proposedMembers.filter((member) =>
+      cleanSevenDigitCandidates.some((value) => Math.abs(value - member) <= 1)
+    );
+    if (proposedSevenDigitMembers.length !== 1) {
+      continue;
+    }
+    const candidate = proposedSevenDigitMembers[0];
+    if (Math.abs(rowBonus - selectedThirdAsBonus) > 1) {
+      continue;
+    }
+    const proposedWithoutSevenDigit = proposedMembers.filter(
+      (member) => Math.abs(member - candidate) > 1
+    );
+    if (
+      proposedWithoutSevenDigit.length !== 2 ||
+      Math.abs(proposedWithoutSevenDigit[0] - selectedNumbers[0]) > 1 ||
+      Math.abs(proposedWithoutSevenDigit[1] - selectedNumbers[1]) > 1
+    ) {
+      continue;
+    }
+
+    for (const bonus of observedBonusCandidates) {
+      if (Math.abs(bonus - selectedThirdAsBonus) > 1) continue;
+
+      const proposedMemberSum = proposedMembers.reduce((sum, value) => sum + value, 0);
+      const proposedTotal = proposedMemberSum + bonus;
+      if (proposedTotal <= currentTotal || proposedTotal >= 5000000) continue;
+
+      const matchingDisplayedTotals = totalNumbers.filter(
+        (value) => Math.abs(value - proposedTotal) <= 1
+      );
+      const matchingJoinedDisplayedTotals = joinedTotalNumbers.filter(
+        (candidateTotal) => Math.abs(candidateTotal.value - proposedTotal) <= 1
+      );
+      const exactTotalSourceCount =
+        matchingDisplayedTotals.length + matchingJoinedDisplayedTotals.length;
+      if (exactTotalSourceCount === 0) continue;
+
+      matches.push({
+        members: proposedMembers,
+        total: proposedTotal,
+        bonus,
+        candidate,
+        exactTotalSourceCount,
+        matchedPattern:
+          proposedMembers[0] === candidate
+            ? "stage3-enemy-leading-seven-digit-with-bonus-member"
+            : "stage3-enemy-middle-seven-digit-with-bonus-member",
+      });
+    }
+  }
+
+  const uniqueMatches = matches.filter(
+    (match, index, all) =>
+      all.findIndex(
+        (other) =>
+          other.total === match.total &&
+          other.bonus === match.bonus &&
+          other.candidate === match.candidate &&
+          other.members.join(",") === match.members.join(",")
+      ) === index
+  );
+
+  if (uniqueMatches.length !== 1) {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
+
+  const match = uniqueMatches[0];
+  return {
+    members: match.members,
+    total: match.total,
+    bonus: match.bonus,
+    candidate: match.candidate,
+    applied: true,
+    matchedPattern: match.matchedPattern,
+    exactTotalSourceCount: match.exactTotalSourceCount,
+  };
+}
+
 export function normalizeMemberScore(num) {
   return num;
 }
