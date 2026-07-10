@@ -125,3 +125,31 @@ Recommended next step for broader coverage:
 - improve runner-only Stage3 self ROI total/member extraction
 - look for more samples where the exact displayed total is captured cleanly
 - do not loosen production beyond the strict exact-total guard
+
+## IMG_9320-IMG_9337 Follow-up
+
+The `IMG_9320`-`IMG_9337` batch added one new safe positive:
+
+- `IMG_9329` Stage3 self has member-row order `1107136 / 548299 / 567465`
+  followed by bonus `221427`, while selected OCR had shifted to
+  `548299 / 567465 / 221427`.
+- The displayed total was observed as exact joined total fragments
+  `2` + `444` + `327` in total-candidate OCR text.
+- Production recovery now accepts exact joined total fragments only when the
+  member-row candidates contain the leading sequence
+  `[sevenDigitCandidate, currentMember1, currentMember2]`.
+
+This keeps the rule from reordering cases where the seven-digit value appears
+after the selected members. In particular, `IMG_9319` remains a blocked control
+with the current fixture order `736949 / 549609 / 1189602`; it is not corrected
+by the new joined-fragment path.
+
+The remaining new failures are classified as unsafe for automatic recovery:
+
+| Pattern | Images |
+| --- | --- |
+| Stage3 enemy 7-digit/member/bonus displacement | `IMG_9321`, `IMG_9322`, `IMG_9333`, `IMG_9334`, `IMG_9335`, `IMG_9337` |
+| Stage3 self displacement without exact guarded total/sequence evidence | `IMG_9323`, `IMG_9324`, `IMG_9328`, `IMG_9336`, `IMG_9337` |
+| Stage1/Stage2 row shift, small-score, or total-as-member confusion | `IMG_9320`, `IMG_9323`, `IMG_9333`, `IMG_9335`, `IMG_9337` |
+
+No filename-specific correction was added for those unresolved rows.

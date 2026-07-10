@@ -311,5 +311,69 @@ Strict production recovery is now enabled only for the exact Stage3 self guard
 documented in `docs/smartphone-ocr-stage3-7digit-displacement.md`.
 
 It does not add filename/stage-specific known corrections and does not loosen
-row-zone Stage2 recovery. The only current positive is `IMG_9319`; `IMG_9315`
-through `IMG_9318` remain blocked until their displayed total evidence is exact.
+row-zone Stage2 recovery. At the time of that investigation `IMG_9319` was the
+only strict Stage3 self positive under the then-documented member order, while
+`IMG_9315` through `IMG_9318` remained blocked until their displayed total
+evidence was exact. The later `IMG_9320`-`IMG_9337` follow-up below adds a
+narrower source-order guard and identifies `IMG_9329` as the safe production
+positive for the current fixtures.
+
+## Additional user samples: IMG_9320-IMG_9337
+
+Fifteen smartphone screenshots were added with expected fixtures:
+
+```text
+IMG_9320 IMG_9321 IMG_9322 IMG_9323 IMG_9324
+IMG_9328 IMG_9329 IMG_9330 IMG_9331 IMG_9332
+IMG_9333 IMG_9334 IMG_9335 IMG_9336 IMG_9337
+```
+
+Baseline OCR passed 3 of 15 images (`IMG_9330`, `IMG_9331`, `IMG_9332`).
+After the safe Stage3 self joined-fragment improvement, 4 of 15 pass; the new
+passing image is `IMG_9329`.
+
+The only production change from this batch is generic and guarded:
+
+- Stage3 self only.
+- Current total must equal the wrong selected member sum.
+- Member-row candidates must contain the ordered sequence
+  `[sevenDigitCandidate, currentMember1, currentMember2]`.
+- Selected member3 must be the bonus-like value.
+- The proposed total must have exact parsed total evidence or exact joined
+  digit-fragment evidence from total-candidate OCR text.
+- Exactly one resulting proposal may match.
+
+`IMG_9329` satisfies those guards and recovers to:
+
+```text
+self members: 1107136 / 548299 / 567465
+self total:   2444327
+bonus:        221427
+```
+
+Remaining failures were not auto-corrected:
+
+| Image | Classification |
+| --- | --- |
+| `IMG_9320` | Stage2 enemy small-row member shift; unsafe small-score/digit-confusion pattern. |
+| `IMG_9321` | Stage3 enemy 7-digit/member/bonus displacement; recovery is self-side only for now. |
+| `IMG_9322` | Stage3 enemy displacement with conflicting member/total selection. |
+| `IMG_9323` | Stage2 self row shift plus severe Stage3 self displacement; no exact guarded production proposal. |
+| `IMG_9324` | Stage3 self displacement remains blocked by guard evidence. |
+| `IMG_9328` | Stage3 self partial displacement remains blocked by guard evidence. |
+| `IMG_9333` | Stage2 self row shift plus Stage3 enemy displacement. |
+| `IMG_9334` | Stage3 self order/slot issue and Stage3 enemy displacement. |
+| `IMG_9335` | Stage2 enemy order issue plus Stage3 enemy displacement. |
+| `IMG_9336` | Stage3 self displacement remains blocked by guard evidence. |
+| `IMG_9337` | Stage1 self row shift plus Stage3 self and enemy displacement. |
+
+No filename/stage-specific corrections were added. No near-match totals or
+arbitrary digit inference were used.
+
+Control observations:
+
+- `IMG_9308` remains blocked.
+- `IMG_9310` Stage3 sparse total-as-member remains simulation-only.
+- `IMG_9329` is the only new pass from the production change.
+- Desktop safety image `pc-rehearsal-bonus-member-shift.png` still reports zero
+  failures.

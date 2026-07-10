@@ -4097,7 +4097,16 @@ async function runOcrForImage(imagePath, options = {}) {
         [...originalSelfMemberNumbers, ...selfMemberNumbers],
         selfTotalReferences,
         selfCrownCandidates,
-        { mode: ocrSource, stage, side: "self" }
+        {
+          mode: ocrSource,
+          stage,
+          side: "self",
+          totalCandidateTexts: [
+            selfTotalResult.text,
+            selfTotalCandidateResult.text,
+            ...(selfTotalCandidateResult.traces || []).map((trace) => trace.text),
+          ],
+        }
       );
     if (stage3SelfSevenDigitRecovery.applied) {
       knownCorrectionDeltas.push({

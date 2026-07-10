@@ -410,8 +410,9 @@ export function getAlternativeTotalZones(image, stage, mode, side) {
   }));
 }
 
-export async function recognizeTotalCandidates(image, zones) {
+export async function recognizeTotalCandidatesDetailed(image, zones) {
   const results = [];
+  const traces = [];
   let fallbackZone = null;
   let fallbackResult = null;
 
@@ -423,6 +424,10 @@ export async function recognizeTotalCandidates(image, zones) {
     }
 
     results.push(...result.numbers);
+    traces.push({
+      text: result.text,
+      numbers: result.numbers,
+    });
   }
 
   if (enableNextScreenFallback && results.length === 0 && fallbackZone) {
@@ -432,10 +437,24 @@ export async function recognizeTotalCandidates(image, zones) {
       (candidate) => candidate.numbers.length > 0,
       "total"
     );
-    results.push(...mergeOcrResults(fallbackResult, secondPass || { text: "", numbers: [] }).numbers);
+    const merged = mergeOcrResults(fallbackResult, secondPass || { text: "", numbers: [] });
+    results.push(...merged.numbers);
+    traces.push({
+      text: merged.text,
+      numbers: merged.numbers,
+      fallback: true,
+    });
   }
 
-  return results;
+  return {
+    numbers: results,
+    text: traces.map((trace) => trace.text || "").join("\n"),
+    traces,
+  };
+}
+
+export async function recognizeTotalCandidates(image, zones) {
+  return (await recognizeTotalCandidatesDetailed(image, zones)).numbers;
 }
 
 export async function recognizeCrownBonusCandidates(image, zones) {
@@ -1404,6 +1423,35 @@ export function extractNumbersForZone(text) {
   );
 }
 
+function extractDigitGroups(text = "") {
+  const normalized = String(text ?? "").replace(/[\uFF10-\uFF19]/g, (char) =>
+    String.fromCharCode(char.charCodeAt(0) - 0xfee0)
+  );
+  return [...normalized.matchAll(/\d+/g)].map((match) => ({
+    text: match[0],
+    index: match.index ?? 0,
+  }));
+}
+
+function buildJoinedTotalCandidates(text = "") {
+  const groups = extractDigitGroups(text);
+  const candidates = [];
+  for (let start = 0; start < groups.length; start += 1) {
+    let joined = "";
+    for (let end = start; end < Math.min(groups.length, start + 5); end += 1) {
+      joined += groups[end].text;
+      if (joined.length < 6 || joined.length > 8) continue;
+      const value = Number(joined);
+      if (!Number.isFinite(value) || value < 100000 || value >= 10000000) continue;
+      candidates.push({
+        value,
+        parts: groups.slice(start, end + 1).map((group) => group.text),
+      });
+    }
+  }
+  return candidates;
+}
+
 export function pickTotalNumber(numbers) {
   const candidates = numbers.filter((num) => num >= 10000 && num < 3000000);
   return [...candidates].sort((a, b) => b - a)[0] || numbers[0] || 0;
@@ -1947,6 +1995,12 @@ export function applySmartphoneStage3SelfSevenDigitDisplacementRecovery(
       .map((value) => Number(value) || 0)
       .filter((value) => Number.isFinite(value) && value > 0)
   );
+  const totalTextCandidates = (options.totalCandidateTexts || [])
+    .map((value) => String(value ?? ""))
+    .filter(Boolean);
+  const joinedTotalNumbers = totalTextCandidates.flatMap((text) =>
+    buildJoinedTotalCandidates(text)
+  );
   const bonusPool = uniqueNumbers([
     ...(bonusCandidates || [])
       .map((value) => Number(value) || 0)
@@ -1973,13 +2027,24 @@ export function applySmartphoneStage3SelfSevenDigitDisplacementRecovery(
       if (Math.abs(currentMembers[2] - bonus) > 1) continue;
 
       const proposedMembers = [candidate, currentMembers[0], currentMembers[1]];
+      const leadingSequenceIndex = memberNumbers.findIndex(
+        (value, index) =>
+          Math.abs(value - candidate) <= 1 &&
+          Math.abs((memberNumbers[index + 1] || 0) - currentMembers[0]) <= 1 &&
+          Math.abs((memberNumbers[index + 2] || 0) - currentMembers[1]) <= 1
+      );
+      if (leadingSequenceIndex < 0) continue;
+
       const proposedMemberSum = proposedMembers.reduce((sum, value) => sum + value, 0);
       const proposedTotal = proposedMemberSum + bonus;
       const matchingDisplayedTotals = totalNumbers.filter(
         (value) => Math.abs(value - proposedTotal) <= 1
       );
+      const matchingJoinedDisplayedTotals = joinedTotalNumbers.filter(
+        (candidate) => Math.abs(candidate.value - proposedTotal) <= 1
+      );
 
-      if (matchingDisplayedTotals.length === 0) continue;
+      if (matchingDisplayedTotals.length + matchingJoinedDisplayedTotals.length === 0) continue;
       if (proposedTotal <= currentTotal || proposedTotal >= 5000000) continue;
 
       matches.push({
@@ -1988,6 +2053,7 @@ export function applySmartphoneStage3SelfSevenDigitDisplacementRecovery(
         bonus,
         candidate,
         matchingDisplayedTotals,
+        matchingJoinedDisplayedTotals,
       });
     }
   }
@@ -2015,6 +2081,8 @@ export function applySmartphoneStage3SelfSevenDigitDisplacementRecovery(
     candidate: match.candidate,
     applied: true,
     matchedPattern: "stage3-self-leading-seven-digit-with-bonus-member",
+    totalEvidence:
+      match.matchingDisplayedTotals.length > 0 ? "parsed-total" : "joined-total-fragments",
   };
 }
 

@@ -98,7 +98,7 @@ import {
   getDeviceOcrLayout,
   getFixedOcrZones,
   getAlternativeTotalZones,
-  recognizeTotalCandidates,
+  recognizeTotalCandidatesDetailed,
   getCrownBonusZones,
   getMemberScoreSlotZones,
   getDesktopStage3SelfRecoverySlotZones,
@@ -2041,10 +2041,11 @@ export default function Home() {
           "self"
         );
 
-        const selfTotalCandidates =
+        const selfTotalCandidateResult =
           selfTotalCandidateZones.length > 0
-            ? await recognizeTotalCandidates(image, selfTotalCandidateZones)
-            : [];
+            ? await recognizeTotalCandidatesDetailed(image, selfTotalCandidateZones)
+            : { numbers: [], text: "", traces: [] };
+        const selfTotalCandidates = selfTotalCandidateResult.numbers;
 
         const selfMemberZones = getAlternativeMemberZones(
           image,
@@ -2083,10 +2084,11 @@ export default function Home() {
           "enemy"
         );
 
-        const enemyTotalCandidates =
+        const enemyTotalCandidateResult =
           enemyTotalCandidateZones.length > 0
-            ? await recognizeTotalCandidates(image, enemyTotalCandidateZones)
-            : [];
+            ? await recognizeTotalCandidatesDetailed(image, enemyTotalCandidateZones)
+            : { numbers: [], text: "", traces: [] };
+        const enemyTotalCandidates = enemyTotalCandidateResult.numbers;
 
         const enemyMemberZones = getAlternativeMemberZones(
           image,
@@ -2879,7 +2881,16 @@ export default function Home() {
             [...originalSelfMemberNumbers, ...selfMemberNumbers],
             selfTotalReferences,
             selfCrownCandidates,
-            { mode: activeOcrMode, stage, side: "self" }
+            {
+              mode: activeOcrMode,
+              stage,
+              side: "self",
+              totalCandidateTexts: [
+                selfTotalResult.text,
+                selfTotalCandidateResult.text,
+                ...(selfTotalCandidateResult.traces || []).map((trace) => trace.text),
+              ],
+            }
           );
         if (stage3SelfSevenDigitRecovery.applied) {
           correctionLogs.push(
