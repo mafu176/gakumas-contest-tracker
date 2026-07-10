@@ -5,6 +5,7 @@ import sharp from "sharp";
 import Tesseract, { createWorker } from "tesseract.js";
 import {
   applySmartphoneCrownBonusMemberExclusion,
+  applySmartphoneLeadingBonusMemberRecovery,
   applySmartphoneSparseTrailingZeroPreservation,
   applySmartphoneTotalLikeMemberSuppression,
   applySmartphoneTotalCrownBonusRecovery,
@@ -3811,7 +3812,8 @@ async function runOcrForImage(imagePath, options = {}) {
       selectedTotal,
       totalReferences,
       bonusCandidates,
-      rawCandidates = []
+      rawCandidates = [],
+      side = ""
     ) => {
       if (ocrSource === "desktop") {
         return { members: selectedMembers, total: selectedTotal };
@@ -3819,6 +3821,20 @@ async function runOcrForImage(imagePath, options = {}) {
 
       const rawNumbers = [...new Set(rawCandidates.map((num) => Number(num)))]
         .filter((num) => Number.isFinite(num) && num >= 10000 && num < 3000000);
+
+      const leadingBonusRecovery = applySmartphoneLeadingBonusMemberRecovery(
+        selectedMembers,
+        selectedTotal,
+        rawCandidates,
+        bonusCandidates,
+        { mode: ocrSource, stage, side }
+      );
+      if (leadingBonusRecovery.applied) {
+        return {
+          members: leadingBonusRecovery.members,
+          total: leadingBonusRecovery.total,
+        };
+      }
 
       const rawBonusesForCompleteCombo = [...new Set(bonusCandidates)]
         .filter((num) => num >= 10000 && num < 100000);
@@ -4045,7 +4061,8 @@ async function runOcrForImage(imagePath, options = {}) {
         ...originalSelfMemberNumbers,
         ...selfMemberNumbers,
         ...selfCrownCandidates,
-      ]
+      ],
+      "self"
     ));
     ({
       members: enemy,
@@ -4060,7 +4077,8 @@ async function runOcrForImage(imagePath, options = {}) {
         ...originalEnemyMemberNumbers,
         ...enemyMemberNumbers,
         ...enemyCrownCandidates,
-      ]
+      ],
+      "enemy"
     ));
 
     const rowZoneSelfRecovery = applySmartphoneRowZoneSevenDigitRecovery(

@@ -115,6 +115,7 @@ import {
   pickTotalNumber,
   normalizeMemberScore,
   applySmartphoneCrownBonusMemberExclusion,
+  applySmartphoneLeadingBonusMemberRecovery,
   applySmartphoneSparseTrailingZeroPreservation,
   applySmartphoneTotalLikeMemberSuppression,
   applySmartphoneTotalCrownBonusRecovery,
@@ -2514,7 +2515,8 @@ export default function Home() {
           selectedTotal,
           totalReferences,
           bonusCandidates,
-          rawCandidates = []
+          rawCandidates = [],
+          side = ""
         ) => {
           if (activeOcrMode === "desktop") {
             return { members: selectedMembers, total: selectedTotal };
@@ -2529,6 +2531,23 @@ export default function Home() {
               .filter((num) => Number.isFinite(num) && num > 0)
               .map((num) => num.toLocaleString())
               .join(",") || "none";
+
+          const leadingBonusRecovery = applySmartphoneLeadingBonusMemberRecovery(
+            selectedMembers,
+            selectedTotal,
+            rawCandidates,
+            bonusCandidates,
+            { mode: activeOcrMode, stage, side }
+          );
+          if (leadingBonusRecovery.applied) {
+            correctionLogs.push(
+              `leadingBonusMemberRecovery chosen members=${leadingBonusRecovery.members.join(",")} total=${leadingBonusRecovery.total} bonus=${leadingBonusRecovery.bonus} candidate=${leadingBonusRecovery.candidate}`
+            );
+            return {
+              members: leadingBonusRecovery.members,
+              total: leadingBonusRecovery.total,
+            };
+          }
 
           const rawBonusesForCompleteCombo = uniqueNumbers(bonusCandidates)
             .filter((num) => num >= 10000 && num < 100000);
@@ -2837,7 +2856,8 @@ export default function Home() {
             ...originalSelfMemberNumbers,
             ...selfMemberNumbers,
             ...selfCrownCandidates,
-          ]
+          ],
+          "self"
         ));
         ({
           members: correctedEnemyMembers,
@@ -2852,7 +2872,8 @@ export default function Home() {
             ...originalEnemyMemberNumbers,
             ...enemyMemberNumbers,
             ...enemyCrownCandidates,
-          ]
+          ],
+          "enemy"
         ));
 
         const rowZoneSelfRecovery = applySmartphoneRowZoneSevenDigitRecovery(
