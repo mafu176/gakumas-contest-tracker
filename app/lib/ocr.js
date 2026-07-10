@@ -2330,15 +2330,17 @@ export function applySmartphoneStage3EnemySevenDigitRecovery(
     return { members: selectedMembers, total: selectedTotal, applied: false };
   }
 
-  if (!Array.isArray(selectedMembers) || selectedMembers.length !== 3) {
+  if (!Array.isArray(selectedMembers) || selectedMembers.length < 2 || selectedMembers.length > 3) {
     return { members: selectedMembers, total: selectedTotal, applied: false };
   }
 
   const selectedNumbers = selectedMembers.map((value) => Number(value) || 0);
   const currentMembers = selectedNumbers.filter((value) => value > 0);
-  const isTrailingBlankThird =
-    selectedNumbers.length >= 3 && selectedNumbers[0] > 0 && selectedNumbers[1] > 0 && selectedNumbers[2] <= 0;
-  const isTwoMemberSelection = currentMembers.length === 2 && isTrailingBlankThird;
+  const hasExplicitBlankThird =
+    selectedNumbers.length === 3 && selectedNumbers[0] > 0 && selectedNumbers[1] > 0 && selectedNumbers[2] <= 0;
+  const hasImplicitBlankThird =
+    selectedNumbers.length === 2 && selectedNumbers[0] > 0 && selectedNumbers[1] > 0;
+  const isTwoMemberSelection = currentMembers.length === 2 && (hasExplicitBlankThird || hasImplicitBlankThird);
   if (!(currentMembers.length === 3 || isTwoMemberSelection)) {
     return { members: selectedMembers, total: selectedTotal, applied: false };
   }
@@ -2355,6 +2357,9 @@ export function applySmartphoneStage3EnemySevenDigitRecovery(
   if (currentTotal <= 0) {
     return { members: selectedMembers, total: selectedTotal, applied: false };
   }
+  if (isTwoMemberSelection && (currentTotal < 1000000 || currentTotal >= 10000000)) {
+    return { members: selectedMembers, total: selectedTotal, applied: false };
+  }
 
   const rawEvidenceNumbers = uniqueNumbers(
     (options.rawCandidates || [])
@@ -2362,7 +2367,7 @@ export function applySmartphoneStage3EnemySevenDigitRecovery(
       .filter((value) => Number.isFinite(value) && value > 0)
   );
   const memberEvidenceNumbers = isTwoMemberSelection
-    ? [...rawEvidenceNumbers, ...(memberCandidates || [])]
+    ? [...rawEvidenceNumbers, currentTotal, ...(memberCandidates || [])]
     : memberCandidates || [];
   const memberNumbers = uniqueNumbers(
     memberEvidenceNumbers
@@ -2427,6 +2432,7 @@ export function applySmartphoneStage3EnemySevenDigitRecovery(
     const proposedMemberSum = proposedMembers.reduce((sum, value) => sum + value, 0);
     const displayedTotals = uniqueNumbers([
       ...totalNumbers,
+      ...(isTwoMemberSelection ? rawEvidenceNumbers : []),
       ...joinedTotalNumbers.map((candidateTotal) => candidateTotal.value),
     ]).filter((value) => value > currentTotal && value < 5000000);
 
@@ -2448,11 +2454,14 @@ export function applySmartphoneStage3EnemySevenDigitRecovery(
       const matchingDisplayedTotals = totalNumbers.filter(
         (value) => Math.abs(value - proposedTotal) <= 1
       );
+      const matchingRawDisplayedTotals = isTwoMemberSelection
+        ? rawEvidenceNumbers.filter((value) => Math.abs(value - proposedTotal) <= 1)
+        : [];
       const matchingJoinedDisplayedTotals = joinedTotalNumbers.filter(
         (candidateTotal) => Math.abs(candidateTotal.value - proposedTotal) <= 1
       );
       const exactTotalSourceCount =
-        matchingDisplayedTotals.length + matchingJoinedDisplayedTotals.length;
+        matchingDisplayedTotals.length + matchingRawDisplayedTotals.length + matchingJoinedDisplayedTotals.length;
       if (exactTotalSourceCount === 0) continue;
 
       matches.push({
