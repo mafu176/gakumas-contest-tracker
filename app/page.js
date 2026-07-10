@@ -2541,7 +2541,7 @@ export default function Home() {
           );
           if (leadingBonusRecovery.applied) {
             correctionLogs.push(
-              `leadingBonusMemberRecovery chosen members=${leadingBonusRecovery.members.join(",")} total=${leadingBonusRecovery.total} bonus=${leadingBonusRecovery.bonus} candidate=${leadingBonusRecovery.candidate}`
+              `stage2SelfLeadingBonusRecovery applied members=${leadingBonusRecovery.members.join(",")} total=${leadingBonusRecovery.total} bonus=${leadingBonusRecovery.bonus} candidate=${leadingBonusRecovery.candidate}`
             );
             return {
               members: leadingBonusRecovery.members,
@@ -2910,6 +2910,12 @@ export default function Home() {
                 selfTotalResult.text,
                 selfTotalCandidateResult.text,
                 ...(selfTotalCandidateResult.traces || []).map((trace) => trace.text),
+              ],
+              rawCandidates: [
+                ...selfTotalReferences,
+                ...originalSelfMemberNumbers,
+                ...selfMemberNumbers,
+                ...selfCrownCandidates,
               ],
             }
           );

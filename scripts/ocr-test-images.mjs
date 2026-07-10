@@ -3830,6 +3830,17 @@ async function runOcrForImage(imagePath, options = {}) {
         { mode: ocrSource, stage, side }
       );
       if (leadingBonusRecovery.applied) {
+        knownCorrectionDeltas.push({
+          pass: "stage2SelfLeadingBonusRecovery applied",
+          before: cloneStageState({ self, enemy, selfTotal, enemyTotal }),
+          after: cloneStageState({
+            self: side === "self" ? leadingBonusRecovery.members : self,
+            enemy: side === "enemy" ? leadingBonusRecovery.members : enemy,
+            selfTotal: side === "self" ? leadingBonusRecovery.total : selfTotal,
+            enemyTotal: side === "enemy" ? leadingBonusRecovery.total : enemyTotal,
+          }),
+          message: `stage2SelfLeadingBonusRecovery applied members=${leadingBonusRecovery.members.join(",")} total=${leadingBonusRecovery.total} bonus=${leadingBonusRecovery.bonus} candidate=${leadingBonusRecovery.candidate}`,
+        });
         return {
           members: leadingBonusRecovery.members,
           total: leadingBonusRecovery.total,
@@ -4123,6 +4134,12 @@ async function runOcrForImage(imagePath, options = {}) {
             selfTotalResult.text,
             selfTotalCandidateResult.text,
             ...(selfTotalCandidateResult.traces || []).map((trace) => trace.text),
+          ],
+          rawCandidates: [
+            ...selfTotalReferences,
+            ...originalSelfMemberNumbers,
+            ...selfMemberNumbers,
+            ...selfCrownCandidates,
           ],
         }
       );

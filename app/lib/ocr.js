@@ -1600,10 +1600,15 @@ export function applySmartphoneLeadingBonusMemberRecovery(
   }
 
   const fixedMembers = currentMembers.slice(1);
+  const inferredDisplayedBonus = total - currentMembers.reduce((sum, value) => sum + value, 0);
   const matches = rawNumbers
     .filter((value) => value >= 10000 && value < 1000000)
     .filter((value) => !currentMembers.some((member) => Math.abs(member - value) <= 1))
-    .filter((value) => !explicitBonuses.some((bonus) => Math.abs(bonus - value) <= 1))
+    .filter(
+      (value) =>
+        !explicitBonuses.some((bonus) => Math.abs(bonus - value) <= 1) ||
+        Math.abs(value - inferredDisplayedBonus) <= 1
+    )
     .filter((value) => Math.abs(value - total) > 1)
     .map((candidate) => ({
       candidate,
@@ -2097,10 +2102,19 @@ export function applySmartphoneStage3SelfSevenDigitDisplacementRecovery(
   const joinedTotalNumbers = totalTextCandidates.flatMap((text) =>
     buildJoinedTotalCandidates(text)
   );
+  const rawEvidenceNumbers = uniqueNumbers([
+    ...(options.rawCandidates || []),
+    ...totalNumbers,
+  ])
+    .map((value) => Number(value) || 0)
+    .filter((value) => Number.isFinite(value) && value > 0)
+    .filter((value) => !currentMembers.some((member) => Math.abs(member - value) <= 1))
+    .filter((value) => Math.abs(currentTotal - value) > 1);
   const observedBonusCandidates = uniqueNumbers([
     ...(bonusCandidates || [])
       .map((value) => Number(value) || 0)
       .filter((value) => Number.isFinite(value) && value > 0),
+    ...rawEvidenceNumbers,
     ...memberNumbers
       .filter((value) => Number.isFinite(value) && value > 0)
       .filter((value) => !currentMembers.some((member) => Math.abs(member - value) <= 1)),
@@ -2125,37 +2139,59 @@ export function applySmartphoneStage3SelfSevenDigitDisplacementRecovery(
     for (const bonus of observedBonusCandidates) {
       if (currentMembers.length === 3 && Math.abs(currentMembers[2] - bonus) > 1) continue;
 
-      const proposedMembers = [candidate, currentMembers[0], currentMembers[1]];
-      const leadingSequenceIndex = memberNumbers.findIndex(
-        (value, index) =>
-          Math.abs(value - candidate) <= 1 &&
-          Math.abs((memberNumbers[index + 1] || 0) - currentMembers[0]) <= 1 &&
-          Math.abs((memberNumbers[index + 2] || 0) - currentMembers[1]) <= 1
-      );
-      if (leadingSequenceIndex < 0) continue;
+      const proposedShapes = [
+        {
+          members: [candidate, currentMembers[0], currentMembers[1]],
+          pattern: "leading-seven-digit-with-bonus-member",
+          sequenceIndex: memberNumbers.findIndex(
+            (value, index) =>
+              Math.abs(value - candidate) <= 1 &&
+              Math.abs((memberNumbers[index + 1] || 0) - currentMembers[0]) <= 1 &&
+              Math.abs((memberNumbers[index + 2] || 0) - currentMembers[1]) <= 1
+          ),
+        },
+      ];
+      if (currentMembers.length === 3) {
+        proposedShapes.push({
+          members: [currentMembers[0], currentMembers[1], candidate],
+          pattern: "trailing-seven-digit-with-bonus-member",
+          sequenceIndex: memberNumbers.findIndex(
+            (value, index) =>
+              Math.abs(value - currentMembers[0]) <= 1 &&
+              Math.abs((memberNumbers[index + 1] || 0) - currentMembers[1]) <= 1 &&
+              Math.abs((memberNumbers[index + 2] || 0) - candidate) <= 1
+          ),
+        });
+      }
 
-      const proposedMemberSum = proposedMembers.reduce((sum, value) => sum + value, 0);
-      const proposedTotal = proposedMemberSum + bonus;
-      const matchingDisplayedTotals = totalNumbers.filter(
-        (value) => Math.abs(value - proposedTotal) <= 1
-      );
-      const matchingJoinedDisplayedTotals = joinedTotalNumbers.filter(
-        (candidate) => Math.abs(candidate.value - proposedTotal) <= 1
-      );
+      for (const proposedShape of proposedShapes) {
+        if (proposedShape.sequenceIndex < 0) continue;
 
-      if (matchingDisplayedTotals.length + matchingJoinedDisplayedTotals.length === 0) continue;
-      if (currentMembers.length === 3 && proposedTotal <= currentTotal) continue;
-      if (currentMembers.length === 2 && Math.abs(proposedTotal - currentTotal) > 1) continue;
-      if (proposedTotal >= 5000000) continue;
+        const proposedMembers = proposedShape.members;
+        const proposedMemberSum = proposedMembers.reduce((sum, value) => sum + value, 0);
+        const proposedTotal = proposedMemberSum + bonus;
+        const matchingDisplayedTotals = totalNumbers.filter(
+          (value) => Math.abs(value - proposedTotal) <= 1
+        );
+        const matchingJoinedDisplayedTotals = joinedTotalNumbers.filter(
+          (candidate) => Math.abs(candidate.value - proposedTotal) <= 1
+        );
 
-      matches.push({
-        members: proposedMembers,
-        total: proposedTotal,
-        bonus,
-        candidate,
-        matchingDisplayedTotals,
-        matchingJoinedDisplayedTotals,
-      });
+        if (matchingDisplayedTotals.length + matchingJoinedDisplayedTotals.length === 0) continue;
+        if (currentMembers.length === 3 && proposedTotal <= currentTotal) continue;
+        if (currentMembers.length === 2 && Math.abs(proposedTotal - currentTotal) > 1) continue;
+        if (proposedTotal >= 5000000) continue;
+
+        matches.push({
+          members: proposedMembers,
+          total: proposedTotal,
+          bonus,
+          candidate,
+          matchedPattern: `stage3-self-${proposedShape.pattern}`,
+          matchingDisplayedTotals,
+          matchingJoinedDisplayedTotals,
+        });
+      }
     }
   }
 
@@ -2166,7 +2202,8 @@ export function applySmartphoneStage3SelfSevenDigitDisplacementRecovery(
           other.total === match.total &&
           other.bonus === match.bonus &&
           other.candidate === match.candidate &&
-          other.members.join(",") === match.members.join(",")
+          other.members.join(",") === match.members.join(",") &&
+          other.matchedPattern === match.matchedPattern
       ) === index
   );
 
@@ -2181,7 +2218,7 @@ export function applySmartphoneStage3SelfSevenDigitDisplacementRecovery(
     bonus: match.bonus,
     candidate: match.candidate,
     applied: true,
-    matchedPattern: "stage3-self-leading-seven-digit-with-bonus-member",
+    matchedPattern: match.matchedPattern,
     totalEvidence:
       match.matchingDisplayedTotals.length > 0 ? "parsed-total" : "joined-total-fragments",
   };
