@@ -155,6 +155,7 @@ async function writeDebugArtifacts(report) {
       category: item.category,
       source: item.source,
       expected: item.expected,
+      expectedData: item.expectedData,
       pass: item.pass,
       failures: item.failures,
       elapsedMs: item.elapsedMs,
@@ -170,6 +171,7 @@ async function writeDebugArtifacts(report) {
       image: item.image,
       artifact: relativePath,
       expected: item.expected,
+      expectedData: item.expectedData,
       pass: item.pass,
       failures: item.failures.length,
     });
@@ -4678,6 +4680,21 @@ async function collectCurrentPcBaselineImages() {
 
 async function readExpected(fileName) {
   const baseName = path.parse(fileName).name;
+  const currentPcTimestamp = baseName.match(/(\d{4}-\d{2}-\d{2})\s+(\d{9})/);
+  if (currentPcTimestamp) {
+    const currentPcPath = path.join(
+      expectedDir,
+      "current-pc",
+      `${currentPcTimestamp[1]}-${currentPcTimestamp[2]}.json`
+    );
+    try {
+      const text = await fs.readFile(currentPcPath, "utf8");
+      return normalizeExpected(JSON.parse(text));
+    } catch {
+      // Fall back to the default expected paths below.
+    }
+  }
+
   const jsonPath = path.join(expectedDir, `${baseName}.json`);
 
   try {
@@ -4713,6 +4730,8 @@ function normalizeExpected(expected) {
     normalized[longStage] = {
       selfTotal: Number(stageExpected.selfTotal || 0),
       enemyTotal: Number(stageExpected.enemyTotal || 0),
+      selfBonus: Number(stageExpected.selfBonus || stageExpected.selfCrownBonus || 0),
+      enemyBonus: Number(stageExpected.enemyBonus || stageExpected.enemyCrownBonus || 0),
       selfMembers: Array.isArray(stageExpected.selfMembers)
         ? stageExpected.selfMembers.map(Number)
         : [],
@@ -6281,6 +6300,7 @@ async function writeCurrentPcBaselineArtifacts(report) {
       expected: item.expected,
       pass: item.pass,
       failures: item.failures,
+      expectedData: item.expectedData,
       result: item.result,
       crops: cropArtifacts,
       annotated: path.relative(rootDir, annotatedPath).replaceAll("\\", "/"),
@@ -6298,6 +6318,7 @@ async function writeCurrentPcBaselineArtifacts(report) {
       artifact: path.relative(rootDir, jsonPath).replaceAll("\\", "/"),
       annotated: path.relative(rootDir, annotatedPath).replaceAll("\\", "/"),
       expected: item.expected,
+      expectedData: item.expectedData,
       pass: item.pass,
       failures: item.failures,
       stages: stageAnalyses,
@@ -6326,6 +6347,78 @@ function formatCurrentPcSideLine(sideAnalysis) {
   ].join("; ");
 }
 
+function formatCurrentPcExpectedLine(expectedStage, side) {
+  if (!expectedStage) return "no fixture";
+  const members = expectedStage[`${side}Members`] || [];
+  const total = side === "self" ? expectedStage.selfTotal : expectedStage.enemyTotal;
+  const bonus = side === "self" ? expectedStage.selfBonus : expectedStage.enemyBonus;
+  return [
+    `members ${formatDebugNumbers(members)}`,
+    `bonus ${bonus > 0 ? formatNumber(bonus) : "-"}`,
+    `total ${formatNumber(total)}`,
+  ].join("; ");
+}
+
+function formatCurrentPcActualExpectedLine(item, stage, side) {
+  const stageKey = `stage${stage}`;
+  const actual = item.stages?.[stageKey]?.[side];
+  const expectedStage = item.expectedData?.[stageKey];
+  return [
+    `actual: ${formatCurrentPcSideLine(actual)}`,
+    `expected: ${formatCurrentPcExpectedLine(expectedStage, side)}`,
+  ].join("<br>");
+}
+
+function hasCurrentPcSideFailure(item, stage, side) {
+  const sideLabel = sideLabels[side];
+  return (item.failures || []).some((failure) => failure.key.startsWith(`S${stage} ${sideLabel} `));
+}
+
+function buildCurrentPcConfirmedGroupEvaluation(analysis) {
+  const groupNames = [
+    "clean-7digit-candidate-present-but-unselected",
+    "unique-exact-raw-interpretation-differs-from-selected-result",
+    "selected-total-not-exact-member-sum-or-member-sum-plus-bonus",
+    "bonus-candidate-selected-as-member",
+    "missing-selected-member",
+  ];
+  const byName = new Map(
+    groupNames.map((name) => [
+      name,
+      {
+        name,
+        flags: 0,
+        confirmedPositives: [],
+        falseAlarms: [],
+      },
+    ])
+  );
+
+  for (const item of analysis) {
+    for (const stage of stages) {
+      const stageKey = `stage${stage}`;
+      for (const side of sides) {
+        const sideAnalysis = item.stages?.[stageKey]?.[side];
+        if (!sideAnalysis) continue;
+        const sideFailed = hasCurrentPcSideFailure(item, stage, side);
+        const label = `${item.fileName} S${stage} ${sideLabels[side]}`;
+        for (const reason of sideAnalysis.suspiciousReasons || []) {
+          if (!byName.has(reason)) continue;
+          const entry = byName.get(reason);
+          entry.flags += 1;
+          if (sideFailed) {
+            entry.confirmedPositives.push(label);
+          } else {
+            entry.falseAlarms.push(label);
+          }
+        }
+      }
+    }
+  }
+
+  return [...byName.values()];
+}
+
 function buildCurrentPcBaselineReport(baseline) {
   const generatedAt = new Date().toISOString();
   const summary = buildCurrentPcBaselineSummary(
@@ -6338,6 +6431,7 @@ function buildCurrentPcBaselineReport(baseline) {
   const dimensions = [...new Set(baseline.analysis.map((item) => `${item.dimensions.width}x${item.dimensions.height}`))];
   const aspects = [...new Set(baseline.analysis.map((item) => String(item.aspect)))];
   const groups = classifyCurrentPcFailureGroups(baseline.analysis);
+  const confirmedGroups = buildCurrentPcConfirmedGroupEvaluation(baseline.analysis);
   const lines = [
     "# Current PC OCR Baseline",
     "",
@@ -6441,6 +6535,29 @@ function buildCurrentPcBaselineReport(baseline) {
 
   lines.push(
     "",
+    "## Expected Fixture Comparison",
+    "",
+    "| image | status | failing fields | S1 self | S1 enemy | S2 self | S2 enemy | S3 self | S3 enemy |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"
+  );
+
+  for (const item of baseline.analysis) {
+    const status = item.expected ? (item.pass ? "PASS" : "FAIL") : "unresolved";
+    const failingFields =
+      item.failures.length > 0
+        ? item.failures
+            .map((failure) => `${failure.key}: expected ${formatNumber(failure.expected)} actual ${formatNumber(failure.actual)}`)
+            .join("<br>")
+        : item.expected
+          ? "none"
+          : "no expected fixture";
+    lines.push(
+      `| ${item.fileName} | ${status} | ${failingFields} | ${formatCurrentPcActualExpectedLine(item, 1, "self")} | ${formatCurrentPcActualExpectedLine(item, 1, "enemy")} | ${formatCurrentPcActualExpectedLine(item, 2, "self")} | ${formatCurrentPcActualExpectedLine(item, 2, "enemy")} | ${formatCurrentPcActualExpectedLine(item, 3, "self")} | ${formatCurrentPcActualExpectedLine(item, 3, "enemy")} |`
+    );
+  }
+
+  lines.push(
+    "",
     "## 10-Sample Summary",
     "",
     `- total current-PC samples: ${summary.total}`,
@@ -6468,17 +6585,40 @@ function buildCurrentPcBaselineReport(baseline) {
 
   lines.push(
     "",
+    "## Confirmed Suspicious Group Evaluation",
+    "",
+    "These counts compare the structural-audit flags against the manually verified expected fixtures.",
+    "",
+    "| group | flags | confirmed positives | false alarms | affected confirmed examples | false-alarm examples |",
+    "| --- | ---: | ---: | ---: | --- | --- |"
+  );
+
+  for (const group of confirmedGroups) {
+    lines.push(
+      `| ${group.name} | ${group.flags} | ${group.confirmedPositives.length} | ${group.falseAlarms.length} | ${group.confirmedPositives.slice(0, 8).join("; ") || "-"}${group.confirmedPositives.length > 8 ? "; ..." : ""} | ${group.falseAlarms.slice(0, 8).join("; ") || "-"}${group.falseAlarms.length > 8 ? "; ..." : ""} |`
+    );
+  }
+
+  lines.push(
+    "",
+    "## Confirmed Failure Pattern Ranking",
+    "",
+    "1. Stage3 self 7-digit/member-bonus displacement: most frequent confirmed pattern. The selected result often drops or shifts a 7-digit member and uses bonus-like evidence as a member or reduced bonus. It has many positives, but needs current-PC-specific exact candidate provenance before production recovery.",
+    "2. Total-only bonus omission: confirmed in several self totals where selected members are correct but total is member sum instead of member sum plus visible bonus. This is more generalizable, but must be guarded against malformed total/bonus candidates.",
+    "3. Member slot/order displacement: confirmed in several cases where the selected values are real scores but assigned to the wrong slots. This likely needs bbox/slot evidence before a safe generic rule.",
+    "4. Missing selected member: currently one confirmed sample in this 10-sample baseline. It is not the first production target until more examples exist.",
+    "",
     "## Ranked Generalization Targets",
     "",
-    "1. Improve current-PC role classification where exact structural audit reports total/member/bonus reuse.",
-    "2. Add bbox-backed current-PC candidate provenance for any recurring 7-digit dropped-member cases.",
-    "3. Implement selective retry execution only after a recurring suspicious group has exact positive samples and negative controls.",
+    "1. Runner-only current-PC simulation for Stage3 self 7-digit/member-bonus displacement with exact total evidence and no competing interpretation.",
+    "2. Runner-only current-PC simulation for total-only bonus omission where selected members already match the fixture and a clean explicit bonus explains the displayed total.",
+    "3. Bbox-backed current-PC candidate provenance for member slot/order displacement before any production rule.",
     "",
     "## Recommendation",
     "",
-    "- Keep this first current-PC pass as audit-first infrastructure.",
-    "- Do not productionize a new current-PC recovery rule yet from only these 10 samples.",
-    "- Next step: manually confirm expected values for the highest-suspicion current-PC screenshots, then rerun with expected fixtures and only then design a narrow generic recovery.",
+    "- Do not productionize a new current-PC recovery rule yet.",
+    "- The first implementation target should be runner-only simulation for Stage3 self 7-digit/member-bonus displacement, because it has the strongest recurring signal but still needs exact candidate provenance and negative-control checks.",
+    "- Current-PC expected fixtures are now available, so future simulations can report real PASS/FAIL impact rather than unresolved audit guesses.",
     "",
     "## Artifact Location",
     "",
