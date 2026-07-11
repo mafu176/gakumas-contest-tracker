@@ -6253,6 +6253,49 @@ function buildCurrentPcExactRawEquationRecoverySimulation({
   };
 }
 
+function cleanOcrTextForReport(text = "") {
+  return String(text)
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 180);
+}
+
+function escapeMarkdownTableCell(value = "") {
+  return String(value).replaceAll("|", "\\|");
+}
+
+function summarizeCurrentPcCandidateSources(sideArtifact = null) {
+  const sources = sideArtifact?.candidateSources || {};
+  const traces = sources.totalCandidates?.traces || [];
+  return {
+    totalDirect: sources.totalDirect
+      ? {
+          tag: sources.totalDirect.tag || "",
+          pass: sources.totalDirect.pass || "",
+          text: cleanOcrTextForReport(sources.totalDirect.text || ""),
+          numbers: sources.totalDirect.numbers || [],
+        }
+      : null,
+    totalTraces: traces.slice(0, 6).map((trace) => ({
+      pass: trace.pass || "",
+      text: cleanOcrTextForReport(trace.text || ""),
+      numbers: trace.numbers || [],
+    })),
+    memberCandidates: sources.memberCandidates
+      ? {
+          tag: sources.memberCandidates.tag || "",
+          pass: sources.memberCandidates.pass || "",
+          text: cleanOcrTextForReport(sources.memberCandidates.text || ""),
+          numbers: sources.memberCandidates.numbers || [],
+        }
+      : null,
+    memberNumbersAfterSlotFallback: sources.memberNumbersAfterSlotFallback || [],
+    originalMemberNumbers: sources.originalMemberNumbers || [],
+    selectionContext: sideArtifact?.selectionContext || null,
+    equationContext: sideArtifact?.equationContext || null,
+  };
+}
+
 function buildCurrentPcSideAnalysis(stageResult, side, options = {}) {
   const sideArtifact = stageResult?.debugArtifact?.[side] || null;
   const selectedMembers = (stageResult?.[side] || []).map((value) => Number(value) || 0);
@@ -6422,6 +6465,7 @@ function buildCurrentPcSideAnalysis(stageResult, side, options = {}) {
     },
     suspiciousReasons,
     retryPlan,
+    candidateSourceSummary: summarizeCurrentPcCandidateSources(sideArtifact),
     exactRawInterpretations: uniqueExactRawInterpretations.slice(0, 8),
     currentPcStage3SelfSevenDigitDisplacementSimulation,
     currentPcExactRawEquationRecoverySimulation,
@@ -6837,6 +6881,7 @@ function buildCurrentPcExactRawEquationSimulationEvaluation(analysis) {
               total: sideAnalysis?.selectedTotal || 0,
               rawCandidates: sideAnalysis?.rawCandidates || [],
               displayedTotalCandidates: sideAnalysis?.displayedTotalCandidates || [],
+              candidateSourceSummary: sideAnalysis?.candidateSourceSummary || null,
             },
             proposed: sim?.proposed || null,
             rejectionReasons: sim?.rejectionReasons || [],
@@ -6859,6 +6904,168 @@ function buildCurrentPcExactRawEquationSimulationEvaluation(analysis) {
   };
 }
 
+function valueInList(value, list = []) {
+  return list.some((candidate) => Math.abs(Number(candidate || 0) - Number(value || 0)) <= 1);
+}
+
+function valueInOcrText(value, text = "") {
+  const digits = String(Math.trunc(Number(value || 0)));
+  if (!digits || digits === "0") return false;
+  const pattern = digits.split("").join("[\\s,\\.]*");
+  return new RegExp(pattern).test(String(text || ""));
+}
+
+function formatCurrentPcRoiSummary(roiProvenance = null) {
+  if (!roiProvenance) return "-";
+  const total = roiProvenance.total?.zone
+    ? `total ${roiProvenance.total.label} (${roiProvenance.total.zone.left},${roiProvenance.total.zone.top},${roiProvenance.total.zone.width}x${roiProvenance.total.zone.height})`
+    : "total -";
+  const members = roiProvenance.members?.zone
+    ? `members ${roiProvenance.members.label} (${roiProvenance.members.zone.left},${roiProvenance.members.zone.top},${roiProvenance.members.zone.width}x${roiProvenance.members.zone.height})`
+    : "members -";
+  const bonusLabels = (roiProvenance.bonus || []).map((item) => item.label).join(", ") || "-";
+  return `${total}; ${members}; bonus ${bonusLabels}`;
+}
+
+function classifyCurrentPcExactRawFalseNegative(row) {
+  const expectedMembers = row.expected?.members || [];
+  const actualMembers = row.actual?.members || [];
+  const raw = row.actual?.rawCandidates || [];
+  const expectedBonus = Number(row.expected?.bonus || 0);
+  const expectedTotal = Number(row.expected?.total || 0);
+  const actualTotal = Number(row.actual?.total || 0);
+  const actualMemberSum = actualMembers.reduce((sum, value) => sum + Number(value || 0), 0);
+  const actualDelta = actualTotal - actualMemberSum;
+  const allExpectedMembersSelected = arraysEqualWithinOne(expectedMembers, actualMembers);
+  const expectedMembersInRaw = expectedMembers.map((value) => valueInList(value, raw));
+  const expectedBonusInRaw = expectedBonus > 0 && valueInList(expectedBonus, raw);
+  const expectedTotalInRaw = valueInList(expectedTotal, raw);
+
+  if (
+    row.actual?.bonusCandidates?.some((bonus) => valueInList(bonus, actualMembers)) &&
+    expectedMembersInRaw.every(Boolean) &&
+    !expectedBonusInRaw
+  ) {
+    return {
+      subPattern: "bonus/member OCR confusion with exact members present but bonus misread",
+      recommendation: "Needs better bonus OCR evidence before simulation; do not infer a near bonus.",
+    };
+  }
+
+  if (
+    row.stage === 3 &&
+    row.side === "self" &&
+    expectedTotalInRaw &&
+    expectedBonusInRaw &&
+    !expectedMembersInRaw.every(Boolean) &&
+    actualMembers.some((member) => member > 0 && member < 10000)
+  ) {
+    return {
+      subPattern: "Stage3 self digit-drop member plus ignored bonus evidence",
+      recommendation:
+        "Related to Stage3 self recovery, but not the same shift shape; needs exact member recovery before simulation.",
+    };
+  }
+
+  if (
+    allExpectedMembersSelected &&
+    expectedTotalInRaw &&
+    expectedBonus > 0 &&
+    !expectedBonusInRaw &&
+    valueInList(actualDelta, raw)
+  ) {
+    return {
+      subPattern: "total/bonus OCR offset with selected members already correct",
+      recommendation:
+        "Promising only after bonus OCR can distinguish the correct bonus from the wrong total-minus-member delta.",
+    };
+  }
+
+  if (
+    row.actual?.members?.filter((value) => Number(value || 0) > 0).length < 3 &&
+    expectedTotalInRaw &&
+    !expectedMembersInRaw.every(Boolean)
+  ) {
+    return {
+      subPattern: "missing member evidence; total-minus-member inference only",
+      recommendation:
+        "Do not simulate from arithmetic alone; needs raw/ROI evidence for the missing member.",
+    };
+  }
+
+  return {
+    subPattern: "unclassified exact-equation false negative",
+    recommendation: "Keep blocked until more exact evidence is available.",
+  };
+}
+
+function buildCurrentPcExactRawFalseNegativeDeepDive(exactRawEquationSimulation) {
+  const rows = exactRawEquationSimulation.rows
+    .filter((row) => row.classification === "false-negative")
+    .map((row) => {
+      const source = row.actual?.candidateSourceSummary || {};
+      const raw = row.actual?.rawCandidates || [];
+      const combinedText = [
+        source.totalDirect?.text,
+        ...(source.totalTraces || []).map((trace) => trace.text),
+        source.memberCandidates?.text,
+      ]
+        .filter(Boolean)
+        .join(" ");
+      const expected = row.expected || { members: [], bonus: 0, total: 0 };
+      const expectedMembersInRaw = (expected.members || []).map((value) => valueInList(value, raw));
+      const expectedMembersInText = (expected.members || []).map((value) =>
+        valueInOcrText(value, combinedText)
+      );
+      const expectedBonusInRaw =
+        Number(expected.bonus || 0) > 0 ? valueInList(expected.bonus, raw) : true;
+      const expectedBonusInText =
+        Number(expected.bonus || 0) > 0 ? valueInOcrText(expected.bonus, combinedText) : true;
+      const expectedTotalInRaw = valueInList(expected.total, raw);
+      const expectedTotalInText = valueInOcrText(expected.total, combinedText);
+      const classification = classifyCurrentPcExactRawFalseNegative(row);
+      return {
+        ...row,
+        ...classification,
+        evidencePresence: {
+          expectedMembersInRaw,
+          expectedMembersInText,
+          expectedBonusInRaw,
+          expectedBonusInText,
+          expectedTotalInRaw,
+          expectedTotalInText,
+        },
+        totalText:
+          source.totalDirect?.text ||
+          source.totalTraces?.map((trace) => trace.text).filter(Boolean).join(" / ") ||
+          "",
+        memberText: source.memberCandidates?.text || "",
+        preprocessingPasses: [
+          source.totalDirect?.pass,
+          ...(source.totalTraces || []).map((trace) => trace.pass),
+          source.memberCandidates?.pass,
+        ].filter(Boolean),
+        equationContext: source.equationContext || null,
+        selectionContext: source.selectionContext || null,
+      };
+    });
+
+  const byPattern = new Map();
+  for (const row of rows) {
+    if (!byPattern.has(row.subPattern)) byPattern.set(row.subPattern, []);
+    byPattern.get(row.subPattern).push(`${row.image} S${row.stage} ${row.side}`);
+  }
+
+  return {
+    rows,
+    subPatterns: [...byPattern.entries()].map(([name, occurrences]) => ({
+      name,
+      count: occurrences.length,
+      occurrences,
+    })),
+  };
+}
+
 function buildCurrentPcBaselineReport(baseline) {
   const generatedAt = new Date().toISOString();
   const summary = buildCurrentPcBaselineSummary(
@@ -6875,6 +7082,8 @@ function buildCurrentPcBaselineReport(baseline) {
   const stage3SelfSimulation = buildCurrentPcStage3SelfSimulationEvaluation(baseline.analysis);
   const exactRawEquationSimulation =
     buildCurrentPcExactRawEquationSimulationEvaluation(baseline.analysis);
+  const exactRawFalseNegativeDeepDive =
+    buildCurrentPcExactRawFalseNegativeDeepDive(exactRawEquationSimulation);
   const lines = [
     "# Current PC OCR Baseline",
     "",
@@ -7112,6 +7321,57 @@ function buildCurrentPcBaselineReport(baseline) {
   }
 
   lines.push(
+    "",
+    "## Exact Raw Equation False Negative Deep Dive",
+    "",
+    "The four false negatives are intentionally not folded into the exact raw equation simulation. They split into narrower causes, and none currently has recurring, unique, exact evidence strong enough for another runner-only recovery simulation.",
+    "",
+    "| image | stage/side | sub-pattern | expected | actual | raw evidence presence | raw text / provenance | exact reconstruction | recommendation |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"
+  );
+
+  for (const row of exactRawFalseNegativeDeepDive.rows) {
+    const memberPresence = (row.expected?.members || [])
+      .map((value, index) => `m${index + 1} ${formatNumber(value)}:${row.evidencePresence.expectedMembersInRaw[index] ? "raw" : "missing"}`)
+      .join(", ");
+    const memberTextPresence = (row.expected?.members || [])
+      .map((value, index) => `m${index + 1}:${row.evidencePresence.expectedMembersInText[index] ? "text" : "no-text"}`)
+      .join(", ");
+    const evidencePresence = [
+      memberPresence,
+      memberTextPresence,
+      `bonus ${formatNumber(row.expected?.bonus || 0) || "-"}:${row.evidencePresence.expectedBonusInRaw ? "parsed/none" : "missing"}:${row.evidencePresence.expectedBonusInText ? "text/none" : "no-text"}`,
+      `total ${formatNumber(row.expected?.total || 0)}:${row.evidencePresence.expectedTotalInRaw ? "parsed" : "missing"}:${row.evidencePresence.expectedTotalInText ? "text" : "no-text"}`,
+    ].join("; ");
+    lines.push(
+      `| ${row.image} | S${row.stage} ${row.side} | ${row.subPattern} | members ${formatDebugNumbers(row.expected?.members || [])}; bonus ${formatNumber(row.expected?.bonus || 0) || "-"}; total ${formatNumber(row.expected?.total || 0)} | members ${formatDebugNumbers(row.actual.members)}; bonus candidates ${formatDebugNumbers(row.actual.bonusCandidates) || "-"}; total ${formatNumber(row.actual.total)} | ${evidencePresence} | total text: ${escapeMarkdownTableCell(row.totalText || "-")}<br>member text: ${escapeMarkdownTableCell(row.memberText || "-")}<br>passes: ${[...new Set(row.preprocessingPasses)].join(", ") || "-"}<br>ROI: ${formatCurrentPcRoiSummary(row.roiProvenance)} | exact raw interpretations ${row.exactRawInterpretationCount}; rejection ${row.rejectionReasons.join(", ") || "-"} | ${row.recommendation} |`
+    );
+  }
+
+  lines.push(
+    "",
+    "### False Negative Sub-Pattern Summary",
+    "",
+    "| sub-pattern | positives | affected cases | exact evidence | runner-only simulation justified |",
+    "| --- | ---: | --- | --- | --- |"
+  );
+
+  for (const pattern of exactRawFalseNegativeDeepDive.subPatterns) {
+    lines.push(
+      `| ${pattern.name} | ${pattern.count} | ${pattern.occurrences.join("; ")} | ${
+        pattern.count > 1 ? "mixed; inspect individually" : "single sample only"
+      } | no; needs recurrence plus unique exact raw/ROI evidence |`
+    );
+  }
+
+  lines.push(
+    "",
+    "### Comparison With Stage3 Self Displacement Simulation",
+    "",
+    "- `145018419` S3 self is the only false negative that shares the Stage3 self surface area.",
+    "- It does not match `currentPcStage3SelfSevenDigitDisplacementSimulation`: the existing simulation expects a left-shifted 7-digit member pattern, while this case keeps member1/member2 and drops member3 to a low fragment (`805828` -> `5828`).",
+    "- Broadening the Stage3 simulation would mix a digit-drop problem with a member/bonus displacement problem, so it remains blocked.",
+    "",
     "",
     "## Ranked Generalization Targets",
     "",

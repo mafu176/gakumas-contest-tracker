@@ -1,6 +1,6 @@
 # Current PC OCR Baseline
 
-Generated: 2026-07-11T09:44:08.226Z
+Generated: 2026-07-11T10:29:18.733Z
 
 ## Scope
 
@@ -200,6 +200,33 @@ These counts compare the structural-audit flags against the manually verified ex
 | スクリーンショット 2026-07-11 145018419.png | S3 self | false-negative | no | members 756719, 867029, 805828; bonus 173,405; total 2,602,981 | members 756719, 867029, 5828; bonus candidates (none); total 1,802,981 | - | equation -; exact interpretations 0; raw 602981, 2602981, 756719, 867029, 5828, 173405; displayed totals 602981, 2602981 | missing-unique-exact-raw-interpretation |
 | スクリーンショット 2026-07-11 145152780.png | S2 self | false-negative | no | members 132068, 333301, 110037; bonus 66,660; total 642,066 | members 132068, 333301, 110037; bonus candidates (none); total 644,066 | - | equation -; exact interpretations 0; raw 642066, 7301, 44000, 132068, 333301, 110037, 68660; displayed totals 642066, 44000, 132068, 333301, 110037 | missing-unique-exact-raw-interpretation |
 | スクリーンショット 2026-07-11 145215861.png | S1 enemy | false-negative | no | members 147462, 98618, 34333; bonus -; total 280,413 | members 98618, 34333, 0; bonus candidates (none); total 280,413 | - | equation -; exact interpretations 0; raw 280413, 98618, 34333; displayed totals 280413 | missing-unique-exact-raw-interpretation |
+
+## Exact Raw Equation False Negative Deep Dive
+
+The four false negatives are intentionally not folded into the exact raw equation simulation. They split into narrower causes, and none currently has recurring, unique, exact evidence strong enough for another runner-only recovery simulation.
+
+| image | stage/side | sub-pattern | expected | actual | raw evidence presence | raw text / provenance | exact reconstruction | recommendation |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| スクリーンショット 2026-07-11 144908802.png | S1 self | bonus/member OCR confusion with exact members present but bonus misread | members 711565, 317040, 96328; bonus 142,313; total 1,267,246 | members 711565, 317040, 142513; bonus candidates 142513; total 1,267,246 | m1 711,565:raw, m2 317,040:raw, m3 96,328:raw; m1:text, m2:text, m3:text; bonus 142,313:missing:no-text; total 1,267,246:parsed:text | total text: "1,267,246<br>member text: 711,565 317,040 96,328 TW +142513 (7 ) —— i Je ; gle y 1p, \| $A iad? > Wi \|” Syd<br>passes: pass1<br>ROI: total stage1-self-total (24,103,221x52); members stage1-self-members (24,140,221x107); bonus stage1-self-bonus-1, stage1-self-bonus-2, stage1-self-bonus-3, stage1-self-bonus-4 | exact raw interpretations 0; rejection missing-unique-exact-raw-interpretation | Needs better bonus OCR evidence before simulation; do not infer a near bonus. |
+| スクリーンショット 2026-07-11 145018419.png | S3 self | Stage3 self digit-drop member plus ignored bonus evidence | members 756719, 867029, 805828; bonus 173,405; total 2,602,981 | members 756719, 867029, 5828; bonus candidates (none); total 1,802,981 | m1 756,719:raw, m2 867,029:raw, m3 805,828:missing; m1:text, m2:text, m3:no-text; bonus 173,405:parsed/none:text/none; total 2,602,981:parsed:text | total text: "92 602,981n<br>member text: 756,719 867,029 B05,828 I if + 173405 § ii, i ; y- » + . : Td 4 Faglt SANE ~~ AA<br>passes: pass1<br>ROI: total stage3-self-total (24,589,221x52); members stage3-self-members (24,621,221x107); bonus stage3-self-bonus-1, stage3-self-bonus-2, stage3-self-bonus-3, stage3-self-bonus-4 | exact raw interpretations 0; rejection missing-unique-exact-raw-interpretation | Related to Stage3 self recovery, but not the same shift shape; needs exact member recovery before simulation. |
+| スクリーンショット 2026-07-11 145152780.png | S2 self | total/bonus OCR offset with selected members already correct | members 132068, 333301, 110037; bonus 66,660; total 642,066 | members 132068, 333301, 110037; bonus candidates (none); total 644,066 | m1 132,068:raw, m2 333,301:raw, m3 110,037:raw; m1:text, m2:text, m3:text; bonus 66,660:missing:no-text; total 642,066:parsed:text | total text: 642,066m<br>member text: rer A [] Lb A dm] 132,068 333,301 110,037 7 tw 68660 I ki r . - - f<br>passes: pass1<br>ROI: total stage2-self-total (24,348,221x52); members stage2-self-members (24,382,221x107); bonus stage2-self-bonus-1, stage2-self-bonus-2, stage2-self-bonus-3, stage2-self-bonus-4 | exact raw interpretations 0; rejection missing-unique-exact-raw-interpretation | Promising only after bonus OCR can distinguish the correct bonus from the wrong total-minus-member delta. |
+| スクリーンショット 2026-07-11 145215861.png | S1 enemy | missing member evidence; total-minus-member inference only | members 147462, 98618, 34333; bonus -; total 280,413 | members 98618, 34333, 0; bonus candidates (none); total 280,413 | m1 147,462:missing, m2 98,618:raw, m3 34,333:raw; m1:text, m2:text, m3:text; bonus -:parsed/none:text/none; total 280,413:parsed:text | total text: 280,413<br>member text: JAE WE FT A 147.462 98,618 34,333 : ) i; ; ’ \| Po d ) JAY 1 SR. I ve) NL 2<br>passes: pass1<br>ROI: total stage1-enemy-total (294,103,221x52); members stage1-enemy-members (294,140,221x107); bonus stage1-enemy-bonus-1, stage1-enemy-bonus-2, stage1-enemy-bonus-3, stage1-enemy-bonus-4 | exact raw interpretations 0; rejection missing-unique-exact-raw-interpretation | Do not simulate from arithmetic alone; needs raw/ROI evidence for the missing member. |
+
+### False Negative Sub-Pattern Summary
+
+| sub-pattern | positives | affected cases | exact evidence | runner-only simulation justified |
+| --- | ---: | --- | --- | --- |
+| bonus/member OCR confusion with exact members present but bonus misread | 1 | スクリーンショット 2026-07-11 144908802.png S1 self | single sample only | no; needs recurrence plus unique exact raw/ROI evidence |
+| Stage3 self digit-drop member plus ignored bonus evidence | 1 | スクリーンショット 2026-07-11 145018419.png S3 self | single sample only | no; needs recurrence plus unique exact raw/ROI evidence |
+| total/bonus OCR offset with selected members already correct | 1 | スクリーンショット 2026-07-11 145152780.png S2 self | single sample only | no; needs recurrence plus unique exact raw/ROI evidence |
+| missing member evidence; total-minus-member inference only | 1 | スクリーンショット 2026-07-11 145215861.png S1 enemy | single sample only | no; needs recurrence plus unique exact raw/ROI evidence |
+
+### Comparison With Stage3 Self Displacement Simulation
+
+- `145018419` S3 self is the only false negative that shares the Stage3 self surface area.
+- It does not match `currentPcStage3SelfSevenDigitDisplacementSimulation`: the existing simulation expects a left-shifted 7-digit member pattern, while this case keeps member1/member2 and drops member3 to a low fragment (`805828` -> `5828`).
+- Broadening the Stage3 simulation would mix a digit-drop problem with a member/bonus displacement problem, so it remains blocked.
+
 
 ## Ranked Generalization Targets
 
