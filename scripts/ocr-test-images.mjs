@@ -6016,7 +6016,171 @@ async function saveCurrentPcZoneArtifacts(imagePath, image, outDir, label, zone,
   };
 }
 
-function buildCurrentPcSideAnalysis(stageResult, side) {
+function buildCurrentPcStage3SelfSevenDigitDisplacementSimulation({
+  stage = 0,
+  side = "",
+  selectedMembers = [],
+  selectedTotal = 0,
+  sideArtifact = null,
+  roiProvenance = null,
+}) {
+  const memberSource = sideArtifact?.candidateSources?.memberCandidates || {};
+  const totalSource = sideArtifact?.candidateSources?.totalCandidates || {};
+  const totalDirect = sideArtifact?.candidateSources?.totalDirect || {};
+  const memberNumbers = uniqueNumbers(memberSource.numbers || []);
+  const totalReferences = uniqueNumbers([
+    ...(totalDirect.numbers || []),
+    ...(totalSource.numbers || []),
+    ...((totalSource.traces || []).flatMap((trace) => trace.numbers || [])),
+  ]);
+  const selected = [...selectedMembers].map((value) => Number(value) || 0);
+  while (selected.length < 3) selected.push(0);
+  const selectedMemberSum = selected.reduce((sum, value) => sum + value, 0);
+  const totalEvidenceSources = buildStage3TotalEvidenceSources({
+    totalDirectText: totalDirect.text || "",
+    totalDirectNumbers: totalDirect.numbers || [],
+    totalCandidateText: totalSource.text || "",
+    totalCandidateTraces: totalSource.traces || [],
+    memberCandidateText: memberSource.text || "",
+    memberCandidateNumbers: memberNumbers,
+  });
+  const proposals = [];
+
+  for (let index = 0; index <= memberNumbers.length - 4; index += 1) {
+    const proposedMembers = memberNumbers.slice(index, index + 3);
+    const proposedBonus = memberNumbers[index + 3];
+    const proposedTotal =
+      proposedMembers.reduce((sum, value) => sum + value, 0) + proposedBonus;
+    const cleanSevenDigitMembers = proposedMembers.filter(
+      (value) => value >= 1000000 && value < 10000000
+    );
+    const unselectedSevenDigitMembers = cleanSevenDigitMembers.filter(
+      (value) => !selected.some((member) => Math.abs(member - value) <= 1)
+    );
+    const selectedShiftMatches =
+      Math.abs(selected[0] - proposedMembers[1]) <= 1 &&
+      Math.abs(selected[1] - proposedMembers[2]) <= 1 &&
+      Math.abs(selected[2] - proposedBonus) <= 1;
+    const totalEvidence = getStage3TotalEvidenceForValue(proposedTotal, totalEvidenceSources);
+    const matchingDisplayedTotals = totalReferences.filter(
+      (value) => Math.abs(value - proposedTotal) <= 1
+    );
+
+    proposals.push({
+      rowStartIndex: index,
+      proposedMembers,
+      proposedBonus,
+      proposedTotal,
+      memberSum: proposedMembers.reduce((sum, value) => sum + value, 0),
+      cleanSevenDigitMembers,
+      unselectedSevenDigitMembers,
+      selectedShiftMatches,
+      matchingDisplayedTotals,
+      totalEvidence,
+      memberRowPass: memberSource.pass || null,
+      memberRowTag: memberSource.tag || null,
+      memberRowText: memberSource.text || "",
+    });
+  }
+
+  const strictProposals = proposals.filter(
+    (proposal) =>
+      proposal.rowStartIndex === 0 &&
+      proposal.unselectedSevenDigitMembers.length === 1 &&
+      proposal.selectedShiftMatches &&
+      proposal.proposedBonus >= 50000 &&
+      proposal.proposedBonus < 500000 &&
+      proposal.totalEvidence.hasExactEvidence &&
+      proposal.totalEvidence.ambiguousExactEvidence === false &&
+      proposal.matchingDisplayedTotals.length > 0
+  );
+  const rejectionReasons = [];
+  if (!(stage === 3 && side === "self")) {
+    rejectionReasons.push("not-current-pc-stage3-self");
+  }
+  if (memberNumbers.length < 4) {
+    rejectionReasons.push("member-row-has-fewer-than-four-values");
+  }
+  if (!proposals.some((proposal) => proposal.rowStartIndex === 0)) {
+    rejectionReasons.push("missing-leading-member-row-proposal");
+  }
+  if (!proposals.some((proposal) => proposal.unselectedSevenDigitMembers.length === 1)) {
+    rejectionReasons.push("missing-one-unselected-clean-seven-digit-member");
+  }
+  if (!proposals.some((proposal) => proposal.selectedShiftMatches)) {
+    rejectionReasons.push("selected-members-do-not-match-member2-member3-bonus-shift");
+  }
+  if (!proposals.some((proposal) => proposal.totalEvidence.hasExactEvidence)) {
+    rejectionReasons.push("missing-exact-displayed-total-evidence");
+  }
+  if (strictProposals.length === 0) {
+    rejectionReasons.push("no-strict-current-pc-stage3-self-proposal");
+  }
+  if (strictProposals.length > 1) {
+    rejectionReasons.push("multiple-strict-current-pc-stage3-self-proposals");
+  }
+  const competingExactInterpretations = proposals.filter(
+    (proposal) =>
+      proposal.totalEvidence.hasExactEvidence &&
+      proposal.totalEvidence.ambiguousExactEvidence === false &&
+      !strictProposals.includes(proposal)
+  );
+  if (competingExactInterpretations.length > 0) {
+    rejectionReasons.push("competing-exact-current-pc-stage3-self-interpretation");
+  }
+
+  const proposal = strictProposals[0] || null;
+  return {
+    wouldApply: rejectionReasons.length === 0,
+    proposed: proposal
+      ? {
+          members: proposal.proposedMembers,
+          bonus: proposal.proposedBonus,
+          total: proposal.proposedTotal,
+          memberSum: proposal.memberSum,
+        }
+      : null,
+    current: {
+      members: selected,
+      total: Number(selectedTotal || 0),
+      memberSum: selectedMemberSum,
+      totalMinusMemberSum: Number(selectedTotal || 0) - selectedMemberSum,
+    },
+    rejectionReasons,
+    evidence: {
+      memberRowNumbers: memberNumbers,
+      totalReferences,
+      roiProvenance,
+      proposals: proposals.map((item) => ({
+        rowStartIndex: item.rowStartIndex,
+        proposedMembers: item.proposedMembers,
+        proposedBonus: item.proposedBonus,
+        proposedTotal: item.proposedTotal,
+        cleanSevenDigitMembers: item.cleanSevenDigitMembers,
+        unselectedSevenDigitMembers: item.unselectedSevenDigitMembers,
+        selectedShiftMatches: item.selectedShiftMatches,
+        matchingDisplayedTotals: item.matchingDisplayedTotals,
+        totalEvidence: item.totalEvidence,
+        memberRowPass: item.memberRowPass,
+        memberRowTag: item.memberRowTag,
+        memberRowText: item.memberRowText,
+      })),
+      strictProposalCount: strictProposals.length,
+      competingExactInterpretationCount: competingExactInterpretations.length,
+      competingExactInterpretations: competingExactInterpretations.map((item) => ({
+        rowStartIndex: item.rowStartIndex,
+        proposedMembers: item.proposedMembers,
+        proposedBonus: item.proposedBonus,
+        proposedTotal: item.proposedTotal,
+      })),
+      totalCandidateSources: totalEvidenceSources,
+    },
+    note:
+      "Runner-only current-PC simulation. It does not change OCR output and does not use filenames or hard-coded scores.",
+  };
+}
+
+function buildCurrentPcSideAnalysis(stageResult, side, options = {}) {
   const sideArtifact = stageResult?.debugArtifact?.[side] || null;
   const selectedMembers = (stageResult?.[side] || []).map((value) => Number(value) || 0);
   while (selectedMembers.length < 3) selectedMembers.push(0);
@@ -6149,6 +6313,18 @@ function buildCurrentPcSideAnalysis(stageResult, side) {
         }
       : { triggered: false, reason: [], roiRoles: [], variants: [] };
 
+  const currentPcStage3SelfSevenDigitDisplacementSimulation =
+    options.stage === 3 && side === "self"
+      ? buildCurrentPcStage3SelfSevenDigitDisplacementSimulation({
+          stage: options.stage,
+          side,
+          selectedMembers,
+          selectedTotal,
+          sideArtifact,
+          roiProvenance: options.roiProvenance || null,
+        })
+      : null;
+
   return {
     selectedMembers,
     selectedTotal,
@@ -6164,6 +6340,7 @@ function buildCurrentPcSideAnalysis(stageResult, side) {
     suspiciousReasons,
     retryPlan,
     exactRawInterpretations: uniqueExactRawInterpretations.slice(0, 8),
+    currentPcStage3SelfSevenDigitDisplacementSimulation,
   };
 }
 
@@ -6234,37 +6411,36 @@ async function writeCurrentPcBaselineArtifacts(report) {
         const totalZone = side === "self" ? fixed.selfTotal : fixed.enemyTotal;
         const memberZone = side === "self" ? fixed.selfMembers : fixed.enemyMembers;
         const bonusZones = getCrownBonusZones(image, stage, side, "current-pc");
-        cropArtifacts.push(
-          await saveCurrentPcZoneArtifacts(
+        const totalArtifact = await saveCurrentPcZoneArtifacts(
             imagePath,
             image,
             imageDir,
             `stage${stage}-${side}-total`,
             totalZone,
             { preset: "score-slot" }
-          )
-        );
-        cropArtifacts.push(
-          await saveCurrentPcZoneArtifacts(
+          );
+        cropArtifacts.push(totalArtifact);
+        const memberArtifact = await saveCurrentPcZoneArtifacts(
             imagePath,
             image,
             imageDir,
             `stage${stage}-${side}-members`,
             memberZone,
             { preset: "score-slot" }
-          )
-        );
+          );
+        cropArtifacts.push(memberArtifact);
+        const bonusArtifacts = [];
         for (let index = 0; index < bonusZones.length; index += 1) {
-          cropArtifacts.push(
-            await saveCurrentPcZoneArtifacts(
+          const bonusArtifact = await saveCurrentPcZoneArtifacts(
               imagePath,
               image,
               imageDir,
               `stage${stage}-${side}-bonus-${index + 1}`,
               bonusZones[index],
               { preset: "crown-bonus" }
-            )
-          );
+            );
+          bonusArtifacts.push(bonusArtifact);
+          cropArtifacts.push(bonusArtifact);
         }
         zonesForOverlay.push({
           zone: clampZoneToImage(totalZone, image),
@@ -6278,7 +6454,16 @@ async function writeCurrentPcBaselineArtifacts(report) {
         });
         stageAnalyses[`stage${stage}`][side] = buildCurrentPcSideAnalysis(
           item.result?.[`stage${stage}`],
-          side
+          side,
+          {
+            stage,
+            roiProvenance: {
+              layoutFamily: "current-pc-2026-07-result",
+              total: totalArtifact,
+              members: memberArtifact,
+              bonus: bonusArtifacts,
+            },
+          }
         );
       }
     }
@@ -6419,6 +6604,104 @@ function buildCurrentPcConfirmedGroupEvaluation(analysis) {
   return [...byName.values()];
 }
 
+function currentPcExpectedStageSide(item, stage, side) {
+  const expectedStage = item.expectedData?.[`stage${stage}`];
+  if (!expectedStage) return null;
+  return {
+    members: expectedStage[`${side}Members`] || [],
+    bonus: side === "self" ? expectedStage.selfBonus || 0 : expectedStage.enemyBonus || 0,
+    total: side === "self" ? expectedStage.selfTotal || 0 : expectedStage.enemyTotal || 0,
+  };
+}
+
+function arraysEqualWithinOne(left = [], right = []) {
+  if (left.length !== right.length) return false;
+  return left.every((value, index) => Math.abs(Number(value || 0) - Number(right[index] || 0)) <= 1);
+}
+
+function proposalMatchesExpected(proposal, expected) {
+  if (!proposal || !expected) return false;
+  return (
+    arraysEqualWithinOne(proposal.members || [], expected.members || []) &&
+    Math.abs(Number(proposal.bonus || 0) - Number(expected.bonus || 0)) <= 1 &&
+    Math.abs(Number(proposal.total || 0) - Number(expected.total || 0)) <= 1
+  );
+}
+
+function isCurrentPcStage3SelfDisplacementTarget(item) {
+  const expected = currentPcExpectedStageSide(item, 3, "self");
+  const actual = item.stages?.stage3?.self;
+  if (!expected || !actual) return false;
+  const members = expected.members || [];
+  const selected = actual.selectedMembers || [];
+  return (
+    members[0] >= 1000000 &&
+    Math.abs(Number(selected[0] || 0) - Number(members[1] || 0)) <= 1 &&
+    Math.abs(Number(selected[1] || 0) - Number(members[2] || 0)) <= 1 &&
+    Math.abs(Number(selected[2] || 0) - Number(expected.bonus || 0)) <= 1
+  );
+}
+
+function buildCurrentPcStage3SelfSimulationEvaluation(analysis) {
+  const rows = [];
+  let truePositives = 0;
+  let falsePositives = 0;
+  let falseNegatives = 0;
+  let correctlyBlockedNegatives = 0;
+
+  for (const item of analysis) {
+    const side = item.stages?.stage3?.self;
+    const sim = side?.currentPcStage3SelfSevenDigitDisplacementSimulation;
+    const expected = currentPcExpectedStageSide(item, 3, "self");
+    const target = isCurrentPcStage3SelfDisplacementTarget(item);
+    const wouldApply = Boolean(sim?.wouldApply);
+    const matchesExpected = proposalMatchesExpected(sim?.proposed, expected);
+    let classification = "correctly-blocked-negative";
+
+    if (wouldApply && matchesExpected) {
+      truePositives += 1;
+      classification = "true-positive";
+    } else if (wouldApply && !matchesExpected) {
+      falsePositives += 1;
+      classification = "false-positive";
+    } else if (!wouldApply && target) {
+      falseNegatives += 1;
+      classification = "false-negative";
+    } else {
+      correctlyBlockedNegatives += 1;
+    }
+
+    rows.push({
+      image: item.fileName,
+      classification,
+      target,
+      wouldApply,
+      expected,
+      actual: {
+        members: side?.selectedMembers || [],
+        bonusCandidates: side?.bonusCandidates || [],
+        total: side?.selectedTotal || 0,
+      },
+      proposed: sim?.proposed || null,
+      rejectionReasons: sim?.rejectionReasons || [],
+      memberRowNumbers: sim?.evidence?.memberRowNumbers || [],
+      totalReferences: sim?.evidence?.totalReferences || [],
+      strictProposalCount: sim?.evidence?.strictProposalCount || 0,
+      competingExactInterpretationCount:
+        sim?.evidence?.competingExactInterpretationCount || 0,
+      roiProvenance: sim?.evidence?.roiProvenance || null,
+    });
+  }
+
+  return {
+    truePositives,
+    falsePositives,
+    falseNegatives,
+    correctlyBlockedNegatives,
+    rows,
+  };
+}
+
 function buildCurrentPcBaselineReport(baseline) {
   const generatedAt = new Date().toISOString();
   const summary = buildCurrentPcBaselineSummary(
@@ -6432,6 +6715,7 @@ function buildCurrentPcBaselineReport(baseline) {
   const aspects = [...new Set(baseline.analysis.map((item) => String(item.aspect)))];
   const groups = classifyCurrentPcFailureGroups(baseline.analysis);
   const confirmedGroups = buildCurrentPcConfirmedGroupEvaluation(baseline.analysis);
+  const stage3SelfSimulation = buildCurrentPcStage3SelfSimulationEvaluation(baseline.analysis);
   const lines = [
     "# Current PC OCR Baseline",
     "",
@@ -6607,6 +6891,36 @@ function buildCurrentPcBaselineReport(baseline) {
     "2. Total-only bonus omission: confirmed in several self totals where selected members are correct but total is member sum instead of member sum plus visible bonus. This is more generalizable, but must be guarded against malformed total/bonus candidates.",
     "3. Member slot/order displacement: confirmed in several cases where the selected values are real scores but assigned to the wrong slots. This likely needs bbox/slot evidence before a safe generic rule.",
     "4. Missing selected member: currently one confirmed sample in this 10-sample baseline. It is not the first production target until more examples exist.",
+    "",
+    "## Current-PC Stage3 Self 7-Digit Displacement Simulation",
+    "",
+    "- simulation name: `currentPcStage3SelfSevenDigitDisplacementSimulation`",
+    "- scope: runner-only, current-PC layout only, Stage3 self only",
+    "- production OCR output changed: no",
+    "- guard shape: member-row ROI must contain a leading clean 7-digit member followed by two selected member values and a bonus-like fourth value; displayed total evidence must exactly match `member1 + member2 + member3 + bonus`; interpretation must be unique.",
+    "",
+    `- true positive accepts: ${stage3SelfSimulation.truePositives}`,
+    `- false positive accepts: ${stage3SelfSimulation.falsePositives}`,
+    `- false negatives: ${stage3SelfSimulation.falseNegatives}`,
+    `- correctly blocked negatives: ${stage3SelfSimulation.correctlyBlockedNegatives}`,
+    "",
+    "| image | class | would apply | expected S3 self | actual S3 self | proposed | key evidence | rejection / ambiguity |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- |"
+  );
+
+  for (const row of stage3SelfSimulation.rows) {
+    lines.push(
+      `| ${row.image} | ${row.classification} | ${row.wouldApply ? "yes" : "no"} | members ${formatDebugNumbers(row.expected?.members || [])}; bonus ${formatNumber(row.expected?.bonus || 0) || "-"}; total ${formatNumber(row.expected?.total || 0)} | members ${formatDebugNumbers(row.actual.members)}; bonus candidates ${formatDebugNumbers(row.actual.bonusCandidates) || "-"}; total ${formatNumber(row.actual.total)} | ${
+        row.proposed
+          ? `members ${formatDebugNumbers(row.proposed.members)}; bonus ${formatNumber(row.proposed.bonus)}; total ${formatNumber(row.proposed.total)}`
+          : "-"
+      } | member row ${formatDebugNumbers(row.memberRowNumbers) || "-"}; totals ${formatDebugNumbers(row.totalReferences) || "-"}; strict proposals ${row.strictProposalCount}; competing exact ${row.competingExactInterpretationCount}; member ROI ${
+        row.roiProvenance?.members?.crop || "-"
+      } | ${row.rejectionReasons.join(", ") || "-"} |`
+    );
+  }
+
+  lines.push(
     "",
     "## Ranked Generalization Targets",
     "",
