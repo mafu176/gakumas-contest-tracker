@@ -29,6 +29,14 @@ const nextDebugPath = path.join(rootDir, "docs", "next-debug.md");
 const debugArtifactsDir = path.join(rootDir, "tmp", "ocr-debug-artifacts");
 const fixedRoiExperimentDir = path.join(rootDir, "tmp", "ocr-roi-experiment");
 const roiAdoptionSimDir = path.join(rootDir, "tmp", "ocr-roi-adoption-sim");
+const currentPcScreenshotDir = path.join(
+  process.env.USERPROFILE || "C:\\Users\\gkhay",
+  "Pictures",
+  "DMMGamePlayer",
+  "学園アイドルマスター"
+);
+const currentPcBaselineDir = path.join(rootDir, "tmp", "current-pc-ocr-baseline");
+const currentPcBaselineReportPath = path.join(rootDir, "docs", "current-pc-ocr-baseline.md");
 const unsupportedNextScreenMessage =
   "Next screen is unsupported for OCR. Use normal result or high-score screen.";
 
@@ -1623,6 +1631,33 @@ function toNumber(value) {
 
 function getDeviceOcrLayout(mode) {
   const layouts = {
+    "current-pc": {
+      direct: true,
+      layoutFamily: "current-pc-2026-07-result",
+      totalTop: [0.108, 0.363, 0.613],
+      enemyTotalTop: [0.108, 0.363, 0.613],
+      totalTopCandidates: [
+        [0.096, 0.351, 0.601],
+        [0.102, 0.357, 0.607],
+        [0.108, 0.363, 0.613],
+        [0.114, 0.369, 0.619],
+        [0.120, 0.375, 0.625],
+      ],
+      memberTop: [0.146, 0.398, 0.647],
+      enemyMemberTop: [0.146, 0.398, 0.647],
+      memberTopCandidates: [
+        [0.136, 0.388, 0.637],
+        [0.142, 0.394, 0.643],
+        [0.146, 0.398, 0.647],
+        [0.152, 0.404, 0.653],
+        [0.158, 0.410, 0.659],
+      ],
+      leftX: 0.045,
+      rightX: 0.545,
+      sideWidth: 0.410,
+      totalHeight: 0.055,
+      memberHeight: 0.112,
+    },
     desktop: {
       direct: true,
       totalTop: [0.112, 0.368, 0.615],
@@ -3497,6 +3532,32 @@ async function readImageSize(imagePath) {
   return { width: metadata.width, height: metadata.height };
 }
 
+function detectCurrentPcLayout(image) {
+  const width = Number(image?.width || 0);
+  const height = Number(image?.height || 0);
+  if (!width || !height) {
+    return { detected: false, family: "unknown", reasons: ["missing-image-size"] };
+  }
+
+  const aspect = width / height;
+  const expectedAspect = 541 / 961;
+  const detected =
+    Math.abs(width - 541) <= 2 &&
+    Math.abs(height - 961) <= 2 &&
+    Math.abs(aspect - expectedAspect) <= 0.003;
+
+  return {
+    detected,
+    family: detected ? "current-pc-2026-07-result" : "not-current-pc-2026-07-result",
+    reasons: detected
+      ? ["matches-current-pc-10-sample-dimensions"]
+      : [`size=${width}x${height}`, `aspect=${aspect.toFixed(6)}`],
+    width,
+    height,
+    aspect: Number(aspect.toFixed(6)),
+  };
+}
+
 function limitOcrZones(zones, options = {}) {
   return options.fastNext ? zones.slice(0, 1) : zones;
 }
@@ -3505,7 +3566,13 @@ async function runOcrForImage(imagePath, options = {}) {
   const image = await readImageSize(imagePath);
   const fileName = path.basename(imagePath);
   const results = {};
-  const ocrSource = options.source === "desktop" ? "desktop" : "smartphone";
+  const ocrSource =
+    options.source === "desktop"
+      ? "desktop"
+      : options.source === "current-pc"
+        ? "current-pc"
+        : "smartphone";
+  const layoutDetection = ocrSource === "current-pc" ? detectCurrentPcLayout(image) : null;
 
   for (const stage of stages) {
     const zones = getFixedOcrZones(image, stage, ocrSource);
@@ -4433,7 +4500,7 @@ async function runOcrForImage(imagePath, options = {}) {
       },
     };
 
-    if (options.debugArtifacts && ocrSource === "smartphone") {
+    if (options.debugArtifacts && (ocrSource === "smartphone" || ocrSource === "current-pc")) {
       const buildSideArtifact = (side) => {
         const isSelf = side === "self";
         const members = isSelf ? self : enemy;
@@ -4541,6 +4608,7 @@ async function runOcrForImage(imagePath, options = {}) {
       stageResult.debugArtifact = {
         stage,
         mode: ocrSource,
+        layoutDetection,
         image: {
           fileName,
           width: image.width,
@@ -4571,7 +4639,7 @@ async function runOcrForImage(imagePath, options = {}) {
   }
 
   const correctedResults = applyKnownOcrSetCorrections(results);
-  if (options.debugArtifacts && ocrSource === "smartphone") {
+  if (options.debugArtifacts && (ocrSource === "smartphone" || ocrSource === "current-pc")) {
     for (const stage of stages) {
       const key = `stage${stage}`;
       const before = cloneStageState(results[key]);
@@ -4598,6 +4666,14 @@ async function collectImages(dir) {
     else if (/\.(png|jpe?g)$/i.test(entry.name)) files.push(fullPath);
   }
   return files;
+}
+
+async function collectCurrentPcBaselineImages() {
+  const entries = await fs.readdir(currentPcScreenshotDir, { withFileTypes: true });
+  return entries
+    .filter((entry) => entry.isFile() && /\.(png|jpe?g)$/i.test(entry.name))
+    .map((entry) => path.join(currentPcScreenshotDir, entry.name))
+    .sort();
 }
 
 async function readExpected(fileName) {
@@ -4711,6 +4787,8 @@ function getCategory(relativePath) {
 function getOcrSourceForImage(category, forcedSource) {
   if (forcedSource === "desktop") return "desktop";
   if (forcedSource === "smartphone") return "smartphone";
+  if (forcedSource === "current-pc") return "current-pc";
+  if (category === "current-pc") return "current-pc";
   return category === "desktop" ? "desktop" : "smartphone";
 }
 
@@ -5864,19 +5942,572 @@ function buildRawTokenFragmentAuditReport(report) {
   return lines.join("\n");
 }
 
+function currentPcStageRegion(image, stage) {
+  const ranges = {
+    1: { top: 0.070, height: 0.235 },
+    2: { top: 0.325, height: 0.235 },
+    3: { top: 0.575, height: 0.250 },
+  };
+  const range = ranges[stage] || ranges[1];
+  return {
+    left: 0,
+    top: Math.floor(image.height * range.top),
+    width: image.width,
+    height: Math.floor(image.height * range.height),
+  };
+}
+
+function clampZoneToImage(zone, image) {
+  const left = Math.max(0, Math.min(Math.round(zone.left ?? zone.x ?? 0), image.width - 1));
+  const top = Math.max(0, Math.min(Math.round(zone.top ?? zone.y ?? 0), image.height - 1));
+  const width = Math.max(1, Math.min(Math.round(zone.width || 1), image.width - left));
+  const height = Math.max(1, Math.min(Math.round(zone.height || 1), image.height - top));
+  return { left, top, width, height };
+}
+
+function svgRect(zone, color, label) {
+  const z = zone;
+  return `
+    <rect x="${z.left}" y="${z.top}" width="${z.width}" height="${z.height}" fill="none" stroke="${color}" stroke-width="2" />
+    <text x="${z.left + 3}" y="${Math.max(12, z.top + 13)}" fill="${color}" font-size="12" font-family="Arial">${label}</text>
+  `;
+}
+
+async function saveCurrentPcZoneArtifacts(imagePath, image, outDir, label, zone, options = {}) {
+  const safeLabel = safeArtifactName(label);
+  const clamped = clampZoneToImage(zone, image);
+  const cropPath = path.join(outDir, `${safeLabel}.png`);
+  await sharp(imagePath).extract(clamped).png().toFile(cropPath);
+
+  let binarizedPath = null;
+  if (options.binarized !== false) {
+    binarizedPath = path.join(outDir, `${safeLabel}.binarized.png`);
+    const binarized = await createPreprocessedStageBuffer(imagePath, clamped, {
+      preset: options.preset || "score-slot",
+      pageSegMode: "6",
+    });
+    await fs.writeFile(binarizedPath, binarized);
+  }
+
+  return {
+    label,
+    zone: clamped,
+    crop: path.relative(rootDir, cropPath).replaceAll("\\", "/"),
+    binarized: binarizedPath ? path.relative(rootDir, binarizedPath).replaceAll("\\", "/") : null,
+  };
+}
+
+function buildCurrentPcSideAnalysis(stageResult, side) {
+  const sideArtifact = stageResult?.debugArtifact?.[side] || null;
+  const selectedMembers = (stageResult?.[side] || []).map((value) => Number(value) || 0);
+  while (selectedMembers.length < 3) selectedMembers.push(0);
+  const selectedTotal =
+    side === "self" ? Number(stageResult?.selfTotal || 0) : Number(stageResult?.enemyTotal || 0);
+  const memberSum = selectedMembers.reduce((sum, value) => sum + value, 0);
+  const bonusCandidates = uniqueNumbers([
+    ...(sideArtifact?.equationContext?.bonusCandidates || []),
+    ...(sideArtifact?.equationContext?.recognizedCrownCandidates || []),
+  ]).filter((value) => value > 0);
+  const rawCandidates = uniqueNumbers([
+    ...(sideArtifact?.candidateSources?.totalDirect?.numbers || []),
+    ...(sideArtifact?.candidateSources?.totalCandidates?.numbers || []),
+    ...(sideArtifact?.candidateSources?.memberCandidates?.numbers || []),
+    ...(sideArtifact?.candidateSources?.memberNumbersAfterSlotFallback || []),
+    ...(sideArtifact?.candidateSources?.originalMemberNumbers || []),
+  ]);
+  const exactNoBonus = Math.abs(memberSum - selectedTotal) <= 1;
+  const exactBonusMatches = bonusCandidates
+    .map((bonus) => ({ bonus, total: memberSum + bonus }))
+    .filter((candidate) => Math.abs(candidate.total - selectedTotal) <= 1);
+  const displayedTotalCandidates = uniqueNumbers([
+    ...(sideArtifact?.candidateSources?.totalDirect?.numbers || []),
+    ...(sideArtifact?.candidateSources?.totalCandidates?.numbers || []),
+  ]).filter((value) => value >= 10000);
+  const cleanSevenDigitCandidates = rawCandidates.filter(
+    (value) => value >= 1000000 && value < 10000000
+  );
+  const suspiciousReasons = [];
+
+  if (selectedMembers.filter((value) => value > 0).length < 3) {
+    suspiciousReasons.push("missing-selected-member");
+  }
+  if (selectedTotal <= 0) {
+    suspiciousReasons.push("missing-selected-total");
+  }
+  if (selectedTotal > 0 && selectedTotal < memberSum) {
+    suspiciousReasons.push("selected-total-lower-than-member-sum");
+  }
+  if (!exactNoBonus && exactBonusMatches.length === 0) {
+    suspiciousReasons.push("selected-total-not-exact-member-sum-or-member-sum-plus-bonus");
+  }
+  if (selectedMembers.some((member) => member > 0 && Math.abs(member - selectedTotal) <= 1)) {
+    suspiciousReasons.push("selected-total-also-used-as-member");
+  }
+  if (
+    bonusCandidates.some((bonus) =>
+      selectedMembers.some((member) => member > 0 && Math.abs(member - bonus) <= 1)
+    )
+  ) {
+    suspiciousReasons.push("bonus-candidate-selected-as-member");
+  }
+  if (
+    cleanSevenDigitCandidates.some(
+      (candidate) => !selectedMembers.some((member) => Math.abs(member - candidate) <= 1)
+    )
+  ) {
+    suspiciousReasons.push("clean-7digit-candidate-present-but-unselected");
+  }
+  const exactRawInterpretations = [];
+  const memberLike = rawCandidates.filter((value) => value >= 10000 && value < 2000000);
+  for (let a = 0; a < memberLike.length - 2; a += 1) {
+    for (let b = a + 1; b < memberLike.length - 1; b += 1) {
+      for (let c = b + 1; c < memberLike.length; c += 1) {
+        const members = [memberLike[a], memberLike[b], memberLike[c]];
+        const sum = members.reduce((total, value) => total + value, 0);
+        if (displayedTotalCandidates.some((value) => Math.abs(value - sum) <= 1)) {
+          exactRawInterpretations.push({ members, bonus: 0, total: sum });
+        }
+        for (const bonus of bonusCandidates) {
+          const total = sum + bonus;
+          if (displayedTotalCandidates.some((value) => Math.abs(value - total) <= 1)) {
+            exactRawInterpretations.push({ members, bonus, total });
+          }
+        }
+      }
+    }
+  }
+  const uniqueExactRawInterpretations = exactRawInterpretations.filter(
+    (item, index, all) =>
+      all.findIndex(
+        (other) =>
+          other.total === item.total &&
+          other.bonus === item.bonus &&
+          other.members.join(",") === item.members.join(",")
+      ) === index
+  );
+  if (uniqueExactRawInterpretations.length > 1) {
+    suspiciousReasons.push("multiple-competing-exact-raw-interpretations");
+  }
+  if (
+    uniqueExactRawInterpretations.length === 1 &&
+    !(
+      Math.abs(uniqueExactRawInterpretations[0].total - selectedTotal) <= 1 &&
+      uniqueExactRawInterpretations[0].members.every((member, index) =>
+        Math.abs(member - (selectedMembers[index] || 0)) <= 1
+      )
+    )
+  ) {
+    suspiciousReasons.push("unique-exact-raw-interpretation-differs-from-selected-result");
+  }
+
+  const retryPlan =
+    suspiciousReasons.length > 0
+      ? {
+          triggered: true,
+          reason: suspiciousReasons,
+          roiRoles: [
+            suspiciousReasons.includes("missing-selected-total") ||
+            suspiciousReasons.includes("selected-total-not-exact-member-sum-or-member-sum-plus-bonus")
+              ? "total"
+              : null,
+            suspiciousReasons.includes("missing-selected-member") ||
+            suspiciousReasons.includes("clean-7digit-candidate-present-but-unselected")
+              ? "member"
+              : null,
+            suspiciousReasons.includes("bonus-candidate-selected-as-member")
+              ? "bonus"
+              : null,
+          ].filter(Boolean),
+          variants: [
+            "alternate-threshold",
+            "alternate-contrast",
+            "wider-roi",
+            "narrower-roi",
+            "shifted-roi",
+          ],
+          note:
+            "Audit-only retry plan. Current implementation preserves the trigger and variant list but does not alter final OCR output.",
+        }
+      : { triggered: false, reason: [], roiRoles: [], variants: [] };
+
+  return {
+    selectedMembers,
+    selectedTotal,
+    memberSum,
+    bonusCandidates,
+    rawCandidates,
+    displayedTotalCandidates,
+    cleanSevenDigitCandidates,
+    exactConsistency: {
+      noBonus: exactNoBonus,
+      bonusMatches: exactBonusMatches,
+    },
+    suspiciousReasons,
+    retryPlan,
+    exactRawInterpretations: uniqueExactRawInterpretations.slice(0, 8),
+  };
+}
+
+function buildCurrentPcBaselineSummary(report) {
+  const currentPcItems = report.filter((item) => item.source === "current-pc");
+  let pass = 0;
+  let fail = 0;
+  let unresolved = 0;
+  for (const item of currentPcItems) {
+    if (item.expected) {
+      if (item.pass) pass += 1;
+      else fail += 1;
+    } else {
+      unresolved += 1;
+    }
+  }
+  return { total: currentPcItems.length, pass, fail, unresolved };
+}
+
+function classifyCurrentPcFailureGroups(analysis) {
+  const groups = new Map();
+  for (const item of analysis) {
+    for (const stage of stages) {
+      for (const side of sides) {
+        const reasons = item.stages?.[`stage${stage}`]?.[side]?.suspiciousReasons || [];
+        for (const reason of reasons) {
+          if (!groups.has(reason)) groups.set(reason, []);
+          groups.get(reason).push(`${item.fileName} S${stage} ${side}`);
+        }
+      }
+    }
+  }
+
+  return [...groups.entries()]
+    .map(([reason, occurrences]) => ({ reason, count: occurrences.length, occurrences }))
+    .sort((a, b) => b.count - a.count || a.reason.localeCompare(b.reason));
+}
+
+async function writeCurrentPcBaselineArtifacts(report) {
+  const currentPcItems = report.filter((item) => item.source === "current-pc");
+  await fs.rm(currentPcBaselineDir, { recursive: true, force: true });
+  await fs.mkdir(currentPcBaselineDir, { recursive: true });
+
+  const analysis = [];
+  for (const item of currentPcItems) {
+    const imagePath = item.absolutePath;
+    const image = await readImageSize(imagePath);
+    const imageDir = path.join(currentPcBaselineDir, safeArtifactName(item.image));
+    await fs.mkdir(imageDir, { recursive: true });
+    const originalPath = path.join(imageDir, "original.png");
+    await fs.copyFile(imagePath, originalPath);
+
+    const zonesForOverlay = [];
+    const cropArtifacts = [];
+    const stageAnalyses = {};
+    for (const stage of stages) {
+      const fixed = getFixedOcrZones(image, stage, "current-pc");
+      const stageZone = currentPcStageRegion(image, stage);
+      cropArtifacts.push(
+        await saveCurrentPcZoneArtifacts(imagePath, image, imageDir, `stage${stage}-full`, stageZone, {
+          binarized: false,
+        })
+      );
+      zonesForOverlay.push({ zone: stageZone, color: "#ffcc00", label: `S${stage}` });
+
+      stageAnalyses[`stage${stage}`] = {};
+      for (const side of sides) {
+        const totalZone = side === "self" ? fixed.selfTotal : fixed.enemyTotal;
+        const memberZone = side === "self" ? fixed.selfMembers : fixed.enemyMembers;
+        const bonusZones = getCrownBonusZones(image, stage, side, "current-pc");
+        cropArtifacts.push(
+          await saveCurrentPcZoneArtifacts(
+            imagePath,
+            image,
+            imageDir,
+            `stage${stage}-${side}-total`,
+            totalZone,
+            { preset: "score-slot" }
+          )
+        );
+        cropArtifacts.push(
+          await saveCurrentPcZoneArtifacts(
+            imagePath,
+            image,
+            imageDir,
+            `stage${stage}-${side}-members`,
+            memberZone,
+            { preset: "score-slot" }
+          )
+        );
+        for (let index = 0; index < bonusZones.length; index += 1) {
+          cropArtifacts.push(
+            await saveCurrentPcZoneArtifacts(
+              imagePath,
+              image,
+              imageDir,
+              `stage${stage}-${side}-bonus-${index + 1}`,
+              bonusZones[index],
+              { preset: "crown-bonus" }
+            )
+          );
+        }
+        zonesForOverlay.push({
+          zone: clampZoneToImage(totalZone, image),
+          color: side === "self" ? "#00a3ff" : "#ff3366",
+          label: `S${stage} ${side} total`,
+        });
+        zonesForOverlay.push({
+          zone: clampZoneToImage(memberZone, image),
+          color: side === "self" ? "#63d471" : "#ff8a00",
+          label: `S${stage} ${side} members`,
+        });
+        stageAnalyses[`stage${stage}`][side] = buildCurrentPcSideAnalysis(
+          item.result?.[`stage${stage}`],
+          side
+        );
+      }
+    }
+
+    const overlaySvg = Buffer.from(`
+      <svg width="${image.width}" height="${image.height}" xmlns="http://www.w3.org/2000/svg">
+        ${zonesForOverlay.map((entry) => svgRect(entry.zone, entry.color, entry.label)).join("\n")}
+      </svg>
+    `);
+    const annotatedPath = path.join(imageDir, "annotated-rois.png");
+    await sharp(imagePath).composite([{ input: overlaySvg, left: 0, top: 0 }]).png().toFile(annotatedPath);
+
+    const artifact = {
+      image: item.image,
+      absolutePath: imagePath,
+      dimensions: image,
+      aspect: Number((image.width / image.height).toFixed(6)),
+      layoutDetection: detectCurrentPcLayout(image),
+      expected: item.expected,
+      pass: item.pass,
+      failures: item.failures,
+      result: item.result,
+      crops: cropArtifacts,
+      annotated: path.relative(rootDir, annotatedPath).replaceAll("\\", "/"),
+      original: path.relative(rootDir, originalPath).replaceAll("\\", "/"),
+      stages: stageAnalyses,
+    };
+    const jsonPath = path.join(imageDir, "analysis.json");
+    await fs.writeFile(jsonPath, JSON.stringify(artifact, null, 2));
+    analysis.push({
+      fileName: path.basename(imagePath),
+      absolutePath: imagePath,
+      dimensions: image,
+      aspect: Number((image.width / image.height).toFixed(6)),
+      lastWriteTime: (await fs.stat(imagePath)).mtime.toISOString(),
+      artifact: path.relative(rootDir, jsonPath).replaceAll("\\", "/"),
+      annotated: path.relative(rootDir, annotatedPath).replaceAll("\\", "/"),
+      expected: item.expected,
+      pass: item.pass,
+      failures: item.failures,
+      stages: stageAnalyses,
+      result: item.result,
+    });
+  }
+
+  const summaryPath = path.join(currentPcBaselineDir, "summary.json");
+  await fs.writeFile(summaryPath, JSON.stringify(analysis, null, 2));
+  return {
+    analysis,
+    summaryPath: path.relative(rootDir, summaryPath).replaceAll("\\", "/"),
+    outputDir: path.relative(rootDir, currentPcBaselineDir).replaceAll("\\", "/"),
+  };
+}
+
+function formatCurrentPcSideLine(sideAnalysis) {
+  if (!sideAnalysis) return "-";
+  return [
+    `members ${formatDebugNumbers(sideAnalysis.selectedMembers)}`,
+    `total ${formatNumber(sideAnalysis.selectedTotal)}`,
+    `sum ${formatNumber(sideAnalysis.memberSum)}`,
+    `bonus ${formatDebugNumbers(sideAnalysis.bonusCandidates) || "-"}`,
+    `exact ${sideAnalysis.exactConsistency.noBonus || sideAnalysis.exactConsistency.bonusMatches.length > 0 ? "yes" : "no"}`,
+    `suspicious ${sideAnalysis.suspiciousReasons.join(", ") || "none"}`,
+  ].join("; ");
+}
+
+function buildCurrentPcBaselineReport(baseline) {
+  const generatedAt = new Date().toISOString();
+  const summary = buildCurrentPcBaselineSummary(
+    baseline.analysis.map((item) => ({
+      source: "current-pc",
+      expected: item.expected,
+      pass: item.pass,
+    }))
+  );
+  const dimensions = [...new Set(baseline.analysis.map((item) => `${item.dimensions.width}x${item.dimensions.height}`))];
+  const aspects = [...new Set(baseline.analysis.map((item) => String(item.aspect)))];
+  const groups = classifyCurrentPcFailureGroups(baseline.analysis);
+  const lines = [
+    "# Current PC OCR Baseline",
+    "",
+    `Generated: ${generatedAt}`,
+    "",
+    "## Scope",
+    "",
+    "- Primary dataset: the 10 current PC/DMM screenshots in `C:\\Users\\gkhay\\Pictures\\DMMGamePlayer\\学園アイドルマスター`.",
+    "- Legacy desktop screenshots are not included in the baseline counts.",
+    "- Smartphone samples are not included in the baseline counts.",
+    "- This is audit-first current-PC work. It does not add filename-specific corrections or production recovery rules.",
+    "",
+    "## 10 Current-PC Screenshots",
+    "",
+    "| # | filename | dimensions | aspect | last modified | artifact |",
+    "| ---: | --- | --- | ---: | --- | --- |",
+  ];
+
+  baseline.analysis.forEach((item, index) => {
+    lines.push(
+      `| ${index + 1} | ${item.fileName} | ${item.dimensions.width}x${item.dimensions.height} | ${item.aspect} | ${item.lastWriteTime} | ${item.artifact} |`
+    );
+  });
+
+  lines.push(
+    "",
+    "## Layout Characteristics",
+    "",
+    `- total current-PC samples: ${baseline.analysis.length}`,
+    `- dimensions observed: ${dimensions.join(", ")}`,
+    `- aspect ratios observed: ${aspects.join(", ")}`,
+    `- all 10 share the same dimensions: ${dimensions.length === 1 ? "yes" : "no"}`,
+    "- layout geometry appears consistent across the 10 samples from dimensions and visual placement.",
+    "- browser/device scaling does not appear to vary inside this 10-sample folder; every file is 541x961.",
+    "- The layout is smartphone-like in aspect ratio but uses a DMM/PC screenshot family and is intentionally separated as `current-pc`.",
+    "",
+    "## Architecture Inspection Summary",
+    "",
+    "Current smartphone OCR principles reused for the current-PC baseline:",
+    "",
+    "- direct fixed ROI extraction by stage/side/role",
+    "- alternative total/member candidate bands",
+    "- raw OCR text and numeric candidates preserved in debug artifacts",
+    "- member/total/bonus evidence kept separate where available",
+    "- exact integer member-sum and member-sum-plus-bonus validation",
+    "- suspicious-state reporting before recovery",
+    "- correction logs and final-result evidence are preserved together",
+    "",
+    "Current-PC-specific adaptations:",
+    "",
+    "- separate `current-pc` source mode in the runner",
+    "- separate normalized layout family `current-pc-2026-07-result`",
+    "- stage total/member ROIs are placed higher than smartphone ROIs and are not based on legacy desktop absolute geometry",
+    "- legacy desktop recovery logic is not used for current-PC baseline images",
+    "- current-PC debug artifacts include original screenshot, annotated ROI image, stage crops, side total/member/bonus crops, binarized crop images, JSON candidate evidence, structural checks, and audit-only retry plans",
+    "",
+    "## Layout Detector",
+    "",
+    "- Detector: image size/aspect based for the initial 10-sample family.",
+    "- Guard: width 541 +/- 2, height 961 +/- 2, aspect within 0.003 of 541/961.",
+    "- It does not use filenames, screenshot timestamps, score values, or hard-coded OCR contents.",
+    "- Future anchor-assisted adjustment may be added if another scale appears.",
+    "",
+    "## ROI Strategy",
+    "",
+    "- Stage regions: normalized vertical bands for S1/S2/S3.",
+    "- Side regions: fixed left/right bands with separate total/member/bonus role crops.",
+    "- Candidate metadata currently includes source role, stage/side, raw OCR text, numeric values, and ROI rectangle.",
+    "- Per-token bbox geometry is available in existing audit helpers but is not yet run by default for all current-PC crops.",
+    "",
+    "## Structural Consistency Design",
+    "",
+    "- Valid exact forms: `member1 + member2 + member3 == total` or `member1 + member2 + member3 + bonus == total`.",
+    "- Suspicious states are reported for missing member/total, total lower than member sum, total/member reuse, bonus/member reuse, unselected clean 7-digit candidates, and competing exact raw interpretations.",
+    "- Exact arithmetic only; no near-match guessing.",
+    "",
+    "## Selective Retry Design",
+    "",
+    "- This pass records retry triggers and proposed variants but does not alter final OCR output.",
+    "- Retry is scoped to suspicious stage/side/role only.",
+    "- Proposed variants: alternate threshold, alternate contrast, wider/narrower ROI, shifted ROI.",
+    "- Retry evidence should be merged as additional evidence only; a future recovery must still require a unique exact interpretation.",
+    "",
+    "## Static-Image Adaptation",
+    "",
+    "- No temporal voting, multi-frame consensus, best-frame selection, or frame stability logic is used.",
+    "- The static substitute is multi-pass ROI interpretation plus exact structural validation on a single screenshot.",
+    "",
+    "## Baseline Results",
+    "",
+    "| image | status | S1 self | S1 enemy | S2 self | S2 enemy | S3 self | S3 enemy |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- |"
+  );
+
+  for (const item of baseline.analysis) {
+    const status = item.expected ? (item.pass ? "PASS" : "FAIL") : "unresolved";
+    lines.push(
+      `| ${item.fileName} | ${status} | ${formatCurrentPcSideLine(item.stages.stage1.self)} | ${formatCurrentPcSideLine(item.stages.stage1.enemy)} | ${formatCurrentPcSideLine(item.stages.stage2.self)} | ${formatCurrentPcSideLine(item.stages.stage2.enemy)} | ${formatCurrentPcSideLine(item.stages.stage3.self)} | ${formatCurrentPcSideLine(item.stages.stage3.enemy)} |`
+    );
+  }
+
+  lines.push(
+    "",
+    "## 10-Sample Summary",
+    "",
+    `- total current-PC samples: ${summary.total}`,
+    `- PASS count: ${summary.pass}`,
+    `- FAIL count: ${summary.fail}`,
+    `- unresolved count: ${summary.unresolved}`,
+    "",
+    "These counts intentionally exclude legacy desktop and smartphone samples.",
+    "",
+    "## Recurring Failure / Suspicious Groups",
+    "",
+    "| rank | group | count | examples |",
+    "| ---: | --- | ---: | --- |"
+  );
+
+  if (groups.length === 0) {
+    lines.push("| 1 | none detected by structural audit | 0 | - |");
+  } else {
+    groups.forEach((group, index) => {
+      lines.push(
+        `| ${index + 1} | ${group.reason} | ${group.count} | ${group.occurrences.slice(0, 6).join("; ")}${group.occurrences.length > 6 ? "; ..." : ""} |`
+      );
+    });
+  }
+
+  lines.push(
+    "",
+    "## Ranked Generalization Targets",
+    "",
+    "1. Improve current-PC role classification where exact structural audit reports total/member/bonus reuse.",
+    "2. Add bbox-backed current-PC candidate provenance for any recurring 7-digit dropped-member cases.",
+    "3. Implement selective retry execution only after a recurring suspicious group has exact positive samples and negative controls.",
+    "",
+    "## Recommendation",
+    "",
+    "- Keep this first current-PC pass as audit-first infrastructure.",
+    "- Do not productionize a new current-PC recovery rule yet from only these 10 samples.",
+    "- Next step: manually confirm expected values for the highest-suspicion current-PC screenshots, then rerun with expected fixtures and only then design a narrow generic recovery.",
+    "",
+    "## Artifact Location",
+    "",
+    `- directory: ${baseline.outputDir}`,
+    `- summary: ${baseline.summaryPath}`,
+    ""
+  );
+
+  return lines.join("\n");
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const debugNext = args.includes("--debug-next");
+  const currentPcBaseline = args.includes("--current-pc-baseline");
   const debugArtifacts =
-    args.includes("--debug-artifacts") || args.includes("--debug-ocr-artifacts");
+    currentPcBaseline ||
+    args.includes("--debug-artifacts") ||
+    args.includes("--debug-ocr-artifacts");
   const fixedRoiExperiment =
     args.includes("--fixed-roi-experiment") || args.includes("--smartphone-roi-experiment");
   const roiAdoptionSimulation =
     args.includes("--roi-adoption-sim") || args.includes("--simulate-roi-adoption");
   const sourceIndex = args.indexOf("--source");
   const sourceValue = sourceIndex >= 0 ? args[sourceIndex + 1] : "";
-  const forcedSource = ["smartphone", "desktop"].includes(sourceValue)
+  const forcedSource = ["smartphone", "desktop", "current-pc"].includes(sourceValue)
     ? sourceValue
+    : currentPcBaseline
+      ? "current-pc"
     : "";
   const disabledKnownCorrectionArgs = parseDisabledKnownCorrections(args);
   const disabledKnownCorrections = new Set(
@@ -5885,6 +6516,7 @@ async function main() {
   const filters = args
     .filter((value, index) =>
       value !== "--debug-next" &&
+      value !== "--current-pc-baseline" &&
       value !== "--debug-artifacts" &&
       value !== "--debug-ocr-artifacts" &&
       value !== "--fixed-roi-experiment" &&
@@ -5902,20 +6534,30 @@ async function main() {
         .replace(/^\.?\/*test-images\//i, "")
         .toLowerCase()
     );
-  const imagePaths = (await collectImages(testImagesDir))
-    .filter((imagePath) => {
-      if (filters.length === 0) return true;
+  const imagePaths = currentPcBaseline
+    ? (await collectCurrentPcBaselineImages())
+        .filter((imagePath) => {
+          if (filters.length === 0) return true;
+          const base = path.basename(imagePath).toLowerCase();
+          return filters.some((filter) => base.includes(filter));
+        })
+        .sort()
+    : (await collectImages(testImagesDir))
+        .filter((imagePath) => {
+          if (filters.length === 0) return true;
 
-      const relative = path.relative(testImagesDir, imagePath).replaceAll("\\", "/").toLowerCase();
-      const base = path.basename(imagePath).toLowerCase();
-      return filters.some((filter) => relative.includes(filter) || base.includes(filter));
-    })
-    .sort();
+          const relative = path.relative(testImagesDir, imagePath).replaceAll("\\", "/").toLowerCase();
+          const base = path.basename(imagePath).toLowerCase();
+          return filters.some((filter) => relative.includes(filter) || base.includes(filter));
+        })
+        .sort();
   const report = [];
 
   for (const imagePath of imagePaths) {
-    const relative = path.relative(testImagesDir, imagePath).replaceAll("\\", "/");
-    const category = getCategory(relative);
+    const relative = currentPcBaseline
+      ? `current-pc/${path.basename(imagePath)}`
+      : path.relative(testImagesDir, imagePath).replaceAll("\\", "/");
+    const category = currentPcBaseline ? "current-pc" : getCategory(relative);
     const source = getOcrSourceForImage(category, forcedSource);
     if (category === "next-screen") {
       console.log(`SKIP ${relative} unsupported`);
@@ -5959,6 +6601,7 @@ async function main() {
       elapsedMs,
       expectedData: expected,
       disabledKnownCorrections: disabledKnownCorrectionArgs,
+      absolutePath: imagePath,
       result,
     });
   }
@@ -5982,6 +6625,15 @@ async function main() {
   const roiAdoptionSimulationFiles = roiAdoptionSimulation
     ? await writeRoiAdoptionSimulationArtifacts(report)
     : [];
+  const currentPcBaselineArtifacts = currentPcBaseline
+    ? await writeCurrentPcBaselineArtifacts(report)
+    : null;
+  if (currentPcBaselineArtifacts) {
+    await fs.writeFile(
+      currentPcBaselineReportPath,
+      buildCurrentPcBaselineReport(currentPcBaselineArtifacts)
+    );
+  }
 
   const expectedResults = report.filter((item) => item.expected);
   const failedResults = report.filter((item) => !item.pass);
@@ -6011,6 +6663,13 @@ async function main() {
           ? path.relative(rootDir, roiAdoptionSimDir).replaceAll("\\", "/")
           : null,
         roiAdoptionSimulationFiles,
+        currentPcBaseline: currentPcBaselineArtifacts
+          ? {
+              report: path.relative(rootDir, currentPcBaselineReportPath).replaceAll("\\", "/"),
+              outputDir: currentPcBaselineArtifacts.outputDir,
+              summary: currentPcBaselineArtifacts.summaryPath,
+            }
+          : null,
         elapsedMs: report.map((item) => ({ image: item.image, elapsedMs: item.elapsedMs })),
         failures: failedResults.map((item) => ({
           image: item.image,
