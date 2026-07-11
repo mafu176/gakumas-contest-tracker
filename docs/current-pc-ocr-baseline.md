@@ -1,6 +1,6 @@
 # Current PC OCR Baseline
 
-Generated: 2026-07-11T08:45:03.266Z
+Generated: 2026-07-11T09:44:08.226Z
 
 ## Scope
 
@@ -179,16 +179,39 @@ These counts compare the structural-audit flags against the manually verified ex
 | スクリーンショット 2026-07-11 145152780.png | correctly-blocked-negative | no | members 877699, 569560, 744217; bonus 175,539; total 2,367,015 | members 877699, 744217, 175539; bonus candidates (none); total 1,797,455 | - | member row 877699, 744217, 175539; totals 367015, 2367015; strict proposals 0; competing exact 0; member ROI tmp/current-pc-ocr-baseline/current-pc__スクリーンショット 2026-07-11 145152780.png/stage3-self-members.png | member-row-has-fewer-than-four-values, missing-leading-member-row-proposal, missing-one-unselected-clean-seven-digit-member, selected-members-do-not-match-member2-member3-bonus-shift, missing-exact-displayed-total-evidence, no-strict-current-pc-stage3-self-proposal |
 | スクリーンショット 2026-07-11 145215861.png | correctly-blocked-negative | no | members 822138, 287040, 942720; bonus 188,544; total 2,240,442 | members 822138, 942720, 18854; bonus candidates (none); total 1,783,712 | - | member row 822138, 942720, 18854; totals 2240442, 2240; strict proposals 0; competing exact 0; member ROI tmp/current-pc-ocr-baseline/current-pc__スクリーンショット 2026-07-11 145215861.png/stage3-self-members.png | member-row-has-fewer-than-four-values, missing-leading-member-row-proposal, missing-one-unselected-clean-seven-digit-member, selected-members-do-not-match-member2-member3-bonus-shift, missing-exact-displayed-total-evidence, no-strict-current-pc-stage3-self-proposal |
 
+## Current-PC Exact Raw Equation Recovery Simulation
+
+- simulation name: `currentPcExactRawEquationRecoverySimulation`
+- scope: runner-only, current-PC layout only, all stages/sides
+- production OCR output changed: no
+- guard shape: the selected-total equation flag must be present, raw evidence must contain exactly one exact member/member/member/bonus/total interpretation, and the selected result must differ from that unique interpretation.
+- It does not use filenames, expected fixtures, or hard-coded scores. Expected fixtures are used only to evaluate simulation impact.
+- The selected-total suspicious group has five confirmed positives, but they do not share one safe shape. This simulation covers only the unique exact raw equation subpattern.
+
+- true positive accepts: 1
+- false positive accepts: 0
+- false negatives: 4
+- correctly blocked negatives: 55
+
+| image | stage/side | class | would apply | expected | actual | proposed | evidence | rejection / ambiguity |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| スクリーンショット 2026-07-11 144908802.png | S1 self | false-negative | no | members 711565, 317040, 96328; bonus 142,313; total 1,267,246 | members 711565, 317040, 142513; bonus candidates 142513; total 1,267,246 | - | equation -; exact interpretations 0; raw 1267246, 2460, 1207240, 711565, 317040, 96328, 142513; displayed totals 1267246, 1207240 | missing-unique-exact-raw-interpretation |
+| スクリーンショット 2026-07-11 144958188.png | S2 enemy | true-positive | yes | members 532105, 70029, 110594; bonus 106,421; total 819,149 | members 532105, 110594, 106421; bonus candidates 106421; total 819,149 | members 532105, 70029, 110594; bonus 106,421; total 819,149 | equation 532105 + 70029 + 110594 + 106421 = 819149; exact interpretations 1; raw 819149, 532105, 70029, 110594, 106421; displayed totals 819149, 532105, 70029, 110594 | - |
+| スクリーンショット 2026-07-11 145018419.png | S3 self | false-negative | no | members 756719, 867029, 805828; bonus 173,405; total 2,602,981 | members 756719, 867029, 5828; bonus candidates (none); total 1,802,981 | - | equation -; exact interpretations 0; raw 602981, 2602981, 756719, 867029, 5828, 173405; displayed totals 602981, 2602981 | missing-unique-exact-raw-interpretation |
+| スクリーンショット 2026-07-11 145152780.png | S2 self | false-negative | no | members 132068, 333301, 110037; bonus 66,660; total 642,066 | members 132068, 333301, 110037; bonus candidates (none); total 644,066 | - | equation -; exact interpretations 0; raw 642066, 7301, 44000, 132068, 333301, 110037, 68660; displayed totals 642066, 44000, 132068, 333301, 110037 | missing-unique-exact-raw-interpretation |
+| スクリーンショット 2026-07-11 145215861.png | S1 enemy | false-negative | no | members 147462, 98618, 34333; bonus -; total 280,413 | members 98618, 34333, 0; bonus candidates (none); total 280,413 | - | equation -; exact interpretations 0; raw 280413, 98618, 34333; displayed totals 280413 | missing-unique-exact-raw-interpretation |
+
 ## Ranked Generalization Targets
 
-1. Runner-only current-PC simulation for Stage3 self 7-digit/member-bonus displacement with exact total evidence and no competing interpretation.
-2. Runner-only current-PC simulation for total-only bonus omission where selected members already match the fixture and a clean explicit bonus explains the displayed total.
-3. Bbox-backed current-PC candidate provenance for member slot/order displacement before any production rule.
+1. Keep the Stage3 self 7-digit/member-bonus displacement recovery in runner-only simulation until more exact-positive samples exist.
+2. Keep the exact raw equation recovery in runner-only simulation. It has one true positive and no false positives, but it covers only one of five selected-total confirmed failures.
+3. Investigate the remaining selected-total subpatterns separately: bonus/member OCR confusion, digit/drop member plus bonus evidence gap, total/bonus OCR offset, and missing member evidence.
+4. Add bbox-backed current-PC candidate provenance for member slot/order displacement before any production rule.
 
 ## Recommendation
 
 - Do not productionize a new current-PC recovery rule yet.
-- The first implementation target should be runner-only simulation for Stage3 self 7-digit/member-bonus displacement, because it has the strongest recurring signal but still needs exact candidate provenance and negative-control checks.
+- The next implementation target should remain audit/simulation-only. The selected-total group is real, but the five confirmed cases split into multiple causes and only one currently has a unique exact raw equation.
 - Current-PC expected fixtures are now available, so future simulations can report real PASS/FAIL impact rather than unresolved audit guesses.
 
 ## Artifact Location

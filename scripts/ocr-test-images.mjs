@@ -6180,6 +6180,79 @@ function buildCurrentPcStage3SelfSevenDigitDisplacementSimulation({
   };
 }
 
+function buildCurrentPcExactRawEquationRecoverySimulation({
+  stage = 0,
+  side = "",
+  selectedMembers = [],
+  selectedTotal = 0,
+  suspiciousReasons = [],
+  exactRawInterpretations = [],
+  roiProvenance = null,
+}) {
+  const selected = [...selectedMembers].map((value) => Number(value) || 0);
+  while (selected.length < 3) selected.push(0);
+  const selectedMemberSum = selected.reduce((sum, value) => sum + value, 0);
+  const exactInterpretations = (exactRawInterpretations || []).filter((item) => {
+    const members = item?.members || [];
+    if (members.length !== 3) return false;
+    const bonus = Number(item?.bonus || 0);
+    const total = Number(item?.total || 0);
+    const sum = members.reduce((acc, value) => acc + Number(value || 0), 0);
+    return total > 0 && Math.abs(sum + bonus - total) <= 1;
+  });
+  const proposal = exactInterpretations[0] || null;
+  const selectedAlreadyMatches =
+    proposal &&
+    Math.abs(Number(selectedTotal || 0) - Number(proposal.total || 0)) <= 1 &&
+    arraysEqualWithinOne(selected, proposal.members || []);
+  const rejectionReasons = [];
+
+  if (!suspiciousReasons.includes("selected-total-not-exact-member-sum-or-member-sum-plus-bonus")) {
+    rejectionReasons.push("selected-total-equation-is-not-flagged");
+  }
+  if (exactInterpretations.length === 0) {
+    rejectionReasons.push("missing-unique-exact-raw-interpretation");
+  }
+  if (exactInterpretations.length > 1) {
+    rejectionReasons.push("multiple-competing-exact-raw-interpretations");
+  }
+  if (selectedAlreadyMatches) {
+    rejectionReasons.push("selected-result-already-matches-exact-interpretation");
+  }
+
+  return {
+    wouldApply: rejectionReasons.length === 0,
+    proposed: proposal
+      ? {
+          members: proposal.members,
+          bonus: Number(proposal.bonus || 0),
+          total: Number(proposal.total || 0),
+          memberSum: proposal.members.reduce((sum, value) => sum + Number(value || 0), 0),
+        }
+      : null,
+    current: {
+      stage,
+      side,
+      members: selected,
+      total: Number(selectedTotal || 0),
+      memberSum: selectedMemberSum,
+      totalMinusMemberSum: Number(selectedTotal || 0) - selectedMemberSum,
+    },
+    rejectionReasons,
+    evidence: {
+      exactRawInterpretations: exactInterpretations,
+      exactRawInterpretationCount: exactInterpretations.length,
+      roiProvenance,
+      structuralEquation:
+        proposal
+          ? `${proposal.members.join(" + ")}${proposal.bonus ? ` + ${proposal.bonus}` : ""} = ${proposal.total}`
+          : null,
+    },
+    note:
+      "Runner-only current-PC simulation. It does not change OCR output and only accepts a unique exact raw member/bonus/total equation.",
+  };
+}
+
 function buildCurrentPcSideAnalysis(stageResult, side, options = {}) {
   const sideArtifact = stageResult?.debugArtifact?.[side] || null;
   const selectedMembers = (stageResult?.[side] || []).map((value) => Number(value) || 0);
@@ -6324,6 +6397,16 @@ function buildCurrentPcSideAnalysis(stageResult, side, options = {}) {
           roiProvenance: options.roiProvenance || null,
         })
       : null;
+  const currentPcExactRawEquationRecoverySimulation =
+    buildCurrentPcExactRawEquationRecoverySimulation({
+      stage: options.stage,
+      side,
+      selectedMembers,
+      selectedTotal,
+      suspiciousReasons,
+      exactRawInterpretations: uniqueExactRawInterpretations,
+      roiProvenance: options.roiProvenance || null,
+    });
 
   return {
     selectedMembers,
@@ -6341,6 +6424,7 @@ function buildCurrentPcSideAnalysis(stageResult, side, options = {}) {
     retryPlan,
     exactRawInterpretations: uniqueExactRawInterpretations.slice(0, 8),
     currentPcStage3SelfSevenDigitDisplacementSimulation,
+    currentPcExactRawEquationRecoverySimulation,
   };
 }
 
@@ -6702,6 +6786,79 @@ function buildCurrentPcStage3SelfSimulationEvaluation(analysis) {
   };
 }
 
+function buildCurrentPcExactRawEquationSimulationEvaluation(analysis) {
+  const rows = [];
+  let truePositives = 0;
+  let falsePositives = 0;
+  let falseNegatives = 0;
+  let correctlyBlockedNegatives = 0;
+
+  for (const item of analysis) {
+    for (const stage of stages) {
+      const stageKey = `stage${stage}`;
+      for (const side of sides) {
+        const sideAnalysis = item.stages?.[stageKey]?.[side];
+        const sim = sideAnalysis?.currentPcExactRawEquationRecoverySimulation;
+        const expected = currentPcExpectedStageSide(item, stage, side);
+        const target = Boolean(
+          sideAnalysis?.suspiciousReasons?.includes(
+            "selected-total-not-exact-member-sum-or-member-sum-plus-bonus"
+          ) && hasCurrentPcSideFailure(item, stage, side)
+        );
+        const wouldApply = Boolean(sim?.wouldApply);
+        const matchesExpected = proposalMatchesExpected(sim?.proposed, expected);
+        let classification = "correctly-blocked-negative";
+
+        if (wouldApply && matchesExpected) {
+          truePositives += 1;
+          classification = "true-positive";
+        } else if (wouldApply && !matchesExpected) {
+          falsePositives += 1;
+          classification = "false-positive";
+        } else if (!wouldApply && target) {
+          falseNegatives += 1;
+          classification = "false-negative";
+        } else {
+          correctlyBlockedNegatives += 1;
+        }
+
+        if (target || wouldApply) {
+          rows.push({
+            image: item.fileName,
+            stage,
+            side,
+            classification,
+            target,
+            wouldApply,
+            expected,
+            actual: {
+              members: sideAnalysis?.selectedMembers || [],
+              bonusCandidates: sideAnalysis?.bonusCandidates || [],
+              total: sideAnalysis?.selectedTotal || 0,
+              rawCandidates: sideAnalysis?.rawCandidates || [],
+              displayedTotalCandidates: sideAnalysis?.displayedTotalCandidates || [],
+            },
+            proposed: sim?.proposed || null,
+            rejectionReasons: sim?.rejectionReasons || [],
+            exactRawInterpretationCount:
+              sim?.evidence?.exactRawInterpretationCount || 0,
+            structuralEquation: sim?.evidence?.structuralEquation || null,
+            roiProvenance: sim?.evidence?.roiProvenance || null,
+          });
+        }
+      }
+    }
+  }
+
+  return {
+    truePositives,
+    falsePositives,
+    falseNegatives,
+    correctlyBlockedNegatives,
+    rows,
+  };
+}
+
 function buildCurrentPcBaselineReport(baseline) {
   const generatedAt = new Date().toISOString();
   const summary = buildCurrentPcBaselineSummary(
@@ -6716,6 +6873,8 @@ function buildCurrentPcBaselineReport(baseline) {
   const groups = classifyCurrentPcFailureGroups(baseline.analysis);
   const confirmedGroups = buildCurrentPcConfirmedGroupEvaluation(baseline.analysis);
   const stage3SelfSimulation = buildCurrentPcStage3SelfSimulationEvaluation(baseline.analysis);
+  const exactRawEquationSimulation =
+    buildCurrentPcExactRawEquationSimulationEvaluation(baseline.analysis);
   const lines = [
     "# Current PC OCR Baseline",
     "",
@@ -6922,16 +7081,49 @@ function buildCurrentPcBaselineReport(baseline) {
 
   lines.push(
     "",
+    "## Current-PC Exact Raw Equation Recovery Simulation",
+    "",
+    "- simulation name: `currentPcExactRawEquationRecoverySimulation`",
+    "- scope: runner-only, current-PC layout only, all stages/sides",
+    "- production OCR output changed: no",
+    "- guard shape: the selected-total equation flag must be present, raw evidence must contain exactly one exact member/member/member/bonus/total interpretation, and the selected result must differ from that unique interpretation.",
+    "- It does not use filenames, expected fixtures, or hard-coded scores. Expected fixtures are used only to evaluate simulation impact.",
+    "- The selected-total suspicious group has five confirmed positives, but they do not share one safe shape. This simulation covers only the unique exact raw equation subpattern.",
+    "",
+    `- true positive accepts: ${exactRawEquationSimulation.truePositives}`,
+    `- false positive accepts: ${exactRawEquationSimulation.falsePositives}`,
+    `- false negatives: ${exactRawEquationSimulation.falseNegatives}`,
+    `- correctly blocked negatives: ${exactRawEquationSimulation.correctlyBlockedNegatives}`,
+    "",
+    "| image | stage/side | class | would apply | expected | actual | proposed | evidence | rejection / ambiguity |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"
+  );
+
+  for (const row of exactRawEquationSimulation.rows) {
+    lines.push(
+      `| ${row.image} | S${row.stage} ${row.side} | ${row.classification} | ${row.wouldApply ? "yes" : "no"} | members ${formatDebugNumbers(row.expected?.members || [])}; bonus ${formatNumber(row.expected?.bonus || 0) || "-"}; total ${formatNumber(row.expected?.total || 0)} | members ${formatDebugNumbers(row.actual.members)}; bonus candidates ${formatDebugNumbers(row.actual.bonusCandidates) || "-"}; total ${formatNumber(row.actual.total)} | ${
+        row.proposed
+          ? `members ${formatDebugNumbers(row.proposed.members)}; bonus ${formatNumber(row.proposed.bonus)}; total ${formatNumber(row.proposed.total)}`
+          : "-"
+      } | equation ${row.structuralEquation || "-"}; exact interpretations ${row.exactRawInterpretationCount}; raw ${formatDebugNumbers(row.actual.rawCandidates) || "-"}; displayed totals ${formatDebugNumbers(row.actual.displayedTotalCandidates) || "-"} | ${
+        row.rejectionReasons.join(", ") || "-"
+      } |`
+    );
+  }
+
+  lines.push(
+    "",
     "## Ranked Generalization Targets",
     "",
-    "1. Runner-only current-PC simulation for Stage3 self 7-digit/member-bonus displacement with exact total evidence and no competing interpretation.",
-    "2. Runner-only current-PC simulation for total-only bonus omission where selected members already match the fixture and a clean explicit bonus explains the displayed total.",
-    "3. Bbox-backed current-PC candidate provenance for member slot/order displacement before any production rule.",
+    "1. Keep the Stage3 self 7-digit/member-bonus displacement recovery in runner-only simulation until more exact-positive samples exist.",
+    "2. Keep the exact raw equation recovery in runner-only simulation. It has one true positive and no false positives, but it covers only one of five selected-total confirmed failures.",
+    "3. Investigate the remaining selected-total subpatterns separately: bonus/member OCR confusion, digit/drop member plus bonus evidence gap, total/bonus OCR offset, and missing member evidence.",
+    "4. Add bbox-backed current-PC candidate provenance for member slot/order displacement before any production rule.",
     "",
     "## Recommendation",
     "",
     "- Do not productionize a new current-PC recovery rule yet.",
-    "- The first implementation target should be runner-only simulation for Stage3 self 7-digit/member-bonus displacement, because it has the strongest recurring signal but still needs exact candidate provenance and negative-control checks.",
+    "- The next implementation target should remain audit/simulation-only. The selected-total group is real, but the five confirmed cases split into multiple causes and only one currently has a unique exact raw equation.",
     "- Current-PC expected fixtures are now available, so future simulations can report real PASS/FAIL impact rather than unresolved audit guesses.",
     "",
     "## Artifact Location",
