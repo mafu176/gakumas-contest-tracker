@@ -6264,9 +6264,65 @@ function escapeMarkdownTableCell(value = "") {
   return String(value).replaceAll("|", "\\|");
 }
 
+function normalizeGroupedNumericToken(token = "") {
+  const raw = String(token || "")
+    .replace(/[\uFF01-\uFF5E]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 65248))
+    .trim();
+  const unsigned = raw.replace(/^[+\-]/, "");
+  const commaGrouped = /^\d{1,3}(?:,\d{3})+$/.test(unsigned);
+  const periodGrouped = /^\d{1,3}(?:\.\d{3})+$/.test(unsigned);
+  const spaceGrouped = /^\d{1,3}(?:\s+\d{3})+$/.test(unsigned);
+  if (!commaGrouped && !periodGrouped && !spaceGrouped) return null;
+  const value = Number(unsigned.replace(/[,\.\s]/g, ""));
+  if (!Number.isFinite(value) || value < 1400 || value >= 10000000) return null;
+  return {
+    value,
+    shape: commaGrouped ? "comma-grouped" : periodGrouped ? "period-grouped" : "space-grouped",
+  };
+}
+
+function extractNumericLikeTokenAudit(text = "", parsedNumbers = []) {
+  const normalized = String(text || "").replace(/[\uFF01-\uFF5E]/g, (s) =>
+    String.fromCharCode(s.charCodeAt(0) - 65248)
+  );
+  const tokenMatches =
+    normalized.match(/[+\-]?\d{1,3}(?:[,.]\d{3})+|[+\-]?\d{1,3}(?:\s+\d{3})+|[+\-]?\d{4,8}/g) ||
+    [];
+  const currentParserNumbers = extractNumbersForZone(normalized);
+  const parsed = uniqueNumbers(parsedNumbers || []);
+  return tokenMatches.map((token) => {
+    const grouped = normalizeGroupedNumericToken(token);
+    const parserNumbers = extractNumbersForZone(token);
+    const normalizedValue = grouped?.value || parserNumbers[0] || 0;
+    return {
+      token: cleanOcrTextForReport(token),
+      normalizedValue,
+      shape: grouped?.shape || "plain-or-current-parser",
+      currentParserNumbers: parserNumbers,
+      presentInSourceParsed: normalizedValue > 0 && valueInList(normalizedValue, parsed),
+      presentInCurrentParser: normalizedValue > 0 && valueInList(normalizedValue, currentParserNumbers),
+      punctuationNormalizationOnly:
+        Boolean(grouped) && !valueInList(grouped.value, currentParserNumbers),
+    };
+  });
+}
+
 function summarizeCurrentPcCandidateSources(sideArtifact = null) {
   const sources = sideArtifact?.candidateSources || {};
   const traces = sources.totalCandidates?.traces || [];
+  const totalDirectAudit = extractNumericLikeTokenAudit(
+    sources.totalDirect?.text || "",
+    sources.totalDirect?.numbers || []
+  );
+  const totalTraceAudits = traces.slice(0, 6).map((trace) => ({
+    pass: trace.pass || "",
+    text: cleanOcrTextForReport(trace.text || ""),
+    tokens: extractNumericLikeTokenAudit(trace.text || "", trace.numbers || []),
+  }));
+  const memberAudit = extractNumericLikeTokenAudit(
+    sources.memberCandidates?.text || "",
+    sources.memberCandidates?.numbers || []
+  );
   return {
     totalDirect: sources.totalDirect
       ? {
@@ -6274,6 +6330,7 @@ function summarizeCurrentPcCandidateSources(sideArtifact = null) {
           pass: sources.totalDirect.pass || "",
           text: cleanOcrTextForReport(sources.totalDirect.text || ""),
           numbers: sources.totalDirect.numbers || [],
+          tokenAudit: totalDirectAudit,
         }
       : null,
     totalTraces: traces.slice(0, 6).map((trace) => ({
@@ -6281,12 +6338,14 @@ function summarizeCurrentPcCandidateSources(sideArtifact = null) {
       text: cleanOcrTextForReport(trace.text || ""),
       numbers: trace.numbers || [],
     })),
+    totalTraceTokenAudit: totalTraceAudits,
     memberCandidates: sources.memberCandidates
       ? {
           tag: sources.memberCandidates.tag || "",
           pass: sources.memberCandidates.pass || "",
           text: cleanOcrTextForReport(sources.memberCandidates.text || ""),
           numbers: sources.memberCandidates.numbers || [],
+          tokenAudit: memberAudit,
         }
       : null,
     memberNumbersAfterSlotFallback: sources.memberNumbersAfterSlotFallback || [],
@@ -7066,6 +7125,191 @@ function buildCurrentPcExactRawFalseNegativeDeepDive(exactRawEquationSimulation)
   };
 }
 
+function collectCurrentPcSourceTokenAudits(sideAnalysis) {
+  const source = sideAnalysis?.candidateSourceSummary || {};
+  const entries = [];
+  if (source.totalDirect) {
+    entries.push({
+      sourceRole: "total-direct",
+      sourceTag: source.totalDirect.tag || "",
+      pass: source.totalDirect.pass || "",
+      text: source.totalDirect.text || "",
+      parsedNumbers: source.totalDirect.numbers || [],
+      tokens: source.totalDirect.tokenAudit || [],
+    });
+  }
+  for (const trace of source.totalTraceTokenAudit || []) {
+    entries.push({
+      sourceRole: "total-trace",
+      sourceTag: "total-candidate-trace",
+      pass: trace.pass || "",
+      text: trace.text || "",
+      parsedNumbers: (trace.tokens || []).flatMap((token) => token.currentParserNumbers || []),
+      tokens: trace.tokens || [],
+    });
+  }
+  if (source.memberCandidates) {
+    entries.push({
+      sourceRole: "member-row",
+      sourceTag: source.memberCandidates.tag || "",
+      pass: source.memberCandidates.pass || "",
+      text: source.memberCandidates.text || "",
+      parsedNumbers: source.memberCandidates.numbers || [],
+      tokens: source.memberCandidates.tokenAudit || [],
+    });
+  }
+  return entries;
+}
+
+function digitSuffixMatch(value, candidate) {
+  const expected = String(Math.trunc(Number(value || 0)));
+  const actual = String(Math.trunc(Number(candidate || 0)));
+  return expected.length >= 5 && actual.length >= 3 && expected.endsWith(actual) && expected !== actual;
+}
+
+function digitDifferenceCount(left, right) {
+  const a = String(Math.trunc(Number(left || 0)));
+  const b = String(Math.trunc(Number(right || 0)));
+  if (a.length !== b.length) return Infinity;
+  let diff = 0;
+  for (let index = 0; index < a.length; index += 1) {
+    if (a[index] !== b[index]) diff += 1;
+  }
+  return diff;
+}
+
+function buildCurrentPcBonusDigitParserAudit(analysis) {
+  const punctuationNormalization = [];
+  const parserFlowGaps = [];
+  const digitDrop = [];
+  const bonusConfusion = [];
+  const roleClassification = [];
+
+  for (const item of analysis) {
+    for (const stage of stages) {
+      const stageKey = `stage${stage}`;
+      for (const side of sides) {
+        const sideAnalysis = item.stages?.[stageKey]?.[side];
+        if (!sideAnalysis) continue;
+        const expected = currentPcExpectedStageSide(item, stage, side);
+        const sourceEntries = collectCurrentPcSourceTokenAudits(sideAnalysis);
+
+        for (const entry of sourceEntries) {
+          for (const token of entry.tokens || []) {
+            if (token.punctuationNormalizationOnly) {
+              punctuationNormalization.push({
+                image: item.fileName,
+                stage,
+                side,
+                sourceRole: entry.sourceRole,
+                sourceTag: entry.sourceTag,
+                pass: entry.pass,
+                token: token.token,
+                normalizedValue: token.normalizedValue,
+                shape: token.shape,
+                text: entry.text,
+                reachesParsedSource: token.presentInSourceParsed,
+              });
+            }
+            if (
+              token.normalizedValue > 0 &&
+              !token.presentInSourceParsed &&
+              valueInList(token.normalizedValue, extractNumbersForZone(entry.text || ""))
+            ) {
+              parserFlowGaps.push({
+                image: item.fileName,
+                stage,
+                side,
+                sourceRole: entry.sourceRole,
+                sourceTag: entry.sourceTag,
+                pass: entry.pass,
+                token: token.token,
+                normalizedValue: token.normalizedValue,
+                text: entry.text,
+              });
+            }
+          }
+        }
+
+        if (!expected) continue;
+        const raw = sideAnalysis.rawCandidates || [];
+        const actualMembers = sideAnalysis.selectedMembers || [];
+        const expectedMembers = expected.members || [];
+        for (let index = 0; index < expectedMembers.length; index += 1) {
+          const expectedMember = Number(expectedMembers[index] || 0);
+          if (expectedMember <= 0 || valueInList(expectedMember, raw)) continue;
+          const suffixCandidates = raw.filter((candidate) => digitSuffixMatch(expectedMember, candidate));
+          if (suffixCandidates.length > 0) {
+            digitDrop.push({
+              image: item.fileName,
+              stage,
+              side,
+              role: `member${index + 1}`,
+              expectedValue: expectedMember,
+              suffixCandidates,
+              selectedMembers: actualMembers,
+              selectedTotal: sideAnalysis.selectedTotal || 0,
+              sourceText: sideAnalysis.candidateSourceSummary?.memberCandidates?.text || "",
+              roi: sideAnalysis.currentPcExactRawEquationRecoverySimulation?.evidence?.roiProvenance || null,
+            });
+          }
+        }
+
+        const expectedBonus = Number(expected.bonus || 0);
+        if (expectedBonus > 0 && !valueInList(expectedBonus, raw)) {
+          const actualDelta = Number(sideAnalysis.selectedTotal || 0) - Number(sideAnalysis.memberSum || 0);
+          const wrongBonusCandidates = uniqueNumbers([
+            ...(sideAnalysis.bonusCandidates || []),
+            actualDelta > 0 ? actualDelta : 0,
+          ]).filter(
+            (candidate) =>
+              candidate > 0 &&
+              candidate !== expectedBonus &&
+              String(Math.trunc(candidate)).length === String(Math.trunc(expectedBonus)).length &&
+              digitDifferenceCount(candidate, expectedBonus) <= 2
+          );
+          if (wrongBonusCandidates.length > 0) {
+            bonusConfusion.push({
+              image: item.fileName,
+              stage,
+              side,
+              expectedBonus,
+              wrongBonusCandidates,
+              selectedMembers: actualMembers,
+              selectedTotal: sideAnalysis.selectedTotal || 0,
+              memberSum: sideAnalysis.memberSum || 0,
+              sourceText: sideAnalysis.candidateSourceSummary?.memberCandidates?.text || "",
+            });
+          }
+        }
+
+        const valuesAssignedAsMember = (sideAnalysis.bonusCandidates || []).filter((bonus) =>
+          actualMembers.some((member) => Math.abs(Number(member || 0) - Number(bonus || 0)) <= 1)
+        );
+        if (valuesAssignedAsMember.length > 0) {
+          roleClassification.push({
+            image: item.fileName,
+            stage,
+            side,
+            issue: "bonus-candidate-selected-as-member",
+            values: valuesAssignedAsMember,
+            selectedMembers: actualMembers,
+            selectedTotal: sideAnalysis.selectedTotal || 0,
+          });
+        }
+      }
+    }
+  }
+
+  return {
+    punctuationNormalization,
+    parserFlowGaps,
+    digitDrop,
+    bonusConfusion,
+    roleClassification,
+  };
+}
+
 function buildCurrentPcBaselineReport(baseline) {
   const generatedAt = new Date().toISOString();
   const summary = buildCurrentPcBaselineSummary(
@@ -7084,6 +7328,7 @@ function buildCurrentPcBaselineReport(baseline) {
     buildCurrentPcExactRawEquationSimulationEvaluation(baseline.analysis);
   const exactRawFalseNegativeDeepDive =
     buildCurrentPcExactRawFalseNegativeDeepDive(exactRawEquationSimulation);
+  const bonusDigitParserAudit = buildCurrentPcBonusDigitParserAudit(baseline.analysis);
   const lines = [
     "# Current PC OCR Baseline",
     "",
@@ -7371,6 +7616,96 @@ function buildCurrentPcBaselineReport(baseline) {
     "- `145018419` S3 self is the only false negative that shares the Stage3 self surface area.",
     "- It does not match `currentPcStage3SelfSevenDigitDisplacementSimulation`: the existing simulation expects a left-shifted 7-digit member pattern, while this case keeps member1/member2 and drops member3 to a low fragment (`805828` -> `5828`).",
     "- Broadening the Stage3 simulation would mix a digit-drop problem with a member/bonus displacement problem, so it remains blocked.",
+    "",
+    "## Current-PC Bonus / Digit-Drop / Parser Evidence Audit",
+    "",
+    "This section is audit-only. It inspects raw OCR text and candidate-source traces so we can separate OCR recognition failures from parser normalization gaps, digit drops, bonus OCR confusions, and role-classification mistakes. It does not change runner PASS/FAIL or production output.",
+    "",
+    `- punctuation / parser-normalization findings: ${bonusDigitParserAudit.punctuationNormalization.length}`,
+    `- parser flow gaps: ${bonusDigitParserAudit.parserFlowGaps.length}`,
+    `- digit-drop findings: ${bonusDigitParserAudit.digitDrop.length}`,
+    `- bonus OCR confusion findings: ${bonusDigitParserAudit.bonusConfusion.length}`,
+    `- bonus-as-member role findings: ${bonusDigitParserAudit.roleClassification.length}`,
+    "",
+    "### Punctuation / Parser Normalization Findings",
+    "",
+    "| image | stage/side | source | token | grouped value | shape | reaches parsed source | source text |",
+    "| --- | --- | --- | --- | ---: | --- | --- | --- |"
+  );
+
+  const punctuationRows = bonusDigitParserAudit.punctuationNormalization.slice(0, 24);
+  if (punctuationRows.length === 0) {
+    lines.push("| - | - | - | - | - | - | - | - |");
+  }
+  for (const row of punctuationRows) {
+    lines.push(
+      `| ${row.image} | S${row.stage} ${row.side} | ${row.sourceRole}/${row.pass || "-"} | ${escapeMarkdownTableCell(
+        row.token
+      )} | ${formatNumber(row.normalizedValue)} | ${row.shape} | ${
+        row.reachesParsedSource ? "yes" : "no"
+      } | ${escapeMarkdownTableCell(cleanOcrTextForReport(row.text || "-"))} |`
+    );
+  }
+  if (bonusDigitParserAudit.punctuationNormalization.length > punctuationRows.length) {
+    lines.push(
+      `| ... | ... | ... | ... | ... | ... | ... | ${bonusDigitParserAudit.punctuationNormalization.length - punctuationRows.length} additional findings omitted from table |`
+    );
+  }
+
+  lines.push(
+    "",
+    "### Digit-Drop Findings",
+    "",
+    "| image | stage/side | role | expected value | suffix candidate(s) | selected members | selected total | source text |",
+    "| --- | --- | --- | ---: | --- | --- | ---: | --- |"
+  );
+
+  if (bonusDigitParserAudit.digitDrop.length === 0) {
+    lines.push("| - | - | - | - | - | - | - | - |");
+  }
+  for (const row of bonusDigitParserAudit.digitDrop) {
+    lines.push(
+      `| ${row.image} | S${row.stage} ${row.side} | ${row.role} | ${formatNumber(
+        row.expectedValue
+      )} | ${formatDebugNumbers(row.suffixCandidates)} | ${formatDebugNumbers(
+        row.selectedMembers
+      )} | ${formatNumber(row.selectedTotal)} | ${escapeMarkdownTableCell(
+        cleanOcrTextForReport(row.sourceText || "-")
+      )} |`
+    );
+  }
+
+  lines.push(
+    "",
+    "### Bonus OCR Confusion Findings",
+    "",
+    "| image | stage/side | expected bonus | wrong bonus-like candidate(s) | member sum | selected total | source text |",
+    "| --- | --- | ---: | --- | ---: | ---: | --- |"
+  );
+
+  if (bonusDigitParserAudit.bonusConfusion.length === 0) {
+    lines.push("| - | - | - | - | - | - | - |");
+  }
+  for (const row of bonusDigitParserAudit.bonusConfusion) {
+    lines.push(
+      `| ${row.image} | S${row.stage} ${row.side} | ${formatNumber(
+        row.expectedBonus
+      )} | ${formatDebugNumbers(row.wrongBonusCandidates)} | ${formatNumber(
+        row.memberSum
+      )} | ${formatNumber(row.selectedTotal)} | ${escapeMarkdownTableCell(
+        cleanOcrTextForReport(row.sourceText || "-")
+      )} |`
+    );
+  }
+
+  lines.push(
+    "",
+    "### Parser Audit Recommendation",
+    "",
+    "- Do not productionize punctuation normalization yet. Period-grouped values such as `147.462` can be meaningful scores, but they need role, ROI, and exact-equation guards before they are safe.",
+    "- Digit-drop remains too sample-specific for production. The clear `805828` -> `5828` case lacks a clean parsed replacement candidate in the current evidence flow.",
+    "- Bonus OCR confusion remains too sample-specific for production. The observed `142313` -> `142513` and `66660` -> `68660` shapes do not form a safe replacement rule yet.",
+    "- No additional runner-only recovery simulation is added here because the audit found evidence categories, not a recurring unique exact recovery pattern across the 10 current-PC samples.",
     "",
     "",
     "## Ranked Generalization Targets",

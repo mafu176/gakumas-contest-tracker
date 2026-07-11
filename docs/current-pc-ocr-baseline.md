@@ -1,6 +1,6 @@
 # Current PC OCR Baseline
 
-Generated: 2026-07-11T10:29:18.733Z
+Generated: 2026-07-11T12:31:54.091Z
 
 ## Scope
 
@@ -226,6 +226,66 @@ The four false negatives are intentionally not folded into the exact raw equatio
 - `145018419` S3 self is the only false negative that shares the Stage3 self surface area.
 - It does not match `currentPcStage3SelfSevenDigitDisplacementSimulation`: the existing simulation expects a left-shifted 7-digit member pattern, while this case keeps member1/member2 and drops member3 to a low fragment (`805828` -> `5828`).
 - Broadening the Stage3 simulation would mix a digit-drop problem with a member/bonus displacement problem, so it remains blocked.
+
+## Current-PC Bonus / Digit-Drop / Parser Evidence Audit
+
+This section is audit-only. It inspects raw OCR text and candidate-source traces so we can separate OCR recognition failures from parser normalization gaps, digit drops, bonus OCR confusions, and role-classification mistakes. It does not change runner PASS/FAIL or production output.
+
+- punctuation / parser-normalization findings: 160
+- parser flow gaps: 0
+- digit-drop findings: 1
+- bonus OCR confusion findings: 2
+- bonus-as-member role findings: 2
+
+### Punctuation / Parser Normalization Findings
+
+| image | stage/side | source | token | grouped value | shape | reaches parsed source | source text |
+| --- | --- | --- | --- | ---: | --- | --- | --- |
+| スクリーンショット 2026-07-11 144846091.png | S1 self | total-trace/pass1 | 169.765 | 169,765 | period-grouped | no | 092,888n 169.765 296.381 167.466 |
+| スクリーンショット 2026-07-11 144846091.png | S1 self | total-trace/pass1 | 296.381 | 296,381 | period-grouped | no | 092,888n 169.765 296.381 167.466 |
+| スクリーンショット 2026-07-11 144846091.png | S1 self | total-trace/pass1 | 167.466 | 167,466 | period-grouped | no | 092,888n 169.765 296.381 167.466 |
+| スクリーンショット 2026-07-11 144846091.png | S1 enemy | total-direct/pass1 | 532 435 | 532,435 | space-grouped | no | © 532 435m |
+| スクリーンショット 2026-07-11 144846091.png | S1 enemy | total-trace/pass1 | 532 435 | 532,435 | space-grouped | no | "532 435. |
+| スクリーンショット 2026-07-11 144846091.png | S1 enemy | total-trace/pass1 | 532 435 | 532,435 | space-grouped | no | © 532 435m |
+| スクリーンショット 2026-07-11 144846091.png | S1 enemy | total-trace/pass1 | 185.265 | 185,265 | period-grouped | no | 322,450m 185.265 220.680 126.490 |
+| スクリーンショット 2026-07-11 144846091.png | S1 enemy | total-trace/pass1 | 220.680 | 220,680 | period-grouped | no | 322,450m 185.265 220.680 126.490 |
+| スクリーンショット 2026-07-11 144846091.png | S1 enemy | total-trace/pass1 | 126.490 | 126,490 | period-grouped | no | 322,450m 185.265 220.680 126.490 |
+| スクリーンショット 2026-07-11 144846091.png | S2 self | total-direct/pass1 | 796.068 | 796,068 | period-grouped | no | © 796.068n |
+| スクリーンショット 2026-07-11 144846091.png | S2 self | total-trace/pass1 | 796.068 | 796,068 | period-grouped | no | © 796.068n |
+| スクリーンショット 2026-07-11 144846091.png | S2 enemy | total-direct/pass1 | 199.802 | 199,802 | period-grouped | no | 199.802 |
+| スクリーンショット 2026-07-11 144846091.png | S2 enemy | total-trace/pass1 | 199 802 | 199,802 | space-grouped | no | ~ 199 802: |
+| スクリーンショット 2026-07-11 144846091.png | S2 enemy | total-trace/pass1 | 199.802 | 199,802 | period-grouped | no | 199.802 |
+| スクリーンショット 2026-07-11 144846091.png | S2 enemy | total-trace/pass1 | 33.386 | 33,386 | period-grouped | no | 1¥Y,00.42m 33.386 91.957 74,459 |
+| スクリーンショット 2026-07-11 144846091.png | S2 enemy | total-trace/pass1 | 91.957 | 91,957 | period-grouped | no | 1¥Y,00.42m 33.386 91.957 74,459 |
+| スクリーンショット 2026-07-11 144846091.png | S3 self | total-direct/pass1 | 92 668 | 92,668 | space-grouped | no | "92 668,220n |
+| スクリーンショット 2026-07-11 144846091.png | S3 self | total-trace/pass1 | 2 668 | 2,668 | space-grouped | no | VIN +A 2 668,220 |
+| スクリーンショット 2026-07-11 144846091.png | S3 self | total-trace/pass1 | 92 668 | 92,668 | space-grouped | no | "92 668,220n |
+| スクリーンショット 2026-07-11 144846091.png | S3 enemy | total-trace/pass1 | 100.084 | 100,084 | period-grouped | no | 401,595¢ 100.084 260.326 A1.185 |
+| スクリーンショット 2026-07-11 144846091.png | S3 enemy | total-trace/pass1 | 260.326 | 260,326 | period-grouped | no | 401,595¢ 100.084 260.326 A1.185 |
+| スクリーンショット 2026-07-11 144908802.png | S1 self | total-trace/pass1 | 711.565 | 711,565 | period-grouped | no | 1,207,240m 711.565 317.040 96 328 |
+| スクリーンショット 2026-07-11 144908802.png | S1 self | total-trace/pass1 | 317.040 | 317,040 | period-grouped | no | 1,207,240m 711.565 317.040 96 328 |
+| スクリーンショット 2026-07-11 144908802.png | S1 self | total-trace/pass1 | 96 328 | 96,328 | space-grouped | no | 1,207,240m 711.565 317.040 96 328 |
+| ... | ... | ... | ... | ... | ... | ... | 136 additional findings omitted from table |
+
+### Digit-Drop Findings
+
+| image | stage/side | role | expected value | suffix candidate(s) | selected members | selected total | source text |
+| --- | --- | --- | ---: | --- | --- | ---: | --- |
+| スクリーンショット 2026-07-11 145018419.png | S3 self | member3 | 805,828 | 5828 | 756719, 867029, 5828 | 1,802,981 | 756,719 867,029 B05,828 I if + 173405 § ii, i ; y- » + . : Td 4 Faglt SANE ~~ AA |
+
+### Bonus OCR Confusion Findings
+
+| image | stage/side | expected bonus | wrong bonus-like candidate(s) | member sum | selected total | source text |
+| --- | --- | ---: | --- | ---: | ---: | --- |
+| スクリーンショット 2026-07-11 144908802.png | S1 self | 142,313 | 142513 | 1,171,118 | 1,267,246 | 711,565 317,040 96,328 TW +142513 (7 ) —— i Je ; gle y 1p, \| $A iad? > Wi \|” Syd |
+| スクリーンショット 2026-07-11 145152780.png | S2 self | 66,660 | 68660 | 575,406 | 644,066 | rer A [] Lb A dm] 132,068 333,301 110,037 7 tw 68660 I ki r . - - f |
+
+### Parser Audit Recommendation
+
+- Do not productionize punctuation normalization yet. Period-grouped values such as `147.462` can be meaningful scores, but they need role, ROI, and exact-equation guards before they are safe.
+- Digit-drop remains too sample-specific for production. The clear `805828` -> `5828` case lacks a clean parsed replacement candidate in the current evidence flow.
+- Bonus OCR confusion remains too sample-specific for production. The observed `142313` -> `142513` and `66660` -> `68660` shapes do not form a safe replacement rule yet.
+- No additional runner-only recovery simulation is added here because the audit found evidence categories, not a recurring unique exact recovery pattern across the 10 current-PC samples.
 
 
 ## Ranked Generalization Targets
