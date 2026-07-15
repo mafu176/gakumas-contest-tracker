@@ -1,6 +1,7 @@
 ﻿import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createHash } from "node:crypto";
 import sharp from "sharp";
 import Tesseract, { createWorker } from "tesseract.js";
 import {
@@ -37,6 +38,7 @@ const currentPcScreenshotDir = path.join(
 );
 const currentPcBaselineDir = path.join(rootDir, "tmp", "current-pc-ocr-baseline");
 const currentPcBaselineReportPath = path.join(rootDir, "docs", "current-pc-ocr-baseline.md");
+let currentPcBaselineScanSummary = null;
 const unsupportedNextScreenMessage =
   "Next screen is unsupported for OCR. Use normal result or high-score screen.";
 
@@ -4672,15 +4674,50 @@ async function collectImages(dir) {
 
 async function collectCurrentPcBaselineImages() {
   const entries = await fs.readdir(currentPcScreenshotDir, { withFileTypes: true });
-  return entries
+  const candidates = entries
     .filter((entry) => entry.isFile() && /\.(png|jpe?g)$/i.test(entry.name))
     .map((entry) => path.join(currentPcScreenshotDir, entry.name))
     .sort();
+
+  const seen = new Map();
+  const unique = [];
+  const duplicateGroups = [];
+  for (const imagePath of candidates) {
+    const buffer = await fs.readFile(imagePath);
+    const hash = createHash("sha256").update(buffer).digest("hex");
+    const metadata = await sharp(buffer).metadata();
+    const isCurrentPcCandidate =
+      Math.abs((metadata.width || 0) - 541) <= 2 &&
+      Math.abs((metadata.height || 0) - 961) <= 2 &&
+      Math.abs((metadata.width || 0) / (metadata.height || 1) - 541 / 961) <= 0.003;
+    if (!isCurrentPcCandidate) continue;
+    if (seen.has(hash)) {
+      const original = seen.get(hash);
+      let group = duplicateGroups.find((entry) => entry.hash === hash);
+      if (!group) {
+        group = { hash, files: [path.basename(original)] };
+        duplicateGroups.push(group);
+      }
+      group.files.push(path.basename(imagePath));
+      continue;
+    }
+    seen.set(hash, imagePath);
+    unique.push(imagePath);
+  }
+
+  currentPcBaselineScanSummary = {
+    scannedFiles: candidates.length,
+    currentPcCandidates: unique.length + duplicateGroups.reduce((sum, group) => sum + group.files.length - 1, 0),
+    duplicateCount: duplicateGroups.reduce((sum, group) => sum + group.files.length - 1, 0),
+    uniqueCount: unique.length,
+    duplicateGroups,
+  };
+  return unique;
 }
 
 async function readExpected(fileName) {
   const baseName = path.parse(fileName).name;
-  const currentPcTimestamp = baseName.match(/(\d{4}-\d{2}-\d{2})\s+(\d{9})/);
+  const currentPcTimestamp = baseName.match(/(\d{4}-\d{2}-\d{2})[\s_]+(\d{9})/);
   if (currentPcTimestamp) {
     const currentPcPath = path.join(
       expectedDir,
@@ -6704,6 +6741,7 @@ async function writeCurrentPcBaselineArtifacts(report) {
     analysis,
     summaryPath: path.relative(rootDir, summaryPath).replaceAll("\\", "/"),
     outputDir: path.relative(rootDir, currentPcBaselineDir).replaceAll("\\", "/"),
+    scanSummary: currentPcBaselineScanSummary,
   };
 }
 
@@ -7329,6 +7367,15 @@ function buildCurrentPcBaselineReport(baseline) {
   const exactRawFalseNegativeDeepDive =
     buildCurrentPcExactRawFalseNegativeDeepDive(exactRawEquationSimulation);
   const bonusDigitParserAudit = buildCurrentPcBonusDigitParserAudit(baseline.analysis);
+  const confirmedGroupCount = (name) =>
+    confirmedGroups.find((group) => group.name === name)?.confirmedPositives.length || 0;
+  const selectedTotalConfirmedCount = confirmedGroupCount(
+    "selected-total-not-exact-member-sum-or-member-sum-plus-bonus"
+  );
+  const missingMemberConfirmedCount = confirmedGroupCount("missing-selected-member");
+  const scanSummary = baseline.scanSummary || {};
+  const fixtureCoveredCount = baseline.analysis.filter((item) => item.expected).length;
+  const fixtureMissingCount = baseline.analysis.length - fixtureCoveredCount;
   const lines = [
     "# Current PC OCR Baseline",
     "",
@@ -7336,16 +7383,41 @@ function buildCurrentPcBaselineReport(baseline) {
     "",
     "## Scope",
     "",
-    "- Primary dataset: the 10 current PC/DMM screenshots in `C:\\Users\\gkhay\\Pictures\\DMMGamePlayer\\学園アイドルマスター`.",
+    "- Primary dataset: deduplicated current PC/DMM result screenshots in `C:\\Users\\gkhay\\Pictures\\DMMGamePlayer\\学園アイドルマスター`.",
     "- Legacy desktop screenshots are not included in the baseline counts.",
     "- Smartphone samples are not included in the baseline counts.",
     "- This is audit-first current-PC work. It does not add filename-specific corrections or production recovery rules.",
     "",
-    "## 10 Current-PC Screenshots",
+    "## Dataset Scan",
+    "",
+    `- total files scanned: ${scanSummary.scannedFiles ?? baseline.analysis.length}`,
+    `- current-PC candidates found: ${scanSummary.currentPcCandidates ?? baseline.analysis.length}`,
+    `- duplicate count: ${scanSummary.duplicateCount ?? 0}`,
+    `- unique current-PC screenshots: ${scanSummary.uniqueCount ?? baseline.analysis.length}`,
+    `- already fixture-covered screenshots: ${fixtureCoveredCount}`,
+    `- screenshots still missing expected fixtures: ${fixtureMissingCount}`,
+    "",
+    "### Duplicate Groups",
+    "",
+    "| hash | files |",
+    "| --- | --- |"
+  ];
+
+  const duplicateGroups = scanSummary.duplicateGroups || [];
+  if (duplicateGroups.length === 0) {
+    lines.push("| - | - |");
+  }
+  for (const group of duplicateGroups) {
+    lines.push(`| ${group.hash.slice(0, 16)} | ${group.files.join("<br>")} |`);
+  }
+
+  lines.push(
+    "",
+    "## Deduplicated Current-PC Screenshots",
     "",
     "| # | filename | dimensions | aspect | last modified | artifact |",
     "| ---: | --- | --- | ---: | --- | --- |",
-  ];
+  );
 
   baseline.analysis.forEach((item, index) => {
     lines.push(
@@ -7360,9 +7432,9 @@ function buildCurrentPcBaselineReport(baseline) {
     `- total current-PC samples: ${baseline.analysis.length}`,
     `- dimensions observed: ${dimensions.join(", ")}`,
     `- aspect ratios observed: ${aspects.join(", ")}`,
-    `- all 10 share the same dimensions: ${dimensions.length === 1 ? "yes" : "no"}`,
-    "- layout geometry appears consistent across the 10 samples from dimensions and visual placement.",
-    "- browser/device scaling does not appear to vary inside this 10-sample folder; every file is 541x961.",
+    `- all deduplicated samples share the same dimensions: ${dimensions.length === 1 ? "yes" : "no"}`,
+    "- layout geometry appears consistent across the deduplicated samples from dimensions and visual placement.",
+    "- browser/device scaling does not appear to vary inside this current-PC folder; every candidate file is 541x961.",
     "- The layout is smartphone-like in aspect ratio but uses a DMM/PC screenshot family and is intentionally separated as `current-pc`.",
     "",
     "## Architecture Inspection Summary",
@@ -7387,7 +7459,7 @@ function buildCurrentPcBaselineReport(baseline) {
     "",
     "## Layout Detector",
     "",
-    "- Detector: image size/aspect based for the initial 10-sample family.",
+    "- Detector: image size/aspect based for the current-PC screenshot family.",
     "- Guard: width 541 +/- 2, height 961 +/- 2, aspect within 0.003 of 541/961.",
     "- It does not use filenames, screenshot timestamps, score values, or hard-coded OCR contents.",
     "- Future anchor-assisted adjustment may be added if another scale appears.",
@@ -7455,7 +7527,7 @@ function buildCurrentPcBaselineReport(baseline) {
 
   lines.push(
     "",
-    "## 10-Sample Summary",
+    "## Current-PC Summary",
     "",
     `- total current-PC samples: ${summary.total}`,
     `- PASS count: ${summary.pass}`,
@@ -7503,7 +7575,7 @@ function buildCurrentPcBaselineReport(baseline) {
     "1. Stage3 self 7-digit/member-bonus displacement: most frequent confirmed pattern. The selected result often drops or shifts a 7-digit member and uses bonus-like evidence as a member or reduced bonus. It has many positives, but needs current-PC-specific exact candidate provenance before production recovery.",
     "2. Total-only bonus omission: confirmed in several self totals where selected members are correct but total is member sum instead of member sum plus visible bonus. This is more generalizable, but must be guarded against malformed total/bonus candidates.",
     "3. Member slot/order displacement: confirmed in several cases where the selected values are real scores but assigned to the wrong slots. This likely needs bbox/slot evidence before a safe generic rule.",
-    "4. Missing selected member: currently one confirmed sample in this 10-sample baseline. It is not the first production target until more examples exist.",
+    `4. Missing selected member: ${missingMemberConfirmedCount} confirmed positives in this deduplicated baseline. It is not the first production target until candidate provenance can distinguish missing values from total/member displacement.`,
     "",
     "## Current-PC Stage3 Self 7-Digit Displacement Simulation",
     "",
@@ -7542,7 +7614,7 @@ function buildCurrentPcBaselineReport(baseline) {
     "- production OCR output changed: no",
     "- guard shape: the selected-total equation flag must be present, raw evidence must contain exactly one exact member/member/member/bonus/total interpretation, and the selected result must differ from that unique interpretation.",
     "- It does not use filenames, expected fixtures, or hard-coded scores. Expected fixtures are used only to evaluate simulation impact.",
-    "- The selected-total suspicious group has five confirmed positives, but they do not share one safe shape. This simulation covers only the unique exact raw equation subpattern.",
+    `- The selected-total suspicious group has ${selectedTotalConfirmedCount} confirmed positives, but they do not share one safe shape. This simulation covers only the unique exact raw equation subpattern.`,
     "",
     `- true positive accepts: ${exactRawEquationSimulation.truePositives}`,
     `- false positive accepts: ${exactRawEquationSimulation.falsePositives}`,
@@ -7569,7 +7641,7 @@ function buildCurrentPcBaselineReport(baseline) {
     "",
     "## Exact Raw Equation False Negative Deep Dive",
     "",
-    "The four false negatives are intentionally not folded into the exact raw equation simulation. They split into narrower causes, and none currently has recurring, unique, exact evidence strong enough for another runner-only recovery simulation.",
+    `The ${exactRawEquationSimulation.falseNegatives} false negatives are intentionally not folded into the exact raw equation simulation. They split into narrower causes, and none currently has recurring, unique, exact evidence strong enough for another runner-only recovery simulation.`,
     "",
     "| image | stage/side | sub-pattern | expected | actual | raw evidence presence | raw text / provenance | exact reconstruction | recommendation |",
     "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"
@@ -7705,20 +7777,20 @@ function buildCurrentPcBaselineReport(baseline) {
     "- Do not productionize punctuation normalization yet. Period-grouped values such as `147.462` can be meaningful scores, but they need role, ROI, and exact-equation guards before they are safe.",
     "- Digit-drop remains too sample-specific for production. The clear `805828` -> `5828` case lacks a clean parsed replacement candidate in the current evidence flow.",
     "- Bonus OCR confusion remains too sample-specific for production. The observed `142313` -> `142513` and `66660` -> `68660` shapes do not form a safe replacement rule yet.",
-    "- No additional runner-only recovery simulation is added here because the audit found evidence categories, not a recurring unique exact recovery pattern across the 10 current-PC samples.",
+    "- No additional runner-only recovery simulation is added here because the audit found evidence categories, not a recurring unique exact recovery pattern across the deduplicated current-PC samples.",
     "",
     "",
     "## Ranked Generalization Targets",
     "",
     "1. Keep the Stage3 self 7-digit/member-bonus displacement recovery in runner-only simulation until more exact-positive samples exist.",
-    "2. Keep the exact raw equation recovery in runner-only simulation. It has one true positive and no false positives, but it covers only one of five selected-total confirmed failures.",
+    `2. Keep the exact raw equation recovery in runner-only simulation. It has ${exactRawEquationSimulation.truePositives} true positive accepts and no false positive accepts, but it covers only a subset of ${selectedTotalConfirmedCount} selected-total confirmed failures.`,
     "3. Investigate the remaining selected-total subpatterns separately: bonus/member OCR confusion, digit/drop member plus bonus evidence gap, total/bonus OCR offset, and missing member evidence.",
     "4. Add bbox-backed current-PC candidate provenance for member slot/order displacement before any production rule.",
     "",
     "## Recommendation",
     "",
     "- Do not productionize a new current-PC recovery rule yet.",
-    "- The next implementation target should remain audit/simulation-only. The selected-total group is real, but the five confirmed cases split into multiple causes and only one currently has a unique exact raw equation.",
+    `- The next implementation target should remain audit/simulation-only. The selected-total group is real, but the ${selectedTotalConfirmedCount} confirmed cases split into multiple causes and only ${exactRawEquationSimulation.truePositives} currently have a unique exact raw equation.`,
     "- Current-PC expected fixtures are now available, so future simulations can report real PASS/FAIL impact rather than unresolved audit guesses.",
     "",
     "## Artifact Location",
