@@ -6290,6 +6290,311 @@ function buildCurrentPcExactRawEquationRecoverySimulation({
   };
 }
 
+function currentPcTokenDigitCount(value) {
+  return String(Math.trunc(Number(value || 0))).length;
+}
+
+function currentPcGroupedTokenRoleForSource(sourceRole = "") {
+  if (sourceRole === "member-row") return "member";
+  if (sourceRole === "total-direct" || sourceRole === "total-trace") return "total";
+  return "unknown";
+}
+
+function currentPcGroupedTokenRoiForRole(role, roiProvenance = null) {
+  if (role === "member") return roiProvenance?.members || null;
+  if (role === "total") return roiProvenance?.total || null;
+  return null;
+}
+
+function collectCurrentPcGroupedRawTokenEvidence(sideAnalysis, roiProvenance = null) {
+  const sourceEntries = collectCurrentPcSourceTokenAudits(sideAnalysis);
+  const eligibleTokens = [];
+  const blockedTokens = [];
+  const acceptedShapes = new Set(["comma-grouped", "period-grouped", "space-grouped"]);
+
+  for (const entry of sourceEntries) {
+    const role = currentPcGroupedTokenRoleForSource(entry.sourceRole);
+    for (const token of entry.tokens || []) {
+      const value = Number(token.normalizedValue || 0);
+      const reasons = [];
+      const digitCount = currentPcTokenDigitCount(value);
+      const roi = currentPcGroupedTokenRoiForRole(role, roiProvenance);
+
+      if (!acceptedShapes.has(token.shape)) reasons.push("unsupported-token-shape");
+      if (role === "unknown") reasons.push("unknown-source-role");
+      if (!roi) reasons.push("missing-role-specific-roi");
+      if (!token.punctuationNormalizationOnly && token.presentInSourceParsed) {
+        reasons.push("already-reaches-parsed-candidates");
+      }
+      if (value <= 0) reasons.push("missing-normalized-value");
+      if (role === "member" && (digitCount < 5 || digitCount > 7)) {
+        reasons.push("member-digit-count-out-of-range");
+      }
+      if (role === "total" && (digitCount < 5 || digitCount > 8)) {
+        reasons.push("total-digit-count-out-of-range");
+      }
+
+      const evidence = {
+        role,
+        sourceRole: entry.sourceRole,
+        sourceTag: entry.sourceTag,
+        pass: entry.pass,
+        token: token.token,
+        textIndex: Number(token.textIndex ?? -1),
+        normalizedValue: value,
+        shape: token.shape,
+        digitCount,
+        text: entry.text,
+        roi,
+        currentParserNumbers: token.currentParserNumbers || [],
+        presentInSourceParsed: Boolean(token.presentInSourceParsed),
+        presentInCurrentParser: Boolean(token.presentInCurrentParser),
+        punctuationNormalizationOnly: Boolean(token.punctuationNormalizationOnly),
+      };
+
+      if (reasons.length === 0) {
+        eligibleTokens.push(evidence);
+      } else {
+        blockedTokens.push({ ...evidence, reasons });
+      }
+    }
+  }
+
+  const dedupedEligible = eligibleTokens.filter(
+    (item, index, all) =>
+      all.findIndex(
+        (other) =>
+          other.role === item.role &&
+          other.sourceRole === item.sourceRole &&
+          other.pass === item.pass &&
+          other.token === item.token &&
+          other.normalizedValue === item.normalizedValue
+      ) === index
+  );
+
+  return { eligibleTokens: dedupedEligible, blockedTokens };
+}
+
+function currentPcOrderedMemberValuesFromTokenEvidence(sideAnalysis, eligibleTokens = []) {
+  const memberEntry = collectCurrentPcSourceTokenAudits(sideAnalysis).find(
+    (entry) => entry.sourceRole === "member-row"
+  );
+  if (!memberEntry) return [];
+  const eligibleMemberValues = new Set(
+    eligibleTokens
+      .filter((token) => token.role === "member")
+      .map((token) => Number(token.normalizedValue || 0))
+  );
+  return (memberEntry.tokens || [])
+    .map((token) => {
+      const value = Number(token.normalizedValue || 0);
+      const digitCount = currentPcTokenDigitCount(value);
+      const isEligibleGrouped = eligibleMemberValues.has(value);
+      const isParsedMemberLike =
+        token.presentInSourceParsed &&
+        digitCount >= 5 &&
+        digitCount <= 7 &&
+        value >= 10000 &&
+        value < 2000000;
+      if (!isEligibleGrouped && !isParsedMemberLike) return null;
+      return {
+        value,
+        textIndex: Number(token.textIndex ?? -1),
+        source: isEligibleGrouped ? "eligible-grouped-member-token" : "parsed-member-token",
+        token: token.token,
+        shape: token.shape,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.textIndex - b.textIndex)
+    .filter(
+      (item, index, all) =>
+        all.findIndex(
+          (other) => other.value === item.value && other.textIndex === item.textIndex
+        ) === index
+    );
+}
+
+function buildCurrentPcGroupedExactInterpretations({
+  rawCandidates = [],
+  displayedTotalCandidates = [],
+  bonusCandidates = [],
+  eligibleTokens = [],
+  orderedMemberEvidence = [],
+}) {
+  const promotedMembers = eligibleTokens
+    .filter((token) => token.role === "member")
+    .map((token) => token.normalizedValue);
+  const promotedTotals = eligibleTokens
+    .filter((token) => token.role === "total")
+    .map((token) => token.normalizedValue);
+  const memberLike = uniqueNumbers([...rawCandidates, ...promotedMembers]).filter(
+    (value) => value >= 10000 && value < 2000000
+  );
+  const totalLike = uniqueNumbers([...displayedTotalCandidates, ...promotedTotals]).filter(
+    (value) => value >= 10000
+  );
+  const groupedValues = new Set(eligibleTokens.map((token) => Number(token.normalizedValue || 0)));
+  const interpretations = [];
+  const addInterpretation = (members, bonus, total, source) => {
+    const promotedValuesUsed = [
+      ...members.filter((value) => groupedValues.has(value)),
+      ...(groupedValues.has(total) ? [total] : []),
+    ];
+    if (promotedValuesUsed.length === 0) return;
+    interpretations.push({ members, bonus, total, source, promotedValuesUsed });
+  };
+
+  const orderedMembers = orderedMemberEvidence.slice(0, 3).map((item) => item.value);
+  const orderedUsesGroupedMember = orderedMemberEvidence
+    .slice(0, 3)
+    .some((item) => item.source === "eligible-grouped-member-token");
+  if (orderedMembers.length === 3 && orderedUsesGroupedMember) {
+    const sum = orderedMembers.reduce((total, value) => total + value, 0);
+    if (totalLike.some((value) => Math.abs(value - sum) <= 1)) {
+      addInterpretation(orderedMembers, 0, sum, "ordered-member-row-token-evidence");
+    }
+    for (const bonus of bonusCandidates || []) {
+      const total = sum + Number(bonus || 0);
+      if (totalLike.some((value) => Math.abs(value - total) <= 1)) {
+        addInterpretation(orderedMembers, bonus, total, "ordered-member-row-token-evidence");
+      }
+    }
+  }
+
+  if (orderedUsesGroupedMember) {
+    return interpretations.filter(
+      (item, index, all) =>
+        all.findIndex(
+          (other) =>
+            other.total === item.total &&
+            other.bonus === item.bonus &&
+            other.members.join(",") === item.members.join(",")
+        ) === index
+    );
+  }
+
+  for (let a = 0; a < memberLike.length - 2; a += 1) {
+    for (let b = a + 1; b < memberLike.length - 1; b += 1) {
+      for (let c = b + 1; c < memberLike.length; c += 1) {
+        const members = [memberLike[a], memberLike[b], memberLike[c]];
+        const sum = members.reduce((total, value) => total + value, 0);
+        if (totalLike.some((value) => Math.abs(value - sum) <= 1)) {
+          addInterpretation(members, 0, sum, "unordered-exact-equation-token-evidence");
+        }
+        for (const bonus of bonusCandidates || []) {
+          const total = sum + Number(bonus || 0);
+          if (totalLike.some((value) => Math.abs(value - total) <= 1)) {
+            addInterpretation(members, bonus, total, "unordered-exact-equation-token-evidence");
+          }
+        }
+      }
+    }
+  }
+
+  return interpretations.filter(
+    (item, index, all) =>
+      item.promotedValuesUsed.length > 0 &&
+      all.findIndex(
+        (other) =>
+          other.total === item.total &&
+          other.bonus === item.bonus &&
+          other.members.join(",") === item.members.join(",")
+      ) === index
+  );
+}
+
+function buildCurrentPcGroupedRawTokenEvidenceSimulation({
+  stage = 0,
+  side = "",
+  selectedMembers = [],
+  selectedTotal = 0,
+  suspiciousReasons = [],
+  rawCandidates = [],
+  displayedTotalCandidates = [],
+  bonusCandidates = [],
+  sideAnalysis = null,
+  roiProvenance = null,
+}) {
+  const selected = [...selectedMembers].map((value) => Number(value) || 0);
+  while (selected.length < 3) selected.push(0);
+  const selectedMemberSum = selected.reduce((sum, value) => sum + value, 0);
+  const { eligibleTokens, blockedTokens } = collectCurrentPcGroupedRawTokenEvidence(
+    sideAnalysis,
+    roiProvenance
+  );
+  const orderedMemberEvidence = currentPcOrderedMemberValuesFromTokenEvidence(
+    sideAnalysis,
+    eligibleTokens
+  );
+  const exactInterpretations = buildCurrentPcGroupedExactInterpretations({
+    rawCandidates,
+    displayedTotalCandidates,
+    bonusCandidates,
+    eligibleTokens,
+    orderedMemberEvidence,
+  });
+  const proposal = exactInterpretations[0] || null;
+  const selectedAlreadyMatches =
+    proposal &&
+    Math.abs(Number(selectedTotal || 0) - Number(proposal.total || 0)) <= 1 &&
+    arraysEqualWithinOne(selected, proposal.members || []);
+  const rejectionReasons = [];
+
+  if (!suspiciousReasons.includes("selected-total-not-exact-member-sum-or-member-sum-plus-bonus")) {
+    rejectionReasons.push("selected-total-equation-is-not-flagged");
+  }
+  if (eligibleTokens.length === 0) {
+    rejectionReasons.push("missing-eligible-grouped-raw-token");
+  }
+  if (exactInterpretations.length === 0) {
+    rejectionReasons.push("missing-unique-grouped-token-exact-interpretation");
+  }
+  if (exactInterpretations.length > 1) {
+    rejectionReasons.push("multiple-competing-grouped-token-exact-interpretations");
+  }
+  if (selectedAlreadyMatches) {
+    rejectionReasons.push("selected-result-already-matches-grouped-token-interpretation");
+  }
+
+  return {
+    wouldApply: rejectionReasons.length === 0,
+    proposed: proposal
+      ? {
+          members: proposal.members,
+          bonus: Number(proposal.bonus || 0),
+          total: Number(proposal.total || 0),
+          memberSum: proposal.members.reduce((sum, value) => sum + Number(value || 0), 0),
+        }
+      : null,
+    current: {
+      stage,
+      side,
+      members: selected,
+      total: Number(selectedTotal || 0),
+      memberSum: selectedMemberSum,
+      totalMinusMemberSum: Number(selectedTotal || 0) - selectedMemberSum,
+    },
+    rejectionReasons,
+    evidence: {
+      eligibleTokens,
+      blockedTokens,
+      blockedTokenCount: blockedTokens.length,
+      orderedMemberEvidence,
+      exactInterpretations,
+      exactInterpretationCount: exactInterpretations.length,
+      structuralEquation:
+        proposal
+          ? `${proposal.members.join(" + ")}${proposal.bonus ? ` + ${proposal.bonus}` : ""} = ${proposal.total}`
+          : null,
+      promotedValuesUsed: proposal?.promotedValuesUsed || [],
+      roiProvenance,
+    },
+    note:
+      "Runner-only current-PC simulation. It only promotes strict punctuation/space grouped raw tokens from role-specific ROIs into a simulation-only exact equation pool.",
+  };
+}
+
 function cleanOcrTextForReport(text = "") {
   return String(text)
     .replace(/\s+/g, " ")
@@ -6322,17 +6627,21 @@ function extractNumericLikeTokenAudit(text = "", parsedNumbers = []) {
   const normalized = String(text || "").replace(/[\uFF01-\uFF5E]/g, (s) =>
     String.fromCharCode(s.charCodeAt(0) - 65248)
   );
-  const tokenMatches =
-    normalized.match(/[+\-]?\d{1,3}(?:[,.]\d{3})+|[+\-]?\d{1,3}(?:\s+\d{3})+|[+\-]?\d{4,8}/g) ||
-    [];
+  const tokenMatches = [
+    ...normalized.matchAll(
+      /[+\-]?\d{1,3}(?:[,.]\d{3})+|[+\-]?\d{1,3}(?:\s+\d{3})+|[+\-]?\d{4,8}/g
+    ),
+  ];
   const currentParserNumbers = extractNumbersForZone(normalized);
   const parsed = uniqueNumbers(parsedNumbers || []);
-  return tokenMatches.map((token) => {
+  return tokenMatches.map((match) => {
+    const token = match[0] || "";
     const grouped = normalizeGroupedNumericToken(token);
     const parserNumbers = extractNumbersForZone(token);
     const normalizedValue = grouped?.value || parserNumbers[0] || 0;
     return {
       token: cleanOcrTextForReport(token),
+      textIndex: match.index ?? -1,
       normalizedValue,
       shape: grouped?.shape || "plain-or-current-parser",
       currentParserNumbers: parserNumbers,
@@ -6546,6 +6855,20 @@ function buildCurrentPcSideAnalysis(stageResult, side, options = {}) {
       exactRawInterpretations: uniqueExactRawInterpretations,
       roiProvenance: options.roiProvenance || null,
     });
+  const candidateSourceSummary = summarizeCurrentPcCandidateSources(sideArtifact);
+  const currentPcGroupedRawTokenEvidenceSimulation =
+    buildCurrentPcGroupedRawTokenEvidenceSimulation({
+      stage: options.stage,
+      side,
+      selectedMembers,
+      selectedTotal,
+      suspiciousReasons,
+      rawCandidates,
+      displayedTotalCandidates,
+      bonusCandidates,
+      sideAnalysis: { candidateSourceSummary },
+      roiProvenance: options.roiProvenance || null,
+    });
 
   return {
     selectedMembers,
@@ -6561,10 +6884,11 @@ function buildCurrentPcSideAnalysis(stageResult, side, options = {}) {
     },
     suspiciousReasons,
     retryPlan,
-    candidateSourceSummary: summarizeCurrentPcCandidateSources(sideArtifact),
+    candidateSourceSummary,
     exactRawInterpretations: uniqueExactRawInterpretations.slice(0, 8),
     currentPcStage3SelfSevenDigitDisplacementSimulation,
     currentPcExactRawEquationRecoverySimulation,
+    currentPcGroupedRawTokenEvidenceSimulation,
   };
 }
 
@@ -7001,6 +7325,143 @@ function buildCurrentPcExactRawEquationSimulationEvaluation(analysis) {
   };
 }
 
+function currentPcGroupedRawTargetMatchesExpected(item, stage, side, sideAnalysis) {
+  const expected = currentPcExpectedStageSide(item, stage, side);
+  if (!expected || !hasCurrentPcSideFailure(item, stage, side)) return false;
+  if (
+    !sideAnalysis?.suspiciousReasons?.includes(
+      "selected-total-not-exact-member-sum-or-member-sum-plus-bonus"
+    )
+  ) {
+    return false;
+  }
+  const expectedMembers = expected.members || [];
+  const expectedBonus = Number(expected.bonus || 0);
+  const expectedTotal = Number(expected.total || 0);
+  const expectedSum = expectedMembers.reduce((sum, value) => sum + Number(value || 0), 0);
+  if (Math.abs(expectedSum + expectedBonus - expectedTotal) > 1) return false;
+
+  const eligibleValues =
+    sideAnalysis?.currentPcGroupedRawTokenEvidenceSimulation?.evidence?.eligibleTokens?.map(
+      (token) => Number(token.normalizedValue || 0)
+    ) || [];
+  if (eligibleValues.length === 0) return false;
+  const expectedValues = [...expectedMembers, expectedBonus, expectedTotal].filter((value) => value > 0);
+  return expectedValues.some((value) => valueInList(value, eligibleValues));
+}
+
+function buildCurrentPcGroupedRawTokenEvidenceSimulationEvaluation(analysis) {
+  const rows = [];
+  let truePositives = 0;
+  let falsePositives = 0;
+  let falseNegatives = 0;
+  let correctlyBlockedNegatives = 0;
+  const shapeBreakdown = new Map();
+  const blockedShapeBreakdown = new Map();
+  const blockedReasonBreakdown = new Map();
+  let punctuationGroupedCases = 0;
+  let rawTextOnlyCases = 0;
+  let overlappingPunctuationAndRawOnlyCases = 0;
+  const additionalTruePositiveKeys = [];
+
+  const increment = (map, key) => map.set(key, (map.get(key) || 0) + 1);
+
+  for (const item of analysis) {
+    for (const stage of stages) {
+      const stageKey = `stage${stage}`;
+      for (const side of sides) {
+        const sideAnalysis = item.stages?.[stageKey]?.[side];
+        const sim = sideAnalysis?.currentPcGroupedRawTokenEvidenceSimulation;
+        const expected = currentPcExpectedStageSide(item, stage, side);
+        const eligibleTokens = sim?.evidence?.eligibleTokens || [];
+        const blockedTokens = sim?.evidence?.blockedTokens || [];
+        const hasPunctuationGrouped = eligibleTokens.some((token) =>
+          ["comma-grouped", "period-grouped", "space-grouped"].includes(token.shape)
+        );
+        const hasRawTextOnly = eligibleTokens.some((token) => !token.presentInSourceParsed);
+        const target = currentPcGroupedRawTargetMatchesExpected(item, stage, side, sideAnalysis);
+        const wouldApply = Boolean(sim?.wouldApply);
+        const matchesExpected = proposalMatchesExpected(sim?.proposed, expected);
+        let classification = "correctly-blocked-negative";
+
+        for (const token of eligibleTokens) {
+          increment(shapeBreakdown, `${token.shape}:${token.role}`);
+        }
+        for (const token of blockedTokens) {
+          increment(blockedShapeBreakdown, `${token.shape}:${token.role}`);
+          for (const reason of token.reasons || []) increment(blockedReasonBreakdown, reason);
+        }
+        if (hasPunctuationGrouped) punctuationGroupedCases += 1;
+        if (hasRawTextOnly) rawTextOnlyCases += 1;
+        if (hasPunctuationGrouped && hasRawTextOnly) overlappingPunctuationAndRawOnlyCases += 1;
+
+        if (wouldApply && matchesExpected) {
+          truePositives += 1;
+          classification = "true-positive";
+          if (!sideAnalysis?.currentPcExactRawEquationRecoverySimulation?.wouldApply) {
+            additionalTruePositiveKeys.push(`${item.fileName} S${stage} ${side}`);
+          }
+        } else if (wouldApply && !matchesExpected) {
+          falsePositives += 1;
+          classification = "false-positive";
+        } else if (!wouldApply && target) {
+          falseNegatives += 1;
+          classification = "false-negative";
+        } else {
+          correctlyBlockedNegatives += 1;
+        }
+
+        if (target || wouldApply || eligibleTokens.length > 0) {
+          rows.push({
+            image: item.fileName,
+            stage,
+            side,
+            classification,
+            target,
+            wouldApply,
+            expected,
+            actual: {
+              members: sideAnalysis?.selectedMembers || [],
+              bonusCandidates: sideAnalysis?.bonusCandidates || [],
+              total: sideAnalysis?.selectedTotal || 0,
+            },
+            proposed: sim?.proposed || null,
+            rejectionReasons: sim?.rejectionReasons || [],
+            eligibleTokens,
+            blockedTokenCount: sim?.evidence?.blockedTokenCount || 0,
+            exactInterpretationCount: sim?.evidence?.exactInterpretationCount || 0,
+            structuralEquation: sim?.evidence?.structuralEquation || null,
+            promotedValuesUsed: sim?.evidence?.promotedValuesUsed || [],
+            roiProvenance: sim?.evidence?.roiProvenance || null,
+          });
+        }
+      }
+    }
+  }
+
+  const mapToRows = (map) =>
+    [...map.entries()]
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+
+  return {
+    truePositives,
+    falsePositives,
+    falseNegatives,
+    correctlyBlockedNegatives,
+    rows,
+    shapeBreakdown: mapToRows(shapeBreakdown),
+    blockedShapeBreakdown: mapToRows(blockedShapeBreakdown),
+    blockedReasonBreakdown: mapToRows(blockedReasonBreakdown),
+    overlap: {
+      punctuationGroupedCases,
+      rawTextOnlyCases,
+      overlappingPunctuationAndRawOnlyCases,
+    },
+    additionalTruePositiveKeys,
+  };
+}
+
 function valueInList(value, list = []) {
   return list.some((candidate) => Math.abs(Number(candidate || 0) - Number(value || 0)) <= 1);
 }
@@ -7364,6 +7825,8 @@ function buildCurrentPcBaselineReport(baseline) {
   const stage3SelfSimulation = buildCurrentPcStage3SelfSimulationEvaluation(baseline.analysis);
   const exactRawEquationSimulation =
     buildCurrentPcExactRawEquationSimulationEvaluation(baseline.analysis);
+  const groupedRawTokenSimulation =
+    buildCurrentPcGroupedRawTokenEvidenceSimulationEvaluation(baseline.analysis);
   const exactRawFalseNegativeDeepDive =
     buildCurrentPcExactRawFalseNegativeDeepDive(exactRawEquationSimulation);
   const bonusDigitParserAudit = buildCurrentPcBonusDigitParserAudit(baseline.analysis);
@@ -7639,6 +8102,97 @@ function buildCurrentPcBaselineReport(baseline) {
 
   lines.push(
     "",
+    "## Current-PC Grouped Raw Token Evidence Simulation",
+    "",
+    "- simulation name: `currentPcGroupedRawTokenEvidenceSimulation`",
+    "- scope: runner-only, current-PC layout only, all stages/sides",
+    "- production OCR output changed: no",
+    "- guard shape: only strict comma/period/space grouped numeric tokens from role-specific member or total ROIs are promoted into a simulation-only pool; the selected-total equation flag must be present; the promoted evidence must produce exactly one exact member/member/member/bonus/total interpretation; no filenames, expected values, hard-coded scores, near matches, malformed tokens, mixed punctuation, or global punctuation normalization are used.",
+    "- It leaves `currentPcExactRawEquationRecoverySimulation` unchanged and reports only whether grouped/raw token evidence would unlock additional exact-equation recoveries.",
+    "",
+    `- true positive accepts: ${groupedRawTokenSimulation.truePositives}`,
+    `- false positive accepts: ${groupedRawTokenSimulation.falsePositives}`,
+    `- false negatives: ${groupedRawTokenSimulation.falseNegatives}`,
+    `- correctly blocked negatives: ${groupedRawTokenSimulation.correctlyBlockedNegatives}`,
+    `- additional true positives beyond exact raw equation simulation: ${groupedRawTokenSimulation.additionalTruePositiveKeys.length}`,
+    "",
+    "### Grouped / Raw Token Shape Breakdown",
+    "",
+    `- punctuation-grouped eligible stage/side cases: ${groupedRawTokenSimulation.overlap.punctuationGroupedCases}`,
+    `- raw-text-only eligible stage/side cases: ${groupedRawTokenSimulation.overlap.rawTextOnlyCases}`,
+    `- overlapping punctuation-grouped and raw-text-only eligible cases: ${groupedRawTokenSimulation.overlap.overlappingPunctuationAndRawOnlyCases}`,
+    "",
+    "| eligible shape/role | count |",
+    "| --- | ---: |"
+  );
+
+  if (groupedRawTokenSimulation.shapeBreakdown.length === 0) {
+    lines.push("| - | 0 |");
+  }
+  for (const row of groupedRawTokenSimulation.shapeBreakdown) {
+    lines.push(`| ${row.name} | ${row.count} |`);
+  }
+
+  lines.push(
+    "",
+    "### Blocked Token Shapes / Reasons",
+    "",
+    "| blocked shape/role | count |",
+    "| --- | ---: |"
+  );
+
+  if (groupedRawTokenSimulation.blockedShapeBreakdown.length === 0) {
+    lines.push("| - | 0 |");
+  }
+  for (const row of groupedRawTokenSimulation.blockedShapeBreakdown.slice(0, 16)) {
+    lines.push(`| ${row.name} | ${row.count} |`);
+  }
+
+  lines.push(
+    "",
+    "| blocked reason | count |",
+    "| --- | ---: |"
+  );
+
+  if (groupedRawTokenSimulation.blockedReasonBreakdown.length === 0) {
+    lines.push("| - | 0 |");
+  }
+  for (const row of groupedRawTokenSimulation.blockedReasonBreakdown.slice(0, 16)) {
+    lines.push(`| ${row.name} | ${row.count} |`);
+  }
+
+  lines.push(
+    "",
+    "### Grouped Raw Token Simulation Results",
+    "",
+    "| image | stage/side | class | would apply | expected | actual | proposed | promoted / eligible evidence | rejection / ambiguity |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"
+  );
+
+  if (groupedRawTokenSimulation.rows.length === 0) {
+    lines.push("| - | - | - | - | - | - | - | - | - |");
+  }
+  for (const row of groupedRawTokenSimulation.rows) {
+    const eligible = (row.eligibleTokens || [])
+      .slice(0, 6)
+      .map(
+        (token) =>
+          `${token.role}:${escapeMarkdownTableCell(token.token)}=>${formatNumber(token.normalizedValue)} (${token.shape}, ${token.sourceRole}/${token.pass || "-"})`
+      )
+      .join("<br>");
+    lines.push(
+      `| ${row.image} | S${row.stage} ${row.side} | ${row.classification} | ${row.wouldApply ? "yes" : "no"} | members ${formatDebugNumbers(row.expected?.members || [])}; bonus ${formatNumber(row.expected?.bonus || 0) || "-"}; total ${formatNumber(row.expected?.total || 0)} | members ${formatDebugNumbers(row.actual.members)}; bonus candidates ${formatDebugNumbers(row.actual.bonusCandidates) || "-"}; total ${formatNumber(row.actual.total)} | ${
+        row.proposed
+          ? `members ${formatDebugNumbers(row.proposed.members)}; bonus ${formatNumber(row.proposed.bonus)}; total ${formatNumber(row.proposed.total)}`
+          : "-"
+      } | promoted ${formatDebugNumbers(row.promotedValuesUsed) || "-"}; eligible ${eligible || "-"}; exact interpretations ${row.exactInterpretationCount}; equation ${row.structuralEquation || "-"} | ${
+        row.rejectionReasons.join(", ") || "-"
+      } |`
+    );
+  }
+
+  lines.push(
+    "",
     "## Exact Raw Equation False Negative Deep Dive",
     "",
     `The ${exactRawEquationSimulation.falseNegatives} false negatives are intentionally not folded into the exact raw equation simulation. They split into narrower causes, and none currently has recurring, unique, exact evidence strong enough for another runner-only recovery simulation.`,
@@ -7774,23 +8328,25 @@ function buildCurrentPcBaselineReport(baseline) {
     "",
     "### Parser Audit Recommendation",
     "",
-    "- Do not productionize punctuation normalization yet. Period-grouped values such as `147.462` can be meaningful scores, but they need role, ROI, and exact-equation guards before they are safe.",
+    "- Do not productionize punctuation normalization yet. Period-grouped values such as `147.462` can be meaningful scores, but they remain unsafe unless role, ROI, and exact-equation guards all agree.",
+    "- The new grouped/raw token evidence simulation is runner-only and intentionally stricter than global punctuation normalization. It only promotes strict grouped tokens from role-specific ROIs into an exact-equation simulation pool.",
     "- Digit-drop remains too sample-specific for production. The clear `805828` -> `5828` case lacks a clean parsed replacement candidate in the current evidence flow.",
     "- Bonus OCR confusion remains too sample-specific for production. The observed `142313` -> `142513` and `66660` -> `68660` shapes do not form a safe replacement rule yet.",
-    "- No additional runner-only recovery simulation is added here because the audit found evidence categories, not a recurring unique exact recovery pattern across the deduplicated current-PC samples.",
+    "- Production remains blocked unless the grouped/raw simulation produces repeated true-positive exact recoveries with zero false-positive accepts and no competing interpretation.",
     "",
     "",
     "## Ranked Generalization Targets",
     "",
     "1. Keep the Stage3 self 7-digit/member-bonus displacement recovery in runner-only simulation until more exact-positive samples exist.",
     `2. Keep the exact raw equation recovery in runner-only simulation. It has ${exactRawEquationSimulation.truePositives} true positive accepts and no false positive accepts, but it covers only a subset of ${selectedTotalConfirmedCount} selected-total confirmed failures.`,
-    "3. Investigate the remaining selected-total subpatterns separately: bonus/member OCR confusion, digit/drop member plus bonus evidence gap, total/bonus OCR offset, and missing member evidence.",
-    "4. Add bbox-backed current-PC candidate provenance for member slot/order displacement before any production rule.",
+    `3. Use grouped/raw token evidence simulation to measure whether strict punctuation/space grouped tokens unlock additional exact equations. It currently reports ${groupedRawTokenSimulation.truePositives} true positives and ${groupedRawTokenSimulation.falsePositives} false positives.`,
+    "4. Investigate the remaining selected-total subpatterns separately: bonus/member OCR confusion, digit/drop member plus bonus evidence gap, total/bonus OCR offset, and missing member evidence.",
+    "5. Add bbox-backed current-PC candidate provenance for member slot/order displacement before any production rule.",
     "",
     "## Recommendation",
     "",
     "- Do not productionize a new current-PC recovery rule yet.",
-    `- The next implementation target should remain audit/simulation-only. The selected-total group is real, but the ${selectedTotalConfirmedCount} confirmed cases split into multiple causes and only ${exactRawEquationSimulation.truePositives} currently have a unique exact raw equation.`,
+    `- The next implementation target should remain audit/simulation-only. The selected-total group is real, but the ${selectedTotalConfirmedCount} confirmed cases split into multiple causes, ${exactRawEquationSimulation.truePositives} currently have a unique exact raw equation, and ${groupedRawTokenSimulation.truePositives} are accepted by the stricter grouped/raw token simulation.`,
     "- Current-PC expected fixtures are now available, so future simulations can report real PASS/FAIL impact rather than unresolved audit guesses.",
     "",
     "## Artifact Location",
