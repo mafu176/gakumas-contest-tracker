@@ -6353,6 +6353,212 @@ function buildCurrentPcStage3SelfSevenDigitDisplacementSimulation({
   };
 }
 
+function selectedMembersMatchCurrentPcSevenDigitBonusDisplacement(
+  selectedMembers = [],
+  proposedMembers = [],
+  proposedBonus = 0
+) {
+  const selected = [...selectedMembers].map((value) => Number(value) || 0);
+  while (selected.length < 3) selected.push(0);
+  const nonZeroSelected = selected.filter((value) => value > 0);
+  if (!nonZeroSelected.some((value) => Math.abs(value - proposedBonus) <= 1)) {
+    return false;
+  }
+
+  const expectedSequence = [...proposedMembers, proposedBonus];
+  let sequenceIndex = 0;
+  for (const selectedValue of nonZeroSelected) {
+    while (
+      sequenceIndex < expectedSequence.length &&
+      Math.abs(expectedSequence[sequenceIndex] - selectedValue) > 1
+    ) {
+      sequenceIndex += 1;
+    }
+    if (sequenceIndex >= expectedSequence.length) {
+      return false;
+    }
+    sequenceIndex += 1;
+  }
+
+  const selectedRealMemberCount = nonZeroSelected.filter((value) =>
+    proposedMembers.some((member) => Math.abs(member - value) <= 1)
+  ).length;
+  const missingCleanSevenDigitMemberCount = proposedMembers.filter(
+    (member) =>
+      member >= 1000000 &&
+      member < 10000000 &&
+      !selected.some((value) => Math.abs(value - member) <= 1)
+  ).length;
+
+  return selectedRealMemberCount >= 1 && missingCleanSevenDigitMemberCount >= 1;
+}
+
+function buildCurrentPcStage3SevenDigitBonusDisplacementSimulation({
+  stage = 0,
+  side = "",
+  selectedMembers = [],
+  selectedTotal = 0,
+  sideArtifact = null,
+  roiProvenance = null,
+}) {
+  const memberSource = sideArtifact?.candidateSources?.memberCandidates || {};
+  const totalSource = sideArtifact?.candidateSources?.totalCandidates || {};
+  const totalDirect = sideArtifact?.candidateSources?.totalDirect || {};
+  const memberNumbers = uniqueNumbers(memberSource.numbers || []);
+  const totalReferences = uniqueNumbers([
+    ...(totalDirect.numbers || []),
+    ...(totalSource.numbers || []),
+    ...((totalSource.traces || []).flatMap((trace) => trace.numbers || [])),
+  ]);
+  const selected = [...selectedMembers].map((value) => Number(value) || 0);
+  while (selected.length < 3) selected.push(0);
+  const selectedMemberSum = selected.reduce((sum, value) => sum + value, 0);
+  const totalEvidenceSources = buildStage3TotalEvidenceSources({
+    totalDirectText: totalDirect.text || "",
+    totalDirectNumbers: totalDirect.numbers || [],
+    totalCandidateText: totalSource.text || "",
+    totalCandidateTraces: totalSource.traces || [],
+    memberCandidateText: memberSource.text || "",
+    memberCandidateNumbers: memberNumbers,
+  });
+  const proposals = [];
+
+  for (let index = 0; index <= memberNumbers.length - 4; index += 1) {
+    const proposedMembers = memberNumbers.slice(index, index + 3);
+    const proposedBonus = memberNumbers[index + 3];
+    const memberSum = proposedMembers.reduce((sum, value) => sum + value, 0);
+    const proposedTotal = memberSum + proposedBonus;
+    const cleanSevenDigitMembers = proposedMembers.filter(
+      (value) => value >= 1000000 && value < 10000000
+    );
+    const unselectedSevenDigitMembers = cleanSevenDigitMembers.filter(
+      (value) => !selected.some((member) => Math.abs(member - value) <= 1)
+    );
+    const selectedDisplacementMatches =
+      selectedMembersMatchCurrentPcSevenDigitBonusDisplacement(
+        selected,
+        proposedMembers,
+        proposedBonus
+      );
+    const totalEvidence = getStage3TotalEvidenceForValue(proposedTotal, totalEvidenceSources);
+    const matchingDisplayedTotals = totalReferences.filter(
+      (value) => Math.abs(value - proposedTotal) <= 1
+    );
+
+    proposals.push({
+      rowStartIndex: index,
+      proposedMembers,
+      proposedBonus,
+      proposedTotal,
+      memberSum,
+      cleanSevenDigitMembers,
+      unselectedSevenDigitMembers,
+      selectedDisplacementMatches,
+      matchingDisplayedTotals,
+      totalEvidence,
+      memberRowPass: memberSource.pass || null,
+      memberRowTag: memberSource.tag || null,
+      memberRowText: memberSource.text || "",
+    });
+  }
+
+  const strictProposals = proposals.filter(
+    (proposal) =>
+      proposal.rowStartIndex === 0 &&
+      proposal.unselectedSevenDigitMembers.length >= 1 &&
+      proposal.selectedDisplacementMatches &&
+      proposal.proposedBonus >= 50000 &&
+      proposal.proposedBonus < 500000 &&
+      proposal.totalEvidence.hasExactEvidence &&
+      proposal.totalEvidence.ambiguousExactEvidence === false &&
+      proposal.matchingDisplayedTotals.length > 0
+  );
+  const competingExactInterpretations = proposals.filter(
+    (proposal) =>
+      proposal.totalEvidence.hasExactEvidence &&
+      proposal.totalEvidence.ambiguousExactEvidence === false &&
+      !strictProposals.includes(proposal)
+  );
+  const rejectionReasons = [];
+  if (stage !== 3) {
+    rejectionReasons.push("not-current-pc-stage3");
+  }
+  if (memberNumbers.length < 4) {
+    rejectionReasons.push("member-row-has-fewer-than-four-values");
+  }
+  if (!proposals.some((proposal) => proposal.rowStartIndex === 0)) {
+    rejectionReasons.push("missing-leading-member-row-proposal");
+  }
+  if (!proposals.some((proposal) => proposal.unselectedSevenDigitMembers.length >= 1)) {
+    rejectionReasons.push("missing-unselected-clean-seven-digit-member");
+  }
+  if (!proposals.some((proposal) => proposal.selectedDisplacementMatches)) {
+    rejectionReasons.push("selected-members-do-not-match-bonus-displacement");
+  }
+  if (!proposals.some((proposal) => proposal.totalEvidence.hasExactEvidence)) {
+    rejectionReasons.push("missing-exact-displayed-total-evidence");
+  }
+  if (strictProposals.length === 0) {
+    rejectionReasons.push("no-strict-current-pc-stage3-seven-digit-bonus-displacement-proposal");
+  }
+  if (strictProposals.length > 1) {
+    rejectionReasons.push("multiple-strict-current-pc-stage3-seven-digit-bonus-displacement-proposals");
+  }
+  if (competingExactInterpretations.length > 0) {
+    rejectionReasons.push("competing-exact-current-pc-stage3-seven-digit-bonus-displacement-interpretation");
+  }
+
+  const proposal = strictProposals[0] || null;
+  return {
+    wouldApply: rejectionReasons.length === 0,
+    proposed: proposal
+      ? {
+          members: proposal.proposedMembers,
+          bonus: proposal.proposedBonus,
+          total: proposal.proposedTotal,
+          memberSum: proposal.memberSum,
+        }
+      : null,
+    current: {
+      members: selected,
+      total: Number(selectedTotal || 0),
+      memberSum: selectedMemberSum,
+      totalMinusMemberSum: Number(selectedTotal || 0) - selectedMemberSum,
+    },
+    rejectionReasons,
+    evidence: {
+      memberRowNumbers: memberNumbers,
+      totalReferences,
+      roiProvenance,
+      proposals: proposals.map((item) => ({
+        rowStartIndex: item.rowStartIndex,
+        proposedMembers: item.proposedMembers,
+        proposedBonus: item.proposedBonus,
+        proposedTotal: item.proposedTotal,
+        cleanSevenDigitMembers: item.cleanSevenDigitMembers,
+        unselectedSevenDigitMembers: item.unselectedSevenDigitMembers,
+        selectedDisplacementMatches: item.selectedDisplacementMatches,
+        matchingDisplayedTotals: item.matchingDisplayedTotals,
+        totalEvidence: item.totalEvidence,
+        memberRowPass: item.memberRowPass,
+        memberRowTag: item.memberRowTag,
+        memberRowText: item.memberRowText,
+      })),
+      strictProposalCount: strictProposals.length,
+      competingExactInterpretationCount: competingExactInterpretations.length,
+      competingExactInterpretations: competingExactInterpretations.map((item) => ({
+        rowStartIndex: item.rowStartIndex,
+        proposedMembers: item.proposedMembers,
+        proposedBonus: item.proposedBonus,
+        proposedTotal: item.proposedTotal,
+      })),
+      totalCandidateSources: totalEvidenceSources,
+    },
+    note:
+      "Runner-only current-PC simulation. It detects Stage3 member-row bonus displacement with exact total evidence and does not change OCR output.",
+  };
+}
+
 function buildCurrentPcExactRawEquationRecoverySimulation({
   stage = 0,
   side = "",
@@ -6750,6 +6956,17 @@ function buildCurrentPcSideAnalysis(stageResult, side, options = {}) {
           roiProvenance: options.roiProvenance || null,
         })
       : null;
+  const currentPcStage3SevenDigitBonusDisplacementSimulation =
+    options.stage === 3
+      ? buildCurrentPcStage3SevenDigitBonusDisplacementSimulation({
+          stage: options.stage,
+          side,
+          selectedMembers,
+          selectedTotal,
+          sideArtifact,
+          roiProvenance: options.roiProvenance || null,
+        })
+      : null;
   const currentPcExactRawEquationRecoverySimulation =
     buildCurrentPcExactRawEquationRecoverySimulation({
       stage: options.stage,
@@ -6793,6 +7010,7 @@ function buildCurrentPcSideAnalysis(stageResult, side, options = {}) {
     candidateSourceSummary,
     exactRawInterpretations: uniqueExactRawInterpretations.slice(0, 8),
     currentPcStage3SelfSevenDigitDisplacementSimulation,
+    currentPcStage3SevenDigitBonusDisplacementSimulation,
     currentPcExactRawEquationRecoverySimulation,
     currentPcGroupedRawTokenEvidenceSimulation,
     currentPcGroupedRawTokenRecovery: sideArtifact?.currentPcGroupedRawTokenRecovery || null,
