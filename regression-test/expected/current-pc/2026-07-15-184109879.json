@@ -1,0 +1,26 @@
+{
+  "stage1": {
+    "selfMembers": [348617, 431212, 355754],
+    "selfBonus": 86242,
+    "selfTotal": 1221825,
+    "enemyMembers": [424306, 91591, 186105],
+    "enemyBonus": 0,
+    "enemyTotal": 702002
+  },
+  "stage2": {
+    "selfMembers": [161593, 225824, 315810],
+    "selfBonus": 0,
+    "selfTotal": 703227,
+    "enemyMembers": [360210, 72878, 206325],
+    "enemyBonus": 72042,
+    "enemyTotal": 711455
+  },
+  "stage3": {
+    "selfMembers": [742946, 1099253, 919939],
+    "selfBonus": 0,
+    "selfTotal": 2762138,
+    "enemyMembers": [523915, 1114422, 1120363],
+    "enemyBonus": 224072,
+    "enemyTotal": 2982772
+  }
+}
