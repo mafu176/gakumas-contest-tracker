@@ -95,6 +95,7 @@ import {
   extractScoresFromOcr,
   OCR_PARSER_VERSION,
   normalizeOcrMode,
+  detectCurrentPcLayout,
   getDeviceOcrLayout,
   getFixedOcrZones,
   getAlternativeTotalZones,
@@ -123,6 +124,8 @@ import {
   applySmartphoneRowZoneSevenDigitRecovery,
   applySmartphoneStage3SelfSevenDigitDisplacementRecovery,
   applySmartphoneStage3EnemySevenDigitRecovery,
+  buildCurrentPcCandidateSourceSummary,
+  buildCurrentPcGroupedRawTokenEvidenceSimulation,
   applyDesktopMemberShape,
   pickDesktopTotalFromMemberShape,
   pickMemberNumbers,
@@ -2018,6 +2021,14 @@ export default function Home() {
 
       const activeOcrMode = ocrMode === "compare" ? "smartphone" : normalizeOcrMode(ocrMode);
       const compareOcrMode = ocrMode === "compare";
+      const currentPcLayoutDetection = detectCurrentPcLayout(image);
+      const currentPcGroupedRawEvidence = currentPcLayoutDetection.detected
+        ? {
+            mode: "current-pc",
+            layoutDetection: currentPcLayoutDetection,
+            stages: {},
+          }
+        : null;
 
       for (const stage of stages) {
         setOcrStatus(
@@ -3089,6 +3100,207 @@ export default function Home() {
           enemyTotal = lateStage3EnemySevenDigitRecovery.total;
         }
 
+        let currentPcEvidenceDebugText = "";
+        if (currentPcGroupedRawEvidence) {
+          const currentPcZones =
+            activeOcrMode === "current-pc" ? zones : getFixedOcrZones(image, stage, "current-pc");
+          const readCurrentPcResult = async (existingResult, zone) =>
+            activeOcrMode === "current-pc"
+              ? existingResult
+              : await recognizeOcrZone(image, zone);
+          const readCurrentPcTotalCandidates = async (existingResult, side) =>
+            activeOcrMode === "current-pc"
+              ? existingResult
+              : await recognizeTotalCandidatesDetailed(
+                  image,
+                  getAlternativeTotalZones(image, stage, "current-pc", side)
+                );
+          const readCurrentPcMemberCandidates = async (existingResult, side) =>
+            activeOcrMode === "current-pc"
+              ? existingResult
+              : await recognizeBestMemberZone(
+                  image,
+                  getAlternativeMemberZones(image, stage, "current-pc", side)
+                );
+          const readCurrentPcCrownCandidates = async (existingCandidates, side) =>
+            activeOcrMode === "current-pc"
+              ? existingCandidates
+              : await recognizeCrownBonusCandidates(
+                  image,
+                  getCrownBonusZones(image, stage, "current-pc", side)
+                );
+          const currentPcSelfTotalResult = await readCurrentPcResult(
+            selfTotalResult,
+            currentPcZones.selfTotal
+          );
+          const currentPcEnemyTotalResult = await readCurrentPcResult(
+            enemyTotalResult,
+            currentPcZones.enemyTotal
+          );
+          const currentPcSelfTotalCandidateResult = await readCurrentPcTotalCandidates(
+            selfTotalCandidateResult,
+            "self"
+          );
+          const currentPcEnemyTotalCandidateResult = await readCurrentPcTotalCandidates(
+            enemyTotalCandidateResult,
+            "enemy"
+          );
+          const currentPcSelfMemberResult = await readCurrentPcMemberCandidates(
+            selfMemberResult,
+            "self"
+          );
+          const currentPcEnemyMemberResult = await readCurrentPcMemberCandidates(
+            enemyMemberResult,
+            "enemy"
+          );
+          const currentPcRecognizedSelfCrownCandidates = await readCurrentPcCrownCandidates(
+            recognizedSelfCrownCandidates,
+            "self"
+          );
+          const currentPcRecognizedEnemyCrownCandidates = await readCurrentPcCrownCandidates(
+            recognizedEnemyCrownCandidates,
+            "enemy"
+          );
+
+          const buildCurrentPcSideEvidence = (side) => {
+            const isSelf = side === "self";
+            const selectedMembers = isSelf ? correctedSelfMembers : correctedEnemyMembers;
+            const selectedTotal = isSelf ? selfTotal : enemyTotal;
+            const totalResult = isSelf ? currentPcSelfTotalResult : currentPcEnemyTotalResult;
+            const totalCandidateResult = isSelf
+              ? currentPcSelfTotalCandidateResult
+              : currentPcEnemyTotalCandidateResult;
+            const memberResult = isSelf ? currentPcSelfMemberResult : currentPcEnemyMemberResult;
+            const recognizedCrownCandidates = isSelf
+              ? currentPcRecognizedSelfCrownCandidates
+              : currentPcRecognizedEnemyCrownCandidates;
+            const totalReferences = uniqueNumbers([
+              ...(totalResult.numbers || []),
+              ...(totalCandidateResult.numbers || []),
+            ]);
+            const memberSum = selectedMembers.reduce((sum, value) => sum + value, 0);
+            const bonusCandidates = uniqueNumbers(recognizedCrownCandidates).filter(
+              (value) => value > 0
+            );
+            const rawCandidates = uniqueNumbers([
+              ...totalReferences,
+              ...(memberResult.numbers || []),
+              ...bonusCandidates,
+            ]);
+            const exactNoBonus = Math.abs(memberSum - selectedTotal) <= 1;
+            const exactBonusMatches = bonusCandidates.filter(
+              (bonus) => Math.abs(memberSum + bonus - selectedTotal) <= 1
+            );
+            const suspiciousReasons = [];
+            if (selectedMembers.filter((value) => value > 0).length < 3) {
+              suspiciousReasons.push("missing-selected-member");
+            }
+            if (selectedTotal <= 0) suspiciousReasons.push("missing-selected-total");
+            if (selectedTotal > 0 && selectedTotal < memberSum) {
+              suspiciousReasons.push("selected-total-lower-than-member-sum");
+            }
+            if (!exactNoBonus && exactBonusMatches.length === 0) {
+              suspiciousReasons.push(
+                "selected-total-not-exact-member-sum-or-member-sum-plus-bonus"
+              );
+            }
+            if (
+              selectedMembers.some(
+                (member) => member > 0 && Math.abs(member - selectedTotal) <= 1
+              )
+            ) {
+              suspiciousReasons.push("selected-total-also-used-as-member");
+            }
+            if (
+              bonusCandidates.some((bonus) =>
+                selectedMembers.some((member) => member > 0 && Math.abs(member - bonus) <= 1)
+              )
+            ) {
+              suspiciousReasons.push("bonus-candidate-selected-as-member");
+            }
+            const sourceSummary = buildCurrentPcCandidateSourceSummary({
+              totalDirect: {
+                tag: `${side}.total.direct`,
+                text: totalResult.text || "",
+                numbers: totalResult.numbers || [],
+                pass: totalResult.pass || "pass1",
+              },
+              totalCandidates: {
+                tag: `${side}.total.alternatives`,
+                text: totalCandidateResult.text || "",
+                numbers: totalCandidateResult.numbers || [],
+                traces: totalCandidateResult.traces || [],
+              },
+              memberCandidates: {
+                tag: `${side}.members.selected-row`,
+                text: memberResult.text || "",
+                numbers: memberResult.numbers || [],
+                score: memberResult.score,
+                pass: memberResult.pass || "pass1",
+              },
+              memberNumbersAfterSlotFallback: memberResult.numbers || [],
+              originalMemberNumbers: memberResult.numbers || [],
+              selectionContext: {
+                evidenceOnly: true,
+                finalOcrMode: activeOcrMode,
+              },
+              equationContext: {
+                memberSum,
+                totalReferences,
+                bonusCandidates,
+                recognizedCrownCandidates,
+                finalTotal: selectedTotal,
+                totalMinusMemberSum: selectedTotal - memberSum,
+              },
+            });
+            const roiProvenance = {
+              stage,
+              side,
+              total: isSelf ? currentPcZones.selfTotal : currentPcZones.enemyTotal,
+              members: isSelf ? currentPcZones.selfMembers : currentPcZones.enemyMembers,
+              source: "browser-ui-current-pc-evidence",
+            };
+            return buildCurrentPcGroupedRawTokenEvidenceSimulation({
+              stage,
+              side,
+              selectedMembers,
+              selectedTotal,
+              suspiciousReasons,
+              rawCandidates,
+              displayedTotalCandidates: totalReferences.filter((value) => value >= 10000),
+              bonusCandidates,
+              sideAnalysis: { candidateSourceSummary: sourceSummary },
+              roiProvenance,
+            });
+          };
+
+          const selfCurrentPcEvidence = buildCurrentPcSideEvidence("self");
+          const enemyCurrentPcEvidence = buildCurrentPcSideEvidence("enemy");
+          currentPcGroupedRawEvidence.stages[`stage${stage}`] = {
+            self: selfCurrentPcEvidence,
+            enemy: enemyCurrentPcEvidence,
+          };
+          const formatEvidenceSummary = (side, evidence) => {
+            const tokens = evidence.evidence?.eligibleTokens || [];
+            const sample = tokens
+              .slice(0, 6)
+              .map(
+                (token) =>
+                  `${token.role}:${token.tokenShape}:${token.rawToken}->${token.normalizedValue}@${token.sourceRole}#${token.textIndex}`
+              )
+              .join(", ");
+            return `[currentPC grouped/raw ${side}] eligible=${tokens.length} blocked=${
+              evidence.evidence?.blockedTokenCount || 0
+            } wouldApply=${evidence.wouldApply ? "yes" : "no"} rejection=${
+              evidence.rejectionReasons.join(",") || "none"
+            } tokens=${sample || "none"}`;
+          };
+          currentPcEvidenceDebugText = [
+            formatEvidenceSummary("self", selfCurrentPcEvidence),
+            formatEvidenceSummary("enemy", enemyCurrentPcEvidence),
+          ].join("\n");
+        }
+
         const formatDebugNumbers = (numbers) =>
           uniqueNumbers(numbers)
             .map((num) => Number(num))
@@ -3175,6 +3387,7 @@ export default function Home() {
           stageTexts[stageTexts.length - 1],
           formatDebugSide("self", selfDebugCandidates, correctedSelfMembers, selfTotal),
           formatDebugSide("enemy", enemyDebugCandidates, correctedEnemyMembers, enemyTotal),
+          currentPcEvidenceDebugText,
         ].join("\n");
       }
 
@@ -3182,7 +3395,11 @@ export default function Home() {
 
       const correctedStageScores = applyKnownOcrSetCorrections(stageScores);
       setOcrText([`[OCR_PARSER_VERSION] ${OCR_PARSER_VERSION}`, ...stageTexts].join("\n\n"));
-      setParsedOcrScores({ rawNumbers: [], stages: correctedStageScores });
+      setParsedOcrScores({
+        rawNumbers: [],
+        stages: correctedStageScores,
+        currentPcGroupedRawEvidence,
+      });
       setOcrProgress(100);
       setOcrStatus("OCR完了");
     } catch (error) {

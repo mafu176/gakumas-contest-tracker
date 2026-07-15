@@ -14,6 +14,13 @@ import {
   applySmartphoneRowZoneSevenDigitRecovery,
   applySmartphoneStage3SelfSevenDigitDisplacementRecovery,
   applySmartphoneStage3EnemySevenDigitRecovery,
+  buildCurrentPcCandidateSourceSummary as sharedBuildCurrentPcCandidateSourceSummary,
+  buildCurrentPcGroupedRawTokenEvidenceSimulation as sharedBuildCurrentPcGroupedRawTokenEvidenceSimulation,
+  collectCurrentPcGroupedRawTokenEvidence as sharedCollectCurrentPcGroupedRawTokenEvidence,
+  collectCurrentPcSourceTokenAudits as sharedCollectCurrentPcSourceTokenAudits,
+  currentPcOrderedMemberValuesFromTokenEvidence as sharedCurrentPcOrderedMemberValuesFromTokenEvidence,
+  detectCurrentPcLayout as sharedDetectCurrentPcLayout,
+  extractNumericLikeTokenAudit as sharedExtractNumericLikeTokenAudit,
 } from "../app/lib/ocr.js";
 import { applyKnownOcrCorrections, applyKnownOcrSetCorrections } from "../app/lib/ocrPostProcess.js";
 
@@ -38,6 +45,11 @@ const currentPcScreenshotDir = path.join(
 );
 const currentPcBaselineDir = path.join(rootDir, "tmp", "current-pc-ocr-baseline");
 const currentPcBaselineReportPath = path.join(rootDir, "docs", "current-pc-ocr-baseline.md");
+const currentPcGroupedRawParityReportPath = path.join(
+  rootDir,
+  "docs",
+  "current-pc-grouped-raw-evidence-parity.md"
+);
 let currentPcBaselineScanSummary = null;
 const unsupportedNextScreenMessage =
   "Next screen is unsupported for OCR. Use normal result or high-score screen.";
@@ -3537,29 +3549,7 @@ async function readImageSize(imagePath) {
 }
 
 function detectCurrentPcLayout(image) {
-  const width = Number(image?.width || 0);
-  const height = Number(image?.height || 0);
-  if (!width || !height) {
-    return { detected: false, family: "unknown", reasons: ["missing-image-size"] };
-  }
-
-  const aspect = width / height;
-  const expectedAspect = 541 / 961;
-  const detected =
-    Math.abs(width - 541) <= 2 &&
-    Math.abs(height - 961) <= 2 &&
-    Math.abs(aspect - expectedAspect) <= 0.003;
-
-  return {
-    detected,
-    family: detected ? "current-pc-2026-07-result" : "not-current-pc-2026-07-result",
-    reasons: detected
-      ? ["matches-current-pc-10-sample-dimensions"]
-      : [`size=${width}x${height}`, `aspect=${aspect.toFixed(6)}`],
-    width,
-    height,
-    aspect: Number(aspect.toFixed(6)),
-  };
+  return sharedDetectCurrentPcLayout(image);
 }
 
 function limitOcrZones(zones, options = {}) {
@@ -6307,112 +6297,11 @@ function currentPcGroupedTokenRoiForRole(role, roiProvenance = null) {
 }
 
 function collectCurrentPcGroupedRawTokenEvidence(sideAnalysis, roiProvenance = null) {
-  const sourceEntries = collectCurrentPcSourceTokenAudits(sideAnalysis);
-  const eligibleTokens = [];
-  const blockedTokens = [];
-  const acceptedShapes = new Set(["comma-grouped", "period-grouped", "space-grouped"]);
-
-  for (const entry of sourceEntries) {
-    const role = currentPcGroupedTokenRoleForSource(entry.sourceRole);
-    for (const token of entry.tokens || []) {
-      const value = Number(token.normalizedValue || 0);
-      const reasons = [];
-      const digitCount = currentPcTokenDigitCount(value);
-      const roi = currentPcGroupedTokenRoiForRole(role, roiProvenance);
-
-      if (!acceptedShapes.has(token.shape)) reasons.push("unsupported-token-shape");
-      if (role === "unknown") reasons.push("unknown-source-role");
-      if (!roi) reasons.push("missing-role-specific-roi");
-      if (!token.punctuationNormalizationOnly && token.presentInSourceParsed) {
-        reasons.push("already-reaches-parsed-candidates");
-      }
-      if (value <= 0) reasons.push("missing-normalized-value");
-      if (role === "member" && (digitCount < 5 || digitCount > 7)) {
-        reasons.push("member-digit-count-out-of-range");
-      }
-      if (role === "total" && (digitCount < 5 || digitCount > 8)) {
-        reasons.push("total-digit-count-out-of-range");
-      }
-
-      const evidence = {
-        role,
-        sourceRole: entry.sourceRole,
-        sourceTag: entry.sourceTag,
-        pass: entry.pass,
-        token: token.token,
-        textIndex: Number(token.textIndex ?? -1),
-        normalizedValue: value,
-        shape: token.shape,
-        digitCount,
-        text: entry.text,
-        roi,
-        currentParserNumbers: token.currentParserNumbers || [],
-        presentInSourceParsed: Boolean(token.presentInSourceParsed),
-        presentInCurrentParser: Boolean(token.presentInCurrentParser),
-        punctuationNormalizationOnly: Boolean(token.punctuationNormalizationOnly),
-      };
-
-      if (reasons.length === 0) {
-        eligibleTokens.push(evidence);
-      } else {
-        blockedTokens.push({ ...evidence, reasons });
-      }
-    }
-  }
-
-  const dedupedEligible = eligibleTokens.filter(
-    (item, index, all) =>
-      all.findIndex(
-        (other) =>
-          other.role === item.role &&
-          other.sourceRole === item.sourceRole &&
-          other.pass === item.pass &&
-          other.token === item.token &&
-          other.normalizedValue === item.normalizedValue
-      ) === index
-  );
-
-  return { eligibleTokens: dedupedEligible, blockedTokens };
+  return sharedCollectCurrentPcGroupedRawTokenEvidence(sideAnalysis, roiProvenance);
 }
 
 function currentPcOrderedMemberValuesFromTokenEvidence(sideAnalysis, eligibleTokens = []) {
-  const memberEntry = collectCurrentPcSourceTokenAudits(sideAnalysis).find(
-    (entry) => entry.sourceRole === "member-row"
-  );
-  if (!memberEntry) return [];
-  const eligibleMemberValues = new Set(
-    eligibleTokens
-      .filter((token) => token.role === "member")
-      .map((token) => Number(token.normalizedValue || 0))
-  );
-  return (memberEntry.tokens || [])
-    .map((token) => {
-      const value = Number(token.normalizedValue || 0);
-      const digitCount = currentPcTokenDigitCount(value);
-      const isEligibleGrouped = eligibleMemberValues.has(value);
-      const isParsedMemberLike =
-        token.presentInSourceParsed &&
-        digitCount >= 5 &&
-        digitCount <= 7 &&
-        value >= 10000 &&
-        value < 2000000;
-      if (!isEligibleGrouped && !isParsedMemberLike) return null;
-      return {
-        value,
-        textIndex: Number(token.textIndex ?? -1),
-        source: isEligibleGrouped ? "eligible-grouped-member-token" : "parsed-member-token",
-        token: token.token,
-        shape: token.shape,
-      };
-    })
-    .filter(Boolean)
-    .sort((a, b) => a.textIndex - b.textIndex)
-    .filter(
-      (item, index, all) =>
-        all.findIndex(
-          (other) => other.value === item.value && other.textIndex === item.textIndex
-        ) === index
-    );
+  return sharedCurrentPcOrderedMemberValuesFromTokenEvidence(sideAnalysis, eligibleTokens);
 }
 
 function buildCurrentPcGroupedExactInterpretations({
@@ -6516,83 +6405,18 @@ function buildCurrentPcGroupedRawTokenEvidenceSimulation({
   sideAnalysis = null,
   roiProvenance = null,
 }) {
-  const selected = [...selectedMembers].map((value) => Number(value) || 0);
-  while (selected.length < 3) selected.push(0);
-  const selectedMemberSum = selected.reduce((sum, value) => sum + value, 0);
-  const { eligibleTokens, blockedTokens } = collectCurrentPcGroupedRawTokenEvidence(
-    sideAnalysis,
-    roiProvenance
-  );
-  const orderedMemberEvidence = currentPcOrderedMemberValuesFromTokenEvidence(
-    sideAnalysis,
-    eligibleTokens
-  );
-  const exactInterpretations = buildCurrentPcGroupedExactInterpretations({
+  return sharedBuildCurrentPcGroupedRawTokenEvidenceSimulation({
+    stage,
+    side,
+    selectedMembers,
+    selectedTotal,
+    suspiciousReasons,
     rawCandidates,
     displayedTotalCandidates,
     bonusCandidates,
-    eligibleTokens,
-    orderedMemberEvidence,
+    sideAnalysis,
+    roiProvenance,
   });
-  const proposal = exactInterpretations[0] || null;
-  const selectedAlreadyMatches =
-    proposal &&
-    Math.abs(Number(selectedTotal || 0) - Number(proposal.total || 0)) <= 1 &&
-    arraysEqualWithinOne(selected, proposal.members || []);
-  const rejectionReasons = [];
-
-  if (!suspiciousReasons.includes("selected-total-not-exact-member-sum-or-member-sum-plus-bonus")) {
-    rejectionReasons.push("selected-total-equation-is-not-flagged");
-  }
-  if (eligibleTokens.length === 0) {
-    rejectionReasons.push("missing-eligible-grouped-raw-token");
-  }
-  if (exactInterpretations.length === 0) {
-    rejectionReasons.push("missing-unique-grouped-token-exact-interpretation");
-  }
-  if (exactInterpretations.length > 1) {
-    rejectionReasons.push("multiple-competing-grouped-token-exact-interpretations");
-  }
-  if (selectedAlreadyMatches) {
-    rejectionReasons.push("selected-result-already-matches-grouped-token-interpretation");
-  }
-
-  return {
-    wouldApply: rejectionReasons.length === 0,
-    proposed: proposal
-      ? {
-          members: proposal.members,
-          bonus: Number(proposal.bonus || 0),
-          total: Number(proposal.total || 0),
-          memberSum: proposal.members.reduce((sum, value) => sum + Number(value || 0), 0),
-        }
-      : null,
-    current: {
-      stage,
-      side,
-      members: selected,
-      total: Number(selectedTotal || 0),
-      memberSum: selectedMemberSum,
-      totalMinusMemberSum: Number(selectedTotal || 0) - selectedMemberSum,
-    },
-    rejectionReasons,
-    evidence: {
-      eligibleTokens,
-      blockedTokens,
-      blockedTokenCount: blockedTokens.length,
-      orderedMemberEvidence,
-      exactInterpretations,
-      exactInterpretationCount: exactInterpretations.length,
-      structuralEquation:
-        proposal
-          ? `${proposal.members.join(" + ")}${proposal.bonus ? ` + ${proposal.bonus}` : ""} = ${proposal.total}`
-          : null,
-      promotedValuesUsed: proposal?.promotedValuesUsed || [],
-      roiProvenance,
-    },
-    note:
-      "Runner-only current-PC simulation. It only promotes strict punctuation/space grouped raw tokens from role-specific ROIs into a simulation-only exact equation pool.",
-  };
 }
 
 function cleanOcrTextForReport(text = "") {
@@ -6624,81 +6448,16 @@ function normalizeGroupedNumericToken(token = "") {
 }
 
 function extractNumericLikeTokenAudit(text = "", parsedNumbers = []) {
-  const normalized = String(text || "").replace(/[\uFF01-\uFF5E]/g, (s) =>
-    String.fromCharCode(s.charCodeAt(0) - 65248)
-  );
-  const tokenMatches = [
-    ...normalized.matchAll(
-      /[+\-]?\d{1,3}(?:[,.]\d{3})+|[+\-]?\d{1,3}(?:\s+\d{3})+|[+\-]?\d{4,8}/g
-    ),
-  ];
-  const currentParserNumbers = extractNumbersForZone(normalized);
-  const parsed = uniqueNumbers(parsedNumbers || []);
-  return tokenMatches.map((match) => {
-    const token = match[0] || "";
-    const grouped = normalizeGroupedNumericToken(token);
-    const parserNumbers = extractNumbersForZone(token);
-    const normalizedValue = grouped?.value || parserNumbers[0] || 0;
-    return {
-      token: cleanOcrTextForReport(token),
-      textIndex: match.index ?? -1,
-      normalizedValue,
-      shape: grouped?.shape || "plain-or-current-parser",
-      currentParserNumbers: parserNumbers,
-      presentInSourceParsed: normalizedValue > 0 && valueInList(normalizedValue, parsed),
-      presentInCurrentParser: normalizedValue > 0 && valueInList(normalizedValue, currentParserNumbers),
-      punctuationNormalizationOnly:
-        Boolean(grouped) && !valueInList(grouped.value, currentParserNumbers),
-    };
-  });
+  return sharedExtractNumericLikeTokenAudit(text, parsedNumbers);
 }
 
 function summarizeCurrentPcCandidateSources(sideArtifact = null) {
   const sources = sideArtifact?.candidateSources || {};
-  const traces = sources.totalCandidates?.traces || [];
-  const totalDirectAudit = extractNumericLikeTokenAudit(
-    sources.totalDirect?.text || "",
-    sources.totalDirect?.numbers || []
-  );
-  const totalTraceAudits = traces.slice(0, 6).map((trace) => ({
-    pass: trace.pass || "",
-    text: cleanOcrTextForReport(trace.text || ""),
-    tokens: extractNumericLikeTokenAudit(trace.text || "", trace.numbers || []),
-  }));
-  const memberAudit = extractNumericLikeTokenAudit(
-    sources.memberCandidates?.text || "",
-    sources.memberCandidates?.numbers || []
-  );
-  return {
-    totalDirect: sources.totalDirect
-      ? {
-          tag: sources.totalDirect.tag || "",
-          pass: sources.totalDirect.pass || "",
-          text: cleanOcrTextForReport(sources.totalDirect.text || ""),
-          numbers: sources.totalDirect.numbers || [],
-          tokenAudit: totalDirectAudit,
-        }
-      : null,
-    totalTraces: traces.slice(0, 6).map((trace) => ({
-      pass: trace.pass || "",
-      text: cleanOcrTextForReport(trace.text || ""),
-      numbers: trace.numbers || [],
-    })),
-    totalTraceTokenAudit: totalTraceAudits,
-    memberCandidates: sources.memberCandidates
-      ? {
-          tag: sources.memberCandidates.tag || "",
-          pass: sources.memberCandidates.pass || "",
-          text: cleanOcrTextForReport(sources.memberCandidates.text || ""),
-          numbers: sources.memberCandidates.numbers || [],
-          tokenAudit: memberAudit,
-        }
-      : null,
-    memberNumbersAfterSlotFallback: sources.memberNumbersAfterSlotFallback || [],
-    originalMemberNumbers: sources.originalMemberNumbers || [],
+  return sharedBuildCurrentPcCandidateSourceSummary({
+    ...sources,
     selectionContext: sideArtifact?.selectionContext || null,
     equationContext: sideArtifact?.equationContext || null,
-  };
+  });
 }
 
 function buildCurrentPcSideAnalysis(stageResult, side, options = {}) {
@@ -7462,6 +7221,265 @@ function buildCurrentPcGroupedRawTokenEvidenceSimulationEvaluation(analysis) {
   };
 }
 
+function normalizeCurrentPcRoiForKey(roi = null) {
+  const zone = roi?.zone || roi;
+  if (!zone) return "none";
+  const left = Number(zone.left ?? zone.x ?? 0);
+  const top = Number(zone.top ?? zone.y ?? 0);
+  const width = Number(zone.width ?? 0);
+  const height = Number(zone.height ?? 0);
+  return `${Math.round(left)},${Math.round(top)},${Math.round(width)},${Math.round(height)}`;
+}
+
+function currentPcTokenFingerprint(token = {}) {
+  return [
+    token.role || "",
+    token.sourceRole || "",
+    token.pass || "",
+    token.rawToken || token.token || "",
+    token.normalizedValue || 0,
+    token.tokenShape || token.shape || "",
+    token.punctuationType || "",
+    token.textIndex ?? -1,
+    normalizeCurrentPcRoiForKey(token.sourceRoi || token.roi),
+  ].join("|");
+}
+
+function currentPcSimulationTokenSet(sim = null) {
+  return [
+    ...(sim?.evidence?.eligibleTokens || []).map((token) => ({
+      ...token,
+      evidenceStatus: "eligible",
+    })),
+    ...(sim?.evidence?.blockedTokens || []).map((token) => ({
+      ...token,
+      evidenceStatus: "blocked",
+    })),
+  ];
+}
+
+function buildCurrentPcBrowserEquivalentGroupedRawSimulation(item, stage, side, sideAnalysis) {
+  const stageResult = item.result?.[`stage${stage}`] || {};
+  const raw = stageResult.raw || {};
+  const rawText = stageResult.rawText || {};
+  const isSelf = side === "self";
+  const totalDirect = {
+    tag: `${side}.total.direct`,
+    text: isSelf ? rawText.selfTotalDirect || "" : rawText.enemyTotalDirect || "",
+    numbers: isSelf ? raw.selfTotal || [] : raw.enemyTotal || [],
+    pass: "pass1",
+  };
+  const totalCandidates = {
+    tag: `${side}.total.alternatives`,
+    text: isSelf ? rawText.selfTotalCandidates || "" : rawText.enemyTotalCandidates || "",
+    numbers: sideAnalysis?.displayedTotalCandidates || [],
+    traces: isSelf
+      ? rawText.selfTotalCandidateTraces || []
+      : rawText.enemyTotalCandidateTraces || [],
+  };
+  const memberCandidates = {
+    tag: `${side}.members.selected-row`,
+    text: isSelf ? rawText.selfMembers || "" : rawText.enemyMembers || "",
+    numbers: isSelf ? raw.selfMembers || [] : raw.enemyMembers || [],
+    pass: "pass1",
+  };
+  const candidateSourceSummary = sharedBuildCurrentPcCandidateSourceSummary({
+    totalDirect,
+    totalCandidates,
+    memberCandidates,
+    memberNumbersAfterSlotFallback: memberCandidates.numbers || [],
+    originalMemberNumbers: memberCandidates.numbers || [],
+    selectionContext: {
+      evidenceOnly: true,
+      source: "browser-equivalent-final-result",
+    },
+    equationContext: {
+      memberSum: sideAnalysis?.memberSum || 0,
+      totalReferences: sideAnalysis?.displayedTotalCandidates || [],
+      bonusCandidates: sideAnalysis?.bonusCandidates || [],
+      recognizedCrownCandidates: sideAnalysis?.bonusCandidates || [],
+      finalTotal: sideAnalysis?.selectedTotal || 0,
+      totalMinusMemberSum:
+        Number(sideAnalysis?.selectedTotal || 0) - Number(sideAnalysis?.memberSum || 0),
+    },
+  });
+
+  return sharedBuildCurrentPcGroupedRawTokenEvidenceSimulation({
+    stage,
+    side,
+    selectedMembers: sideAnalysis?.selectedMembers || [],
+    selectedTotal: sideAnalysis?.selectedTotal || 0,
+    suspiciousReasons: sideAnalysis?.suspiciousReasons || [],
+    rawCandidates: sideAnalysis?.rawCandidates || [],
+    displayedTotalCandidates: sideAnalysis?.displayedTotalCandidates || [],
+    bonusCandidates: sideAnalysis?.bonusCandidates || [],
+    sideAnalysis: { candidateSourceSummary },
+    roiProvenance:
+      sideAnalysis?.currentPcGroupedRawTokenEvidenceSimulation?.evidence?.roiProvenance || null,
+  });
+}
+
+function compareCurrentPcGroupedRawEvidenceParity(analysis, groupedRawTokenSimulation) {
+  const truePositiveKeys = new Set(
+    (groupedRawTokenSimulation.rows || [])
+      .filter((row) => row.classification === "true-positive")
+      .map((row) => `${row.image}|${row.stage}|${row.side}`)
+  );
+  const rows = [];
+  let runnerTokenCount = 0;
+  let browserTokenCount = 0;
+  let exactMatchCount = 0;
+  let missingInBrowserCount = 0;
+  let missingInRunnerCount = 0;
+  let metadataMismatchCount = 0;
+
+  for (const item of analysis) {
+    for (const stage of stages) {
+      const stageKey = `stage${stage}`;
+      for (const side of sides) {
+        const sideAnalysis = item.stages?.[stageKey]?.[side];
+        if (!sideAnalysis) continue;
+        const runnerSim = sideAnalysis.currentPcGroupedRawTokenEvidenceSimulation;
+        const browserSim = buildCurrentPcBrowserEquivalentGroupedRawSimulation(
+          item,
+          stage,
+          side,
+          sideAnalysis
+        );
+        const runnerTokens = currentPcSimulationTokenSet(runnerSim);
+        const browserTokens = currentPcSimulationTokenSet(browserSim);
+        const runnerKeys = new Map(
+          runnerTokens.map((token) => [currentPcTokenFingerprint(token), token])
+        );
+        const browserKeys = new Map(
+          browserTokens.map((token) => [currentPcTokenFingerprint(token), token])
+        );
+        const exactMatches = [...runnerKeys.keys()].filter((key) => browserKeys.has(key));
+        const missingInBrowser = [...runnerKeys.keys()].filter((key) => !browserKeys.has(key));
+        const missingInRunner = [...browserKeys.keys()].filter((key) => !runnerKeys.has(key));
+        const runnerEligible = runnerSim?.evidence?.eligibleTokens || [];
+        const browserEligible = browserSim?.evidence?.eligibleTokens || [];
+        const runnerEligibleByLooseKey = new Map(
+          runnerEligible.map((token) => [
+            `${token.role}|${token.sourceRole}|${token.rawToken || token.token}|${token.normalizedValue}`,
+            token,
+          ])
+        );
+        const browserEligibleByLooseKey = new Map(
+          browserEligible.map((token) => [
+            `${token.role}|${token.sourceRole}|${token.rawToken || token.token}|${token.normalizedValue}`,
+            token,
+          ])
+        );
+        const metadataMismatches = [...runnerEligibleByLooseKey.entries()]
+          .filter(([key]) => browserEligibleByLooseKey.has(key))
+          .filter(([key, runnerToken]) => {
+            const browserToken = browserEligibleByLooseKey.get(key);
+            return currentPcTokenFingerprint(runnerToken) !== currentPcTokenFingerprint(browserToken);
+          })
+          .map(([key]) => key);
+
+        runnerTokenCount += runnerTokens.length;
+        browserTokenCount += browserTokens.length;
+        exactMatchCount += exactMatches.length;
+        missingInBrowserCount += missingInBrowser.length;
+        missingInRunnerCount += missingInRunner.length;
+        metadataMismatchCount += metadataMismatches.length;
+
+        rows.push({
+          image: item.fileName,
+          stage,
+          side,
+          isGroupedRawTruePositive: truePositiveKeys.has(`${item.fileName}|${stage}|${side}`),
+          runnerTokenCount: runnerTokens.length,
+          browserTokenCount: browserTokens.length,
+          exactMatchCount: exactMatches.length,
+          missingInBrowserCount: missingInBrowser.length,
+          missingInRunnerCount: missingInRunner.length,
+          metadataMismatchCount: metadataMismatches.length,
+          runnerWouldApply: Boolean(runnerSim?.wouldApply),
+          browserEquivalentWouldApply: Boolean(browserSim?.wouldApply),
+          runnerRejectionReasons: runnerSim?.rejectionReasons || [],
+          browserEquivalentRejectionReasons: browserSim?.rejectionReasons || [],
+          missingInBrowser: missingInBrowser.slice(0, 8),
+          missingInRunner: missingInRunner.slice(0, 8),
+          metadataMismatches: metadataMismatches.slice(0, 8),
+        });
+      }
+    }
+  }
+
+  return {
+    totalStageSides: rows.length,
+    runnerTokenCount,
+    browserTokenCount,
+    exactMatchCount,
+    missingInBrowserCount,
+    missingInRunnerCount,
+    metadataMismatchCount,
+    truePositiveRows: rows.filter((row) => row.isGroupedRawTruePositive),
+    rows,
+  };
+}
+
+function buildCurrentPcGroupedRawEvidenceParityReport(parity, groupedRawTokenSimulation) {
+  const lines = [
+    "# Current-PC Grouped Raw Evidence Parity",
+    "",
+    "This report checks whether the current-PC runner path and the browser-equivalent final OCR result path can observe the same grouped/raw token evidence. It does not change OCR output and does not productionize grouped/raw recovery.",
+    "",
+    "## Summary",
+    "",
+    `- current-PC stage/side cases compared: ${parity.totalStageSides}`,
+    `- runner token evidence count: ${parity.runnerTokenCount}`,
+    `- browser-equivalent token evidence count: ${parity.browserTokenCount}`,
+    `- exact token evidence matches: ${parity.exactMatchCount}`,
+    `- missing in browser-equivalent: ${parity.missingInBrowserCount}`,
+    `- missing in runner: ${parity.missingInRunnerCount}`,
+    `- metadata mismatches: ${parity.metadataMismatchCount}`,
+    "",
+    "## Grouped/Raw True Positive Parity",
+    "",
+    `- grouped/raw simulation true positives: ${groupedRawTokenSimulation.truePositives}`,
+    "",
+    "| image | stage/side | runner tokens | browser-equivalent tokens | exact matches | runner apply | browser-equivalent apply | missing / mismatch |",
+    "| --- | --- | ---: | ---: | ---: | --- | --- | --- |",
+  ];
+
+  for (const row of parity.truePositiveRows) {
+    lines.push(
+      `| ${row.image} | S${row.stage} ${row.side} | ${row.runnerTokenCount} | ${row.browserTokenCount} | ${row.exactMatchCount} | ${row.runnerWouldApply ? "yes" : "no"} | ${row.browserEquivalentWouldApply ? "yes" : "no"} | missing browser ${row.missingInBrowserCount}; missing runner ${row.missingInRunnerCount}; metadata ${row.metadataMismatchCount} |`
+    );
+  }
+
+  lines.push(
+    "",
+    "## All Stage/Side Parity Rows",
+    "",
+    "| image | stage/side | runner tokens | browser-equivalent tokens | exact matches | missing browser | missing runner | metadata mismatch |",
+    "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |"
+  );
+
+  for (const row of parity.rows) {
+    lines.push(
+      `| ${row.image} | S${row.stage} ${row.side} | ${row.runnerTokenCount} | ${row.browserTokenCount} | ${row.exactMatchCount} | ${row.missingInBrowserCount} | ${row.missingInRunnerCount} | ${row.metadataMismatchCount} |`
+    );
+  }
+
+  lines.push(
+    "",
+    "## Notes",
+    "",
+    "- The shared evidence schema is implemented in `app/lib/ocr.js` and is used by both runner and browser/UI plumbing.",
+    "- The browser/UI path now carries current-PC grouped/raw evidence into OCR debug metadata when the 541x961 current-PC layout family is detected.",
+    "- Final selected members, bonuses, totals, known corrections, and recovery behavior are intentionally unchanged.",
+    "- A future production recovery should remain blocked unless this parity report stays clean and a real browser spot-check confirms the same evidence is visible in the UI debug output.",
+    ""
+  );
+
+  return lines.join("\n");
+}
+
 function valueInList(value, list = []) {
   return list.some((candidate) => Math.abs(Number(candidate || 0) - Number(value || 0)) <= 1);
 }
@@ -7625,39 +7643,7 @@ function buildCurrentPcExactRawFalseNegativeDeepDive(exactRawEquationSimulation)
 }
 
 function collectCurrentPcSourceTokenAudits(sideAnalysis) {
-  const source = sideAnalysis?.candidateSourceSummary || {};
-  const entries = [];
-  if (source.totalDirect) {
-    entries.push({
-      sourceRole: "total-direct",
-      sourceTag: source.totalDirect.tag || "",
-      pass: source.totalDirect.pass || "",
-      text: source.totalDirect.text || "",
-      parsedNumbers: source.totalDirect.numbers || [],
-      tokens: source.totalDirect.tokenAudit || [],
-    });
-  }
-  for (const trace of source.totalTraceTokenAudit || []) {
-    entries.push({
-      sourceRole: "total-trace",
-      sourceTag: "total-candidate-trace",
-      pass: trace.pass || "",
-      text: trace.text || "",
-      parsedNumbers: (trace.tokens || []).flatMap((token) => token.currentParserNumbers || []),
-      tokens: trace.tokens || [],
-    });
-  }
-  if (source.memberCandidates) {
-    entries.push({
-      sourceRole: "member-row",
-      sourceTag: source.memberCandidates.tag || "",
-      pass: source.memberCandidates.pass || "",
-      text: source.memberCandidates.text || "",
-      parsedNumbers: source.memberCandidates.numbers || [],
-      tokens: source.memberCandidates.tokenAudit || [],
-    });
-  }
-  return entries;
+  return sharedCollectCurrentPcSourceTokenAudits(sideAnalysis);
 }
 
 function digitSuffixMatch(value, candidate) {
@@ -8502,6 +8488,17 @@ async function main() {
       currentPcBaselineReportPath,
       buildCurrentPcBaselineReport(currentPcBaselineArtifacts)
     );
+    const groupedRawTokenSimulation = buildCurrentPcGroupedRawTokenEvidenceSimulationEvaluation(
+      currentPcBaselineArtifacts.analysis
+    );
+    const groupedRawParity = compareCurrentPcGroupedRawEvidenceParity(
+      currentPcBaselineArtifacts.analysis,
+      groupedRawTokenSimulation
+    );
+    await fs.writeFile(
+      currentPcGroupedRawParityReportPath,
+      buildCurrentPcGroupedRawEvidenceParityReport(groupedRawParity, groupedRawTokenSimulation)
+    );
   }
 
   const expectedResults = report.filter((item) => item.expected);
@@ -8535,6 +8532,7 @@ async function main() {
         currentPcBaseline: currentPcBaselineArtifacts
           ? {
               report: path.relative(rootDir, currentPcBaselineReportPath).replaceAll("\\", "/"),
+              groupedRawParityReport: path.relative(rootDir, currentPcGroupedRawParityReportPath).replaceAll("\\", "/"),
               outputDir: currentPcBaselineArtifacts.outputDir,
               summary: currentPcBaselineArtifacts.summaryPath,
             }

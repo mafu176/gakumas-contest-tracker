@@ -231,6 +231,33 @@ export function extractScoresFromOcr(text, stage) {
 export function getDeviceOcrLayout(mode) {
   const normalizedMode = normalizeOcrMode(mode);
   const layouts = {
+    "current-pc": {
+      direct: true,
+      layoutFamily: "current-pc-2026-07-result",
+      totalTop: [0.108, 0.363, 0.613],
+      enemyTotalTop: [0.108, 0.363, 0.613],
+      totalTopCandidates: [
+        [0.096, 0.351, 0.601],
+        [0.102, 0.357, 0.607],
+        [0.108, 0.363, 0.613],
+        [0.114, 0.369, 0.619],
+        [0.120, 0.375, 0.625],
+      ],
+      memberTop: [0.146, 0.398, 0.647],
+      enemyMemberTop: [0.146, 0.398, 0.647],
+      memberTopCandidates: [
+        [0.136, 0.388, 0.637],
+        [0.142, 0.394, 0.643],
+        [0.146, 0.398, 0.647],
+        [0.152, 0.404, 0.653],
+        [0.158, 0.410, 0.659],
+      ],
+      leftX: 0.045,
+      rightX: 0.545,
+      sideWidth: 0.410,
+      totalHeight: 0.055,
+      memberHeight: 0.112,
+    },
     auto: {
       direct: true,
       totalTop: [0.112, 0.368, 0.615],
@@ -324,6 +351,32 @@ export function getDeviceOcrLayout(mode) {
   };
 
   return layouts[normalizedMode] || layouts.auto;
+}
+
+export function detectCurrentPcLayout(image) {
+  const width = Number(image?.width || 0);
+  const height = Number(image?.height || 0);
+  if (!width || !height) {
+    return { detected: false, family: "unknown", reasons: ["missing-image-size"] };
+  }
+
+  const aspect = width / height;
+  const expectedAspect = 541 / 961;
+  const detected =
+    Math.abs(width - 541) <= 2 &&
+    Math.abs(height - 961) <= 2 &&
+    Math.abs(aspect - expectedAspect) <= 0.003;
+
+  return {
+    detected,
+    family: detected ? "current-pc-2026-07-result" : "not-current-pc-2026-07-result",
+    reasons: detected
+      ? ["matches-current-pc-10-sample-dimensions"]
+      : [`size=${width}x${height}`, `aspect=${aspect.toFixed(6)}`],
+    width,
+    height,
+    aspect: Number(aspect.toFixed(6)),
+  };
 }
 
 export function getFixedOcrZones(image, stage, mode) {
@@ -1421,6 +1474,481 @@ export function extractNumbersForZone(text) {
       ?.map((value) => toNumber(value))
       .filter((num) => num >= 1400 && num < 10000000) ?? []
   );
+}
+
+export function cleanOcrTextForEvidence(text = "") {
+  return String(text)
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 180);
+}
+
+export function normalizeGroupedNumericToken(token = "") {
+  const raw = String(token || "")
+    .replace(/[\uFF01-\uFF5E]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 65248))
+    .trim();
+  const unsigned = raw.replace(/^[+\-]/, "");
+  const commaGrouped = /^\d{1,3}(?:,\d{3})+$/.test(unsigned);
+  const periodGrouped = /^\d{1,3}(?:\.\d{3})+$/.test(unsigned);
+  const spaceGrouped = /^\d{1,3}(?:\s+\d{3})+$/.test(unsigned);
+  if (!commaGrouped && !periodGrouped && !spaceGrouped) return null;
+  const value = Number(unsigned.replace(/[,\.\s]/g, ""));
+  if (!Number.isFinite(value) || value < 1400 || value >= 10000000) return null;
+  return {
+    value,
+    shape: commaGrouped ? "comma-grouped" : periodGrouped ? "period-grouped" : "space-grouped",
+    punctuationType: commaGrouped ? "comma" : periodGrouped ? "period" : "space",
+  };
+}
+
+function valueInNumberList(value, numbers = [], tolerance = 1) {
+  const target = Number(value || 0);
+  return (numbers || []).some((num) => Math.abs(Number(num || 0) - target) <= tolerance);
+}
+
+export function extractNumericLikeTokenAudit(text = "", parsedNumbers = []) {
+  const normalized = String(text || "").replace(/[\uFF01-\uFF5E]/g, (s) =>
+    String.fromCharCode(s.charCodeAt(0) - 65248)
+  );
+  const tokenMatches = [
+    ...normalized.matchAll(
+      /[+\-]?\d{1,3}(?:[,.]\d{3})+|[+\-]?\d{1,3}(?:\s+\d{3})+|[+\-]?\d{4,8}/g
+    ),
+  ];
+  const currentParserNumbers = extractNumbersForZone(normalized);
+  const parsed = uniqueNumbers(parsedNumbers || []);
+  return tokenMatches.map((match) => {
+    const token = match[0] || "";
+    const grouped = normalizeGroupedNumericToken(token);
+    const parserNumbers = extractNumbersForZone(token);
+    const normalizedValue = grouped?.value || parserNumbers[0] || 0;
+    return {
+      rawToken: cleanOcrTextForEvidence(token),
+      token: cleanOcrTextForEvidence(token),
+      textIndex: match.index ?? -1,
+      normalizedValue,
+      tokenShape: grouped?.shape || "plain-or-current-parser",
+      shape: grouped?.shape || "plain-or-current-parser",
+      punctuationType: grouped?.punctuationType || "none",
+      currentParserNumbers: parserNumbers,
+      presentInSourceParsed: normalizedValue > 0 && valueInNumberList(normalizedValue, parsed),
+      presentInCurrentParser:
+        normalizedValue > 0 && valueInNumberList(normalizedValue, currentParserNumbers),
+      punctuationNormalizationOnly:
+        Boolean(grouped) && !valueInNumberList(grouped.value, currentParserNumbers),
+    };
+  });
+}
+
+export function buildCurrentPcCandidateSourceSummary(source = {}) {
+  const sources = source || {};
+  const totalCandidates = sources.totalCandidates || {};
+  const traces = totalCandidates.traces || [];
+  const totalDirect = sources.totalDirect || null;
+  const memberCandidates = sources.memberCandidates || null;
+  const totalDirectAudit = extractNumericLikeTokenAudit(
+    totalDirect?.text || "",
+    totalDirect?.numbers || []
+  );
+  const totalTraceAudits = traces.slice(0, 6).map((trace) => ({
+    pass: trace.pass || "",
+    text: cleanOcrTextForEvidence(trace.text || ""),
+    tokens: extractNumericLikeTokenAudit(trace.text || "", trace.numbers || []),
+  }));
+  const memberAudit = extractNumericLikeTokenAudit(
+    memberCandidates?.text || "",
+    memberCandidates?.numbers || []
+  );
+  return {
+    totalDirect: totalDirect
+      ? {
+          tag: totalDirect.tag || "",
+          pass: totalDirect.pass || "",
+          text: cleanOcrTextForEvidence(totalDirect.text || ""),
+          numbers: totalDirect.numbers || [],
+          tokenAudit: totalDirectAudit,
+        }
+      : null,
+    totalTraces: traces.slice(0, 6).map((trace) => ({
+      pass: trace.pass || "",
+      text: cleanOcrTextForEvidence(trace.text || ""),
+      numbers: trace.numbers || [],
+    })),
+    totalTraceTokenAudit: totalTraceAudits,
+    memberCandidates: memberCandidates
+      ? {
+          tag: memberCandidates.tag || "",
+          pass: memberCandidates.pass || "",
+          text: cleanOcrTextForEvidence(memberCandidates.text || ""),
+          numbers: memberCandidates.numbers || [],
+          tokenAudit: memberAudit,
+        }
+      : null,
+    memberNumbersAfterSlotFallback: sources.memberNumbersAfterSlotFallback || [],
+    originalMemberNumbers: sources.originalMemberNumbers || [],
+    selectionContext: sources.selectionContext || null,
+    equationContext: sources.equationContext || null,
+  };
+}
+
+export function collectCurrentPcSourceTokenAudits(sideAnalysis) {
+  const source = sideAnalysis?.candidateSourceSummary || {};
+  const entries = [];
+  if (source.totalDirect) {
+    entries.push({
+      sourceRole: "total-direct",
+      sourceTag: source.totalDirect.tag || "",
+      pass: source.totalDirect.pass || "",
+      text: source.totalDirect.text || "",
+      parsedNumbers: source.totalDirect.numbers || [],
+      tokens: source.totalDirect.tokenAudit || [],
+    });
+  }
+  for (const trace of source.totalTraceTokenAudit || []) {
+    entries.push({
+      sourceRole: "total-trace",
+      sourceTag: "total-candidate-trace",
+      pass: trace.pass || "",
+      text: trace.text || "",
+      parsedNumbers: (trace.tokens || []).flatMap((token) => token.currentParserNumbers || []),
+      tokens: trace.tokens || [],
+    });
+  }
+  if (source.memberCandidates) {
+    entries.push({
+      sourceRole: "member-row",
+      sourceTag: source.memberCandidates.tag || "",
+      pass: source.memberCandidates.pass || "",
+      text: source.memberCandidates.text || "",
+      parsedNumbers: source.memberCandidates.numbers || [],
+      tokens: source.memberCandidates.tokenAudit || [],
+    });
+  }
+  return entries;
+}
+
+function currentPcTokenDigitCount(value) {
+  return String(Math.trunc(Number(value || 0))).length;
+}
+
+function currentPcGroupedTokenRoleForSource(sourceRole = "") {
+  if (sourceRole === "member-row") return "member";
+  if (sourceRole === "total-direct" || sourceRole === "total-trace") return "total";
+  return "unknown";
+}
+
+function currentPcGroupedTokenRoiForRole(role, roiProvenance = null) {
+  if (role === "member") return roiProvenance?.members || null;
+  if (role === "total") return roiProvenance?.total || null;
+  return null;
+}
+
+export function collectCurrentPcGroupedRawTokenEvidence(sideAnalysis, roiProvenance = null) {
+  const sourceEntries = collectCurrentPcSourceTokenAudits(sideAnalysis);
+  const eligibleTokens = [];
+  const blockedTokens = [];
+  const acceptedShapes = new Set(["comma-grouped", "period-grouped", "space-grouped"]);
+
+  for (const entry of sourceEntries) {
+    const role = currentPcGroupedTokenRoleForSource(entry.sourceRole);
+    for (const token of entry.tokens || []) {
+      const value = Number(token.normalizedValue || 0);
+      const reasons = [];
+      const digitCount = currentPcTokenDigitCount(value);
+      const sourceRoi = currentPcGroupedTokenRoiForRole(role, roiProvenance);
+      const tokenShape = token.tokenShape || token.shape || "unknown";
+      const rawToken = token.rawToken || token.token || "";
+
+      if (!acceptedShapes.has(tokenShape)) reasons.push("unsupported-token-shape");
+      if (role === "unknown") reasons.push("unknown-source-role");
+      if (!sourceRoi) reasons.push("missing-role-specific-roi");
+      if (!token.punctuationNormalizationOnly && token.presentInSourceParsed) {
+        reasons.push("already-reaches-parsed-candidates");
+      }
+      if (value <= 0) reasons.push("missing-normalized-value");
+      if (role === "member" && (digitCount < 5 || digitCount > 7)) {
+        reasons.push("member-digit-count-out-of-range");
+      }
+      if (role === "total" && (digitCount < 5 || digitCount > 8)) {
+        reasons.push("total-digit-count-out-of-range");
+      }
+
+      const evidence = {
+        rawText: entry.text,
+        rawToken,
+        token: rawToken,
+        normalizedValue: value,
+        tokenShape,
+        shape: tokenShape,
+        punctuationType: token.punctuationType || "none",
+        stage: roiProvenance?.stage || null,
+        side: roiProvenance?.side || null,
+        role,
+        sourceRole: entry.sourceRole,
+        sourceTag: entry.sourceTag,
+        sourceRoi,
+        roi: sourceRoi,
+        position: {
+          textIndex: Number(token.textIndex ?? -1),
+        },
+        textIndex: Number(token.textIndex ?? -1),
+        preprocessingSource: entry.pass || "",
+        segmentationSource: entry.sourceTag || "",
+        pass: entry.pass || "",
+        digitCount,
+        text: entry.text,
+        currentParserNumbers: token.currentParserNumbers || [],
+        presentInSourceParsed: Boolean(token.presentInSourceParsed),
+        presentInCurrentParser: Boolean(token.presentInCurrentParser),
+        punctuationNormalizationOnly: Boolean(token.punctuationNormalizationOnly),
+      };
+
+      if (reasons.length === 0) {
+        eligibleTokens.push(evidence);
+      } else {
+        blockedTokens.push({ ...evidence, rejectionReasons: reasons, reasons });
+      }
+    }
+  }
+
+  const dedupedEligible = eligibleTokens.filter(
+    (item, index, all) =>
+      all.findIndex(
+        (other) =>
+          other.role === item.role &&
+          other.sourceRole === item.sourceRole &&
+          other.pass === item.pass &&
+          other.rawToken === item.rawToken &&
+          other.normalizedValue === item.normalizedValue
+      ) === index
+  );
+
+  return { eligibleTokens: dedupedEligible, blockedTokens };
+}
+
+export function currentPcOrderedMemberValuesFromTokenEvidence(sideAnalysis, eligibleTokens = []) {
+  const memberEntry = collectCurrentPcSourceTokenAudits(sideAnalysis).find(
+    (entry) => entry.sourceRole === "member-row"
+  );
+  if (!memberEntry) return [];
+  const eligibleMemberValues = new Set(
+    eligibleTokens
+      .filter((token) => token.role === "member")
+      .map((token) => Number(token.normalizedValue || 0))
+  );
+  return (memberEntry.tokens || [])
+    .map((token) => {
+      const value = Number(token.normalizedValue || 0);
+      const digitCount = currentPcTokenDigitCount(value);
+      const isEligibleGrouped = eligibleMemberValues.has(value);
+      const isParsedMemberLike =
+        token.presentInSourceParsed &&
+        digitCount >= 5 &&
+        digitCount <= 7 &&
+        value >= 10000 &&
+        value < 2000000;
+      if (!isEligibleGrouped && !isParsedMemberLike) return null;
+      return {
+        value,
+        textIndex: Number(token.textIndex ?? -1),
+        source: isEligibleGrouped ? "eligible-grouped-member-token" : "parsed-member-token",
+        token: token.rawToken || token.token,
+        shape: token.tokenShape || token.shape,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.textIndex - b.textIndex)
+    .filter(
+      (item, index, all) =>
+        all.findIndex(
+          (other) => other.value === item.value && other.textIndex === item.textIndex
+        ) === index
+    );
+}
+
+function arraysEqualWithinOne(left = [], right = []) {
+  if (left.length !== right.length) return false;
+  return left.every((value, index) => Math.abs(Number(value || 0) - Number(right[index] || 0)) <= 1);
+}
+
+export function buildCurrentPcGroupedExactInterpretations({
+  rawCandidates = [],
+  displayedTotalCandidates = [],
+  bonusCandidates = [],
+  eligibleTokens = [],
+  orderedMemberEvidence = [],
+}) {
+  const promotedMembers = eligibleTokens
+    .filter((token) => token.role === "member")
+    .map((token) => token.normalizedValue);
+  const promotedTotals = eligibleTokens
+    .filter((token) => token.role === "total")
+    .map((token) => token.normalizedValue);
+  const memberLike = uniqueNumbers([...rawCandidates, ...promotedMembers]).filter(
+    (value) => value >= 10000 && value < 2000000
+  );
+  const totalLike = uniqueNumbers([...displayedTotalCandidates, ...promotedTotals]).filter(
+    (value) => value >= 10000
+  );
+  const groupedValues = new Set(eligibleTokens.map((token) => Number(token.normalizedValue || 0)));
+  const interpretations = [];
+  const addInterpretation = (members, bonus, total, source) => {
+    const promotedValuesUsed = [
+      ...members.filter((value) => groupedValues.has(value)),
+      ...(groupedValues.has(total) ? [total] : []),
+    ];
+    if (promotedValuesUsed.length === 0) return;
+    interpretations.push({ members, bonus, total, source, promotedValuesUsed });
+  };
+
+  const orderedMembers = orderedMemberEvidence.slice(0, 3).map((item) => item.value);
+  const orderedUsesGroupedMember = orderedMemberEvidence
+    .slice(0, 3)
+    .some((item) => item.source === "eligible-grouped-member-token");
+  if (orderedMembers.length === 3 && orderedUsesGroupedMember) {
+    const sum = orderedMembers.reduce((total, value) => total + value, 0);
+    if (totalLike.some((value) => Math.abs(value - sum) <= 1)) {
+      addInterpretation(orderedMembers, 0, sum, "ordered-member-row-token-evidence");
+    }
+    for (const bonus of bonusCandidates || []) {
+      const total = sum + Number(bonus || 0);
+      if (totalLike.some((value) => Math.abs(value - total) <= 1)) {
+        addInterpretation(orderedMembers, bonus, total, "ordered-member-row-token-evidence");
+      }
+    }
+  }
+
+  if (orderedUsesGroupedMember) {
+    return interpretations.filter(
+      (item, index, all) =>
+        all.findIndex(
+          (other) =>
+            other.total === item.total &&
+            other.bonus === item.bonus &&
+            other.members.join(",") === item.members.join(",")
+        ) === index
+    );
+  }
+
+  for (let a = 0; a < memberLike.length - 2; a += 1) {
+    for (let b = a + 1; b < memberLike.length - 1; b += 1) {
+      for (let c = b + 1; c < memberLike.length; c += 1) {
+        const members = [memberLike[a], memberLike[b], memberLike[c]];
+        const sum = members.reduce((total, value) => total + value, 0);
+        if (totalLike.some((value) => Math.abs(value - sum) <= 1)) {
+          addInterpretation(members, 0, sum, "unordered-exact-equation-token-evidence");
+        }
+        for (const bonus of bonusCandidates || []) {
+          const total = sum + Number(bonus || 0);
+          if (totalLike.some((value) => Math.abs(value - total) <= 1)) {
+            addInterpretation(members, bonus, total, "unordered-exact-equation-token-evidence");
+          }
+        }
+      }
+    }
+  }
+
+  return interpretations.filter(
+    (item, index, all) =>
+      item.promotedValuesUsed.length > 0 &&
+      all.findIndex(
+        (other) =>
+          other.total === item.total &&
+          other.bonus === item.bonus &&
+          other.members.join(",") === item.members.join(",")
+      ) === index
+  );
+}
+
+export function buildCurrentPcGroupedRawTokenEvidenceSimulation({
+  stage = 0,
+  side = "",
+  selectedMembers = [],
+  selectedTotal = 0,
+  suspiciousReasons = [],
+  rawCandidates = [],
+  displayedTotalCandidates = [],
+  bonusCandidates = [],
+  sideAnalysis = null,
+  roiProvenance = null,
+}) {
+  const selected = [...selectedMembers].map((value) => Number(value) || 0);
+  while (selected.length < 3) selected.push(0);
+  const selectedMemberSum = selected.reduce((sum, value) => sum + value, 0);
+  const { eligibleTokens, blockedTokens } = collectCurrentPcGroupedRawTokenEvidence(
+    sideAnalysis,
+    roiProvenance
+  );
+  const orderedMemberEvidence = currentPcOrderedMemberValuesFromTokenEvidence(
+    sideAnalysis,
+    eligibleTokens
+  );
+  const exactInterpretations = buildCurrentPcGroupedExactInterpretations({
+    rawCandidates,
+    displayedTotalCandidates,
+    bonusCandidates,
+    eligibleTokens,
+    orderedMemberEvidence,
+  });
+  const proposal = exactInterpretations[0] || null;
+  const selectedAlreadyMatches =
+    proposal &&
+    Math.abs(Number(selectedTotal || 0) - Number(proposal.total || 0)) <= 1 &&
+    arraysEqualWithinOne(selected, proposal.members || []);
+  const rejectionReasons = [];
+
+  if (!suspiciousReasons.includes("selected-total-not-exact-member-sum-or-member-sum-plus-bonus")) {
+    rejectionReasons.push("selected-total-equation-is-not-flagged");
+  }
+  if (eligibleTokens.length === 0) {
+    rejectionReasons.push("missing-eligible-grouped-raw-token");
+  }
+  if (exactInterpretations.length === 0) {
+    rejectionReasons.push("missing-unique-grouped-token-exact-interpretation");
+  }
+  if (exactInterpretations.length > 1) {
+    rejectionReasons.push("multiple-competing-grouped-token-exact-interpretations");
+  }
+  if (selectedAlreadyMatches) {
+    rejectionReasons.push("selected-result-already-matches-grouped-token-interpretation");
+  }
+
+  return {
+    wouldApply: rejectionReasons.length === 0,
+    proposed: proposal
+      ? {
+          members: proposal.members,
+          bonus: Number(proposal.bonus || 0),
+          total: Number(proposal.total || 0),
+          memberSum: proposal.members.reduce((sum, value) => sum + Number(value || 0), 0),
+        }
+      : null,
+    current: {
+      stage,
+      side,
+      members: selected,
+      total: Number(selectedTotal || 0),
+      memberSum: selectedMemberSum,
+      totalMinusMemberSum: Number(selectedTotal || 0) - selectedMemberSum,
+    },
+    rejectionReasons,
+    evidence: {
+      eligibleTokens,
+      blockedTokens,
+      blockedTokenCount: blockedTokens.length,
+      orderedMemberEvidence,
+      exactInterpretations,
+      exactInterpretationCount: exactInterpretations.length,
+      structuralEquation:
+        proposal
+          ? `${proposal.members.join(" + ")}${proposal.bonus ? ` + ${proposal.bonus}` : ""} = ${proposal.total}`
+          : null,
+      promotedValuesUsed: proposal?.promotedValuesUsed || [],
+      roiProvenance,
+    },
+    note:
+      "Current-PC evidence-only simulation. It does not change OCR output and only promotes strict punctuation/space grouped raw tokens from role-specific ROIs into an exact equation pool.",
+  };
 }
 
 function extractDigitGroups(text = "") {
