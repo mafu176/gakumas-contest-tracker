@@ -14,6 +14,7 @@ import {
   applySmartphoneRowZoneSevenDigitRecovery,
   applySmartphoneStage3SelfSevenDigitDisplacementRecovery,
   applySmartphoneStage3EnemySevenDigitRecovery,
+  applyCurrentPcGroupedRawTokenRecovery,
   buildCurrentPcCandidateSourceSummary as sharedBuildCurrentPcCandidateSourceSummary,
   buildCurrentPcGroupedRawTokenEvidenceSimulation as sharedBuildCurrentPcGroupedRawTokenEvidenceSimulation,
   collectCurrentPcGroupedRawTokenEvidence as sharedCollectCurrentPcGroupedRawTokenEvidence,
@@ -4471,6 +4472,147 @@ async function runOcrForImage(imagePath, options = {}) {
       enemyTotal = lateStage3EnemySevenDigitRecovery.total;
     }
 
+    let currentPcPreRecoveryAnalysisBySide = null;
+    let currentPcProductionRecoveryBySide = null;
+    if (ocrSource === "current-pc") {
+      const buildCurrentPcRecoverySideArtifact = (side) => {
+        const isSelf = side === "self";
+        const members = isSelf ? self : enemy;
+        const finalTotal = isSelf ? selfTotal : enemyTotal;
+        const totalResult = isSelf ? selfTotalResult : enemyTotalResult;
+        const totalCandidateResult = isSelf ? selfTotalCandidateResult : enemyTotalCandidateResult;
+        const originalMemberNumbers = isSelf ? originalSelfMemberNumbers : originalEnemyMemberNumbers;
+        const selectedMemberNumbers = isSelf ? selfMemberNumbers : enemyMemberNumbers;
+        const memberResult = isSelf ? selfMemberResult : enemyMemberResult;
+        const crownCandidates = isSelf ? selfCrownCandidates : enemyCrownCandidates;
+        const recognizedCrownCandidates = isSelf
+          ? recognizedSelfCrownCandidates
+          : recognizedEnemyCrownCandidates;
+        const inferredCrown = isSelf ? inferredSelfCrown : inferredEnemyCrown;
+        const inferredOriginalCrown = isSelf
+          ? inferredOriginalSelfCrown
+          : inferredOriginalEnemyCrown;
+        const selectedCrownInference = isSelf
+          ? selectedSelfCrownInference
+          : selectedEnemyCrownInference;
+        const usedSparseSlotMembers = isSelf ? usedSparseSelfSlotMembers : usedSparseEnemySlotMembers;
+        const memberSum = members.reduce((sum, value) => sum + value, 0);
+        return {
+          final: {
+            members,
+            total: finalTotal,
+            memberSum,
+            totalMinusMemberSum: finalTotal - memberSum,
+          },
+          equationContext: {
+            memberSum,
+            totalReferences: isSelf ? selfTotalReferences : enemyTotalReferences,
+            bonusCandidates: crownCandidates,
+            recognizedCrownCandidates,
+            finalTotal,
+            totalMinusMemberSum: finalTotal - memberSum,
+            exactMemberSumTotal: Math.abs(finalTotal - memberSum) <= 1,
+            matchingBonusCandidates: crownCandidates.filter(
+              (bonus) => Math.abs(memberSum + bonus - finalTotal) <= 1000
+            ),
+          },
+          candidateSources: {
+            totalDirect: {
+              tag: `${side}.total.direct`,
+              text: totalResult.text,
+              numbers: totalResult.numbers,
+              pass: totalResult.pass || "pass1",
+            },
+            totalCandidates: {
+              tag: `${side}.total.alternatives`,
+              text: totalCandidateResult.text,
+              numbers: totalCandidateResult.numbers,
+              traces: totalCandidateResult.traces,
+            },
+            memberCandidates: {
+              tag: `${side}.members.selected-row`,
+              text: memberResult.text,
+              numbers: memberResult.numbers,
+              score: memberResult.score,
+              pass: memberResult.pass || "pass1",
+            },
+            memberNumbersAfterSlotFallback: selectedMemberNumbers,
+            originalMemberNumbers,
+          },
+          selectionContext: {
+            usedSparseSlotMembers,
+            inferredCrown,
+            inferredOriginalCrown,
+            selectedCrownInference,
+          },
+        };
+      };
+      const preRecoverySideArtifacts = {
+        self: buildCurrentPcRecoverySideArtifact("self"),
+        enemy: buildCurrentPcRecoverySideArtifact("enemy"),
+      };
+      currentPcPreRecoveryAnalysisBySide = {};
+      currentPcProductionRecoveryBySide = {};
+      for (const side of ["self", "enemy"]) {
+        const isSelf = side === "self";
+        const tempStageResult = {
+          self,
+          enemy,
+          selfTotal,
+          enemyTotal,
+          debugArtifact: {
+            [side]: preRecoverySideArtifacts[side],
+          },
+        };
+        const roiProvenance = {
+          stage,
+          side,
+          total: isSelf ? zones.selfTotal : zones.enemyTotal,
+          members: isSelf ? zones.selfMembers : zones.enemyMembers,
+          source: "runner-current-pc-production-recovery",
+        };
+        currentPcPreRecoveryAnalysisBySide[side] = buildCurrentPcSideAnalysis(tempStageResult, side, {
+          stage,
+          roiProvenance,
+        });
+      }
+      const applyCurrentPcGroupedRecoveryToSide = (side) => {
+        const isSelf = side === "self";
+        const sideAnalysis = currentPcPreRecoveryAnalysisBySide[side];
+        const recovery = applyCurrentPcGroupedRawTokenRecovery({
+          stage,
+          side,
+          selectedMembers: isSelf ? self : enemy,
+          selectedTotal: isSelf ? selfTotal : enemyTotal,
+          simulation: sideAnalysis.currentPcGroupedRawTokenEvidenceSimulation,
+          layoutDetection,
+          mode: ocrSource,
+        });
+        if (!recovery.applied) return recovery;
+        knownCorrectionDeltas.push({
+          pass: "currentPcGroupedRawTokenRecovery applied",
+          before: cloneStageState({ self, enemy, selfTotal, enemyTotal }),
+          after: cloneStageState({
+            self: isSelf ? recovery.members : self,
+            enemy: isSelf ? enemy : recovery.members,
+            selfTotal: isSelf ? recovery.total : selfTotal,
+            enemyTotal: isSelf ? enemyTotal : recovery.total,
+          }),
+          message: recovery.message,
+        });
+        if (isSelf) {
+          self = recovery.members;
+          selfTotal = recovery.total;
+        } else {
+          enemy = recovery.members;
+          enemyTotal = recovery.total;
+        }
+        return recovery;
+      };
+      currentPcProductionRecoveryBySide.self = applyCurrentPcGroupedRecoveryToSide("self");
+      currentPcProductionRecoveryBySide.enemy = applyCurrentPcGroupedRecoveryToSide("enemy");
+    }
+
     const stageResult = {
       selfTotal,
       enemyTotal,
@@ -4592,6 +4734,10 @@ async function runOcrForImage(imagePath, options = {}) {
             inferredOriginalCrown,
             selectedCrownInference,
           },
+          currentPcGroupedRawTokenEvidenceSimulation:
+            currentPcPreRecoveryAnalysisBySide?.[side]?.currentPcGroupedRawTokenEvidenceSimulation ||
+            null,
+          currentPcGroupedRawTokenRecovery: currentPcProductionRecoveryBySide?.[side] || null,
           sparseTotalAsMemberSimulation,
           stage3SelfSevenDigitDisplacementSimulation,
           stage3EnemySevenDigitRecoverySimulation:
@@ -6616,6 +6762,7 @@ function buildCurrentPcSideAnalysis(stageResult, side, options = {}) {
     });
   const candidateSourceSummary = summarizeCurrentPcCandidateSources(sideArtifact);
   const currentPcGroupedRawTokenEvidenceSimulation =
+    sideArtifact?.currentPcGroupedRawTokenEvidenceSimulation ||
     buildCurrentPcGroupedRawTokenEvidenceSimulation({
       stage: options.stage,
       side,
@@ -6648,6 +6795,7 @@ function buildCurrentPcSideAnalysis(stageResult, side, options = {}) {
     currentPcStage3SelfSevenDigitDisplacementSimulation,
     currentPcExactRawEquationRecoverySimulation,
     currentPcGroupedRawTokenEvidenceSimulation,
+    currentPcGroupedRawTokenRecovery: sideArtifact?.currentPcGroupedRawTokenRecovery || null,
   };
 }
 
@@ -7259,6 +7407,12 @@ function currentPcSimulationTokenSet(sim = null) {
 }
 
 function buildCurrentPcBrowserEquivalentGroupedRawSimulation(item, stage, side, sideAnalysis) {
+  if (
+    sideAnalysis?.currentPcGroupedRawTokenRecovery?.applied &&
+    sideAnalysis?.currentPcGroupedRawTokenEvidenceSimulation
+  ) {
+    return sideAnalysis.currentPcGroupedRawTokenEvidenceSimulation;
+  }
   const stageResult = item.result?.[`stage${stage}`] || {};
   const raw = stageResult.raw || {};
   const rawText = stageResult.rawText || {};

@@ -126,6 +126,7 @@ import {
   applySmartphoneStage3EnemySevenDigitRecovery,
   buildCurrentPcCandidateSourceSummary,
   buildCurrentPcGroupedRawTokenEvidenceSimulation,
+  applyCurrentPcGroupedRawTokenRecovery,
   applyDesktopMemberShape,
   pickDesktopTotalFromMemberShape,
   pickMemberNumbers,
@@ -3276,9 +3277,43 @@ export default function Home() {
 
           const selfCurrentPcEvidence = buildCurrentPcSideEvidence("self");
           const enemyCurrentPcEvidence = buildCurrentPcSideEvidence("enemy");
+          const applyCurrentPcRecoveryToSide = (side, evidence) => {
+            const isSelf = side === "self";
+            const selectedMembers = isSelf ? correctedSelfMembers : correctedEnemyMembers;
+            const selectedTotal = isSelf ? selfTotal : enemyTotal;
+            const recovery = applyCurrentPcGroupedRawTokenRecovery({
+              stage,
+              side,
+              selectedMembers,
+              selectedTotal,
+              simulation: evidence,
+              layoutDetection: currentPcLayoutDetection,
+              mode: "current-pc",
+            });
+            if (!recovery.applied) {
+              return { ...evidence, productionRecovery: recovery };
+            }
+            correctionLogs.push(recovery.message);
+            if (isSelf) {
+              correctedSelfMembers = recovery.members;
+              selfTotal = recovery.total;
+            } else {
+              correctedEnemyMembers = recovery.members;
+              enemyTotal = recovery.total;
+            }
+            return { ...evidence, productionRecovery: recovery };
+          };
+          const selfCurrentPcEvidenceWithRecovery = applyCurrentPcRecoveryToSide(
+            "self",
+            selfCurrentPcEvidence
+          );
+          const enemyCurrentPcEvidenceWithRecovery = applyCurrentPcRecoveryToSide(
+            "enemy",
+            enemyCurrentPcEvidence
+          );
           currentPcGroupedRawEvidence.stages[`stage${stage}`] = {
-            self: selfCurrentPcEvidence,
-            enemy: enemyCurrentPcEvidence,
+            self: selfCurrentPcEvidenceWithRecovery,
+            enemy: enemyCurrentPcEvidenceWithRecovery,
           };
           const formatEvidenceSummary = (side, evidence) => {
             const tokens = evidence.evidence?.eligibleTokens || [];
@@ -3296,8 +3331,8 @@ export default function Home() {
             } tokens=${sample || "none"}`;
           };
           currentPcEvidenceDebugText = [
-            formatEvidenceSummary("self", selfCurrentPcEvidence),
-            formatEvidenceSummary("enemy", enemyCurrentPcEvidence),
+            formatEvidenceSummary("self", selfCurrentPcEvidenceWithRecovery),
+            formatEvidenceSummary("enemy", enemyCurrentPcEvidenceWithRecovery),
           ].join("\n");
         }
 

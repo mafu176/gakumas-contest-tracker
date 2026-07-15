@@ -1951,6 +1951,94 @@ export function buildCurrentPcGroupedRawTokenEvidenceSimulation({
   };
 }
 
+function normalizeCurrentPcRecoveryMembers(members = []) {
+  const normalized = [...members].map((value) => Number(value) || 0).slice(0, 3);
+  while (normalized.length < 3) normalized.push(0);
+  return normalized;
+}
+
+export function applyCurrentPcGroupedRawTokenRecovery({
+  stage = 0,
+  side = "",
+  selectedMembers = [],
+  selectedTotal = 0,
+  simulation = null,
+  layoutDetection = null,
+  mode = "",
+}) {
+  const currentPcLayout =
+    mode === "current-pc" ||
+    layoutDetection?.detected ||
+    layoutDetection?.layoutFamily === "current-pc-2026-07-result" ||
+    layoutDetection?.family === "current-pc-2026-07-result";
+  const current = normalizeCurrentPcRecoveryMembers(selectedMembers);
+  const proposedMembers = normalizeCurrentPcRecoveryMembers(simulation?.proposed?.members || []);
+  const proposedBonus = Number(simulation?.proposed?.bonus || 0);
+  const proposedTotal = Number(simulation?.proposed?.total || 0);
+  const proposedMemberSum = proposedMembers.reduce((sum, value) => sum + value, 0);
+  const interpretationCount = Number(
+    simulation?.evidence?.exactInterpretationCount ??
+      simulation?.evidence?.exactInterpretations?.length ??
+      0
+  );
+  const promotedValuesUsed = simulation?.evidence?.promotedValuesUsed || [];
+  const rejectionReasons = [];
+
+  if (!currentPcLayout) rejectionReasons.push("not-current-pc-layout");
+  if (!simulation?.wouldApply) rejectionReasons.push("simulation-would-not-apply");
+  if (simulation?.rejectionReasons?.length) {
+    rejectionReasons.push(...simulation.rejectionReasons);
+  }
+  if (interpretationCount !== 1) {
+    rejectionReasons.push("not-unique-grouped-token-exact-interpretation");
+  }
+  if (promotedValuesUsed.length === 0) {
+    rejectionReasons.push("missing-promoted-grouped-token-value");
+  }
+  if (proposedMembers.filter((value) => value > 0).length !== 3) {
+    rejectionReasons.push("proposal-does-not-have-three-members");
+  }
+  if (proposedTotal <= 0) rejectionReasons.push("missing-proposed-total");
+  if (proposedBonus < 0) rejectionReasons.push("negative-proposed-bonus");
+  if (Math.abs(proposedMemberSum + proposedBonus - proposedTotal) > 1) {
+    rejectionReasons.push("proposal-equation-not-exact");
+  }
+  if (
+    Math.abs(Number(selectedTotal || 0) - proposedTotal) <= 1 &&
+    arraysEqualWithinOne(current, proposedMembers)
+  ) {
+    rejectionReasons.push("selected-result-already-matches-proposal");
+  }
+
+  const uniqueRejectionReasons = [...new Set(rejectionReasons)];
+  const eligibleTokenByValue = new Map(
+    (simulation?.evidence?.eligibleTokens || []).map((token) => [
+      Number(token.normalizedValue || 0),
+      token,
+    ])
+  );
+  const recoveredTokens = [...new Set(promotedValuesUsed.map((value) => Number(value || 0)))]
+    .map((value) => eligibleTokenByValue.get(value))
+    .filter(Boolean);
+
+  return {
+    applied: uniqueRejectionReasons.length === 0,
+    members: proposedMembers,
+    total: proposedTotal,
+    bonus: proposedBonus,
+    stage,
+    side,
+    recoveredTokens,
+    promotedValuesUsed,
+    reason: uniqueRejectionReasons.join(",") || "applied",
+    message: `currentPcGroupedRawTokenRecovery applied stage=${stage} side=${side} members=${proposedMembers.join(",")} bonus=${proposedBonus || 0} total=${proposedTotal} tokens=${
+      recoveredTokens
+        .map((token) => `${token.rawToken || token.token}->${token.normalizedValue}@${token.sourceRole}`)
+        .join(";") || promotedValuesUsed.join(",")
+    }`,
+  };
+}
+
 function extractDigitGroups(text = "") {
   const normalized = String(text ?? "").replace(/[\uFF10-\uFF19]/g, (char) =>
     String.fromCharCode(char.charCodeAt(0) - 0xfee0)
