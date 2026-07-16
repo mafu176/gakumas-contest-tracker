@@ -8,63 +8,82 @@ Run with:
 node scripts/ocr-test-images.mjs --current-pc-baseline --current-pc-stage3-member-row-diagnostics
 ```
 
-The committed report contains a smoke run on one known affected screenshot:
-
-```bash
-node scripts/ocr-test-images.mjs --current-pc-baseline 223753187 --current-pc-stage3-member-row-diagnostics
-```
-
-A full 48-fixture diagnostics run is supported by the flag above, but was not run for this commit because the variant OCR pass is expensive. The smoke run verifies that artifact generation, per-variant OCR, per-slot crops, JSON output, and markdown output all work.
-
 ## Summary
 
-- affected Stage3 rows audited: 1
+- affected Stage3 rows audited: 20
+- expected missing 7-digit members audited: 24
 - artifact directory: `tmp/current-pc-stage3-member-row-ocr-diagnostics`
-- rows where any variant found an exact missing 7-digit member: 1
-- rows where a per-slot crop found an exact missing 7-digit member: 0
+- rows where any variant found an exact missing 7-digit member: 20
+- expected missing 7-digit members recovered by any variant: 23
+- rows where a per-slot crop found an exact missing 7-digit member: 10
+- expected missing 7-digit members recovered by per-slot crops: 10
+- expected missing 7-digit members not recovered by any variant: 1
+- variant rows with unsafe/noisy extra candidates: 38
 - final OCR output changed: no
 - production recovery enabled: no
 
-## ROI / Preprocessing Variants
+## Variant Exact Recovery Counts
 
-The diagnostics currently test:
-
-- current member-row ROI
-- wider member-row ROI
-- shifted-left / shifted-right member-row ROI
-- shifted-up / shifted-down member-row ROI
-- taller member-row ROI
-- tighter vertical member-row ROI
-- baseline/default preprocessing row variant
-- crown-bonus threshold row variant
-- per-slot member1 / member2 / member3 crops using PSM7
+| variant | exact 7-digit recoveries | fragment hits | unsafe/noisy variant rows |
+| --- | ---: | ---: | ---: |
+| current-member-row-roi | 12 | 2 | 4 |
+| wider-member-row-roi | 16 | 1 | 2 |
+| shifted-left-member-row-roi | 14 | 3 | 2 |
+| shifted-right-member-row-roi | 12 | 4 | 6 |
+| shifted-up-member-row-roi | 10 | 2 | 3 |
+| shifted-down-member-row-roi | 14 | 2 | 2 |
+| taller-member-row-roi | 12 | 2 | 7 |
+| tighter-vertical-member-row-roi | 12 | 1 | 4 |
+| baseline-threshold-row-variant | 14 | 5 | 1 |
+| crown-bonus-threshold-row-variant | 14 | 3 | 4 |
+| member1-slot | 1 | 0 | 1 |
+| member2-slot | 6 | 0 | 0 |
+| member3-slot | 3 | 0 | 2 |
+| per-slot crops combined | 10 | 0 | 3 |
 
 ## Diagnostic Outcome Categories
 
 | category | count |
 | --- | ---: |
-| exact 7-digit recovered by shifted ROI | 2 |
-| exact 7-digit recovered by threshold variant | 2 |
-| exact 7-digit already present in current ROI OCR | 1 |
-| exact 7-digit recovered by taller/tighter vertical ROI | 1 |
-| exact 7-digit recovered by wider ROI | 1 |
+| exact 7-digit recovered by shifted ROI | 46 |
+| exact 7-digit recovered by threshold variant | 26 |
+| exact 7-digit recovered by taller/tighter vertical ROI | 22 |
+| exact 7-digit recovered by wider ROI | 14 |
+| exact 7-digit already present in current ROI OCR | 11 |
+| exact 7-digit recovered by per-slot crop | 10 |
 
 ## Rows
 
-| image | side | expected members | selected members | expected bonus | expected total | missing 7-digit members | exact variant hits | per-slot helped | artifact |
-| --- | --- | --- | --- | ---: | ---: | --- | --- | --- | --- |
-| 2026-07-11_223753187.png | self | 1072082, 820114, 923776 | 820114, 923776, 214416 | 214,416 | 3,030,388 | member1 1,072,082->820,114 | current-member-row-roi: member1=1072082<br>wider-member-row-roi: member1=1072082<br>shifted-left-member-row-roi: member1=1072082<br>shifted-down-member-row-roi: member1=1072082<br>tighter-vertical-member-row-roi: member1=1072082<br>baseline-threshold-row-variant: member1=1072082<br>crown-bonus-threshold-row-variant: member1=1072082 | - | tmp/current-pc-stage3-member-row-ocr-diagnostics/2026-07-11_223753187.png-stage3-self/stage3-member-row-diagnostics.json |
+| image | side | expected members | selected members | selected bonus | selected total | expected bonus | expected total | missing 7-digit members | exact variant hits | fragment-only variants | unsafe/noisy variants | total evidence | bonus evidence | equation possible | unique interpretation | artifact |
+| --- | --- | --- | --- | ---: | ---: | ---: | ---: | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2026-07-11_223152331.png | self | 808246, 698916, 1002602 | 698916, 0, 0 | 109,330 | 808,246 | - | 2,509,764 | member3 1,002,602->- | wider-member-row-roi: member3=1002602<br>shifted-right-member-row-roi: member3=1002602<br>member3-slot: member3=1002602 | - | baseline-threshold-row-variant: 1002650 | rawCandidates, displayedTotalCandidates, candidateSourceText | not needed | no | no | tmp/current-pc-stage3-member-row-ocr-diagnostics/2026-07-11_223152331.png-stage3-self/stage3-member-row-diagnostics.json |
+| 2026-07-11_223346581.png | self | 745929, 1360665, 937345 | 745929, 364665, 937345 | - | 2,047,939 | 272,133 | 3,316,072 | member2 1,360,665->364,665 | wider-member-row-roi: member2=1360665<br>shifted-left-member-row-roi: member2=1360665<br>shifted-down-member-row-roi: member2=1360665<br>taller-member-row-roi: member2=1360665<br>baseline-threshold-row-variant: member2=1360665<br>crown-bonus-threshold-row-variant: member2=1360665 | shifted-right-member-row-roi: member2=360665 | current-member-row-roi: 1364665<br>shifted-right-member-row-roi: 360665<br>shifted-up-member-row-roi: 1364665/237345<br>taller-member-row-roi: 3516072<br>tighter-vertical-member-row-roi: 1364665 | rawCandidates, displayedTotalCandidates, candidateSourceText | rawCandidates, candidateSourceText | no | no | tmp/current-pc-stage3-member-row-ocr-diagnostics/2026-07-11_223346581.png-stage3-self/stage3-member-row-diagnostics.json |
+| 2026-07-11_223426685.png | self | 903425, 1262179, 859213 | 262179, 859213, 252435 | - | 1,373,827 | 252,435 | 3,277,252 | member2 1,262,179->859,213 | current-member-row-roi: member2=1262179<br>shifted-left-member-row-roi: member2=1262179<br>shifted-right-member-row-roi: member2=1262179<br>shifted-up-member-row-roi: member2=1262179<br>shifted-down-member-row-roi: member2=1262179<br>taller-member-row-roi: member2=1262179<br>tighter-vertical-member-row-roi: member2=1262179<br>baseline-threshold-row-variant: member2=1262179<br>crown-bonus-threshold-row-variant: member2=1262179 | - | shifted-right-member-row-roi: 303425 | rawCandidates, displayedTotalCandidates, candidateSourceText | rawCandidates, candidateSourceText | no | no | tmp/current-pc-stage3-member-row-ocr-diagnostics/2026-07-11_223426685.png-stage3-self/stage3-member-row-diagnostics.json |
+| 2026-07-11_223513004.png | self | 903425, 1262179, 859213 | 262179, 859213, 252435 | - | 1,373,827 | 252,435 | 3,277,252 | member2 1,262,179->859,213 | current-member-row-roi: member2=1262179<br>shifted-left-member-row-roi: member2=1262179<br>shifted-right-member-row-roi: member2=1262179<br>shifted-up-member-row-roi: member2=1262179<br>shifted-down-member-row-roi: member2=1262179<br>taller-member-row-roi: member2=1262179<br>tighter-vertical-member-row-roi: member2=1262179<br>baseline-threshold-row-variant: member2=1262179<br>crown-bonus-threshold-row-variant: member2=1262179 | - | shifted-right-member-row-roi: 303425 | rawCandidates, displayedTotalCandidates, candidateSourceText | rawCandidates, candidateSourceText | no | no | tmp/current-pc-stage3-member-row-ocr-diagnostics/2026-07-11_223513004.png-stage3-self/stage3-member-row-diagnostics.json |
+| 2026-07-11_223613166.png | self | 717313, 846891, 1121803 | 717313, 846891, 0 | 1,121,803 | 2,686,007 | - | 2,686,007 | member3 1,121,803->- | wider-member-row-roi: member3=1121803<br>shifted-right-member-row-roi: member3=1121803<br>member3-slot: member3=1121803 | - | - | rawCandidates, displayedTotalCandidates, candidateSourceText | not needed | yes | yes | tmp/current-pc-stage3-member-row-ocr-diagnostics/2026-07-11_223613166.png-stage3-self/stage3-member-row-diagnostics.json |
+| 2026-07-11_223613166.png | enemy | 1314244, 1043501, 841605 | 43501, 841605, 262848 | - | 1,147,954 | 262,848 | 3,462,198 | member1 1,314,244->43,501<br>member2 1,043,501->841,605 | current-member-row-roi: member1=1314244<br>wider-member-row-roi: member1=1314244<br>shifted-left-member-row-roi: member1=1314244<br>shifted-up-member-row-roi: member1=1314244<br>shifted-down-member-row-roi: member1=1314244<br>taller-member-row-roi: member1=1314244<br>tighter-vertical-member-row-roi: member1=1314244<br>baseline-threshold-row-variant: member1=1314244<br>crown-bonus-threshold-row-variant: member1=1314244<br>member2-slot: member2=1043501 | shifted-right-member-row-roi: member2=43501 | - | rawCandidates, displayedTotalCandidates, candidateSourceText | rawCandidates, candidateSourceText | yes | no | tmp/current-pc-stage3-member-row-ocr-diagnostics/2026-07-11_223613166.png-stage3-enemy/stage3-member-row-diagnostics.json |
+| 2026-07-11_223714046.png | self | 795562, 1237121, 1256926 | 795562, 25138, 0 | 2,720,294 | 3,540,994 | 251,385 | 3,540,994 | member2 1,237,121->25,138<br>member3 1,256,926->- | current-member-row-roi: member2=1237121<br>wider-member-row-roi: member2=1237121, member3=1256926<br>shifted-left-member-row-roi: member2=1237121<br>shifted-right-member-row-roi: member2=1237121, member3=1256926<br>shifted-up-member-row-roi: member2=1237121<br>shifted-down-member-row-roi: member2=1237121<br>taller-member-row-roi: member2=1237121<br>tighter-vertical-member-row-roi: member2=1237121<br>baseline-threshold-row-variant: member2=1237121<br>member2-slot: member2=1237121 | - | current-member-row-roi: 1256921<br>shifted-up-member-row-roi: 1256921<br>taller-member-row-roi: 3240994<br>crown-bonus-threshold-row-variant: 1237131/256924 | rawCandidates, displayedTotalCandidates, candidateSourceText | - | no | no | tmp/current-pc-stage3-member-row-ocr-diagnostics/2026-07-11_223714046.png-stage3-self/stage3-member-row-diagnostics.json |
+| 2026-07-11_223753187.png | self | 1072082, 820114, 923776 | 820114, 923776, 214416 | - | 1,958,306 | 214,416 | 3,030,388 | member1 1,072,082->820,114 | current-member-row-roi: member1=1072082<br>wider-member-row-roi: member1=1072082<br>shifted-left-member-row-roi: member1=1072082<br>shifted-down-member-row-roi: member1=1072082<br>tighter-vertical-member-row-roi: member1=1072082<br>baseline-threshold-row-variant: member1=1072082<br>crown-bonus-threshold-row-variant: member1=1072082 | - | - | rawCandidates, displayedTotalCandidates, candidateSourceText | rawCandidates, candidateSourceText | yes | yes | tmp/current-pc-stage3-member-row-ocr-diagnostics/2026-07-11_223753187.png-stage3-self/stage3-member-row-diagnostics.json |
+| 2026-07-11_223834078.png | self | 683470, 941077, 1406672 | 683470, 1406, 2813 | - | 687,689 | 281,334 | 3,312,553 | member3 1,406,672->2,813 | wider-member-row-roi: member3=1406672<br>shifted-right-member-row-roi: member3=1406672<br>member3-slot: member3=1406672 | current-member-row-roi: member3=1406<br>shifted-left-member-row-roi: member3=1406<br>shifted-up-member-row-roi: member3=1406<br>shifted-down-member-row-roi: member3=1406<br>taller-member-row-roi: member3=1406<br>baseline-threshold-row-variant: member3=1406<br>crown-bonus-threshold-row-variant: member3=1406 | shifted-down-member-row-roi: 682470<br>taller-member-row-roi: 3312555<br>tighter-vertical-member-row-roi: 1406467 | rawCandidates, displayedTotalCandidates, candidateSourceText | - | no | no | tmp/current-pc-stage3-member-row-ocr-diagnostics/2026-07-11_223834078.png-stage3-self/stage3-member-row-diagnostics.json |
+| 2026-07-11_223834078.png | enemy | 1017535, 580090, 905641 | 580090, 905641, 0 | 1,017,535 | 2,503,266 | - | 2,503,266 | member1 1,017,535->580,090 | current-member-row-roi: member1=1017535<br>shifted-left-member-row-roi: member1=1017535<br>shifted-up-member-row-roi: member1=1017535<br>shifted-down-member-row-roi: member1=1017535<br>taller-member-row-roi: member1=1017535<br>tighter-vertical-member-row-roi: member1=1017535<br>baseline-threshold-row-variant: member1=1017535<br>crown-bonus-threshold-row-variant: member1=1017535<br>member1-slot: member1=1017535 | - | wider-member-row-roi: 1017583<br>shifted-right-member-row-roi: 117535<br>taller-member-row-roi: 2505200 | rawCandidates, displayedTotalCandidates, candidateSourceText | not needed | no | no | tmp/current-pc-stage3-member-row-ocr-diagnostics/2026-07-11_223834078.png-stage3-enemy/stage3-member-row-diagnostics.json |
+| 2026-07-11_223907986.png | self | 875583, 930873, 1130649 | 875583, 930873, 22612 | - | 1,829,068 | 226,129 | 3,163,234 | member3 1,130,649->22,612 | wider-member-row-roi: member3=1130649 | - | taller-member-row-roi: 3105254<br>crown-bonus-threshold-row-variant: 1130644<br>member3-slot: 1130645 | rawCandidates, displayedTotalCandidates, candidateSourceText | - | no | no | tmp/current-pc-stage3-member-row-ocr-diagnostics/2026-07-11_223907986.png-stage3-self/stage3-member-row-diagnostics.json |
+| 2026-07-11_223950902.png | enemy | 764868, 1091658, 864388 | 91658, 864388, 218351 | - | 1,174,397 | 218,331 | 2,939,245 | member2 1,091,658->864,388 | current-member-row-roi: member2=1091658<br>wider-member-row-roi: member2=1091658<br>shifted-left-member-row-roi: member2=1091658<br>shifted-right-member-row-roi: member2=1091658<br>taller-member-row-roi: member2=1091658<br>baseline-threshold-row-variant: member2=1091658<br>crown-bonus-threshold-row-variant: member2=1091658<br>member2-slot: member2=1091658 | - | current-member-row-roi: 864188<br>wider-member-row-roi: 864188<br>shifted-left-member-row-roi: 764268<br>shifted-right-member-row-roi: 1210551<br>shifted-up-member-row-roi: 864348<br>shifted-down-member-row-roi: 864348<br>tighter-vertical-member-row-roi: 864348 | rawCandidates, displayedTotalCandidates, candidateSourceText | - | no | no | tmp/current-pc-stage3-member-row-ocr-diagnostics/2026-07-11_223950902.png-stage3-enemy/stage3-member-row-diagnostics.json |
+| スクリーンショット 2026-07-11 145038835.png | self | 899855, 1043301, 875583 | 899855, 875583, 708660 | - | 2,484,098 | 208,660 | 3,027,399 | member2 1,043,301->875,583 | wider-member-row-roi: member2=1043301<br>shifted-left-member-row-roi: member2=1043301<br>shifted-right-member-row-roi: member2=1043301<br>shifted-up-member-row-roi: member2=1043301<br>shifted-down-member-row-roi: member2=1043301<br>tighter-vertical-member-row-roi: member2=1043301<br>crown-bonus-threshold-row-variant: member2=1043301 | - | member3-slot: 875683 | rawCandidates, displayedTotalCandidates, candidateSourceText | - | no | no | tmp/current-pc-stage3-member-row-ocr-diagnostics/スクリーンショット 2026-07-11 145038835.png-stage3-self/stage3-member-row-diagnostics.json |
+| スクリーンショット 2026-07-11 145126932.png | self | 1079689, 419172, 944928 | 419172, 944928, 215037 | 189,419 | 1,768,556 | 215,937 | 2,659,726 | member1 1,079,689->419,172 | current-member-row-roi: member1=1079689<br>shifted-up-member-row-roi: member1=1079689<br>shifted-down-member-row-roi: member1=1079689<br>taller-member-row-roi: member1=1079689<br>crown-bonus-threshold-row-variant: member1=1079689 | - | tighter-vertical-member-row-roi: 689419 | rawCandidates, displayedTotalCandidates, candidateSourceText | - | no | no | tmp/current-pc-stage3-member-row-ocr-diagnostics/スクリーンショット 2026-07-11 145126932.png-stage3-self/stage3-member-row-diagnostics.json |
+| スクリーンショット 2026-07-12 223701314.png | self | 763742, 1081712, 237132 | 763742, 237132, 716342 | - | 1,717,216 | 216,342 | 2,298,928 | member2 1,081,712->237,132 | current-member-row-roi: member2=1081712<br>wider-member-row-roi: member2=1081712<br>shifted-left-member-row-roi: member2=1081712<br>shifted-right-member-row-roi: member2=1081712<br>shifted-up-member-row-roi: member2=1081712<br>shifted-down-member-row-roi: member2=1081712<br>taller-member-row-roi: member2=1081712<br>tighter-vertical-member-row-roi: member2=1081712<br>crown-bonus-threshold-row-variant: member2=1081712<br>member2-slot: member2=1081712 | - | current-member-row-roi: 257132 | rawCandidates, displayedTotalCandidates, candidateSourceText | - | no | no | tmp/current-pc-stage3-member-row-ocr-diagnostics/スクリーンショット 2026-07-12 223701314.png-stage3-self/stage3-member-row-diagnostics.json |
+| スクリーンショット 2026-07-14 060926190.png | self | 1077558, 683656, 125626 | 683656, 125626, 0 | 1,293,069 | 2,102,351 | 215,511 | 2,102,351 | member1 1,077,558->683,656 | tighter-vertical-member-row-roi: member1=1077558<br>baseline-threshold-row-variant: member1=1077558 | - | shifted-left-member-row-roi: 1077658<br>member1-slot: 1077551 | rawCandidates, displayedTotalCandidates, candidateSourceText | - | no | no | tmp/current-pc-stage3-member-row-ocr-diagnostics/スクリーンショット 2026-07-14 060926190.png-stage3-self/stage3-member-row-diagnostics.json |
+| スクリーンショット 2026-07-14 061325391.png | self | 1033971, 1191935, 883071 | 191935, 883071, 738387 | - | 1,813,393 | 238,387 | 3,347,364 | member1 1,033,971->191,935<br>member2 1,191,935->883,071 | current-member-row-roi: member1=1033971, member2=1191935<br>wider-member-row-roi: member1=1033971, member2=1191935<br>shifted-left-member-row-roi: member1=1033971, member2=1191935<br>shifted-right-member-row-roi: member2=1191935<br>shifted-up-member-row-roi: member1=1033971, member2=1191935<br>shifted-down-member-row-roi: member1=1033971, member2=1191935<br>taller-member-row-roi: member1=1033971, member2=1191935<br>tighter-vertical-member-row-roi: member1=1033971, member2=1191935<br>baseline-threshold-row-variant: member1=1033971, member2=1191935<br>crown-bonus-threshold-row-variant: member1=1033971, member2=1191935<br>member2-slot: member2=1191935 | - | taller-member-row-roi: 3547504<br>crown-bonus-threshold-row-variant: 553508 | rawCandidates, displayedTotalCandidates, candidateSourceText | - | no | no | tmp/current-pc-stage3-member-row-ocr-diagnostics/スクリーンショット 2026-07-14 061325391.png-stage3-self/stage3-member-row-diagnostics.json |
+| スクリーンショット 2026-07-14 061634001.png | self | 1275772, 1126492, 344320 | 126492, 255154, 0 | 2,620,092 | 3,001,738 | 255,154 | 3,001,738 | member1 1,275,772->126,492<br>member2 1,126,492->255,154 | baseline-threshold-row-variant: member1=1275772 | shifted-left-member-row-roi: member2=126492<br>shifted-right-member-row-roi: member2=126492<br>crown-bonus-threshold-row-variant: member2=126492 | taller-member-row-roi: 3001758/4126492<br>crown-bonus-threshold-row-variant: 1275774 | rawCandidates, displayedTotalCandidates, candidateSourceText | rawCandidates, candidateSourceText | no | no | tmp/current-pc-stage3-member-row-ocr-diagnostics/スクリーンショット 2026-07-14 061634001.png-stage3-self/stage3-member-row-diagnostics.json |
+| スクリーンショット 2026-07-15 130012999.png | self | 835922, 1392453, 826413 | 835922, 826413, 278450 | - | 1,940,785 | 278,490 | 3,333,278 | member2 1,392,453->826,413 | wider-member-row-roi: member2=1392453<br>shifted-left-member-row-roi: member2=1392453<br>shifted-right-member-row-roi: member2=1392453<br>shifted-down-member-row-roi: member2=1392453<br>taller-member-row-roi: member2=1392453<br>baseline-threshold-row-variant: member2=1392453<br>crown-bonus-threshold-row-variant: member2=1392453<br>member2-slot: member2=1392453 | - | shifted-right-member-row-roi: 335922 | rawCandidates, displayedTotalCandidates, candidateSourceText | - | no | no | tmp/current-pc-stage3-member-row-ocr-diagnostics/スクリーンショット 2026-07-15 130012999.png-stage3-self/stage3-member-row-diagnostics.json |
+| スクリーンショット 2026-07-15 130026795.png | self | 1011663, 938246, 505356 | 938246, 505356, 0 | 1,213,995 | 2,657,597 | 202,332 | 2,657,597 | member1 1,011,663->938,246 | current-member-row-roi: member1=1011663<br>wider-member-row-roi: member1=1011663<br>shifted-left-member-row-roi: member1=1011663<br>shifted-down-member-row-roi: member1=1011663<br>tighter-vertical-member-row-roi: member1=1011663<br>baseline-threshold-row-variant: member1=1011663<br>crown-bonus-threshold-row-variant: member1=1011663 | shifted-right-member-row-roi: member1=11663 | - | rawCandidates, displayedTotalCandidates, candidateSourceText | - | no | yes | tmp/current-pc-stage3-member-row-ocr-diagnostics/スクリーンショット 2026-07-15 130026795.png-stage3-self/stage3-member-row-diagnostics.json |
 
-## Smoke Finding
+## Pattern Notes
 
-For `2026-07-11_223753187.png` S3 self, the current selected result drops member1:
-
-- expected members: `1072082 / 820114 / 923776`
-- selected members: `820114 / 923776 / 214416`
-- expected bonus: `214416`
-- expected total: `3030388`
-
-Several full-row variants recover exact `1072082`, but per-slot crops do not. This suggests the evidence problem is not simply a too-wide row crop. The useful signal still comes from row-level OCR text, where the value is adjacent to member2 and can be parsed by some preprocessing/ROI variants.
+- Row-level variants are useful when they recover exact missing 7-digit values from member-row provenance, but this report still treats them as evidence only.
+- Per-slot crops are counted separately because they would be a stronger future provenance guard if they recovered the exact value consistently.
+- Unsafe/noisy variant rows count variants that produce extra member-sized numbers not matching expected, selected, total, or bonus context. Those variants are evidence-quality warnings, not recovery candidates.
+- Exact equation validation is marked `yes` only when all missing 7-digit members are recovered by some variant, exact total evidence exists, exact bonus evidence exists when needed, and the diagnostic variants do not introduce unsafe extras.
+- Unique interpretation is marked `no` for rows with multiple missing 7-digit members or unsafe/noisy candidates, even when exact evidence appears.
 
 ## Simulation Decision
 

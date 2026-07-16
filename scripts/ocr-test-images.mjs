@@ -7399,6 +7399,9 @@ function findCurrentPcStage3MemberRowDiagnosticRows(analysis = []) {
           return actual.length >= 4 && (expected.includes(actual) || actual.includes(expected));
         });
       });
+      const expectedTotalEvidence = currentPcEvidenceLocationsForValue(sideAnalysis, expectedTotal);
+      const expectedBonusEvidence =
+        expectedBonus > 0 ? currentPcEvidenceLocationsForValue(sideAnalysis, expectedBonus) : [];
 
       rows.push({
         image: item.fileName,
@@ -7419,6 +7422,8 @@ function findCurrentPcStage3MemberRowDiagnosticRows(analysis = []) {
         rawCandidates,
         bonusCandidates,
         displayedTotalCandidates,
+        expectedTotalEvidence,
+        expectedBonusEvidence,
         exactMissingMembersInRawCandidates,
         exactMissingMembersInRawText,
         fragmentMembers,
@@ -7537,6 +7542,40 @@ function currentPcExactExpectedMembersByVariant(row, variant) {
   });
 }
 
+function currentPcMemberRowDiagnosticContextValues(row) {
+  return uniqueNumbers([
+    ...(row.expectedMembers || []),
+    row.expectedBonus || 0,
+    row.expectedTotal || 0,
+    ...(row.selectedMembers || []),
+    row.selectedBonus || 0,
+    row.selectedTotal || 0,
+    ...(row.bonusCandidates || []),
+    ...(row.displayedTotalCandidates || []),
+  ]).filter((value) => value > 0);
+}
+
+function currentPcUnsafeExtraCandidatesForMemberRowVariant(row, variant) {
+  const contextValues = currentPcMemberRowDiagnosticContextValues(row);
+  return uniqueNumbers(variant.numbers || []).filter((value) => {
+    if (value < 100000) return false;
+    return !contextValues.some((contextValue) => Math.abs(contextValue - value) <= 1);
+  });
+}
+
+function currentPcFragmentMatchesForMemberRowVariant(row, variant) {
+  return row.missingSevenDigitMembers
+    .map((entry) => ({
+      ...entry,
+      fragments: (variant.numbers || []).filter((value) => {
+        const expected = String(entry.expected);
+        const actual = String(value || 0);
+        return actual.length >= 4 && actual.length < expected.length && expected.includes(actual);
+      }),
+    }))
+    .filter((entry) => entry.fragments.length > 0);
+}
+
 function currentPcStage3MemberRowVariantCategory(row, variant) {
   const exactMembers = currentPcExactExpectedMembersByVariant(row, variant);
   if (exactMembers.length === 0) return null;
@@ -7603,16 +7642,11 @@ async function writeCurrentPcStage3MemberRowDiagnosticsArtifacts(analysis = []) 
       };
       variantRow.exactMissingMembers = currentPcExactExpectedMembersByVariant(row, variantRow);
       variantRow.recoveryCategory = currentPcStage3MemberRowVariantCategory(row, variantRow);
-      variantRow.fragmentMatches = row.missingSevenDigitMembers
-        .map((entry) => ({
-          ...entry,
-          fragments: (ocr.numbers || []).filter((value) => {
-            const expected = String(entry.expected);
-            const actual = String(value || 0);
-            return actual.length >= 4 && expected.includes(actual);
-          }),
-        }))
-        .filter((entry) => entry.fragments.length > 0);
+      variantRow.fragmentMatches = currentPcFragmentMatchesForMemberRowVariant(row, variantRow);
+      variantRow.unsafeExtraCandidates = currentPcUnsafeExtraCandidatesForMemberRowVariant(
+        row,
+        variantRow
+      );
       variants.push(variantRow);
     }
     const exactHits = variants
@@ -7623,13 +7657,45 @@ async function writeCurrentPcStage3MemberRowDiagnosticsArtifacts(analysis = []) 
         category: variant.recoveryCategory,
         members: variant.exactMissingMembers,
       }));
+    const unrecoveredMissingMembers = row.missingSevenDigitMembers.filter(
+      (missing) =>
+        !exactHits.some((hit) =>
+          hit.members.some(
+            (member) => member.role === missing.role && Math.abs(member.expected - missing.expected) <= 1
+          )
+        )
+    );
+    const unsafeVariantLabels = variants
+      .filter((variant) => (variant.unsafeExtraCandidates || []).length > 0)
+      .map((variant) => variant.label);
+    const missingRecoveredByAnyVariant = row.missingSevenDigitMembers.filter((missing) =>
+      exactHits.some((hit) =>
+        hit.members.some(
+          (member) => member.role === missing.role && Math.abs(member.expected - missing.expected) <= 1
+        )
+      )
+    );
     const artifact = {
       ...row,
       stageCrop,
       variants,
       exactHits,
+      missingRecoveredByAnyVariant,
+      unrecoveredMissingMembers,
       exactRecoveredByAnyVariant: exactHits.length > 0,
       perSlotExactHits: exactHits.filter((hit) => hit.zoneKind === "slot"),
+      unsafeVariantCount: unsafeVariantLabels.length,
+      unsafeVariantLabels,
+      exactTotalEvidencePresent: (row.expectedTotalEvidence || []).length > 0,
+      exactBonusEvidencePresent:
+        !row.expectedBonus || (row.expectedBonusEvidence || []).length > 0,
+      exactEquationValidationPossible:
+        unrecoveredMissingMembers.length === 0 &&
+        (row.expectedTotalEvidence || []).length > 0 &&
+        (!row.expectedBonus || (row.expectedBonusEvidence || []).length > 0) &&
+        unsafeVariantLabels.length === 0,
+      competingInterpretations:
+        unsafeVariantLabels.length > 0 || row.missingSevenDigitMembers.length > 1,
     };
     const jsonPath = path.join(outDir, "stage3-member-row-diagnostics.json");
     await fs.writeFile(jsonPath, JSON.stringify(artifact, null, 2));
@@ -7651,25 +7717,102 @@ async function writeCurrentPcStage3MemberRowDiagnosticsArtifacts(analysis = []) 
 function buildCurrentPcStage3MemberRowDiagnosticsReport(diagnostics) {
   const rows = diagnostics?.rows || [];
   const categoryCounts = new Map();
+  const variantLabels = [
+    "current-member-row-roi",
+    "wider-member-row-roi",
+    "shifted-left-member-row-roi",
+    "shifted-right-member-row-roi",
+    "shifted-up-member-row-roi",
+    "shifted-down-member-row-roi",
+    "taller-member-row-roi",
+    "tighter-vertical-member-row-roi",
+    "baseline-threshold-row-variant",
+    "crown-bonus-threshold-row-variant",
+    "member1-slot",
+    "member2-slot",
+    "member3-slot",
+  ];
+  const variantExactCounts = new Map(variantLabels.map((label) => [label, 0]));
+  const variantFragmentCounts = new Map(variantLabels.map((label) => [label, 0]));
+  const variantUnsafeCounts = new Map(variantLabels.map((label) => [label, 0]));
+  let totalMissingSevenDigitMembers = 0;
+  let missingRecoveredByAnyVariant = 0;
+  let noVariantRecoveredCount = 0;
+  let unsafeVariantCount = 0;
   for (const row of rows) {
+    totalMissingSevenDigitMembers += (row.missingSevenDigitMembers || []).length;
+    missingRecoveredByAnyVariant += (row.missingRecoveredByAnyVariant || []).length;
+    noVariantRecoveredCount += (row.unrecoveredMissingMembers || []).length;
+    unsafeVariantCount += Number(row.unsafeVariantCount || 0);
     if ((row.exactHits || []).length === 0) {
       categoryCounts.set("no variant improves evidence", (categoryCounts.get("no variant improves evidence") || 0) + 1);
     }
     for (const hit of row.exactHits || []) {
       categoryCounts.set(hit.category, (categoryCounts.get(hit.category) || 0) + 1);
+      variantExactCounts.set(
+        hit.label,
+        (variantExactCounts.get(hit.label) || 0) + (hit.members || []).length
+      );
+    }
+    for (const variant of row.variants || []) {
+      variantFragmentCounts.set(
+        variant.label,
+        (variantFragmentCounts.get(variant.label) || 0) +
+          (variant.fragmentMatches || []).reduce(
+            (count, match) => count + (match.fragments || []).length,
+            0
+          )
+      );
+      if ((variant.unsafeExtraCandidates || []).length > 0) {
+        variantUnsafeCounts.set(variant.label, (variantUnsafeCounts.get(variant.label) || 0) + 1);
+      }
     }
   }
+  const exactCountFor = (label) => variantExactCounts.get(label) || 0;
+  const perSlotExactCount =
+    exactCountFor("member1-slot") + exactCountFor("member2-slot") + exactCountFor("member3-slot");
   const lines = [
     "# Current-PC Stage3 Member-Row OCR Diagnostics",
     "",
     "This is runner-only diagnostics for current-PC Stage3 member-row OCR quality. It writes ROI/preprocessing variants and per-slot crops under `tmp/`; it does not change final OCR output.",
     "",
+    "Run with:",
+    "",
+    "```bash",
+    "node scripts/ocr-test-images.mjs --current-pc-baseline --current-pc-stage3-member-row-diagnostics",
+    "```",
+    "",
     "## Summary",
     "",
     `- affected Stage3 rows audited: ${rows.length}`,
+    `- expected missing 7-digit members audited: ${totalMissingSevenDigitMembers}`,
     `- artifact directory: \`${diagnostics?.outputDir || "-"}\``,
     `- rows where any variant found an exact missing 7-digit member: ${rows.filter((row) => row.exactRecoveredByAnyVariant).length}`,
+    `- expected missing 7-digit members recovered by any variant: ${missingRecoveredByAnyVariant}`,
     `- rows where a per-slot crop found an exact missing 7-digit member: ${rows.filter((row) => (row.perSlotExactHits || []).length > 0).length}`,
+    `- expected missing 7-digit members recovered by per-slot crops: ${perSlotExactCount}`,
+    `- expected missing 7-digit members not recovered by any variant: ${noVariantRecoveredCount}`,
+    `- variant rows with unsafe/noisy extra candidates: ${unsafeVariantCount}`,
+    "- final OCR output changed: no",
+    "- production recovery enabled: no",
+    "",
+    "## Variant Exact Recovery Counts",
+    "",
+    "| variant | exact 7-digit recoveries | fragment hits | unsafe/noisy variant rows |",
+    "| --- | ---: | ---: | ---: |",
+    ...variantLabels.map(
+      (label) =>
+        `| ${label} | ${variantExactCounts.get(label) || 0} | ${variantFragmentCounts.get(label) || 0} | ${variantUnsafeCounts.get(label) || 0} |`
+    ),
+    `| per-slot crops combined | ${perSlotExactCount} | ${
+      (variantFragmentCounts.get("member1-slot") || 0) +
+      (variantFragmentCounts.get("member2-slot") || 0) +
+      (variantFragmentCounts.get("member3-slot") || 0)
+    } | ${
+      (variantUnsafeCounts.get("member1-slot") || 0) +
+      (variantUnsafeCounts.get("member2-slot") || 0) +
+      (variantUnsafeCounts.get("member3-slot") || 0)
+    } |`,
     "",
     "## Diagnostic Outcome Categories",
     "",
@@ -7688,24 +7831,51 @@ function buildCurrentPcStage3MemberRowDiagnosticsReport(diagnostics) {
     "",
     "## Rows",
     "",
-    "| image | side | expected members | selected members | expected bonus | expected total | missing 7-digit members | exact variant hits | per-slot helped | artifact |",
-    "| --- | --- | --- | --- | ---: | ---: | --- | --- | --- | --- |"
+    "| image | side | expected members | selected members | selected bonus | selected total | expected bonus | expected total | missing 7-digit members | exact variant hits | fragment-only variants | unsafe/noisy variants | total evidence | bonus evidence | equation possible | unique interpretation | artifact |",
+    "| --- | --- | --- | --- | ---: | ---: | ---: | ---: | --- | --- | --- | --- | --- | --- | --- | --- | --- |"
   );
   for (const row of rows) {
     const exactHits =
       (row.exactHits || [])
         .map((hit) => `${hit.label}: ${hit.members.map((entry) => `${entry.role}=${entry.expected}`).join(", ")}`)
         .join("<br>") || "-";
-    const perSlot =
-      (row.perSlotExactHits || [])
-        .map((hit) => `${hit.label}: ${hit.members.map((entry) => entry.expected).join(", ")}`)
+    const fragmentOnly =
+      (row.variants || [])
+        .filter(
+          (variant) =>
+            (variant.fragmentMatches || []).length > 0 &&
+            (variant.exactMissingMembers || []).length === 0
+        )
+        .map(
+          (variant) =>
+            `${variant.label}: ${variant.fragmentMatches
+              .map((entry) => `${entry.role}=${entry.fragments.join("/")}`)
+              .join(", ")}`
+        )
         .join("<br>") || "-";
+    const unsafe =
+      (row.variants || [])
+        .filter((variant) => (variant.unsafeExtraCandidates || []).length > 0)
+        .map((variant) => `${variant.label}: ${variant.unsafeExtraCandidates.join("/")}`)
+        .join("<br>") || "-";
+    const totalEvidence = (row.expectedTotalEvidence || []).join(", ") || "-";
+    const bonusEvidence = !row.expectedBonus
+      ? "not needed"
+      : (row.expectedBonusEvidence || []).join(", ") || "-";
     lines.push(
-      `| ${row.image} | ${row.side} | ${formatDebugNumbers(row.expectedMembers)} | ${formatDebugNumbers(row.selectedMembers)} | ${formatNumber(row.expectedBonus) || "-"} | ${formatNumber(row.expectedTotal)} | ${row.missingSevenDigitMembers.map((entry) => `${entry.role} ${formatNumber(entry.expected)}->${formatNumber(entry.actual) || "-"}`).join("<br>")} | ${exactHits} | ${perSlot} | ${row.artifact} |`
+      `| ${row.image} | ${row.side} | ${formatDebugNumbers(row.expectedMembers)} | ${formatDebugNumbers(row.selectedMembers)} | ${formatNumber(row.selectedBonus) || "-"} | ${formatNumber(row.selectedTotal)} | ${formatNumber(row.expectedBonus) || "-"} | ${formatNumber(row.expectedTotal)} | ${row.missingSevenDigitMembers.map((entry) => `${entry.role} ${formatNumber(entry.expected)}->${formatNumber(entry.actual) || "-"}`).join("<br>")} | ${exactHits} | ${fragmentOnly} | ${unsafe} | ${totalEvidence} | ${bonusEvidence} | ${row.exactEquationValidationPossible ? "yes" : "no"} | ${row.competingInterpretations ? "no" : "yes"} | ${row.artifact} |`
     );
   }
 
   lines.push(
+    "",
+    "## Pattern Notes",
+    "",
+    "- Row-level variants are useful when they recover exact missing 7-digit values from member-row provenance, but this report still treats them as evidence only.",
+    "- Per-slot crops are counted separately because they would be a stronger future provenance guard if they recovered the exact value consistently.",
+    "- Unsafe/noisy variant rows count variants that produce extra member-sized numbers not matching expected, selected, total, or bonus context. Those variants are evidence-quality warnings, not recovery candidates.",
+    "- Exact equation validation is marked `yes` only when all missing 7-digit members are recovered by some variant, exact total evidence exists, exact bonus evidence exists when needed, and the diagnostic variants do not introduce unsafe extras.",
+    "- Unique interpretation is marked `no` for rows with multiple missing 7-digit members or unsafe/noisy candidates, even when exact evidence appears.",
     "",
     "## Simulation Decision",
     "",
