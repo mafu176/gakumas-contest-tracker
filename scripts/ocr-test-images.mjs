@@ -15,6 +15,7 @@ import {
   applySmartphoneStage3SelfSevenDigitDisplacementRecovery,
   applySmartphoneStage3EnemySevenDigitRecovery,
   applyCurrentPcGroupedRawTokenRecovery,
+  applyCurrentPcStage3SevenDigitBonusDisplacementRecovery,
   buildCurrentPcCandidateSourceSummary as sharedBuildCurrentPcCandidateSourceSummary,
   buildCurrentPcGroupedRawTokenEvidenceSimulation as sharedBuildCurrentPcGroupedRawTokenEvidenceSimulation,
   buildCurrentPcStage3SevenDigitBonusDisplacementSimulation as sharedBuildCurrentPcStage3SevenDigitBonusDisplacementSimulation,
@@ -4480,6 +4481,7 @@ async function runOcrForImage(imagePath, options = {}) {
 
     let currentPcPreRecoveryAnalysisBySide = null;
     let currentPcProductionRecoveryBySide = null;
+    let currentPcStage3SevenDigitBonusDisplacementRecoveryBySide = null;
     if (ocrSource === "current-pc") {
       const buildCurrentPcRecoverySideArtifact = (side) => {
         const isSelf = side === "self";
@@ -4559,6 +4561,7 @@ async function runOcrForImage(imagePath, options = {}) {
       };
       currentPcPreRecoveryAnalysisBySide = {};
       currentPcProductionRecoveryBySide = {};
+      currentPcStage3SevenDigitBonusDisplacementRecoveryBySide = {};
       for (const side of ["self", "enemy"]) {
         const isSelf = side === "self";
         const tempStageResult = {
@@ -4617,6 +4620,44 @@ async function runOcrForImage(imagePath, options = {}) {
       };
       currentPcProductionRecoveryBySide.self = applyCurrentPcGroupedRecoveryToSide("self");
       currentPcProductionRecoveryBySide.enemy = applyCurrentPcGroupedRecoveryToSide("enemy");
+      const applyCurrentPcStage3SevenDigitRecoveryToSide = (side) => {
+        const isSelf = side === "self";
+        const sideAnalysis = currentPcPreRecoveryAnalysisBySide[side];
+        const recovery = applyCurrentPcStage3SevenDigitBonusDisplacementRecovery({
+          stage,
+          side,
+          selectedMembers: isSelf ? self : enemy,
+          selectedTotal: isSelf ? selfTotal : enemyTotal,
+          simulation: sideAnalysis.currentPcStage3SevenDigitBonusDisplacementSimulation,
+          layoutDetection,
+          mode: ocrSource,
+          groupedRawRecovery: currentPcProductionRecoveryBySide[side],
+        });
+        if (!recovery.applied) return recovery;
+        knownCorrectionDeltas.push({
+          pass: "currentPcStage3SevenDigitBonusDisplacementRecovery applied",
+          before: cloneStageState({ self, enemy, selfTotal, enemyTotal }),
+          after: cloneStageState({
+            self: isSelf ? recovery.members : self,
+            enemy: isSelf ? enemy : recovery.members,
+            selfTotal: isSelf ? recovery.total : selfTotal,
+            enemyTotal: isSelf ? enemyTotal : recovery.total,
+          }),
+          message: recovery.message,
+        });
+        if (isSelf) {
+          self = recovery.members;
+          selfTotal = recovery.total;
+        } else {
+          enemy = recovery.members;
+          enemyTotal = recovery.total;
+        }
+        return recovery;
+      };
+      currentPcStage3SevenDigitBonusDisplacementRecoveryBySide.self =
+        applyCurrentPcStage3SevenDigitRecoveryToSide("self");
+      currentPcStage3SevenDigitBonusDisplacementRecoveryBySide.enemy =
+        applyCurrentPcStage3SevenDigitRecoveryToSide("enemy");
     }
 
     const stageResult = {
@@ -4744,6 +4785,11 @@ async function runOcrForImage(imagePath, options = {}) {
             currentPcPreRecoveryAnalysisBySide?.[side]?.currentPcGroupedRawTokenEvidenceSimulation ||
             null,
           currentPcGroupedRawTokenRecovery: currentPcProductionRecoveryBySide?.[side] || null,
+          currentPcStage3SevenDigitBonusDisplacementSimulation:
+            currentPcPreRecoveryAnalysisBySide?.[side]
+              ?.currentPcStage3SevenDigitBonusDisplacementSimulation || null,
+          currentPcStage3SevenDigitBonusDisplacementRecovery:
+            currentPcStage3SevenDigitBonusDisplacementRecoveryBySide?.[side] || null,
           sparseTotalAsMemberSimulation,
           stage3SelfSevenDigitDisplacementSimulation,
           stage3EnemySevenDigitRecoverySimulation:
@@ -6757,6 +6803,7 @@ function buildCurrentPcSideAnalysis(stageResult, side, options = {}) {
         })
       : null;
   const currentPcStage3SevenDigitBonusDisplacementSimulation =
+    sideArtifact?.currentPcStage3SevenDigitBonusDisplacementSimulation ||
     sharedBuildCurrentPcStage3SevenDigitBonusDisplacementSimulation({
       stage: options.stage,
       side,
@@ -6812,6 +6859,8 @@ function buildCurrentPcSideAnalysis(stageResult, side, options = {}) {
     currentPcExactRawEquationRecoverySimulation,
     currentPcGroupedRawTokenEvidenceSimulation,
     currentPcGroupedRawTokenRecovery: sideArtifact?.currentPcGroupedRawTokenRecovery || null,
+    currentPcStage3SevenDigitBonusDisplacementRecovery:
+      sideArtifact?.currentPcStage3SevenDigitBonusDisplacementRecovery || null,
   };
 }
 
@@ -7543,6 +7592,12 @@ function buildCurrentPcBrowserEquivalentStage3SevenDigitBonusDisplacementSimulat
   side,
   sideAnalysis
 ) {
+  if (
+    sideAnalysis?.currentPcStage3SevenDigitBonusDisplacementRecovery?.applied &&
+    sideAnalysis?.currentPcStage3SevenDigitBonusDisplacementSimulation
+  ) {
+    return sideAnalysis.currentPcStage3SevenDigitBonusDisplacementSimulation;
+  }
   return sharedBuildCurrentPcStage3SevenDigitBonusDisplacementSimulation({
     stage,
     side,
@@ -8216,6 +8271,30 @@ function buildCurrentPcBaselineReport(baseline) {
     buildCurrentPcExactRawEquationSimulationEvaluation(baseline.analysis);
   const groupedRawTokenSimulation =
     buildCurrentPcGroupedRawTokenEvidenceSimulationEvaluation(baseline.analysis);
+  const stage3SevenDigitBonusProductionRows = [];
+  for (const item of baseline.analysis) {
+    for (const stage of stages) {
+      const stageKey = `stage${stage}`;
+      for (const side of sides) {
+        const sideAnalysis = item.stages?.[stageKey]?.[side];
+        const recovery = sideAnalysis?.currentPcStage3SevenDigitBonusDisplacementRecovery;
+        if (!recovery?.applied) continue;
+        const expectedStage = item.expectedData?.[stageKey] || {};
+        stage3SevenDigitBonusProductionRows.push({
+          image: item.fileName,
+          stage,
+          side,
+          members: recovery.members || [],
+          bonus: recovery.bonus || 0,
+          total: recovery.total || 0,
+          expectedMembers: expectedStage?.[`${side}Members`] || [],
+          expectedBonus: expectedStage?.[`${side}Bonus`] || 0,
+          expectedTotal: expectedStage?.[`${side}Total`] || 0,
+          recoveredSevenDigitMembers: recovery.recoveredSevenDigitMembers || [],
+        });
+      }
+    }
+  }
   const exactRawFalseNegativeDeepDive =
     buildCurrentPcExactRawFalseNegativeDeepDive(exactRawEquationSimulation);
   const bonusDigitParserAudit = buildCurrentPcBonusDigitParserAudit(baseline.analysis);
@@ -8454,6 +8533,31 @@ function buildCurrentPcBaselineReport(baseline) {
       } | member row ${formatDebugNumbers(row.memberRowNumbers) || "-"}; totals ${formatDebugNumbers(row.totalReferences) || "-"}; strict proposals ${row.strictProposalCount}; competing exact ${row.competingExactInterpretationCount}; member ROI ${
         row.roiProvenance?.members?.crop || "-"
       } | ${row.rejectionReasons.join(", ") || "-"} |`
+    );
+  }
+
+  lines.push(
+    "",
+    "## Current-PC Stage3 7-Digit Bonus-Displacement Production Recovery",
+    "",
+    "- production recovery: `applyCurrentPcStage3SevenDigitBonusDisplacementRecovery`",
+    "- scope: current-PC layout only, Stage3 only, all sides",
+    "- precedence: `currentPcGroupedRawTokenRecovery` runs first; this recovery is rejected if grouped/raw already applied on the same side.",
+    "- guard shape: uses the strict shared simulation result only; requires a unique exact member/member/member/bonus/total proposal, clean unselected 7-digit member evidence, exact displayed total evidence, role/ROI provenance, and exact arithmetic.",
+    "- no filenames, screenshot IDs, hard-coded scores, near matches, or rejected-row `totalReferences` order are used.",
+    "",
+    `- recovered stage/side cases: ${stage3SevenDigitBonusProductionRows.length}`,
+    "",
+    "| image | stage/side | recovered members | recovered bonus | recovered total | expected | recovered 7-digit evidence |",
+    "| --- | --- | --- | ---: | ---: | --- | --- |"
+  );
+
+  if (stage3SevenDigitBonusProductionRows.length === 0) {
+    lines.push("| - | - | - | - | - | - | - |");
+  }
+  for (const row of stage3SevenDigitBonusProductionRows) {
+    lines.push(
+      `| ${row.image} | S${row.stage} ${row.side} | ${formatDebugNumbers(row.members)} | ${formatNumber(row.bonus) || "-"} | ${formatNumber(row.total)} | members ${formatDebugNumbers(row.expectedMembers)}; bonus ${formatNumber(row.expectedBonus) || "-"}; total ${formatNumber(row.expectedTotal)} | ${formatDebugNumbers(row.recoveredSevenDigitMembers)} |`
     );
   }
 

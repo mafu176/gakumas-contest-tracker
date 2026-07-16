@@ -128,6 +128,7 @@ import {
   buildCurrentPcGroupedRawTokenEvidenceSimulation,
   buildCurrentPcStage3SevenDigitBonusDisplacementSimulation,
   applyCurrentPcGroupedRawTokenRecovery,
+  applyCurrentPcStage3SevenDigitBonusDisplacementRecovery,
   applyDesktopMemberShape,
   pickDesktopTotalFromMemberShape,
   pickMemberNumbers,
@@ -3298,7 +3299,7 @@ export default function Home() {
             const isSelf = side === "self";
             const selectedMembers = isSelf ? correctedSelfMembers : correctedEnemyMembers;
             const selectedTotal = isSelf ? selfTotal : enemyTotal;
-            const recovery = applyCurrentPcGroupedRawTokenRecovery({
+            const groupedRawRecovery = applyCurrentPcGroupedRawTokenRecovery({
               stage,
               side,
               selectedMembers,
@@ -3307,18 +3308,44 @@ export default function Home() {
               layoutDetection: currentPcLayoutDetection,
               mode: "current-pc",
             });
-            if (!recovery.applied) {
-              return { ...evidence, productionRecovery: recovery };
+            if (groupedRawRecovery.applied) {
+              correctionLogs.push(groupedRawRecovery.message);
+              if (isSelf) {
+                correctedSelfMembers = groupedRawRecovery.members;
+                selfTotal = groupedRawRecovery.total;
+              } else {
+                correctedEnemyMembers = groupedRawRecovery.members;
+                enemyTotal = groupedRawRecovery.total;
+              }
             }
-            correctionLogs.push(recovery.message);
-            if (isSelf) {
-              correctedSelfMembers = recovery.members;
-              selfTotal = recovery.total;
-            } else {
-              correctedEnemyMembers = recovery.members;
-              enemyTotal = recovery.total;
+
+            const stage3SevenDigitBonusDisplacementRecovery =
+              applyCurrentPcStage3SevenDigitBonusDisplacementRecovery({
+                stage,
+                side,
+                selectedMembers: isSelf ? correctedSelfMembers : correctedEnemyMembers,
+                selectedTotal: isSelf ? selfTotal : enemyTotal,
+                simulation: evidence.currentPcStage3SevenDigitBonusDisplacementSimulation,
+                layoutDetection: currentPcLayoutDetection,
+                mode: "current-pc",
+                groupedRawRecovery,
+              });
+            if (stage3SevenDigitBonusDisplacementRecovery.applied) {
+              correctionLogs.push(stage3SevenDigitBonusDisplacementRecovery.message);
+              if (isSelf) {
+                correctedSelfMembers = stage3SevenDigitBonusDisplacementRecovery.members;
+                selfTotal = stage3SevenDigitBonusDisplacementRecovery.total;
+              } else {
+                correctedEnemyMembers = stage3SevenDigitBonusDisplacementRecovery.members;
+                enemyTotal = stage3SevenDigitBonusDisplacementRecovery.total;
+              }
             }
-            return { ...evidence, productionRecovery: recovery };
+            return {
+              ...evidence,
+              productionRecovery: groupedRawRecovery,
+              currentPcStage3SevenDigitBonusDisplacementRecovery:
+                stage3SevenDigitBonusDisplacementRecovery,
+            };
           };
           const selfCurrentPcEvidenceWithRecovery = applyCurrentPcRecoveryToSide(
             "self",

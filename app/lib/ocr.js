@@ -2403,6 +2403,105 @@ export function applyCurrentPcGroupedRawTokenRecovery({
   };
 }
 
+export function applyCurrentPcStage3SevenDigitBonusDisplacementRecovery({
+  stage = 0,
+  side = "",
+  selectedMembers = [],
+  selectedTotal = 0,
+  simulation = null,
+  layoutDetection = null,
+  mode = "",
+  groupedRawRecovery = null,
+}) {
+  const currentPcLayout =
+    mode === "current-pc" ||
+    layoutDetection?.detected ||
+    layoutDetection?.layoutFamily === "current-pc-2026-07-result" ||
+    layoutDetection?.family === "current-pc-2026-07-result";
+  const current = normalizeCurrentPcRecoveryMembers(selectedMembers);
+  const proposedMembers = normalizeCurrentPcRecoveryMembers(simulation?.proposed?.members || []);
+  const proposedBonus = Number(simulation?.proposed?.bonus || 0);
+  const proposedTotal = Number(simulation?.proposed?.total || 0);
+  const proposedMemberSum = proposedMembers.reduce((sum, value) => sum + value, 0);
+  const strictProposalCount = Number(simulation?.evidence?.strictProposalCount || 0);
+  const competingExactInterpretationCount = Number(
+    simulation?.evidence?.competingExactInterpretationCount || 0
+  );
+  const proposal = (simulation?.evidence?.proposals || []).find(
+    (item) =>
+      item.proposedTotal === proposedTotal &&
+      arraysEqualWithinOne(item.proposedMembers || [], proposedMembers) &&
+      Math.abs(Number(item.proposedBonus || 0) - proposedBonus) <= 1
+  );
+  const unselectedSevenDigitMembers = proposal?.unselectedSevenDigitMembers || [];
+  const totalEvidence = proposal?.totalEvidence || null;
+  const roiProvenance = simulation?.evidence?.roiProvenance || null;
+  const rejectionReasons = [];
+
+  if (!currentPcLayout) rejectionReasons.push("not-current-pc-layout");
+  if (stage !== 3) rejectionReasons.push("not-current-pc-stage3");
+  if (!simulation?.wouldApply) rejectionReasons.push("simulation-would-not-apply");
+  if (simulation?.rejectionReasons?.length) {
+    rejectionReasons.push(...simulation.rejectionReasons);
+  }
+  if (groupedRawRecovery?.applied) {
+    rejectionReasons.push("grouped-raw-recovery-already-applied");
+  }
+  if (strictProposalCount !== 1) {
+    rejectionReasons.push("not-unique-stage3-seven-digit-bonus-displacement-proposal");
+  }
+  if (competingExactInterpretationCount !== 0) {
+    rejectionReasons.push("competing-stage3-seven-digit-bonus-displacement-interpretation");
+  }
+  if (unselectedSevenDigitMembers.length === 0) {
+    rejectionReasons.push("missing-unselected-clean-seven-digit-member");
+  }
+  if (proposedMembers.filter((value) => value > 0).length !== 3) {
+    rejectionReasons.push("proposal-does-not-have-three-members");
+  }
+  if (proposedBonus < 50000 || proposedBonus >= 500000) {
+    rejectionReasons.push("missing-exact-bonus-evidence");
+  }
+  if (!totalEvidence?.hasExactEvidence || totalEvidence?.ambiguousExactEvidence) {
+    rejectionReasons.push("missing-unique-exact-displayed-total-evidence");
+  }
+  if (!roiProvenance?.total || !roiProvenance?.members || !roiProvenance?.source) {
+    rejectionReasons.push("missing-role-roi-provenance");
+  }
+  if (proposedTotal <= 0) rejectionReasons.push("missing-proposed-total");
+  if (Math.abs(proposedMemberSum + proposedBonus - proposedTotal) > 1) {
+    rejectionReasons.push("proposal-equation-not-exact");
+  }
+  if (
+    Math.abs(Number(selectedTotal || 0) - proposedTotal) <= 1 &&
+    arraysEqualWithinOne(current, proposedMembers)
+  ) {
+    rejectionReasons.push("selected-result-already-matches-proposal");
+  }
+
+  const uniqueRejectionReasons = [...new Set(rejectionReasons)];
+  const totalEvidenceLabels = [
+    ...(totalEvidence?.exactParsedSources || []),
+    ...(totalEvidence?.exactJoinedSources || []),
+  ]
+    .filter((source) => source.sourceType === "total")
+    .map((source) => `${source.label}${source.pass ? `:${source.pass}` : ""}`);
+
+  return {
+    applied: uniqueRejectionReasons.length === 0,
+    members: proposedMembers,
+    total: proposedTotal,
+    bonus: proposedBonus,
+    stage,
+    side,
+    recoveredSevenDigitMembers: unselectedSevenDigitMembers,
+    totalEvidenceLabels,
+    roiProvenance,
+    reason: uniqueRejectionReasons.join(",") || "applied",
+    message: `currentPcStage3SevenDigitBonusDisplacementRecovery applied stage=${stage} side=${side} members=${proposedMembers.join(",")} bonus=${proposedBonus || 0} total=${proposedTotal} recovered7=${unselectedSevenDigitMembers.join(",")} roi=${roiProvenance?.source || "unknown"} equation=${proposedMembers.join("+")}+${proposedBonus}=${proposedTotal} totalEvidence=${totalEvidenceLabels.join(";") || "exact"}`,
+  };
+}
+
 function extractDigitGroups(text = "") {
   const normalized = String(text ?? "").replace(/[\uFF10-\uFF19]/g, (char) =>
     String.fromCharCode(char.charCodeAt(0) - 0xfee0)
