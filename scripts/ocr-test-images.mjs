@@ -40,6 +40,7 @@ const nextDebugPath = path.join(rootDir, "docs", "next-debug.md");
 const debugArtifactsDir = path.join(rootDir, "tmp", "ocr-debug-artifacts");
 const fixedRoiExperimentDir = path.join(rootDir, "tmp", "ocr-roi-experiment");
 const roiAdoptionSimDir = path.join(rootDir, "tmp", "ocr-roi-adoption-sim");
+const currentPcBonusDiagnosticsDir = path.join(rootDir, "tmp", "current-pc-bonus-ocr-diagnostics");
 const currentPcScreenshotDir = path.join(
   process.env.USERPROFILE || "C:\\Users\\gkhay",
   "Pictures",
@@ -57,6 +58,11 @@ const currentPcStage3SevenDigitParityReportPath = path.join(
   rootDir,
   "docs",
   "current-pc-stage3-7digit-bonus-displacement-parity.md"
+);
+const currentPcBonusDiagnosticsReportPath = path.join(
+  rootDir,
+  "docs",
+  "current-pc-bonus-ocr-diagnostics.md"
 );
 let currentPcBaselineScanSummary = null;
 const unsupportedNextScreenMessage =
@@ -6899,6 +6905,411 @@ function classifyCurrentPcFailureGroups(analysis) {
     .sort((a, b) => b.count - a.count || a.reason.localeCompare(b.reason));
 }
 
+function stringifyCurrentPcEvidenceText(value) {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.map(stringifyCurrentPcEvidenceText).join("\n");
+  if (typeof value === "object") {
+    return Object.values(value).map(stringifyCurrentPcEvidenceText).join("\n");
+  }
+  return String(value);
+}
+
+function currentPcValueTextForms(value) {
+  const number = Number(value || 0);
+  if (!number) return [];
+  const plain = String(number);
+  const comma = number.toLocaleString("en-US");
+  return [
+    plain,
+    comma,
+    comma.replaceAll(",", "."),
+    comma.replaceAll(",", " "),
+    `+${plain}`,
+    `+${comma}`,
+  ];
+}
+
+function currentPcTextContainsValue(text = "", value = 0) {
+  return currentPcValueTextForms(value).some((form) => String(text || "").includes(form));
+}
+
+function currentPcEvidenceLocationsForValue(sideAnalysis = {}, value = 0) {
+  const locations = [];
+  if ((sideAnalysis.rawCandidates || []).some((candidate) => Math.abs(candidate - value) <= 1)) {
+    locations.push("rawCandidates");
+  }
+  if (
+    (sideAnalysis.displayedTotalCandidates || []).some(
+      (candidate) => Math.abs(candidate - value) <= 1
+    )
+  ) {
+    locations.push("displayedTotalCandidates");
+  }
+  if (
+    (sideAnalysis.bonusCandidates || []).some((candidate) => Math.abs(candidate - value) <= 1)
+  ) {
+    locations.push("bonusCandidates");
+  }
+  const sourceText = stringifyCurrentPcEvidenceText(sideAnalysis.candidateSourceSummary);
+  if (currentPcTextContainsValue(sourceText, value)) {
+    locations.push("candidateSourceText");
+  }
+  return [...new Set(locations)];
+}
+
+function currentPcPlusMarkerNeighborhoods(text = "", radius = 26) {
+  const source = String(text || "");
+  const neighborhoods = [];
+  const plusLike = /[+＋]/g;
+  let match = plusLike.exec(source);
+  while (match) {
+    const start = Math.max(0, match.index - radius);
+    const end = Math.min(source.length, match.index + radius);
+    neighborhoods.push(source.slice(start, end).replace(/\s+/g, " ").trim());
+    match = plusLike.exec(source);
+  }
+  return neighborhoods;
+}
+
+function collectCurrentPcBonusTextEvidence(sideAnalysis = {}) {
+  const summary = sideAnalysis.candidateSourceSummary || {};
+  const entries = [];
+  const push = (label, text) => {
+    if (!text) return;
+    entries.push({
+      label,
+      text: String(text),
+      plusMarkerNeighborhoods: currentPcPlusMarkerNeighborhoods(text),
+      parsedNumbers: extractNumbersForZone(String(text)),
+      tokenAudits: sharedExtractNumericLikeTokenAudit(String(text)),
+    });
+  };
+
+  push("member-row", summary.memberCandidates?.text);
+  push("total-direct", summary.totalDirect?.text);
+  (summary.totalTraces || []).forEach((trace, index) =>
+    push(`total-trace-${index + 1}`, trace.text)
+  );
+  return entries;
+}
+
+function classifyCurrentPcBonusDiagnosticRow(row) {
+  const expectedBonus = Number(row.expectedBonus || 0);
+  const textEvidence = row.textEvidence || [];
+  const combinedText = textEvidence.map((entry) => entry.text).join("\n");
+  const exactParsed =
+    row.expectedBonusEvidence.some((location) => location !== "candidateSourceText") ||
+    textEvidence.some((entry) =>
+      (entry.parsedNumbers || []).some((value) => Math.abs(value - expectedBonus) <= 1)
+    );
+  const exactText = currentPcTextContainsValue(combinedText, expectedBonus);
+  const plusText = textEvidence.some((entry) => (entry.plusMarkerNeighborhoods || []).length > 0);
+  const allCandidates = uniqueNumbers([
+    ...(row.bonusCandidates || []),
+    ...(row.rawCandidates || []),
+  ]);
+  const nearby = allCandidates.filter(
+    (value) => value > 0 && Math.abs(value - expectedBonus) > 1 && Math.abs(value - expectedBonus) <= 5000
+  );
+  const digitDrop = allCandidates.filter((value) => {
+    if (!value) return false;
+    const expected = String(expectedBonus);
+    const actual = String(value);
+    return (
+      expected.endsWith(actual) ||
+      actual.endsWith(expected) ||
+      actual === expected.slice(0, -1) ||
+      actual === expected.slice(0, -2)
+    );
+  });
+  const compactDigits = combinedText.replace(/\D/g, "");
+  const fragmented = compactDigits.includes(String(expectedBonus));
+
+  if (exactParsed) return "exact bonus parsed evidence";
+  if (exactText) return "exact bonus in raw text but not parsed";
+  if (plusText && digitDrop.length > 0) return "digit-drop / truncated bonus candidate";
+  if (plusText && nearby.length > 0) return "plus-marker bonus OCR-confused nearby value";
+  if (fragmented) return "bonus digits only inside noisy concatenated text";
+  if (nearby.length > 0) return "nearby OCR-confused bonus candidate";
+  return "bonus absent from captured evidence";
+}
+
+function findCurrentPcBonusDiagnosticRows(analysis = []) {
+  const rows = [];
+  for (const item of analysis.filter((entry) => entry.expected)) {
+    for (const stage of stages) {
+      const stageKey = `stage${stage}`;
+      for (const side of sides) {
+        const sideAnalysis = item.stages?.[stageKey]?.[side];
+        const expectedStage = item.expectedData?.[stageKey];
+        if (!sideAnalysis || !expectedStage) continue;
+        const expectedMembers = expectedStage[`${side}Members`] || [];
+        const expectedBonus = Number(expectedStage[`${side}Bonus`] || 0);
+        const expectedTotal = Number(expectedStage[`${side}Total`] || 0);
+        if (expectedBonus <= 0) continue;
+        const selectedMembers = sideAnalysis.selectedMembers || [];
+        const selectedTotal = Number(sideAnalysis.selectedTotal || 0);
+        const selectedMemberSum = selectedMembers.reduce((sum, value) => sum + Number(value || 0), 0);
+        const selectedBonus = Math.max(0, selectedTotal - selectedMemberSum);
+        const membersExact = arraysEqualWithinOne(selectedMembers, expectedMembers);
+        if (membersExact && Math.abs(selectedBonus - expectedBonus) <= 1) continue;
+        if (!membersExact) continue;
+        const expectedTotalEvidence = currentPcEvidenceLocationsForValue(sideAnalysis, expectedTotal);
+        if (expectedTotalEvidence.length === 0) continue;
+        const expectedBonusEvidence = currentPcEvidenceLocationsForValue(sideAnalysis, expectedBonus);
+        if (expectedBonusEvidence.some((location) => location !== "candidateSourceText")) continue;
+
+        const textEvidence = collectCurrentPcBonusTextEvidence(sideAnalysis);
+        const row = {
+          image: item.fileName,
+          absolutePath: item.absolutePath,
+          stage,
+          side,
+          expectedMembers,
+          expectedBonus,
+          expectedTotal,
+          selectedMembers,
+          selectedBonus,
+          selectedTotal,
+          memberSum: selectedMemberSum,
+          rawCandidates: sideAnalysis.rawCandidates || [],
+          bonusCandidates: sideAnalysis.bonusCandidates || [],
+          displayedTotalCandidates: sideAnalysis.displayedTotalCandidates || [],
+          expectedTotalEvidence,
+          expectedBonusEvidence,
+          textEvidence,
+          roiProvenance:
+            sideAnalysis.currentPcExactRawEquationRecoverySimulation?.evidence?.roiProvenance ||
+            sideAnalysis.currentPcGroupedRawTokenEvidenceSimulation?.evidence?.roiProvenance ||
+            sideAnalysis.currentPcStage3SevenDigitBonusDisplacementSimulation?.evidence?.roiProvenance ||
+            null,
+        };
+        row.cluster = classifyCurrentPcBonusDiagnosticRow(row);
+        rows.push(row);
+      }
+    }
+  }
+  return rows;
+}
+
+function currentPcBonusDiagnosticVariantZones(image, baseZone) {
+  const zone = clampZoneToImage(baseZone, image);
+  const shiftX = Math.max(4, Math.round(zone.width * 0.12));
+  const shiftY = Math.max(3, Math.round(zone.height * 0.12));
+  const widen = Math.max(8, Math.round(zone.width * 0.18));
+  const taller = Math.max(6, Math.round(zone.height * 0.2));
+  return [
+    { label: "current-bonus-roi", zone, preset: "crown-bonus", pageSegMode: "6" },
+    {
+      label: "wider-bonus-roi",
+      zone: { ...zone, left: zone.left - widen, width: zone.width + widen * 2 },
+      preset: "crown-bonus",
+      pageSegMode: "6",
+    },
+    {
+      label: "taller-bonus-roi",
+      zone: { ...zone, top: zone.top - taller, height: zone.height + taller * 2 },
+      preset: "crown-bonus",
+      pageSegMode: "6",
+    },
+    {
+      label: "shifted-left-bonus-roi",
+      zone: { ...zone, left: zone.left - shiftX },
+      preset: "crown-bonus",
+      pageSegMode: "6",
+    },
+    {
+      label: "shifted-right-bonus-roi",
+      zone: { ...zone, left: zone.left + shiftX },
+      preset: "crown-bonus",
+      pageSegMode: "6",
+    },
+    {
+      label: "shifted-up-bonus-roi",
+      zone: { ...zone, top: zone.top - shiftY },
+      preset: "crown-bonus",
+      pageSegMode: "6",
+    },
+    {
+      label: "shifted-down-bonus-roi",
+      zone: { ...zone, top: zone.top + shiftY },
+      preset: "crown-bonus",
+      pageSegMode: "6",
+    },
+    { label: "score-slot-threshold-variant", zone, preset: "score-slot", pageSegMode: "6" },
+    { label: "single-line-psm7-variant", zone, preset: "crown-bonus", pageSegMode: "7" },
+  ];
+}
+
+async function writeCurrentPcBonusDiagnosticsArtifacts(analysis = []) {
+  const rows = findCurrentPcBonusDiagnosticRows(analysis);
+  await fs.rm(currentPcBonusDiagnosticsDir, { recursive: true, force: true });
+  await fs.mkdir(currentPcBonusDiagnosticsDir, { recursive: true });
+  const artifacts = [];
+
+  for (const row of rows) {
+    const image = await readImageSize(row.absolutePath);
+    const outDir = path.join(
+      currentPcBonusDiagnosticsDir,
+      safeArtifactName(`${row.image}-stage${row.stage}-${row.side}`)
+    );
+    await fs.mkdir(outDir, { recursive: true });
+    const stageZone = currentPcStageRegion(image, row.stage);
+    const stageCrop = await saveCurrentPcZoneArtifacts(
+      row.absolutePath,
+      image,
+      outDir,
+      `stage${row.stage}-full`,
+      stageZone,
+      { binarized: false }
+    );
+    const bonusZones = getCrownBonusZones(image, row.stage, row.side, "current-pc");
+    const baseZone = bonusZones[0];
+    const variantResults = [];
+    for (const variant of currentPcBonusDiagnosticVariantZones(image, baseZone)) {
+      const clamped = clampZoneToImage(variant.zone, image);
+      const crop = await saveCurrentPcZoneArtifacts(
+        row.absolutePath,
+        image,
+        outDir,
+        variant.label,
+        clamped,
+        { preset: variant.preset }
+      );
+      const ocr = await recognizeOcrZone(row.absolutePath, clamped, {
+        preset: variant.preset,
+        pageSegMode: variant.pageSegMode,
+        charWhitelist: "0123456789,+＋. ",
+      });
+      const tokenAudits = sharedExtractNumericLikeTokenAudit(ocr.text || "");
+      variantResults.push({
+        label: variant.label,
+        zone: clamped,
+        crop,
+        text: ocr.text || "",
+        numbers: ocr.numbers || [],
+        tokenAudits,
+        plusMarkerNeighborhoods: currentPcPlusMarkerNeighborhoods(ocr.text || ""),
+        exactExpectedBonusParsed: (ocr.numbers || []).some(
+          (value) => Math.abs(value - row.expectedBonus) <= 1
+        ),
+        exactExpectedBonusText: currentPcTextContainsValue(ocr.text || "", row.expectedBonus),
+        digitDropCandidates: (ocr.numbers || []).filter((value) => {
+          const expected = String(row.expectedBonus);
+          const actual = String(value || 0);
+          return expected.endsWith(actual) || actual === expected.slice(0, -1) || actual === expected.slice(0, -2);
+        }),
+      });
+    }
+    const artifact = {
+      ...row,
+      stageCrop,
+      variants: variantResults,
+      exactBonusRecoveredByVariants: variantResults
+        .filter((variant) => variant.exactExpectedBonusParsed || variant.exactExpectedBonusText)
+        .map((variant) => variant.label),
+      variantDigitDropEvidence: variantResults
+        .filter((variant) => (variant.digitDropCandidates || []).length > 0)
+        .map((variant) => ({
+          label: variant.label,
+          candidates: variant.digitDropCandidates,
+        })),
+    };
+    const jsonPath = path.join(outDir, "bonus-diagnostics.json");
+    await fs.writeFile(jsonPath, JSON.stringify(artifact, null, 2));
+    artifacts.push({
+      ...artifact,
+      artifact: path.relative(rootDir, jsonPath).replaceAll("\\", "/"),
+    });
+  }
+
+  const summaryPath = path.join(currentPcBonusDiagnosticsDir, "summary.json");
+  await fs.writeFile(summaryPath, JSON.stringify(artifacts, null, 2));
+  return {
+    rows: artifacts,
+    outputDir: path.relative(rootDir, currentPcBonusDiagnosticsDir).replaceAll("\\", "/"),
+    summaryPath: path.relative(rootDir, summaryPath).replaceAll("\\", "/"),
+  };
+}
+
+function buildCurrentPcBonusDiagnosticsReport(diagnostics) {
+  const rows = diagnostics?.rows || [];
+  const clusterCounts = new Map();
+  const recoveredByVariant = new Map();
+  for (const row of rows) {
+    clusterCounts.set(row.cluster, (clusterCounts.get(row.cluster) || 0) + 1);
+    for (const label of row.exactBonusRecoveredByVariants || []) {
+      recoveredByVariant.set(label, (recoveredByVariant.get(label) || 0) + 1);
+    }
+  }
+  const lines = [
+    "# Current-PC Bonus OCR Diagnostics",
+    "",
+    "This report is runner-only diagnostics. It inspects current-PC bonus ROI crops, alternate ROI geometry, preprocessing variants, and plus-marker token evidence for total/bonus rows where members are exact and displayed total evidence exists but bonus evidence is missing or OCR-confused. It does not change final OCR output.",
+    "",
+    "## Summary",
+    "",
+    `- affected rows audited: ${rows.length}`,
+    `- artifact directory: \`${diagnostics?.outputDir || "-"}\``,
+    `- exact bonus recovered by any variant: ${rows.filter((row) => (row.exactBonusRecoveredByVariants || []).length > 0).length}`,
+    `- rows with variant digit-drop evidence: ${rows.filter((row) => (row.variantDigitDropEvidence || []).length > 0).length}`,
+    "",
+    "## Diagnostic Cluster Breakdown",
+    "",
+    "| cluster | rows |",
+    "| --- | ---: |",
+  ];
+
+  for (const [cluster, count] of [...clusterCounts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))) {
+    lines.push(`| ${cluster} | ${count} |`);
+  }
+
+  lines.push("", "## Variant Exact-Bonus Recovery", "", "| variant | exact bonus rows |", "| --- | ---: |");
+  if (recoveredByVariant.size === 0) {
+    lines.push("| - | 0 |");
+  } else {
+    for (const [label, count] of [...recoveredByVariant.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))) {
+      lines.push(`| ${label} | ${count} |`);
+    }
+  }
+
+  lines.push(
+    "",
+    "## Affected Rows",
+    "",
+    "| image | stage/side | expected bonus | selected bonus | cluster | exact variant hits | digit-drop variant evidence | plus-marker neighborhoods | artifact |",
+    "| --- | --- | ---: | ---: | --- | --- | --- | --- | --- |"
+  );
+  for (const row of rows) {
+    const plus = (row.textEvidence || [])
+      .flatMap((entry) => entry.plusMarkerNeighborhoods || [])
+      .slice(0, 2)
+      .map(escapeMarkdownTableCell)
+      .join("<br>") || "-";
+    const digitDrop = (row.variantDigitDropEvidence || [])
+      .map((entry) => `${entry.label}: ${formatDebugNumbers(entry.candidates)}`)
+      .join("<br>") || "-";
+    lines.push(
+      `| ${row.image} | S${row.stage} ${row.side} | ${formatNumber(row.expectedBonus)} | ${formatNumber(row.selectedBonus) || "-"} | ${row.cluster} | ${(row.exactBonusRecoveredByVariants || []).join("<br>") || "-"} | ${digitDrop} | ${plus} | ${row.artifact} |`
+    );
+  }
+
+  lines.push(
+    "",
+    "## Simulation Decision",
+    "",
+    "No runner-only recovery simulation is enabled by this diagnostic pass. A later simulation should require at least two exact bonus positives from the same reliable variant/provenance, exact displayed total evidence, exact selected or reconstructable members, a unique equation, and zero false positives across all current-PC fixtures.",
+    "",
+    "## Production Recommendation",
+    "",
+    "Do not productionize yet. Bonus OCR evidence is still primarily digit-dropped, OCR-confused, fragmented, or absent; using total deltas to infer the bonus would be unsafe.",
+    ""
+  );
+
+  return lines.join("\n");
+}
+
 async function writeCurrentPcBaselineArtifacts(report) {
   const currentPcItems = report.filter((item) => item.source === "current-pc");
   await fs.rm(currentPcBaselineDir, { recursive: true, force: true });
@@ -8856,6 +9267,7 @@ async function main() {
   const args = process.argv.slice(2);
   const debugNext = args.includes("--debug-next");
   const currentPcBaseline = args.includes("--current-pc-baseline");
+  const currentPcBonusDiagnostics = args.includes("--current-pc-bonus-diagnostics");
   const debugArtifacts =
     currentPcBaseline ||
     args.includes("--debug-artifacts") ||
@@ -8879,6 +9291,7 @@ async function main() {
     .filter((value, index) =>
       value !== "--debug-next" &&
       value !== "--current-pc-baseline" &&
+      value !== "--current-pc-bonus-diagnostics" &&
       value !== "--debug-artifacts" &&
       value !== "--debug-ocr-artifacts" &&
       value !== "--fixed-roi-experiment" &&
@@ -8990,6 +9403,12 @@ async function main() {
   const currentPcBaselineArtifacts = currentPcBaseline
     ? await writeCurrentPcBaselineArtifacts(report)
     : null;
+  const currentPcBonusDiagnosticsArtifacts =
+    currentPcBaselineArtifacts && currentPcBonusDiagnostics
+      ? await writeCurrentPcBonusDiagnosticsArtifacts(
+          currentPcBaselineArtifacts.analysis.filter((item) => item.expected)
+        )
+      : null;
   if (currentPcBaselineArtifacts) {
     await fs.writeFile(
       currentPcBaselineReportPath,
@@ -9017,6 +9436,12 @@ async function main() {
       currentPcStage3SevenDigitParityReportPath,
       buildCurrentPcStage3SevenDigitBonusDisplacementParityReport(stage3SevenDigitParity)
     );
+    if (currentPcBonusDiagnosticsArtifacts) {
+      await fs.writeFile(
+        currentPcBonusDiagnosticsReportPath,
+        buildCurrentPcBonusDiagnosticsReport(currentPcBonusDiagnosticsArtifacts)
+      );
+    }
   }
 
   const expectedResults = report.filter((item) => item.expected);
@@ -9054,6 +9479,13 @@ async function main() {
               stage3SevenDigitParityReport: path.relative(rootDir, currentPcStage3SevenDigitParityReportPath).replaceAll("\\", "/"),
               outputDir: currentPcBaselineArtifacts.outputDir,
               summary: currentPcBaselineArtifacts.summaryPath,
+              bonusDiagnostics: currentPcBonusDiagnosticsArtifacts
+                ? {
+                    report: path.relative(rootDir, currentPcBonusDiagnosticsReportPath).replaceAll("\\", "/"),
+                    outputDir: currentPcBonusDiagnosticsArtifacts.outputDir,
+                    summary: currentPcBonusDiagnosticsArtifacts.summaryPath,
+                  }
+                : null,
             }
           : null,
         elapsedMs: report.map((item) => ({ image: item.image, elapsedMs: item.elapsedMs })),
