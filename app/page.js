@@ -126,6 +126,7 @@ import {
   applySmartphoneStage3EnemySevenDigitRecovery,
   buildCurrentPcCandidateSourceSummary,
   buildCurrentPcGroupedRawTokenEvidenceSimulation,
+  buildCurrentPcStage3SevenDigitBonusDisplacementSimulation,
   applyCurrentPcGroupedRawTokenRecovery,
   applyDesktopMemberShape,
   pickDesktopTotalFromMemberShape,
@@ -3219,7 +3220,7 @@ export default function Home() {
             ) {
               suspiciousReasons.push("bonus-candidate-selected-as-member");
             }
-            const sourceSummary = buildCurrentPcCandidateSourceSummary({
+            const currentPcCandidateSources = {
               totalDirect: {
                 tag: `${side}.total.direct`,
                 text: totalResult.text || "",
@@ -3253,7 +3254,8 @@ export default function Home() {
                 finalTotal: selectedTotal,
                 totalMinusMemberSum: selectedTotal - memberSum,
               },
-            });
+            };
+            const sourceSummary = buildCurrentPcCandidateSourceSummary(currentPcCandidateSources);
             const roiProvenance = {
               stage,
               side,
@@ -3261,7 +3263,7 @@ export default function Home() {
               members: isSelf ? currentPcZones.selfMembers : currentPcZones.enemyMembers,
               source: "browser-ui-current-pc-evidence",
             };
-            return buildCurrentPcGroupedRawTokenEvidenceSimulation({
+            const groupedRawSimulation = buildCurrentPcGroupedRawTokenEvidenceSimulation({
               stage,
               side,
               selectedMembers,
@@ -3273,6 +3275,21 @@ export default function Home() {
               sideAnalysis: { candidateSourceSummary: sourceSummary },
               roiProvenance,
             });
+            const stage3SevenDigitBonusDisplacementSimulation =
+              buildCurrentPcStage3SevenDigitBonusDisplacementSimulation({
+                stage,
+                side,
+                selectedMembers,
+                selectedTotal,
+                candidateSources: currentPcCandidateSources,
+                roiProvenance,
+              });
+
+            return {
+              ...groupedRawSimulation,
+              currentPcStage3SevenDigitBonusDisplacementSimulation:
+                stage3SevenDigitBonusDisplacementSimulation,
+            };
           };
 
           const selfCurrentPcEvidence = buildCurrentPcSideEvidence("self");
@@ -3330,9 +3347,22 @@ export default function Home() {
               evidence.rejectionReasons.join(",") || "none"
             } tokens=${sample || "none"}`;
           };
+          const formatStage3BonusDisplacementSummary = (side, evidence) => {
+            const simulation = evidence.currentPcStage3SevenDigitBonusDisplacementSimulation;
+            if (!simulation) return "";
+            const proposal = simulation.proposed;
+            const proposalText = proposal
+              ? ` members=${proposal.members.join(",")} bonus=${proposal.bonus || 0} total=${proposal.total}`
+              : "";
+            return `[currentPC stage3 7digit bonus-displacement ${side}] wouldApply=${
+              simulation.wouldApply ? "yes" : "no"
+            } rejection=${simulation.rejectionReasons.join(",") || "none"}${proposalText}`;
+          };
           currentPcEvidenceDebugText = [
             formatEvidenceSummary("self", selfCurrentPcEvidenceWithRecovery),
             formatEvidenceSummary("enemy", enemyCurrentPcEvidenceWithRecovery),
+            formatStage3BonusDisplacementSummary("self", selfCurrentPcEvidenceWithRecovery),
+            formatStage3BonusDisplacementSummary("enemy", enemyCurrentPcEvidenceWithRecovery),
           ].join("\n");
         }
 
