@@ -41,6 +41,11 @@ const debugArtifactsDir = path.join(rootDir, "tmp", "ocr-debug-artifacts");
 const fixedRoiExperimentDir = path.join(rootDir, "tmp", "ocr-roi-experiment");
 const roiAdoptionSimDir = path.join(rootDir, "tmp", "ocr-roi-adoption-sim");
 const currentPcBonusDiagnosticsDir = path.join(rootDir, "tmp", "current-pc-bonus-ocr-diagnostics");
+const currentPcStage3MemberRowDiagnosticsDir = path.join(
+  rootDir,
+  "tmp",
+  "current-pc-stage3-member-row-ocr-diagnostics"
+);
 const currentPcScreenshotDir = path.join(
   process.env.USERPROFILE || "C:\\Users\\gkhay",
   "Pictures",
@@ -63,6 +68,11 @@ const currentPcBonusDiagnosticsReportPath = path.join(
   rootDir,
   "docs",
   "current-pc-bonus-ocr-diagnostics.md"
+);
+const currentPcStage3MemberRowDiagnosticsReportPath = path.join(
+  rootDir,
+  "docs",
+  "current-pc-stage3-member-row-ocr-diagnostics.md"
 );
 let currentPcBaselineScanSummary = null;
 const unsupportedNextScreenMessage =
@@ -6233,7 +6243,7 @@ async function saveCurrentPcZoneArtifacts(imagePath, image, outDir, label, zone,
   if (options.binarized !== false) {
     binarizedPath = path.join(outDir, `${safeLabel}.binarized.png`);
     const binarized = await createPreprocessedStageBuffer(imagePath, clamped, {
-      preset: options.preset || "score-slot",
+      preset: Object.hasOwn(options, "preset") ? options.preset : "score-slot",
       pageSegMode: "6",
     });
     await fs.writeFile(binarizedPath, binarized);
@@ -7304,6 +7314,406 @@ function buildCurrentPcBonusDiagnosticsReport(diagnostics) {
     "## Production Recommendation",
     "",
     "Do not productionize yet. Bonus OCR evidence is still primarily digit-dropped, OCR-confused, fragmented, or absent; using total deltas to infer the bonus would be unsafe.",
+    ""
+  );
+
+  return lines.join("\n");
+}
+
+function currentPcExpectedStageSideValues(item, stage, side) {
+  const expectedStage = item.expectedData?.[`stage${stage}`] || {};
+  const expectedMembers = [...(expectedStage[`${side}Members`] || [])].map(
+    (value) => Number(value) || 0
+  );
+  while (expectedMembers.length < 3) expectedMembers.push(0);
+  const expectedBonus = Number(expectedStage[`${side}Bonus`] || 0);
+  const expectedTotal = Number(expectedStage[`${side}Total`] || 0);
+  return { expectedMembers, expectedBonus, expectedTotal };
+}
+
+function currentPcSelectedStageSideValues(sideAnalysis = {}) {
+  const selectedMembers = [...(sideAnalysis.selectedMembers || [])].map(
+    (value) => Number(value) || 0
+  );
+  while (selectedMembers.length < 3) selectedMembers.push(0);
+  const selectedTotal = Number(sideAnalysis.selectedTotal || 0);
+  const selectedMemberSum = selectedMembers.reduce((sum, value) => sum + value, 0);
+  const selectedBonus = Math.max(0, selectedTotal - selectedMemberSum);
+  return { selectedMembers, selectedBonus, selectedTotal, selectedMemberSum };
+}
+
+function findCurrentPcStage3MemberRowDiagnosticRows(analysis = []) {
+  const rows = [];
+  for (const item of analysis.filter((entry) => entry.expected)) {
+    const stage = 3;
+    const stageKey = `stage${stage}`;
+    for (const side of sides) {
+      const sideAnalysis = item.stages?.[stageKey]?.[side];
+      const expectedStage = item.expectedData?.[stageKey];
+      if (!sideAnalysis || !expectedStage) continue;
+      if (sideAnalysis.currentPcGroupedRawTokenRecovery?.applied) continue;
+      if (sideAnalysis.currentPcStage3SevenDigitBonusDisplacementRecovery?.applied) continue;
+
+      const { expectedMembers, expectedBonus, expectedTotal } =
+        currentPcExpectedStageSideValues(item, stage, side);
+      const { selectedMembers, selectedBonus, selectedTotal, selectedMemberSum } =
+        currentPcSelectedStageSideValues(sideAnalysis);
+      const missingSevenDigitMembers = expectedMembers
+        .map((value, index) => ({
+          role: `member${index + 1}`,
+          expected: value,
+          actual: selectedMembers[index] || 0,
+        }))
+        .filter(
+          (entry) =>
+            entry.expected >= 1000000 &&
+            entry.expected < 10000000 &&
+            Math.abs(entry.expected - entry.actual) > 1
+        );
+      if (missingSevenDigitMembers.length === 0) continue;
+
+      const rawText = stringifyCurrentPcEvidenceText(
+        sideAnalysis.candidateSourceSummary?.memberCandidates?.text || ""
+      );
+      const totalText = stringifyCurrentPcEvidenceText(
+        sideAnalysis.candidateSourceSummary?.totalDirect?.text || ""
+      );
+      const totalTraceText = stringifyCurrentPcEvidenceText(
+        sideAnalysis.candidateSourceSummary?.totalTraces || []
+      );
+      const rawCandidates = uniqueNumbers(sideAnalysis.rawCandidates || []);
+      const bonusCandidates = uniqueNumbers(sideAnalysis.bonusCandidates || []);
+      const displayedTotalCandidates = uniqueNumbers(
+        sideAnalysis.displayedTotalCandidates || []
+      );
+      const exactMissingMembersInRawCandidates = missingSevenDigitMembers.filter((entry) =>
+        rawCandidates.some((value) => Math.abs(value - entry.expected) <= 1)
+      );
+      const exactMissingMembersInRawText = missingSevenDigitMembers.filter((entry) =>
+        currentPcTextContainsValue(`${rawText}\n${totalTraceText}`, entry.expected)
+      );
+      const fragmentMembers = missingSevenDigitMembers.filter((entry) => {
+        const expected = String(entry.expected);
+        return rawCandidates.some((value) => {
+          const actual = String(value || 0);
+          return actual.length >= 4 && (expected.includes(actual) || actual.includes(expected));
+        });
+      });
+
+      rows.push({
+        image: item.fileName,
+        absolutePath: item.absolutePath,
+        stage,
+        side,
+        expectedMembers,
+        expectedBonus,
+        expectedTotal,
+        selectedMembers,
+        selectedBonus,
+        selectedTotal,
+        selectedMemberSum,
+        missingSevenDigitMembers,
+        rawText,
+        totalText,
+        totalTraceText,
+        rawCandidates,
+        bonusCandidates,
+        displayedTotalCandidates,
+        exactMissingMembersInRawCandidates,
+        exactMissingMembersInRawText,
+        fragmentMembers,
+      });
+    }
+  }
+  return rows;
+}
+
+function currentPcStage3MemberRowDiagnosticVariantZones(image, memberZone) {
+  const zone = clampZoneToImage(memberZone, image);
+  const shiftX = Math.max(5, Math.round(zone.width * 0.08));
+  const shiftY = Math.max(4, Math.round(zone.height * 0.12));
+  const widen = Math.max(10, Math.round(zone.width * 0.12));
+  const taller = Math.max(6, Math.round(zone.height * 0.18));
+  const tight = Math.max(4, Math.round(zone.height * 0.14));
+  const slotWidth = Math.round(zone.width / 3);
+  const slots = [0, 1, 2].map((slotIndex) => ({
+    label: `member${slotIndex + 1}-slot`,
+    zone: {
+      left: zone.left + slotWidth * slotIndex - Math.round(slotWidth * 0.08),
+      top: zone.top,
+      width:
+        slotIndex === 2
+          ? zone.width - slotWidth * 2 + Math.round(slotWidth * 0.12)
+          : slotWidth + Math.round(slotWidth * 0.16),
+      height: zone.height,
+    },
+    preset: "score-slot",
+    pageSegMode: "7",
+    zoneKind: "slot",
+  }));
+
+  return [
+    {
+      label: "current-member-row-roi",
+      zone,
+      preset: "score-slot",
+      pageSegMode: "6",
+      zoneKind: "row",
+    },
+    {
+      label: "wider-member-row-roi",
+      zone: { ...zone, left: zone.left - widen, width: zone.width + widen * 2 },
+      preset: "score-slot",
+      pageSegMode: "6",
+      zoneKind: "row",
+    },
+    {
+      label: "shifted-left-member-row-roi",
+      zone: { ...zone, left: zone.left - shiftX },
+      preset: "score-slot",
+      pageSegMode: "6",
+      zoneKind: "row",
+    },
+    {
+      label: "shifted-right-member-row-roi",
+      zone: { ...zone, left: zone.left + shiftX },
+      preset: "score-slot",
+      pageSegMode: "6",
+      zoneKind: "row",
+    },
+    {
+      label: "shifted-up-member-row-roi",
+      zone: { ...zone, top: zone.top - shiftY },
+      preset: "score-slot",
+      pageSegMode: "6",
+      zoneKind: "row",
+    },
+    {
+      label: "shifted-down-member-row-roi",
+      zone: { ...zone, top: zone.top + shiftY },
+      preset: "score-slot",
+      pageSegMode: "6",
+      zoneKind: "row",
+    },
+    {
+      label: "taller-member-row-roi",
+      zone: { ...zone, top: zone.top - taller, height: zone.height + taller * 2 },
+      preset: "score-slot",
+      pageSegMode: "6",
+      zoneKind: "row",
+    },
+    {
+      label: "tighter-vertical-member-row-roi",
+      zone: { ...zone, top: zone.top + tight, height: Math.max(1, zone.height - tight * 2) },
+      preset: "score-slot",
+      pageSegMode: "6",
+      zoneKind: "row",
+    },
+    {
+      label: "baseline-threshold-row-variant",
+      zone,
+      preset: null,
+      pageSegMode: "6",
+      zoneKind: "row",
+    },
+    {
+      label: "crown-bonus-threshold-row-variant",
+      zone,
+      preset: "crown-bonus",
+      pageSegMode: "6",
+      zoneKind: "row",
+    },
+    ...slots,
+  ];
+}
+
+function currentPcExactExpectedMembersByVariant(row, variant) {
+  return row.missingSevenDigitMembers.filter((entry) => {
+    const exactNumber = (variant.numbers || []).some(
+      (value) => Math.abs(value - entry.expected) <= 1
+    );
+    const exactText = currentPcTextContainsValue(variant.text || "", entry.expected);
+    return exactNumber || exactText;
+  });
+}
+
+function currentPcStage3MemberRowVariantCategory(row, variant) {
+  const exactMembers = currentPcExactExpectedMembersByVariant(row, variant);
+  if (exactMembers.length === 0) return null;
+  if (variant.zoneKind === "slot") return "exact 7-digit recovered by per-slot crop";
+  if (variant.label.includes("wider")) return "exact 7-digit recovered by wider ROI";
+  if (variant.label.includes("shifted")) return "exact 7-digit recovered by shifted ROI";
+  if (variant.label.includes("taller") || variant.label.includes("tighter")) {
+    return "exact 7-digit recovered by taller/tighter vertical ROI";
+  }
+  if (variant.label.includes("threshold") || variant.label.includes("crown-bonus")) {
+    return "exact 7-digit recovered by threshold variant";
+  }
+  return "exact 7-digit already present in current ROI OCR";
+}
+
+async function writeCurrentPcStage3MemberRowDiagnosticsArtifacts(analysis = []) {
+  const rows = findCurrentPcStage3MemberRowDiagnosticRows(analysis);
+  await fs.rm(currentPcStage3MemberRowDiagnosticsDir, { recursive: true, force: true });
+  await fs.mkdir(currentPcStage3MemberRowDiagnosticsDir, { recursive: true });
+  const artifacts = [];
+
+  for (const row of rows) {
+    const image = await readImageSize(row.absolutePath);
+    const fixed = getFixedOcrZones(image, row.stage, "current-pc");
+    const memberZone = row.side === "self" ? fixed.selfMembers : fixed.enemyMembers;
+    const outDir = path.join(
+      currentPcStage3MemberRowDiagnosticsDir,
+      safeArtifactName(`${row.image}-stage${row.stage}-${row.side}`)
+    );
+    await fs.mkdir(outDir, { recursive: true });
+    const stageCrop = await saveCurrentPcZoneArtifacts(
+      row.absolutePath,
+      image,
+      outDir,
+      `stage${row.stage}-full`,
+      currentPcStageRegion(image, row.stage),
+      { binarized: false }
+    );
+    const variants = [];
+    for (const variant of currentPcStage3MemberRowDiagnosticVariantZones(image, memberZone)) {
+      const clamped = clampZoneToImage(variant.zone, image);
+      const crop = await saveCurrentPcZoneArtifacts(
+        row.absolutePath,
+        image,
+        outDir,
+        variant.label,
+        clamped,
+        { preset: variant.preset }
+      );
+      const ocr = await recognizeOcrZone(row.absolutePath, clamped, {
+        preset: variant.preset || undefined,
+        pageSegMode: variant.pageSegMode,
+        charWhitelist: "0123456789,+＋. ",
+      });
+      const tokenAudits = sharedExtractNumericLikeTokenAudit(ocr.text || "");
+      const variantRow = {
+        label: variant.label,
+        zoneKind: variant.zoneKind,
+        zone: clamped,
+        crop,
+        text: ocr.text || "",
+        numbers: ocr.numbers || [],
+        tokenAudits,
+      };
+      variantRow.exactMissingMembers = currentPcExactExpectedMembersByVariant(row, variantRow);
+      variantRow.recoveryCategory = currentPcStage3MemberRowVariantCategory(row, variantRow);
+      variantRow.fragmentMatches = row.missingSevenDigitMembers
+        .map((entry) => ({
+          ...entry,
+          fragments: (ocr.numbers || []).filter((value) => {
+            const expected = String(entry.expected);
+            const actual = String(value || 0);
+            return actual.length >= 4 && expected.includes(actual);
+          }),
+        }))
+        .filter((entry) => entry.fragments.length > 0);
+      variants.push(variantRow);
+    }
+    const exactHits = variants
+      .filter((variant) => variant.exactMissingMembers.length > 0)
+      .map((variant) => ({
+        label: variant.label,
+        zoneKind: variant.zoneKind,
+        category: variant.recoveryCategory,
+        members: variant.exactMissingMembers,
+      }));
+    const artifact = {
+      ...row,
+      stageCrop,
+      variants,
+      exactHits,
+      exactRecoveredByAnyVariant: exactHits.length > 0,
+      perSlotExactHits: exactHits.filter((hit) => hit.zoneKind === "slot"),
+    };
+    const jsonPath = path.join(outDir, "stage3-member-row-diagnostics.json");
+    await fs.writeFile(jsonPath, JSON.stringify(artifact, null, 2));
+    artifacts.push({
+      ...artifact,
+      artifact: path.relative(rootDir, jsonPath).replaceAll("\\", "/"),
+    });
+  }
+
+  const summaryPath = path.join(currentPcStage3MemberRowDiagnosticsDir, "summary.json");
+  await fs.writeFile(summaryPath, JSON.stringify(artifacts, null, 2));
+  return {
+    rows: artifacts,
+    outputDir: path.relative(rootDir, currentPcStage3MemberRowDiagnosticsDir).replaceAll("\\", "/"),
+    summaryPath: path.relative(rootDir, summaryPath).replaceAll("\\", "/"),
+  };
+}
+
+function buildCurrentPcStage3MemberRowDiagnosticsReport(diagnostics) {
+  const rows = diagnostics?.rows || [];
+  const categoryCounts = new Map();
+  for (const row of rows) {
+    if ((row.exactHits || []).length === 0) {
+      categoryCounts.set("no variant improves evidence", (categoryCounts.get("no variant improves evidence") || 0) + 1);
+    }
+    for (const hit of row.exactHits || []) {
+      categoryCounts.set(hit.category, (categoryCounts.get(hit.category) || 0) + 1);
+    }
+  }
+  const lines = [
+    "# Current-PC Stage3 Member-Row OCR Diagnostics",
+    "",
+    "This is runner-only diagnostics for current-PC Stage3 member-row OCR quality. It writes ROI/preprocessing variants and per-slot crops under `tmp/`; it does not change final OCR output.",
+    "",
+    "## Summary",
+    "",
+    `- affected Stage3 rows audited: ${rows.length}`,
+    `- artifact directory: \`${diagnostics?.outputDir || "-"}\``,
+    `- rows where any variant found an exact missing 7-digit member: ${rows.filter((row) => row.exactRecoveredByAnyVariant).length}`,
+    `- rows where a per-slot crop found an exact missing 7-digit member: ${rows.filter((row) => (row.perSlotExactHits || []).length > 0).length}`,
+    "",
+    "## Diagnostic Outcome Categories",
+    "",
+    "| category | count |",
+    "| --- | ---: |",
+  ];
+  if (categoryCounts.size === 0) {
+    lines.push("| no rows | 0 |");
+  } else {
+    for (const [category, count] of [...categoryCounts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))) {
+      lines.push(`| ${category} | ${count} |`);
+    }
+  }
+
+  lines.push(
+    "",
+    "## Rows",
+    "",
+    "| image | side | expected members | selected members | expected bonus | expected total | missing 7-digit members | exact variant hits | per-slot helped | artifact |",
+    "| --- | --- | --- | --- | ---: | ---: | --- | --- | --- | --- |"
+  );
+  for (const row of rows) {
+    const exactHits =
+      (row.exactHits || [])
+        .map((hit) => `${hit.label}: ${hit.members.map((entry) => `${entry.role}=${entry.expected}`).join(", ")}`)
+        .join("<br>") || "-";
+    const perSlot =
+      (row.perSlotExactHits || [])
+        .map((hit) => `${hit.label}: ${hit.members.map((entry) => entry.expected).join(", ")}`)
+        .join("<br>") || "-";
+    lines.push(
+      `| ${row.image} | ${row.side} | ${formatDebugNumbers(row.expectedMembers)} | ${formatDebugNumbers(row.selectedMembers)} | ${formatNumber(row.expectedBonus) || "-"} | ${formatNumber(row.expectedTotal)} | ${row.missingSevenDigitMembers.map((entry) => `${entry.role} ${formatNumber(entry.expected)}->${formatNumber(entry.actual) || "-"}`).join("<br>")} | ${exactHits} | ${perSlot} | ${row.artifact} |`
+    );
+  }
+
+  lines.push(
+    "",
+    "## Simulation Decision",
+    "",
+    "No recovery simulation is enabled by this diagnostics pass. A future simulation should require at least two exact positives from the same variant/provenance, exact total evidence, exact bonus evidence when needed, a unique equation, and zero false positives across all 48 current-PC fixtures.",
+    "",
+    "## Production Recommendation",
+    "",
+    "Do not productionize ROI or preprocessing changes from this report until diagnostics show a repeatable exact-evidence capture pattern. The purpose here is to find whether better OCR input can produce exact candidates before selection.",
     ""
   );
 
@@ -9268,6 +9678,9 @@ async function main() {
   const debugNext = args.includes("--debug-next");
   const currentPcBaseline = args.includes("--current-pc-baseline");
   const currentPcBonusDiagnostics = args.includes("--current-pc-bonus-diagnostics");
+  const currentPcStage3MemberRowDiagnostics = args.includes(
+    "--current-pc-stage3-member-row-diagnostics"
+  );
   const debugArtifacts =
     currentPcBaseline ||
     args.includes("--debug-artifacts") ||
@@ -9292,6 +9705,7 @@ async function main() {
       value !== "--debug-next" &&
       value !== "--current-pc-baseline" &&
       value !== "--current-pc-bonus-diagnostics" &&
+      value !== "--current-pc-stage3-member-row-diagnostics" &&
       value !== "--debug-artifacts" &&
       value !== "--debug-ocr-artifacts" &&
       value !== "--fixed-roi-experiment" &&
@@ -9409,6 +9823,12 @@ async function main() {
           currentPcBaselineArtifacts.analysis.filter((item) => item.expected)
         )
       : null;
+  const currentPcStage3MemberRowDiagnosticsArtifacts =
+    currentPcBaselineArtifacts && currentPcStage3MemberRowDiagnostics
+      ? await writeCurrentPcStage3MemberRowDiagnosticsArtifacts(
+          currentPcBaselineArtifacts.analysis.filter((item) => item.expected)
+        )
+      : null;
   if (currentPcBaselineArtifacts) {
     await fs.writeFile(
       currentPcBaselineReportPath,
@@ -9440,6 +9860,14 @@ async function main() {
       await fs.writeFile(
         currentPcBonusDiagnosticsReportPath,
         buildCurrentPcBonusDiagnosticsReport(currentPcBonusDiagnosticsArtifacts)
+      );
+    }
+    if (currentPcStage3MemberRowDiagnosticsArtifacts) {
+      await fs.writeFile(
+        currentPcStage3MemberRowDiagnosticsReportPath,
+        buildCurrentPcStage3MemberRowDiagnosticsReport(
+          currentPcStage3MemberRowDiagnosticsArtifacts
+        )
       );
     }
   }
@@ -9484,6 +9912,13 @@ async function main() {
                     report: path.relative(rootDir, currentPcBonusDiagnosticsReportPath).replaceAll("\\", "/"),
                     outputDir: currentPcBonusDiagnosticsArtifacts.outputDir,
                     summary: currentPcBonusDiagnosticsArtifacts.summaryPath,
+                  }
+                : null,
+              stage3MemberRowDiagnostics: currentPcStage3MemberRowDiagnosticsArtifacts
+                ? {
+                    report: path.relative(rootDir, currentPcStage3MemberRowDiagnosticsReportPath).replaceAll("\\", "/"),
+                    outputDir: currentPcStage3MemberRowDiagnosticsArtifacts.outputDir,
+                    summary: currentPcStage3MemberRowDiagnosticsArtifacts.summaryPath,
                   }
                 : null,
             }
