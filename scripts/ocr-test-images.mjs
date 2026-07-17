@@ -84,6 +84,11 @@ const currentPcSlotRoiDiagnosticsReportPath = path.join(
   "docs",
   "current-pc-slot-specific-roi-candidate-investigation.md"
 );
+const currentPcCrownBonusSimulationReportPath = path.join(
+  rootDir,
+  "docs",
+  "current-pc-crown-bonus-rule-simulation.md"
+);
 let currentPcBaselineScanSummary = null;
 const unsupportedNextScreenMessage =
   "Next screen is unsupported for OCR. Use normal result or high-score screen.";
@@ -8832,6 +8837,237 @@ function proposalMatchesExpected(proposal, expected) {
   );
 }
 
+function currentPcSelectedBonus(sideAnalysis = {}) {
+  const selectedMembers = sideAnalysis?.selectedMembers || [];
+  const memberSum = selectedMembers.reduce((sum, value) => sum + Number(value || 0), 0);
+  return Math.max(0, Number(sideAnalysis?.selectedTotal || 0) - memberSum);
+}
+
+function currentPcMemberEvidenceForValue(sideAnalysis = {}, value, slotIndex) {
+  const normalizedValue = Number(value || 0);
+  if (normalizedValue <= 0) return [];
+  const memberCandidates = sideAnalysis?.candidateSourceSummary?.memberCandidates || {};
+  const evidence = [];
+  if ((memberCandidates.numbers || []).some((candidate) => Math.abs(Number(candidate || 0) - normalizedValue) <= 1)) {
+    const matchingTokens = (memberCandidates.tokenAudit || []).filter(
+      (token) => Math.abs(Number(token.normalizedValue || 0) - normalizedValue) <= 1
+    );
+    evidence.push({
+      source: "member-row",
+      role: `member${slotIndex + 1}`,
+      value: normalizedValue,
+      text: memberCandidates.text || "",
+      tokens: matchingTokens.map((token) => ({
+        rawToken: token.rawToken || token.token || "",
+        normalizedValue: token.normalizedValue || 0,
+        shape: token.shape || token.tokenShape || "",
+        textIndex: token.textIndex ?? null,
+      })),
+    });
+  }
+  if ((sideAnalysis?.rawCandidates || []).some((candidate) => Math.abs(Number(candidate || 0) - normalizedValue) <= 1)) {
+    evidence.push({
+      source: "raw-candidates",
+      role: `member${slotIndex + 1}`,
+      value: normalizedValue,
+    });
+  }
+  return evidence;
+}
+
+function currentPcTotalEvidenceForValue(sideAnalysis = {}, value) {
+  const normalizedValue = Number(value || 0);
+  if (normalizedValue <= 0) return [];
+  const summary = sideAnalysis?.candidateSourceSummary || {};
+  const evidence = [];
+  const pushEvidence = (entry) => {
+    if (!entry) return;
+    evidence.push({
+      source: entry.source,
+      value: normalizedValue,
+      text: entry.text || "",
+      pass: entry.pass || null,
+      tokens: entry.tokens || [],
+    });
+  };
+
+  if ((sideAnalysis.displayedTotalCandidates || []).some((candidate) => Math.abs(Number(candidate || 0) - normalizedValue) <= 1)) {
+    pushEvidence({ source: "displayed-total-candidates" });
+  }
+  if ((summary.totalDirect?.numbers || []).some((candidate) => Math.abs(Number(candidate || 0) - normalizedValue) <= 1)) {
+    pushEvidence({
+      source: "total-direct",
+      text: summary.totalDirect.text || "",
+      pass: summary.totalDirect.pass || null,
+      tokens: (summary.totalDirect.tokenAudit || []).filter(
+        (token) => Math.abs(Number(token.normalizedValue || 0) - normalizedValue) <= 1
+      ),
+    });
+  }
+  for (const trace of summary.totalTraces || []) {
+    if ((trace.numbers || []).some((candidate) => Math.abs(Number(candidate || 0) - normalizedValue) <= 1)) {
+      pushEvidence({
+        source: "total-trace",
+        text: trace.text || "",
+        pass: trace.pass || null,
+      });
+    }
+  }
+  for (const traceAudit of summary.totalTraceTokenAudit || []) {
+    const tokens = (traceAudit.tokens || []).filter(
+      (token) => Math.abs(Number(token.normalizedValue || 0) - normalizedValue) <= 1
+    );
+    if (tokens.length > 0) {
+      pushEvidence({
+        source: "total-trace-token-audit",
+        text: traceAudit.text || "",
+        pass: traceAudit.pass || null,
+        tokens: tokens.map((token) => ({
+          rawToken: token.rawToken || token.token || "",
+          normalizedValue: token.normalizedValue || 0,
+          shape: token.shape || token.tokenShape || "",
+          textIndex: token.textIndex ?? null,
+        })),
+      });
+    }
+  }
+  if ((sideAnalysis.rawCandidates || []).some((candidate) => Math.abs(Number(candidate || 0) - normalizedValue) <= 1)) {
+    pushEvidence({ source: "raw-candidates" });
+  }
+  return evidence;
+}
+
+function buildCurrentPcCrownBonusRuleStageSimulation(item, stage) {
+  const stageKey = `stage${stage}`;
+  const self = item.stages?.[stageKey]?.self;
+  const enemy = item.stages?.[stageKey]?.enemy;
+  const rejectionReasons = [];
+  if (!self || !enemy) {
+    return {
+      wouldApply: false,
+      rejectionReasons: ["missing-stage-side-analysis"],
+      proposed: null,
+      evidence: {},
+    };
+  }
+
+  const selected = {
+    self: {
+      members: [...(self.selectedMembers || [])].map((value) => Number(value || 0)).slice(0, 3),
+      total: Number(self.selectedTotal || 0),
+      bonus: currentPcSelectedBonus(self),
+    },
+    enemy: {
+      members: [...(enemy.selectedMembers || [])].map((value) => Number(value || 0)).slice(0, 3),
+      total: Number(enemy.selectedTotal || 0),
+      bonus: currentPcSelectedBonus(enemy),
+    },
+  };
+  for (const side of sides) {
+    while (selected[side].members.length < 3) selected[side].members.push(0);
+  }
+
+  const memberEvidence = { self: [], enemy: [] };
+  for (const side of sides) {
+    const sideAnalysis = side === "self" ? self : enemy;
+    for (let index = 0; index < 3; index += 1) {
+      const value = selected[side].members[index];
+      const evidence = currentPcMemberEvidenceForValue(sideAnalysis, value, index);
+      memberEvidence[side].push(evidence);
+      if (value <= 0) rejectionReasons.push(`missing-${side}-member${index + 1}`);
+      if (value > 0 && evidence.length === 0) {
+        rejectionReasons.push(`missing-${side}-member${index + 1}-evidence`);
+      }
+    }
+  }
+
+  const allMembers = [
+    ...selected.self.members.map((value, index) => ({ side: "self", slot: index + 1, value })),
+    ...selected.enemy.members.map((value, index) => ({ side: "enemy", slot: index + 1, value })),
+  ];
+  const positiveMembers = allMembers.filter((entry) => entry.value > 0);
+  if (positiveMembers.length !== 6) rejectionReasons.push("missing-member-evidence");
+
+  const maxValue = Math.max(...positiveMembers.map((entry) => entry.value), 0);
+  const maxEntries = positiveMembers.filter((entry) => entry.value === maxValue);
+  if (maxEntries.length !== 1) rejectionReasons.push("non-unique-global-rank1-member");
+  const rank1 = maxEntries[0] || null;
+  const winningSide = rank1?.side || null;
+  const calculatedBonus = maxValue > 0 ? Math.floor(maxValue * 0.2) : 0;
+  const proposed = {
+    self: {
+      members: selected.self.members,
+      bonus: winningSide === "self" ? calculatedBonus : 0,
+      total:
+        selected.self.members.reduce((sum, value) => sum + value, 0) +
+        (winningSide === "self" ? calculatedBonus : 0),
+    },
+    enemy: {
+      members: selected.enemy.members,
+      bonus: winningSide === "enemy" ? calculatedBonus : 0,
+      total:
+        selected.enemy.members.reduce((sum, value) => sum + value, 0) +
+        (winningSide === "enemy" ? calculatedBonus : 0),
+    },
+  };
+
+  const totalEvidence = {
+    self: currentPcTotalEvidenceForValue(self, proposed.self.total),
+    enemy: currentPcTotalEvidenceForValue(enemy, proposed.enemy.total),
+  };
+  if (totalEvidence.self.length === 0) rejectionReasons.push("missing-self-exact-total-evidence");
+  if (totalEvidence.enemy.length === 0) rejectionReasons.push("missing-enemy-exact-total-evidence");
+
+  const sideWouldChange = {};
+  for (const side of sides) {
+    sideWouldChange[side] =
+      !arraysEqualWithinOne(proposed[side].members, selected[side].members) ||
+      Math.abs(Number(proposed[side].bonus || 0) - Number(selected[side].bonus || 0)) > 1 ||
+      Math.abs(Number(proposed[side].total || 0) - Number(selected[side].total || 0)) > 1;
+  }
+  if (!sideWouldChange.self && !sideWouldChange.enemy) {
+    rejectionReasons.push("existing-result-already-satisfies-crown-bonus-rule");
+  }
+
+  const wouldApply = rejectionReasons.length === 0 && (sideWouldChange.self || sideWouldChange.enemy);
+  return {
+    wouldApply,
+    rejectionReasons,
+    selected,
+    proposed,
+    sideWouldChange,
+    evidence: {
+      memberEvidence,
+      totalEvidence,
+      rank1,
+      winningSide,
+      calculatedBonus,
+      uniqueInterpretation: rejectionReasons.length === 0,
+      rule: "bonus=floor(max(all 6 selected raw members)*0.20)",
+    },
+  };
+}
+
+function currentPcCrownBonusPotentialTarget(item, stage, side, stageSimulation) {
+  if (!hasCurrentPcSideFailure(item, stage, side)) return false;
+  const stageKey = `stage${stage}`;
+  const expectedSelf = currentPcExpectedStageSide(item, stage, "self");
+  const expectedEnemy = currentPcExpectedStageSide(item, stage, "enemy");
+  if (!expectedSelf || !expectedEnemy) return false;
+  const self = item.stages?.[stageKey]?.self;
+  const enemy = item.stages?.[stageKey]?.enemy;
+  if (!self || !enemy) return false;
+  if (!arraysEqualWithinOne(self.selectedMembers || [], expectedSelf.members || [])) return false;
+  if (!arraysEqualWithinOne(enemy.selectedMembers || [], expectedEnemy.members || [])) return false;
+  const expected = side === "self" ? expectedSelf : expectedEnemy;
+  const selected = stageSimulation?.selected?.[side];
+  if (!selected) return false;
+  return (
+    Math.abs(Number(selected.bonus || 0) - Number(expected.bonus || 0)) > 1 ||
+    Math.abs(Number(selected.total || 0) - Number(expected.total || 0)) > 1
+  );
+}
+
 function isCurrentPcStage3SelfDisplacementTarget(item) {
   const expected = currentPcExpectedStageSide(item, 3, "self");
   const actual = item.stages?.stage3?.self;
@@ -9114,6 +9350,243 @@ function buildCurrentPcGroupedRawTokenEvidenceSimulationEvaluation(analysis) {
       overlappingPunctuationAndRawOnlyCases,
     },
     additionalTruePositiveKeys,
+  };
+}
+
+function buildCurrentPcCrownBonusRuleSimulationEvaluation(analysis) {
+  const rows = [];
+  const accepted = [];
+  const blocked = [];
+  const falsePositiveRows = [];
+  const blockedReasonBreakdown = new Map();
+  const helpBreakdown = new Map();
+  const stageBreakdown = new Map();
+  let truePositives = 0;
+  let falsePositives = 0;
+  let falseNegatives = 0;
+  let blockedCount = 0;
+  let failingStageSideRows = 0;
+
+  const increment = (map, key) => map.set(key, (map.get(key) || 0) + 1);
+  const stageSimulations = new Map();
+  const getStageSimulation = (item, stage) => {
+    const key = `${item.fileName}|${stage}`;
+    if (!stageSimulations.has(key)) {
+      stageSimulations.set(key, buildCurrentPcCrownBonusRuleStageSimulation(item, stage));
+    }
+    return stageSimulations.get(key);
+  };
+
+  for (const item of analysis) {
+    if (!item.expected) continue;
+    for (const stage of stages) {
+      const stageSimulation = getStageSimulation(item, stage);
+      const stageKey = `stage${stage}`;
+      for (const side of sides) {
+        const sideAnalysis = item.stages?.[stageKey]?.[side];
+        const expected = currentPcExpectedStageSide(item, stage, side);
+        if (!sideAnalysis || !expected) continue;
+        const sideFailed = hasCurrentPcSideFailure(item, stage, side);
+        if (sideFailed) failingStageSideRows += 1;
+        const sideWouldApply = Boolean(stageSimulation?.wouldApply && stageSimulation.sideWouldChange?.[side]);
+        const proposed = stageSimulation?.proposed?.[side] || null;
+        const matchesExpected = proposalMatchesExpected(proposed, expected);
+        const target = currentPcCrownBonusPotentialTarget(item, stage, side, stageSimulation);
+        let classification = "not-evaluated";
+
+        if (sideWouldApply && matchesExpected) {
+          truePositives += 1;
+          classification = "true-positive";
+        } else if (sideWouldApply && !matchesExpected) {
+          falsePositives += 1;
+          classification = "false-positive";
+        } else if (!sideWouldApply && target) {
+          falseNegatives += 1;
+          classification = "false-negative";
+        } else if (sideFailed) {
+          blockedCount += 1;
+          classification = "blocked";
+        } else {
+          classification = "correctly-unchanged";
+        }
+
+        if (classification === "true-positive") {
+          increment(stageBreakdown, `stage${stage}`);
+          for (const reason of sideAnalysis.suspiciousReasons || []) {
+            if (reason === "selected-total-not-exact-member-sum-or-member-sum-plus-bonus") {
+              increment(helpBreakdown, "total/bonus selection failures");
+            }
+            if (reason === "bonus-candidate-selected-as-member") {
+              increment(helpBreakdown, "bonus/member displacement");
+            }
+            if (reason === "missing-selected-member") {
+              increment(helpBreakdown, "missing member");
+            }
+            if (reason === "clean-7digit-candidate-present-but-unselected") {
+              increment(helpBreakdown, "clean 7-digit signal");
+            }
+          }
+          if ((expected.bonus || 0) > 0 && !valueInList(expected.bonus, sideAnalysis.bonusCandidates || [])) {
+            increment(helpBreakdown, "missing bonus OCR");
+          }
+          accepted.push({
+            screenshot: item.fileName,
+            stage,
+            side,
+            selectedBefore: stageSimulation.selected,
+            proposedSelf: stageSimulation.proposed?.self || null,
+            proposedEnemy: stageSimulation.proposed?.enemy || null,
+            globalRank1Member: stageSimulation.evidence?.rank1 || null,
+            winningSide: stageSimulation.evidence?.winningSide || null,
+            calculatedCrownBonus: stageSimulation.evidence?.calculatedBonus || 0,
+            memberEvidence: stageSimulation.evidence?.memberEvidence || {},
+            totalEvidence: stageSimulation.evidence?.totalEvidence || {},
+            existingOcrBonus:
+              stageSimulation.selected?.[side]?.bonus === expected.bonus
+                ? "correct"
+                : stageSimulation.selected?.[side]?.bonus > 0
+                  ? "wrong-or-displaced"
+                  : "missing",
+            uniqueness: "selected six-member interpretation is unique; no alternate member values are considered by this strict simulation",
+            overlaps: {
+              groupedRaw: Boolean(sideAnalysis.currentPcGroupedRawTokenRecovery?.applied),
+              stage3SevenDigit: Boolean(
+                sideAnalysis.currentPcStage3SevenDigitBonusDisplacementRecovery?.applied
+              ),
+            },
+          });
+        }
+
+        if (classification === "false-positive") {
+          falsePositiveRows.push({
+            screenshot: item.fileName,
+            stage,
+            side,
+            expected,
+            proposed,
+            selectedBefore: stageSimulation.selected?.[side] || null,
+            rejectionReasons: stageSimulation.rejectionReasons || [],
+          });
+        }
+
+        if (classification === "blocked" || classification === "false-negative") {
+          const reasons = [];
+          const selectedStage = stageSimulation.selected || {};
+          const selectedSide = selectedStage[side] || {};
+          const expectedSelf = currentPcExpectedStageSide(item, stage, "self");
+          const expectedEnemy = currentPcExpectedStageSide(item, stage, "enemy");
+          const selfAnalysis = item.stages?.[stageKey]?.self;
+          const enemyAnalysis = item.stages?.[stageKey]?.enemy;
+          const selfMembersExact = arraysEqualWithinOne(selfAnalysis?.selectedMembers || [], expectedSelf?.members || []);
+          const enemyMembersExact = arraysEqualWithinOne(enemyAnalysis?.selectedMembers || [], expectedEnemy?.members || []);
+          const sideMembersExact = arraysEqualWithinOne(selectedSide.members || [], expected.members || []);
+
+          if ((selectedSide.members || []).some((value) => Number(value || 0) <= 0)) {
+            reasons.push("missing member evidence");
+          }
+          if (!sideMembersExact) reasons.push("member OCR error");
+          if (!selfMembersExact || !enemyMembersExact) reasons.push("insufficient cross-side evidence");
+          for (const reason of stageSimulation.rejectionReasons || []) {
+            if (reason.includes("missing") && reason.includes("exact-total")) {
+              reasons.push("missing exact total evidence");
+            } else if (reason.includes("non-unique")) {
+              reasons.push("competing member interpretation");
+            } else if (reason.includes("already-satisfies")) {
+              reasons.push("existing result already correct");
+            } else if (reason.includes("missing") && reason.includes("member")) {
+              reasons.push("missing member evidence");
+            }
+          }
+          if (sideAnalysis.currentPcGroupedRawTokenRecovery?.applied) {
+            reasons.push("existing production recovery already applies");
+          }
+          if (sideAnalysis.currentPcStage3SevenDigitBonusDisplacementRecovery?.applied) {
+            reasons.push("existing production recovery already applies");
+          }
+          if (reasons.length === 0) reasons.push("other");
+          const uniqueReasons = [...new Set(reasons)];
+          for (const reason of uniqueReasons) increment(blockedReasonBreakdown, reason);
+          blocked.push({
+            screenshot: item.fileName,
+            stage,
+            side,
+            classification,
+            reasons: uniqueReasons,
+            expected,
+            selectedBefore: selectedSide,
+            stageRejectionReasons: stageSimulation.rejectionReasons || [],
+          });
+        }
+
+        if (
+          sideFailed ||
+          classification === "true-positive" ||
+          classification === "false-positive" ||
+          classification === "false-negative"
+        ) {
+          rows.push({
+            screenshot: item.fileName,
+            stage,
+            side,
+            classification,
+            target,
+            wouldApply: sideWouldApply,
+            expected,
+            selectedBefore: stageSimulation.selected?.[side] || null,
+            proposed,
+            rejectionReasons: stageSimulation.rejectionReasons || [],
+            suspiciousReasons: sideAnalysis.suspiciousReasons || [],
+            overlaps: {
+              groupedRaw: Boolean(sideAnalysis.currentPcGroupedRawTokenRecovery?.applied),
+              stage3SevenDigit: Boolean(
+                sideAnalysis.currentPcStage3SevenDigitBonusDisplacementRecovery?.applied
+              ),
+            },
+          });
+        }
+      }
+    }
+  }
+
+  const mapToRows = (map) =>
+    [...map.entries()]
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  const groupedRawOverlap = accepted.filter((row) => row.overlaps.groupedRaw);
+  const stage3SevenDigitOverlap = accepted.filter((row) => row.overlaps.stage3SevenDigit);
+  const slotRoiTruePositiveKeys = new Set([
+    "スクリーンショット 2026-07-14 060656479.png|1|self",
+    "スクリーンショット 2026-07-16 063115987.png|1|enemy",
+  ]);
+  const slotRoiOverlap = accepted.filter((row) =>
+    slotRoiTruePositiveKeys.has(`${row.screenshot}|${row.stage}|${row.side}`)
+  );
+
+  return {
+    truePositives,
+    falsePositives,
+    falseNegatives,
+    blocked: blockedCount,
+    failingStageSideRows,
+    rows,
+    accepted,
+    falsePositiveRows,
+    blockedRows: blocked,
+    blockedReasonBreakdown: mapToRows(blockedReasonBreakdown),
+    helpBreakdown: mapToRows(helpBreakdown),
+    stageBreakdown: mapToRows(stageBreakdown),
+    overlap: {
+      groupedRaw: groupedRawOverlap.length,
+      stage3SevenDigit: stage3SevenDigitOverlap.length,
+      slotSpecificRoi: slotRoiOverlap.length,
+      uniqueAdditionalPotential:
+        truePositives -
+        new Set([
+          ...groupedRawOverlap.map((row) => `${row.screenshot}|${row.stage}|${row.side}`),
+          ...stage3SevenDigitOverlap.map((row) => `${row.screenshot}|${row.stage}|${row.side}`),
+          ...slotRoiOverlap.map((row) => `${row.screenshot}|${row.stage}|${row.side}`),
+        ]).size,
+    },
   };
 }
 
@@ -10535,6 +11008,198 @@ function buildCurrentPcBaselineReport(baseline) {
   return lines.join("\n");
 }
 
+function formatCurrentPcCrownBonusEvidence(evidence = []) {
+  if (!evidence || evidence.length === 0) return "-";
+  return evidence
+    .slice(0, 3)
+    .map((entry) => {
+      const tokenText = (entry.tokens || [])
+        .slice(0, 2)
+        .map((token) => token.rawToken || token.token || "")
+        .filter(Boolean)
+        .join(", ");
+      return [entry.source, entry.pass, tokenText].filter(Boolean).join(" ");
+    })
+    .join("<br>");
+}
+
+function buildCurrentPcCrownBonusRuleSimulationReport(simulation) {
+  const generatedAt = new Date().toISOString();
+  const lines = [
+    "# Current-PC Crown Bonus Rule Simulation",
+    "",
+    `Generated: ${generatedAt}`,
+    "",
+    "## Scope",
+    "",
+    "- runner-only simulation: yes",
+    "- final OCR output changed: no",
+    "- production recovery added: no",
+    "- smartphone OCR changed: no",
+    "- legacy desktop OCR changed: no",
+    "- filename/stage-specific correction logic: no",
+    "",
+    "## Confirmed Game Rule",
+    "",
+    "For each current-PC stage, six raw member scores are visible: three self and three enemy. The highest raw member score is rank 1, only that side receives the crown bonus, and the bonus is:",
+    "",
+    "```text",
+    "crownBonus = floor(max(all 6 raw member scores) * 0.20)",
+    "```",
+    "",
+    "The winning side total must equal member sum plus the calculated bonus. The other side total must equal its raw member sum.",
+    "",
+    "## Simulation Guards",
+    "",
+    "- Uses only the six currently selected member values as member evidence.",
+    "- Every selected member must be nonzero and present in current OCR member/raw evidence.",
+    "- No missing member is invented from arithmetic.",
+    "- No missing digit, near-match, digit-drop, or filename-specific inference is allowed.",
+    "- The global rank-1 member must be unique.",
+    "- Bonus is derived only from the confirmed game rule, not from OCR bonus text.",
+    "- Both self and enemy proposed totals must have exact OCR total evidence.",
+    "- The interpretation must be unique under this strict selected-member-only model.",
+    "- The simulation may propose bonus/total corrections, but it never changes final OCR output.",
+    "",
+    "## Summary",
+    "",
+    "| metric | count |",
+    "| --- | ---: |",
+    `| failing stage/side rows evaluated | ${simulation.failingStageSideRows} |`,
+    `| TP | ${simulation.truePositives} |`,
+    `| FP | ${simulation.falsePositives} |`,
+    `| FN | ${simulation.falseNegatives} |`,
+    `| blocked | ${simulation.blocked} |`,
+    `| accepted case count | ${simulation.accepted.length} |`,
+    "",
+    "## Helped Failure Families",
+    "",
+    "| family | rows |",
+    "| --- | ---: |"
+  ];
+
+  if (simulation.helpBreakdown.length === 0) lines.push("| - | 0 |");
+  for (const row of simulation.helpBreakdown) {
+    lines.push(`| ${row.name} | ${row.count} |`);
+  }
+
+  lines.push(
+    "",
+    "## Stage Breakdown",
+    "",
+    "| stage | accepted rows |",
+    "| --- | ---: |"
+  );
+  if (simulation.stageBreakdown.length === 0) lines.push("| - | 0 |");
+  for (const row of simulation.stageBreakdown) {
+    lines.push(`| ${row.name} | ${row.count} |`);
+  }
+
+  lines.push(
+    "",
+    "## Blocked Breakdown",
+    "",
+    "| reason | rows |",
+    "| --- | ---: |"
+  );
+  if (simulation.blockedReasonBreakdown.length === 0) lines.push("| - | 0 |");
+  for (const row of simulation.blockedReasonBreakdown) {
+    lines.push(`| ${row.name} | ${row.count} |`);
+  }
+
+  lines.push(
+    "",
+    "## Recovery Overlap",
+    "",
+    "| category | rows |",
+    "| --- | ---: |",
+    `| overlap with \`currentPcGroupedRawTokenRecovery\` | ${simulation.overlap.groupedRaw} |`,
+    `| overlap with \`applyCurrentPcStage3SevenDigitBonusDisplacementRecovery\` | ${simulation.overlap.stage3SevenDigit} |`,
+    `| overlap with documented slot-specific ROI TP cases | ${simulation.overlap.slotSpecificRoi} |`,
+    `| unique additional recovery potential | ${simulation.overlap.uniqueAdditionalPotential} |`,
+    "",
+    "## Accepted Cases",
+    "",
+    "| screenshot | stage | side | selected before | proposed self | proposed enemy | rank-1 | winning side | calculated bonus | existing OCR bonus | total evidence | why unique |",
+    "| --- | ---: | --- | --- | --- | --- | --- | --- | ---: | --- | --- | --- |"
+  );
+
+  if (simulation.accepted.length === 0) {
+    lines.push("| - | - | - | - | - | - | - | - | - | - | - | - |");
+  }
+  for (const row of simulation.accepted) {
+    const sideBefore = row.selectedBefore?.[row.side] || {};
+    const selectedBefore = `members ${formatDebugNumbers(sideBefore.members || [])}; bonus ${
+      sideBefore.bonus > 0 ? formatNumber(sideBefore.bonus) : "-"
+    }; total ${formatNumber(sideBefore.total || 0)}`;
+    const proposedSelf = `members ${formatDebugNumbers(row.proposedSelf?.members || [])}; bonus ${
+      row.proposedSelf?.bonus > 0 ? formatNumber(row.proposedSelf.bonus) : "-"
+    }; total ${formatNumber(row.proposedSelf?.total || 0)}`;
+    const proposedEnemy = `members ${formatDebugNumbers(row.proposedEnemy?.members || [])}; bonus ${
+      row.proposedEnemy?.bonus > 0 ? formatNumber(row.proposedEnemy.bonus) : "-"
+    }; total ${formatNumber(row.proposedEnemy?.total || 0)}`;
+    const rank1 = row.globalRank1Member
+      ? `${row.globalRank1Member.side} member${row.globalRank1Member.slot}=${formatNumber(
+          row.globalRank1Member.value
+        )}`
+      : "-";
+    const totalEvidence = [
+      `self: ${formatCurrentPcCrownBonusEvidence(row.totalEvidence?.self || [])}`,
+      `enemy: ${formatCurrentPcCrownBonusEvidence(row.totalEvidence?.enemy || [])}`,
+    ].join("<br>");
+    lines.push(
+      `| ${row.screenshot} | ${row.stage} | ${row.side} | ${selectedBefore} | ${proposedSelf} | ${proposedEnemy} | ${rank1} | ${row.winningSide || "-"} | ${formatNumber(row.calculatedCrownBonus || 0)} | ${row.existingOcrBonus} | ${totalEvidence} | ${row.uniqueness} |`
+    );
+  }
+
+  lines.push(
+    "",
+    "## False Positives",
+    "",
+    simulation.falsePositives === 0
+      ? "No false positives were found."
+      : "At least one false positive was found. Do not productionize until investigated.",
+    ""
+  );
+  if (simulation.falsePositiveRows.length > 0) {
+    lines.push("| screenshot | stage | side | expected | proposed | selected before |");
+    lines.push("| --- | ---: | --- | --- | --- | --- |");
+    for (const row of simulation.falsePositiveRows) {
+      lines.push(
+        `| ${row.screenshot} | ${row.stage} | ${row.side} | members ${formatDebugNumbers(
+          row.expected?.members || []
+        )}; bonus ${formatNumber(row.expected?.bonus || 0)}; total ${formatNumber(
+          row.expected?.total || 0
+        )} | members ${formatDebugNumbers(row.proposed?.members || [])}; bonus ${formatNumber(
+          row.proposed?.bonus || 0
+        )}; total ${formatNumber(row.proposed?.total || 0)} | ${JSON.stringify(
+          row.selectedBefore || {}
+        )} |`
+      );
+    }
+    lines.push("");
+  }
+
+  lines.push(
+    "## Production Readiness",
+    "",
+    simulation.falsePositives > 0
+      ? "Productionization is not recommended because the simulation produced false positives."
+      : simulation.truePositives > 0
+        ? "Productionization is not recommended in this task. The next step should be browser/UI evidence parity for the same member and total provenance before any final-output recovery is considered."
+        : "Productionization is not recommended because the simulation did not produce useful true positives.",
+    "",
+    "Recommended next step:",
+    "",
+    "1. Add browser/UI parity for the exact evidence used here: selected member provenance, exact total evidence, and final state timing.",
+    "2. Confirm parity on all 58 current-PC fixtures.",
+    "3. Only then consider a production candidate with the same guards and no added inference.",
+    ""
+  );
+
+  return lines.join("\n");
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const debugNext = args.includes("--debug-next");
@@ -10710,6 +11375,8 @@ async function main() {
     const groupedRawTokenSimulation = buildCurrentPcGroupedRawTokenEvidenceSimulationEvaluation(
       expectedCurrentPcAnalysis
     );
+    const crownBonusRuleSimulation =
+      buildCurrentPcCrownBonusRuleSimulationEvaluation(expectedCurrentPcAnalysis);
     const groupedRawParity = compareCurrentPcGroupedRawEvidenceParity(
       expectedCurrentPcAnalysis,
       groupedRawTokenSimulation
@@ -10725,6 +11392,14 @@ async function main() {
     await fs.writeFile(
       currentPcStage3SevenDigitParityReportPath,
       buildCurrentPcStage3SevenDigitBonusDisplacementParityReport(stage3SevenDigitParity)
+    );
+    await fs.writeFile(
+      currentPcCrownBonusSimulationReportPath,
+      buildCurrentPcCrownBonusRuleSimulationReport(crownBonusRuleSimulation)
+    );
+    await fs.writeFile(
+      path.join(currentPcBaselineDir, "crown-bonus-rule-simulation.json"),
+      JSON.stringify(crownBonusRuleSimulation, null, 2)
     );
     if (currentPcBonusDiagnosticsArtifacts) {
       await fs.writeFile(
@@ -10781,8 +11456,12 @@ async function main() {
               report: path.relative(rootDir, currentPcBaselineReportPath).replaceAll("\\", "/"),
               groupedRawParityReport: path.relative(rootDir, currentPcGroupedRawParityReportPath).replaceAll("\\", "/"),
               stage3SevenDigitParityReport: path.relative(rootDir, currentPcStage3SevenDigitParityReportPath).replaceAll("\\", "/"),
+              crownBonusRuleSimulationReport: path.relative(rootDir, currentPcCrownBonusSimulationReportPath).replaceAll("\\", "/"),
               outputDir: currentPcBaselineArtifacts.outputDir,
               summary: currentPcBaselineArtifacts.summaryPath,
+              crownBonusRuleSimulation: path
+                .relative(rootDir, path.join(currentPcBaselineDir, "crown-bonus-rule-simulation.json"))
+                .replaceAll("\\", "/"),
               bonusDiagnostics: currentPcBonusDiagnosticsArtifacts
                 ? {
                     report: path.relative(rootDir, currentPcBonusDiagnosticsReportPath).replaceAll("\\", "/"),
