@@ -128,6 +128,7 @@ import {
   buildCurrentPcCrownBonusRuleEvidence,
   buildCurrentPcGroupedRawTokenEvidenceSimulation,
   buildCurrentPcStage3SevenDigitBonusDisplacementSimulation,
+  applyCurrentPcCrownBonusRuleRecovery,
   applyCurrentPcGroupedRawTokenRecovery,
   applyCurrentPcStage3SevenDigitBonusDisplacementRecovery,
   applyDesktopMemberShape,
@@ -3378,10 +3379,28 @@ export default function Home() {
             self: buildCurrentPcCrownSideAnalysis("self", selfCurrentPcEvidenceWithRecovery),
             enemy: buildCurrentPcCrownSideAnalysis("enemy", enemyCurrentPcEvidenceWithRecovery),
           });
+          const currentPcCrownBonusRuleRecovery = applyCurrentPcCrownBonusRuleRecovery({
+            stage,
+            selectedSelfMembers: correctedSelfMembers,
+            selectedEnemyMembers: correctedEnemyMembers,
+            selectedSelfTotal: selfTotal,
+            selectedEnemyTotal: enemyTotal,
+            simulation: currentPcCrownBonusRuleSimulation,
+            layoutDetection: currentPcLayoutDetection,
+            mode: "current-pc",
+          });
+          if (currentPcCrownBonusRuleRecovery.applied) {
+            correctionLogs.push(currentPcCrownBonusRuleRecovery.message);
+            correctedSelfMembers = currentPcCrownBonusRuleRecovery.self.members;
+            correctedEnemyMembers = currentPcCrownBonusRuleRecovery.enemy.members;
+            selfTotal = currentPcCrownBonusRuleRecovery.self.total;
+            enemyTotal = currentPcCrownBonusRuleRecovery.enemy.total;
+          }
           currentPcGroupedRawEvidence.stages[`stage${stage}`] = {
             self: selfCurrentPcEvidenceWithRecovery,
             enemy: enemyCurrentPcEvidenceWithRecovery,
             currentPcCrownBonusRuleSimulation,
+            currentPcCrownBonusRuleRecovery,
           };
           const formatEvidenceSummary = (side, evidence) => {
             const tokens = evidence.evidence?.eligibleTokens || [];

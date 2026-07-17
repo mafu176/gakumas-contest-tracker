@@ -1,6 +1,6 @@
 # Current-PC Crown Bonus Rule Simulation
 
-Generated: 2026-07-17T10:34:44.565Z
+Generated: 2026-07-17T13:30:01.896Z
 
 ## Scope
 
@@ -37,7 +37,7 @@ The winning side total must equal member sum plus the calculated bonus. The othe
 
 | metric | count |
 | --- | ---: |
-| failing stage/side rows evaluated | 113 |
+| failing stage/side rows evaluated | 79 |
 | TP | 34 |
 | FP | 0 |
 | FN | 7 |
@@ -49,8 +49,8 @@ The winning side total must equal member sum plus the calculated bonus. The othe
 | family | rows |
 | --- | ---: |
 | missing bonus OCR | 33 |
+| total/bonus selection failures | 33 |
 | clean 7-digit signal | 14 |
-| total/bonus selection failures | 4 |
 
 ## Stage Breakdown
 
@@ -124,10 +124,12 @@ No false positives were found.
 
 ## Production Readiness
 
-Productionization is not recommended in this task. The next step should be browser/UI evidence parity for the same member and total provenance before any final-output recovery is considered.
+`applyCurrentPcCrownBonusRuleRecovery(...)` now uses this same strict shared evidence result after grouped/raw and Stage3 7-digit recoveries. The simulation remains as the audit surface for the pre-apply TP/FP boundary.
 
-Recommended next step:
+Production guard summary:
 
-1. Add browser/UI parity for the exact evidence used here: selected member provenance, exact total evidence, and final state timing.
-2. Confirm parity on all 58 current-PC fixtures.
-3. Only then consider a production candidate with the same guards and no added inference.
+1. Current-PC layout only.
+2. Use the selected six raw member scores after existing current-PC recoveries.
+3. Derive `floor(max(all 6 selected raw members) * 0.20)` for the unique global rank-1 side.
+4. Require exact displayed total evidence for both sides.
+5. Do not invent members, repair digits, use near matches, or accept competing interpretations.

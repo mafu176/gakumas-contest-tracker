@@ -2719,6 +2719,121 @@ export function applyCurrentPcStage3SevenDigitBonusDisplacementRecovery({
   };
 }
 
+export function applyCurrentPcCrownBonusRuleRecovery({
+  stage = 0,
+  selectedSelfMembers = [],
+  selectedEnemyMembers = [],
+  selectedSelfTotal = 0,
+  selectedEnemyTotal = 0,
+  simulation = null,
+  layoutDetection = null,
+  mode = "",
+}) {
+  const currentPcLayout =
+    mode === "current-pc" ||
+    layoutDetection?.detected ||
+    layoutDetection?.layoutFamily === "current-pc-2026-07-result" ||
+    layoutDetection?.family === "current-pc-2026-07-result";
+  const currentSelfMembers = normalizeCurrentPcRecoveryMembers(selectedSelfMembers);
+  const currentEnemyMembers = normalizeCurrentPcRecoveryMembers(selectedEnemyMembers);
+  const proposedSelfMembers = normalizeCurrentPcRecoveryMembers(simulation?.proposed?.self?.members || []);
+  const proposedEnemyMembers = normalizeCurrentPcRecoveryMembers(
+    simulation?.proposed?.enemy?.members || []
+  );
+  const proposedSelfBonus = Number(simulation?.proposed?.self?.bonus || 0);
+  const proposedEnemyBonus = Number(simulation?.proposed?.enemy?.bonus || 0);
+  const proposedSelfTotal = Number(simulation?.proposed?.self?.total || 0);
+  const proposedEnemyTotal = Number(simulation?.proposed?.enemy?.total || 0);
+  const calculatedBonus = Number(simulation?.evidence?.calculatedBonus || 0);
+  const rank1 = simulation?.evidence?.rank1 || null;
+  const winningSide = simulation?.evidence?.winningSide || null;
+  const totalEvidence = simulation?.evidence?.totalEvidence || {};
+  const rejectionReasons = [];
+
+  if (!currentPcLayout) rejectionReasons.push("not-current-pc-layout");
+  if (!simulation?.wouldApply) rejectionReasons.push("simulation-would-not-apply");
+  if (simulation?.rejectionReasons?.length) {
+    rejectionReasons.push(...simulation.rejectionReasons);
+  }
+  if (currentSelfMembers.filter((value) => value > 0).length !== 3) {
+    rejectionReasons.push("selected-self-does-not-have-three-members");
+  }
+  if (currentEnemyMembers.filter((value) => value > 0).length !== 3) {
+    rejectionReasons.push("selected-enemy-does-not-have-three-members");
+  }
+  if (!arraysEqualWithinOne(currentSelfMembers, proposedSelfMembers)) {
+    rejectionReasons.push("proposal-would-change-self-members");
+  }
+  if (!arraysEqualWithinOne(currentEnemyMembers, proposedEnemyMembers)) {
+    rejectionReasons.push("proposal-would-change-enemy-members");
+  }
+  if (!rank1 || !["self", "enemy"].includes(winningSide)) {
+    rejectionReasons.push("missing-unique-global-rank1-member");
+  }
+  if (calculatedBonus <= 0) rejectionReasons.push("missing-derived-crown-bonus");
+  if (winningSide === "self" && proposedEnemyBonus !== 0) {
+    rejectionReasons.push("losing-enemy-side-has-bonus");
+  }
+  if (winningSide === "enemy" && proposedSelfBonus !== 0) {
+    rejectionReasons.push("losing-self-side-has-bonus");
+  }
+  if (winningSide === "self" && proposedSelfBonus !== calculatedBonus) {
+    rejectionReasons.push("self-bonus-does-not-match-derived-crown-bonus");
+  }
+  if (winningSide === "enemy" && proposedEnemyBonus !== calculatedBonus) {
+    rejectionReasons.push("enemy-bonus-does-not-match-derived-crown-bonus");
+  }
+  const selfMemberSum = proposedSelfMembers.reduce((sum, value) => sum + value, 0);
+  const enemyMemberSum = proposedEnemyMembers.reduce((sum, value) => sum + value, 0);
+  if (Math.abs(selfMemberSum + proposedSelfBonus - proposedSelfTotal) > 1) {
+    rejectionReasons.push("self-proposal-equation-not-exact");
+  }
+  if (Math.abs(enemyMemberSum + proposedEnemyBonus - proposedEnemyTotal) > 1) {
+    rejectionReasons.push("enemy-proposal-equation-not-exact");
+  }
+  if (!Array.isArray(totalEvidence.self) || totalEvidence.self.length === 0) {
+    rejectionReasons.push("missing-self-exact-total-evidence");
+  }
+  if (!Array.isArray(totalEvidence.enemy) || totalEvidence.enemy.length === 0) {
+    rejectionReasons.push("missing-enemy-exact-total-evidence");
+  }
+  if (
+    Math.abs(Number(selectedSelfTotal || 0) - proposedSelfTotal) <= 1 &&
+    Math.abs(Number(selectedEnemyTotal || 0) - proposedEnemyTotal) <= 1 &&
+    arraysEqualWithinOne(currentSelfMembers, proposedSelfMembers) &&
+    arraysEqualWithinOne(currentEnemyMembers, proposedEnemyMembers)
+  ) {
+    rejectionReasons.push("selected-stage-already-matches-proposal");
+  }
+
+  const uniqueRejectionReasons = [...new Set(rejectionReasons)];
+  const formatTotalEvidence = (side) =>
+    (totalEvidence?.[side] || [])
+      .slice(0, 4)
+      .map((item) => `${item.source || "unknown"}:${item.value}`)
+      .join(";");
+
+  return {
+    applied: uniqueRejectionReasons.length === 0,
+    stage,
+    self: {
+      members: proposedSelfMembers,
+      bonus: proposedSelfBonus,
+      total: proposedSelfTotal,
+    },
+    enemy: {
+      members: proposedEnemyMembers,
+      bonus: proposedEnemyBonus,
+      total: proposedEnemyTotal,
+    },
+    rank1,
+    winningSide,
+    calculatedBonus,
+    reason: uniqueRejectionReasons.join(",") || "applied",
+    message: `currentPcCrownBonusRuleRecovery applied stage=${stage} self=${proposedSelfMembers.join(",")}+${proposedSelfBonus}=${proposedSelfTotal} enemy=${proposedEnemyMembers.join(",")}+${proposedEnemyBonus}=${proposedEnemyTotal} rank1=${winningSide}.member${rank1?.slot || "?"}:${rank1?.value || 0} derivedBonus=${calculatedBonus} totalEvidence=self[${formatTotalEvidence("self") || "exact"}] enemy[${formatTotalEvidence("enemy") || "exact"}]`,
+  };
+}
+
 function extractDigitGroups(text = "") {
   const normalized = String(text ?? "").replace(/[\uFF10-\uFF19]/g, (char) =>
     String.fromCharCode(char.charCodeAt(0) - 0xfee0)

@@ -15,6 +15,7 @@ import {
   applySmartphoneStage3SelfSevenDigitDisplacementRecovery,
   applySmartphoneStage3EnemySevenDigitRecovery,
   applyCurrentPcGroupedRawTokenRecovery,
+  applyCurrentPcCrownBonusRuleRecovery,
   applyCurrentPcStage3SevenDigitBonusDisplacementRecovery,
   buildCurrentPcCrownBonusRuleEvidence as sharedBuildCurrentPcCrownBonusRuleEvidence,
   buildCurrentPcCandidateSourceSummary as sharedBuildCurrentPcCandidateSourceSummary,
@@ -4519,6 +4520,8 @@ async function runOcrForImage(imagePath, options = {}) {
     let currentPcPreRecoveryAnalysisBySide = null;
     let currentPcProductionRecoveryBySide = null;
     let currentPcStage3SevenDigitBonusDisplacementRecoveryBySide = null;
+    let currentPcCrownBonusRuleSimulation = null;
+    let currentPcCrownBonusRuleRecovery = null;
     if (ocrSource === "current-pc") {
       const buildCurrentPcRecoverySideArtifact = (side) => {
         const isSelf = side === "self";
@@ -4695,6 +4698,51 @@ async function runOcrForImage(imagePath, options = {}) {
         applyCurrentPcStage3SevenDigitRecoveryToSide("self");
       currentPcStage3SevenDigitBonusDisplacementRecoveryBySide.enemy =
         applyCurrentPcStage3SevenDigitRecoveryToSide("enemy");
+
+      const buildCurrentPcCrownSideAnalysis = (side) => {
+        const isSelf = side === "self";
+        const sideAnalysis = currentPcPreRecoveryAnalysisBySide[side] || {};
+        return {
+          selectedMembers: isSelf ? self : enemy,
+          selectedTotal: isSelf ? selfTotal : enemyTotal,
+          rawCandidates: sideAnalysis.rawCandidates || [],
+          displayedTotalCandidates: sideAnalysis.displayedTotalCandidates || [],
+          bonusCandidates: sideAnalysis.bonusCandidates || [],
+          candidateSourceSummary: sideAnalysis.candidateSourceSummary || null,
+        };
+      };
+      currentPcCrownBonusRuleSimulation = sharedBuildCurrentPcCrownBonusRuleEvidence({
+        stage,
+        self: buildCurrentPcCrownSideAnalysis("self"),
+        enemy: buildCurrentPcCrownSideAnalysis("enemy"),
+      });
+      currentPcCrownBonusRuleRecovery = applyCurrentPcCrownBonusRuleRecovery({
+        stage,
+        selectedSelfMembers: self,
+        selectedEnemyMembers: enemy,
+        selectedSelfTotal: selfTotal,
+        selectedEnemyTotal: enemyTotal,
+        simulation: currentPcCrownBonusRuleSimulation,
+        layoutDetection,
+        mode: ocrSource,
+      });
+      if (currentPcCrownBonusRuleRecovery.applied) {
+        knownCorrectionDeltas.push({
+          pass: "currentPcCrownBonusRuleRecovery applied",
+          before: cloneStageState({ self, enemy, selfTotal, enemyTotal }),
+          after: cloneStageState({
+            self: currentPcCrownBonusRuleRecovery.self.members,
+            enemy: currentPcCrownBonusRuleRecovery.enemy.members,
+            selfTotal: currentPcCrownBonusRuleRecovery.self.total,
+            enemyTotal: currentPcCrownBonusRuleRecovery.enemy.total,
+          }),
+          message: currentPcCrownBonusRuleRecovery.message,
+        });
+        self = currentPcCrownBonusRuleRecovery.self.members;
+        enemy = currentPcCrownBonusRuleRecovery.enemy.members;
+        selfTotal = currentPcCrownBonusRuleRecovery.self.total;
+        enemyTotal = currentPcCrownBonusRuleRecovery.enemy.total;
+      }
     }
 
     const stageResult = {
@@ -4827,6 +4875,8 @@ async function runOcrForImage(imagePath, options = {}) {
               ?.currentPcStage3SevenDigitBonusDisplacementSimulation || null,
           currentPcStage3SevenDigitBonusDisplacementRecovery:
             currentPcStage3SevenDigitBonusDisplacementRecoveryBySide?.[side] || null,
+          currentPcCrownBonusRuleSimulation,
+          currentPcCrownBonusRuleRecovery,
           sparseTotalAsMemberSimulation,
           stage3SelfSevenDigitDisplacementSimulation,
           stage3EnemySevenDigitRecoverySimulation:
@@ -4844,6 +4894,8 @@ async function runOcrForImage(imagePath, options = {}) {
           height: image.height,
         },
         knownCorrectionDeltas,
+        currentPcCrownBonusRuleSimulation,
+        currentPcCrownBonusRuleRecovery,
         self: buildSideArtifact("self"),
         enemy: buildSideArtifact("enemy"),
       };
@@ -6898,6 +6950,8 @@ function buildCurrentPcSideAnalysis(stageResult, side, options = {}) {
     currentPcGroupedRawTokenRecovery: sideArtifact?.currentPcGroupedRawTokenRecovery || null,
     currentPcStage3SevenDigitBonusDisplacementRecovery:
       sideArtifact?.currentPcStage3SevenDigitBonusDisplacementRecovery || null,
+    currentPcCrownBonusRuleSimulation: sideArtifact?.currentPcCrownBonusRuleSimulation || null,
+    currentPcCrownBonusRuleRecovery: sideArtifact?.currentPcCrownBonusRuleRecovery || null,
   };
 }
 
@@ -8845,6 +8899,12 @@ function proposalMatchesExpected(proposal, expected) {
 
 function buildCurrentPcCrownBonusRuleStageSimulation(item, stage) {
   const stageKey = `stage${stage}`;
+  const artifactSimulation = item.stages?.[stageKey]?.debugArtifact?.currentPcCrownBonusRuleSimulation;
+  if (artifactSimulation) return artifactSimulation;
+  const sideArtifactSimulation =
+    item.stages?.[stageKey]?.self?.currentPcCrownBonusRuleSimulation ||
+    item.stages?.[stageKey]?.enemy?.currentPcCrownBonusRuleSimulation;
+  if (sideArtifactSimulation) return sideArtifactSimulation;
   return sharedBuildCurrentPcCrownBonusRuleEvidence({
     stage,
     self: item.stages?.[stageKey]?.self,
@@ -9396,6 +9456,12 @@ function buildCurrentPcCrownBonusRuleSimulationEvaluation(analysis) {
 
 function buildCurrentPcBrowserEquivalentCrownBonusRuleSimulation(item, stage) {
   const stageKey = `stage${stage}`;
+  const artifactSimulation = item.stages?.[stageKey]?.debugArtifact?.currentPcCrownBonusRuleSimulation;
+  if (artifactSimulation) return artifactSimulation;
+  const sideArtifactSimulation =
+    item.stages?.[stageKey]?.self?.currentPcCrownBonusRuleSimulation ||
+    item.stages?.[stageKey]?.enemy?.currentPcCrownBonusRuleSimulation;
+  if (sideArtifactSimulation) return sideArtifactSimulation;
   const buildSide = (side) => {
     const sideAnalysis = item.stages?.[stageKey]?.[side];
     if (!sideAnalysis) return null;
@@ -11171,16 +11237,18 @@ function buildCurrentPcCrownBonusRuleSimulationReport(simulation) {
     "## Production Readiness",
     "",
     simulation.falsePositives > 0
-      ? "Productionization is not recommended because the simulation produced false positives."
+      ? "Production recovery must remain disabled if this simulation produces false positives."
       : simulation.truePositives > 0
-        ? "Productionization is not recommended in this task. The next step should be browser/UI evidence parity for the same member and total provenance before any final-output recovery is considered."
-        : "Productionization is not recommended because the simulation did not produce useful true positives.",
+        ? "`applyCurrentPcCrownBonusRuleRecovery(...)` now uses this same strict shared evidence result after grouped/raw and Stage3 7-digit recoveries. The simulation remains as the audit surface for the pre-apply TP/FP boundary."
+        : "Production recovery has no useful true positives under the current strict guard.",
     "",
-    "Recommended next step:",
+    "Production guard summary:",
     "",
-    "1. Add browser/UI parity for the exact evidence used here: selected member provenance, exact total evidence, and final state timing.",
-    "2. Confirm parity on all 58 current-PC fixtures.",
-    "3. Only then consider a production candidate with the same guards and no added inference.",
+    "1. Current-PC layout only.",
+    "2. Use the selected six raw member scores after existing current-PC recoveries.",
+    "3. Derive `floor(max(all 6 selected raw members) * 0.20)` for the unique global rank-1 side.",
+    "4. Require exact displayed total evidence for both sides.",
+    "5. Do not invent members, repair digits, use near matches, or accept competing interpretations.",
     ""
   );
 
@@ -11196,7 +11264,7 @@ function buildCurrentPcCrownBonusRuleParityReport(parity, simulation) {
     "",
     "## Purpose",
     "",
-    "This report proves that the evidence used by `currentPcCrownBonusRuleSimulation` is available through shared runner/browser-equivalent plumbing. It is evidence-only: final OCR members, bonuses, and totals are not changed.",
+    "This report proves that the evidence used by `currentPcCrownBonusRuleSimulation` is available through shared runner/browser-equivalent plumbing. The same shared evidence result is now used by the production `applyCurrentPcCrownBonusRuleRecovery(...)` guard.",
     "",
     "## Shared Evidence Schema",
     "",
@@ -11230,16 +11298,18 @@ function buildCurrentPcCrownBonusRuleParityReport(parity, simulation) {
     "1. Current-PC OCR extracts stage/side member rows, total candidates, total traces, and candidate source summaries.",
     "2. Existing production recoveries run first: grouped/raw token recovery, then Stage3 7-digit bonus-displacement recovery.",
     "3. `buildCurrentPcCrownBonusRuleEvidence(...)` evaluates the post-recovery selected six-member stage state.",
-    "4. The simulation is recorded under baseline diagnostics only.",
+    "4. `applyCurrentPcCrownBonusRuleRecovery(...)` applies only when that shared strict evaluator says `wouldApply`.",
+    "5. The pre-apply simulation is still recorded for TP/FP audit counts.",
     "",
     "Browser/UI-equivalent flow:",
     "",
     "1. The UI current-PC OCR path builds the same candidate source summaries for each side.",
     "2. Existing production recoveries run first and may update the selected members/totals.",
     "3. The UI path calls `buildCurrentPcCrownBonusRuleEvidence(...)` after those recoveries.",
-    "4. The result is attached to debug/evidence state only; final `stageScores` are unchanged by the crown-bonus rule.",
+    "4. `applyCurrentPcCrownBonusRuleRecovery(...)` runs last and updates final current-PC stage totals only when the strict guard passes.",
+    "5. The correction log includes `currentPcCrownBonusRuleRecovery applied ...` with rank-1, derived bonus, proposed totals, and exact total evidence.",
     "",
-    "Intended future precedence if productionized: grouped/raw recovery first, Stage3 7-digit bonus-displacement second, crown-bonus rule last. This task does not productionize that final step.",
+    "Production precedence: grouped/raw recovery first, Stage3 7-digit bonus-displacement second, crown-bonus rule last.",
     "",
     "## Global Parity Counts",
     "",
@@ -11316,19 +11386,15 @@ function buildCurrentPcCrownBonusRuleParityReport(parity, simulation) {
 
   lines.push(
     "",
-    "## Production Readiness",
+    "## Production Status",
     "",
     parity.safetyRelevantMismatches === 0 &&
       parity.wouldApplyDisagreements === 0 &&
       parity.tpParityExact === simulation.truePositives
-      ? "Evidence parity is strong enough for a separate production-readiness audit next. This task still does not change final OCR output."
-      : "Do not productionize. Resolve parity mismatches before any final-output recovery.",
+      ? "`applyCurrentPcCrownBonusRuleRecovery(...)` is enabled for current-PC only using this exact shared guard."
+      : "Disable production recovery or resolve parity mismatches before relying on this guard.",
     "",
-    "Recommended next step:",
-    "",
-    "1. Perform a production-readiness audit for applying the same shared helper after existing current-PC recoveries.",
-    "2. Confirm browser/UI debug logs on representative TP rows.",
-    "3. Only then consider a production recovery that preserves these exact guards.",
+    "Recommended next step: real-browser spot-check one or two TP rows and confirm the correction log includes `currentPcCrownBonusRuleRecovery applied ...`.",
     ""
   );
 

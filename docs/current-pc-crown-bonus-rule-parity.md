@@ -1,10 +1,10 @@
 # Current-PC Crown Bonus Rule Parity
 
-Generated: 2026-07-17T10:34:44.573Z
+Generated: 2026-07-17T13:30:01.902Z
 
 ## Purpose
 
-This report proves that the evidence used by `currentPcCrownBonusRuleSimulation` is available through shared runner/browser-equivalent plumbing. It is evidence-only: final OCR members, bonuses, and totals are not changed.
+This report proves that the evidence used by `currentPcCrownBonusRuleSimulation` is available through shared runner/browser-equivalent plumbing. The same shared evidence result is now used by the production `applyCurrentPcCrownBonusRuleRecovery(...)` guard.
 
 ## Shared Evidence Schema
 
@@ -38,16 +38,18 @@ Runner flow:
 1. Current-PC OCR extracts stage/side member rows, total candidates, total traces, and candidate source summaries.
 2. Existing production recoveries run first: grouped/raw token recovery, then Stage3 7-digit bonus-displacement recovery.
 3. `buildCurrentPcCrownBonusRuleEvidence(...)` evaluates the post-recovery selected six-member stage state.
-4. The simulation is recorded under baseline diagnostics only.
+4. `applyCurrentPcCrownBonusRuleRecovery(...)` applies only when that shared strict evaluator says `wouldApply`.
+5. The pre-apply simulation is still recorded for TP/FP audit counts.
 
 Browser/UI-equivalent flow:
 
 1. The UI current-PC OCR path builds the same candidate source summaries for each side.
 2. Existing production recoveries run first and may update the selected members/totals.
 3. The UI path calls `buildCurrentPcCrownBonusRuleEvidence(...)` after those recoveries.
-4. The result is attached to debug/evidence state only; final `stageScores` are unchanged by the crown-bonus rule.
+4. `applyCurrentPcCrownBonusRuleRecovery(...)` runs last and updates final current-PC stage totals only when the strict guard passes.
+5. The correction log includes `currentPcCrownBonusRuleRecovery applied ...` with rank-1, derived bonus, proposed totals, and exact total evidence.
 
-Intended future precedence if productionized: grouped/raw recovery first, Stage3 7-digit bonus-displacement second, crown-bonus rule last. This task does not productionize that final step.
+Production precedence: grouped/raw recovery first, Stage3 7-digit bonus-displacement second, crown-bonus rule last.
 
 ## Global Parity Counts
 
@@ -115,12 +117,8 @@ Intended future precedence if productionized: grouped/raw recovery first, Stage3
 | --- | ---: | --- | --- | --- |
 | - | - | - | - | no |
 
-## Production Readiness
+## Production Status
 
-Evidence parity is strong enough for a separate production-readiness audit next. This task still does not change final OCR output.
+`applyCurrentPcCrownBonusRuleRecovery(...)` is enabled for current-PC only using this exact shared guard.
 
-Recommended next step:
-
-1. Perform a production-readiness audit for applying the same shared helper after existing current-PC recoveries.
-2. Confirm browser/UI debug logs on representative TP rows.
-3. Only then consider a production recovery that preserves these exact guards.
+Recommended next step: real-browser spot-check one or two TP rows and confirm the correction log includes `currentPcCrownBonusRuleRecovery applied ...`.
