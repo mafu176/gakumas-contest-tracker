@@ -8,7 +8,7 @@ For each current-PC result stage:
 - The highest raw member score among those six is rank 1.
 - Only the side containing that rank-1 member receives a crown bonus.
 - The displayed member values are raw scores before bonus.
-- Proposed crown bonus:
+- Crown bonus:
 
 ```text
 crownBonus = floor(max(all 6 raw member scores) * 0.20)
@@ -38,17 +38,47 @@ Ties for rank 1 were not considered because no current fixture requires tie hand
 - smartphone OCR changed: no
 - legacy desktop OCR changed: no
 
-## Result
+## Confirmed Fixture Correction
+
+The previous validation found one mismatch in `2026-07-15-184101432.json` Stage1 self. The original screenshot was manually rechecked, and the mismatch was confirmed to be an expected-fixture transcription error.
+
+Corrected Stage1 self values:
+
+| field | corrected value |
+| --- | --- |
+| members | `268326 / 466573 / 293299` |
+| bonus | `93314` |
+| total | `1121512` |
+
+Arithmetic:
+
+```text
+floor(466573 * 0.20) = 93314
+268326 + 466573 + 293299 + 93314 = 1121512
+```
+
+The incorrect fixture values were:
+
+```text
+selfBonus = 183314
+selfTotal = 1211512
+```
+
+No other expected fixture values were changed.
+
+## Final Validation Result
+
+After correcting the confirmed fixture transcription error, the crown-bonus rule matches the full current-PC expected fixture set.
 
 | check | count |
 | --- | ---: |
 | stages checked | 174 |
-| exact floor-rule matches | 173 |
-| mismatches | 1 |
+| exact floor-rule matches | 174 |
+| mismatches | 0 |
 | stages with exactly one bonus side | 174 |
-| stages where both totals match the floor rule | 173 |
+| stages where both totals match the floor rule | 174 |
 
-The 20% floor rule is strongly supported but not fully confirmed against the fixture set because one expected fixture row is inconsistent with the rule.
+Conclusion: `crownBonus = floor(max(all 6 raw member scores) * 0.20)` is confirmed for all 174 current-PC fixture stages.
 
 ## Rounding Comparison
 
@@ -56,7 +86,7 @@ The expected bonus for the rank-1 side was compared against `floor`, `round`, an
 
 | method | matches |
 | --- | ---: |
-| floor | 173 |
+| floor | 174 |
 | round-to-nearest | 99 |
 | ceil | 36 |
 
@@ -64,53 +94,9 @@ Additional rounding facts:
 
 - non-integer `maxScore * 0.20` cases: 138
 - cases where floor, round, and ceil are all the same integer: 36
-- cases that uniquely distinguish floor from round/ceil and match floor: 137
+- cases that uniquely distinguish floor from round/ceil and match floor: 138
 
-Conclusion: among the matching rows, the fixture set strongly favors `floor(maxScore * 0.20)` over round-to-nearest or ceil.
-
-## Mismatches
-
-### 2026-07-15-184101432.json Stage1
-
-| field | value |
-| --- | --- |
-| screenshot / fixture | `2026-07-15-184101432.json` |
-| stage | 1 |
-| self raw members | `268326 / 466573 / 293299` |
-| enemy raw members | `322573 / 164147 / 62645` |
-| highest raw score | `466573` |
-| winning side | self |
-| fixture self bonus | `183314` |
-| fixture enemy bonus | `0` |
-| calculated floor bonus | `93314` |
-| round-to-nearest bonus | `93315` |
-| ceil bonus | `93315` |
-| fixture self total | `1211512` |
-| fixture enemy total | `549365` |
-| calculated self total | `1121512` |
-| calculated enemy total | `549365` |
-
-The enemy side satisfies the rule exactly. The self side does not:
-
-```text
-268326 + 466573 + 293299 + 93314 = 1121512
-```
-
-The fixture currently has:
-
-```text
-selfBonus = 183314
-selfTotal = 1211512
-```
-
-This mismatch is most likely a fixture transcription error rather than a different game rule, because:
-
-- the fixture bonus differs from the calculated floor bonus by exactly `90000`
-- the fixture total differs from the calculated self total by exactly `90000`
-- all other 173 stages match the floor rule
-- round and ceil are `93315`, which do not explain `183314`
-
-The fixture was not changed by this validation task.
+Conclusion: the fixture set confirms floor rounding. All non-integer bonus cases distinguish floor from round-to-nearest and ceil.
 
 ## Structural Rule
 
@@ -123,31 +109,62 @@ The stronger structural rule was also checked:
 Result:
 
 - exactly one side has a nonzero bonus in all 174 stages
-- both totals satisfy the structural rule in 173 stages
-- the only structural mismatch is `2026-07-15-184101432.json` Stage1
+- both side totals satisfy the structural rule in all 174 stages
 
-## OCR Impact Audit
+## Diagnostics-Only OCR Impact Audit
 
-The requested OCR impact audit was not performed because it was explicitly gated on the rule matching all 174 stages. The current fixture set has one mismatch, so using the rule as an OCR validation constraint would be premature until that fixture is reviewed or corrected.
+Because the rule now matches all 174 stages, a diagnostics-only impact audit was run against the current 58-fixture OCR baseline. This did not change OCR output and did not add a recovery simulation.
 
-If the Stage1 fixture for `2026-07-15-184101432` is confirmed/corrected and the rule reaches 174/174, the next diagnostics-only impact audit should classify failing current-PC rows by whether the rule can provide:
+The audit classified failing stage/side rows by whether the confirmed crown-bonus rule could help validate or potentially correct OCR output. Categories can overlap because a row may have both a wrong bonus and a wrong total, or may be useful for validation while still blocked by member uncertainty.
 
-- deterministic bonus validation when all raw members are already correct
-- deterministic total validation when all raw members are already correct
-- a unique bonus/member displacement interpretation
-- a unique total/bonus selection interpretation
-- a blocked result because a member is missing or wrong
-- a blocked result because multiple member candidate sets remain ambiguous
+| impact category | rows |
+| --- | ---: |
+| failing stage/side rows audited | 113 |
+| all six member scores already correct enough to determine rank 1 and exact bonus | 41 |
+| one side's three members are correct and global rank 1 is safely known | 41 |
+| correct members already known, current bonus is wrong or missing | 42 |
+| correct members already known, current total is wrong | 42 |
+| bonus/member displacement could be resolved by the rule | 20 |
+| total/bonus selection could be resolved by the rule | 42 |
+| Stage3 7-digit displacement could gain a unique interpretation | 0 |
+| missing member prevents use | 17 |
+| member OCR error prevents use | 54 |
+| competing member candidate sets remain ambiguous | 52 |
+| rule gives useful validation but not enough evidence to change output | 71 |
+| potential unique safe correction under conservative evidence requirements | 41 |
+
+Overlap with existing or recent recovery work:
+
+| overlap category | rows |
+| --- | ---: |
+| overlap with `currentPcGroupedRawTokenRecovery` | 0 |
+| overlap with `currentPcStage3SevenDigitBonusDisplacementRecovery` | 0 |
+| overlap with slot-specific ROI true-positive cases | 2 |
+
+The zero overlap with the two production recoveries is expected in this audit because it analyzed rows that still fail in the current baseline; rows already recovered by production logic no longer appear as failing rows.
+
+## Interpretation
+
+The crown-bonus rule is more promising than slot-specific ROI as the next diagnostics target:
+
+- crown-bonus rule validation is game-rule-backed and matches 174/174 stages
+- diagnostics found 41 potential unique safe correction rows
+- slot-specific ROI previously had only 2 true-positive rows
+- the rule provides exact bonus and total validation without relying on near-match OCR guesses
+
+However, this still should not be productionized directly. A potential correction must still require reliable member evidence, reliable identification of the global highest raw member, exact total consistency, unique interpretation, and no competing member interpretation.
 
 ## Recommendation
 
-Do not productionize crown-bonus OCR recovery yet.
+Do not add production OCR recovery yet.
 
 Recommended next step:
 
-1. Manually review `2026-07-15_184101432.png` Stage1 self.
-2. If the visible bonus/total are `+93314` and `1121512`, correct only the expected fixture in a separate task.
-3. Re-run this validation.
-4. If the rule reaches 174/174, run the diagnostics-only OCR impact audit.
+1. Add a runner-only `currentPcCrownBonusRuleSimulation`.
+2. Require all six raw member scores to be reliable enough to identify the unique rank-1 member.
+3. Require `bonus = floor(maxScore * 0.20)`.
+4. Require exact side total equations.
+5. Reject rows with missing members, member OCR errors, competing member sets, or ambiguous bonus/member displacement.
+6. Measure TP / FP / FN / blocked across all 58 current-PC fixtures before considering production recovery.
 
-This rule looks more promising than slot-specific ROI candidate recovery as a future validation constraint because it is stage-global, game-rule-backed, and already matches 173/174 fixture stages. The current blocker is fixture consistency, not OCR evidence quality.
+The confirmed game rule is now strong enough for a dedicated runner-only simulation in the next task.
