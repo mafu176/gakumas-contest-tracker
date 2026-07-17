@@ -46,6 +46,11 @@ const currentPcStage3MemberRowDiagnosticsDir = path.join(
   "tmp",
   "current-pc-stage3-member-row-ocr-diagnostics"
 );
+const currentPcSlotRoiDiagnosticsDir = path.join(
+  rootDir,
+  "tmp",
+  "current-pc-slot-roi-diagnostics"
+);
 const currentPcScreenshotDir = path.join(
   process.env.USERPROFILE || "C:\\Users\\gkhay",
   "Pictures",
@@ -73,6 +78,11 @@ const currentPcStage3MemberRowDiagnosticsReportPath = path.join(
   rootDir,
   "docs",
   "current-pc-stage3-member-row-ocr-diagnostics.md"
+);
+const currentPcSlotRoiDiagnosticsReportPath = path.join(
+  rootDir,
+  "docs",
+  "current-pc-slot-specific-roi-candidate-investigation.md"
 );
 let currentPcBaselineScanSummary = null;
 const unsupportedNextScreenMessage =
@@ -7890,6 +7900,688 @@ function buildCurrentPcStage3MemberRowDiagnosticsReport(diagnostics) {
   return lines.join("\n");
 }
 
+function currentPcNormalizedBox(zone, image) {
+  const clamped = clampZoneToImage(zone, image);
+  return {
+    left: Number((clamped.left / image.width).toFixed(4)),
+    top: Number((clamped.top / image.height).toFixed(4)),
+    width: Number((clamped.width / image.width).toFixed(4)),
+    height: Number((clamped.height / image.height).toFixed(4)),
+  };
+}
+
+function currentPcSlotRoiDefinitions(image, stage, side) {
+  const fixed = getFixedOcrZones(image, stage, "current-pc");
+  const totalZone = side === "self" ? fixed.selfTotal : fixed.enemyTotal;
+  const memberZone = side === "self" ? fixed.selfMembers : fixed.enemyMembers;
+  const bonusZones = getCrownBonusZones(image, stage, side, "current-pc");
+  const row = clampZoneToImage(memberZone, image);
+  const slotWidth = row.width / 3;
+  const overlap = Math.max(4, Math.round(slotWidth * 0.08));
+  const memberSlots = [0, 1, 2].map((index) => {
+    const left = Math.round(row.left + slotWidth * index - (index === 0 ? 0 : overlap));
+    const right = Math.round(
+      row.left + slotWidth * (index + 1) + (index === 2 ? 0 : overlap)
+    );
+    return {
+      role: `member${index + 1}`,
+      slotIndex: index,
+      label: `member${index + 1}-slot`,
+      zone: clampZoneToImage(
+        {
+          left,
+          top: row.top,
+          width: right - left,
+          height: row.height,
+        },
+        image
+      ),
+      preset: "score-slot",
+      pageSegMode: "7",
+    };
+  });
+
+  return [
+    {
+      role: "total",
+      slotIndex: null,
+      label: "total-slot",
+      zone: clampZoneToImage(totalZone, image),
+      preset: "score-slot",
+      pageSegMode: "7",
+    },
+    {
+      role: "member-row",
+      slotIndex: null,
+      label: "member-row",
+      zone: row,
+      preset: "score-slot",
+      pageSegMode: "6",
+    },
+    ...memberSlots,
+    {
+      role: "bonus",
+      slotIndex: null,
+      label: "bonus-slot",
+      zone: clampZoneToImage(bonusZones[0] || totalZone, image),
+      preset: "crown-bonus",
+      pageSegMode: "7",
+    },
+  ];
+}
+
+function currentPcSlotCandidateRange(role, value) {
+  const number = Number(value || 0);
+  if (!Number.isFinite(number) || number <= 0) return false;
+  if (role === "bonus") return number >= 10000 && number < 500000;
+  if (role === "total") return number >= 50000 && number < 10000000;
+  return number >= 10000 && number < 10000000;
+}
+
+function currentPcUniqueCandidateValues(candidates = [], role = "member") {
+  return uniqueNumbers(
+    candidates
+      .map((candidate) => Number(candidate.value ?? candidate))
+      .filter((value) => currentPcSlotCandidateRange(role, value))
+  );
+}
+
+function currentPcSlotCandidatesForRole(slotEvidence = [], role) {
+  return slotEvidence.filter((entry) => entry.role === role);
+}
+
+function currentPcSlotEvidenceContainsValue(slotEvidence = [], role, value) {
+  const expected = Number(value || 0);
+  if (!expected) return false;
+  return currentPcSlotCandidatesForRole(slotEvidence, role).some((entry) =>
+    (entry.candidates || []).some((candidate) => Math.abs(Number(candidate.value || 0) - expected) <= 1)
+  );
+}
+
+function currentPcSlotSolverCandidates(slotEvidence = [], role, selectedValue = null) {
+  const candidates = [];
+  for (const entry of currentPcSlotCandidatesForRole(slotEvidence, role)) {
+    for (const candidate of entry.candidates || []) {
+      if (!currentPcSlotCandidateRange(role, candidate.value)) continue;
+      candidates.push({
+        value: candidate.value,
+        sourceRole: role,
+        roi: entry.label,
+        provenance: candidate.provenance,
+      });
+    }
+  }
+  if (selectedValue !== null && currentPcSlotCandidateRange(role, selectedValue)) {
+    candidates.push({
+      value: Number(selectedValue || 0),
+      sourceRole: "selected",
+      roi: "selected-current-output",
+      provenance: "selected-current-output",
+    });
+  }
+  const byValue = new Map();
+  for (const candidate of candidates) {
+    const value = Number(candidate.value || 0);
+    if (!byValue.has(value)) {
+      byValue.set(value, { value, sources: [] });
+    }
+    byValue.get(value).sources.push({
+      sourceRole: candidate.sourceRole,
+      roi: candidate.roi,
+      provenance: candidate.provenance,
+    });
+  }
+  return [...byValue.values()].slice(0, 10);
+}
+
+function buildCurrentPcSlotSpecificRoiCandidateSimulation({
+  slotEvidence = [],
+  selectedMembers = [],
+  selectedBonus = 0,
+  selectedTotal = 0,
+}) {
+  const selected = [...selectedMembers].map((value) => Number(value) || 0);
+  while (selected.length < 3) selected.push(0);
+  const memberCandidateSets = [0, 1, 2].map((index) =>
+    currentPcSlotSolverCandidates(slotEvidence, `member${index + 1}`, selected[index])
+  );
+  const bonusCandidateSet = [
+    { value: 0, sources: [{ sourceRole: "zero-bonus", roi: "zero-bonus" }] },
+    ...currentPcSlotSolverCandidates(slotEvidence, "bonus", null),
+  ];
+  const totalCandidateSet = currentPcSlotSolverCandidates(slotEvidence, "total", selectedTotal);
+  const proposals = [];
+
+  for (const member1 of memberCandidateSets[0]) {
+    for (const member2 of memberCandidateSets[1]) {
+      for (const member3 of memberCandidateSets[2]) {
+        const members = [member1.value, member2.value, member3.value];
+        const memberSum = members.reduce((sum, value) => sum + value, 0);
+        for (const bonus of bonusCandidateSet) {
+          for (const total of totalCandidateSet) {
+            if (Math.abs(memberSum + bonus.value - total.value) > 1) continue;
+            const allMemberSlotBacked = [member1, member2, member3].every((candidate) =>
+              candidate.sources.some((source) => {
+                const sourceRole = String(source.sourceRole || "");
+                return sourceRole.startsWith("member") || sourceRole === "selected";
+              })
+            );
+            const bonusSlotBacked =
+              bonus.value === 0 ||
+              bonus.sources.some((source) => String(source.sourceRole || "") === "bonus");
+            const totalSlotBacked = total.sources.some(
+              (source) => String(source.sourceRole || "") === "total"
+            );
+            proposals.push({
+              members,
+              bonus: bonus.value,
+              total: total.value,
+              memberSum,
+              allMemberSlotBacked,
+              bonusSlotBacked,
+              totalSlotBacked,
+              sources: {
+                member1: member1.sources,
+                member2: member2.sources,
+                member3: member3.sources,
+                bonus: bonus.sources,
+                total: total.sources,
+              },
+            });
+          }
+        }
+      }
+    }
+  }
+
+  const strictProposals = proposals.filter(
+    (proposal) =>
+      proposal.allMemberSlotBacked &&
+      proposal.bonusSlotBacked &&
+      proposal.totalSlotBacked
+  );
+  const differsFromSelected =
+    !arraysEqualWithinOne(selected, strictProposals[0]?.members || selected) ||
+    Math.abs(Number(selectedBonus || 0) - Number(strictProposals[0]?.bonus || selectedBonus || 0)) > 1 ||
+    Math.abs(Number(selectedTotal || 0) - Number(strictProposals[0]?.total || selectedTotal || 0)) > 1;
+  const rejectionReasons = [];
+  if (memberCandidateSets.some((set) => set.length === 0)) {
+    rejectionReasons.push("missing-member-slot-candidate");
+  }
+  if (totalCandidateSet.length === 0) rejectionReasons.push("missing-total-slot-candidate");
+  if (strictProposals.length === 0) rejectionReasons.push("no-strict-slot-specific-equation");
+  if (strictProposals.length > 1) rejectionReasons.push("multiple-strict-slot-specific-equations");
+  if (strictProposals.length === 1 && !differsFromSelected) {
+    rejectionReasons.push("strict-proposal-equals-current-selection");
+  }
+
+  return {
+    wouldApply: rejectionReasons.length === 0,
+    rejectionReasons,
+    proposalCount: proposals.length,
+    strictProposalCount: strictProposals.length,
+    proposed: strictProposals.length === 1 ? strictProposals[0] : null,
+    competingProposals: strictProposals.slice(0, 5),
+    candidateSetSizes: {
+      member1: memberCandidateSets[0].length,
+      member2: memberCandidateSets[1].length,
+      member3: memberCandidateSets[2].length,
+      bonus: bonusCandidateSet.length,
+      total: totalCandidateSet.length,
+    },
+    description:
+      "Runner-only current-PC slot-specific ROI candidate simulation. It does not change final OCR output.",
+  };
+}
+
+async function recognizeCurrentPcSlotRoi(row, image, outDir, definition) {
+  const clamped = clampZoneToImage(definition.zone, image);
+  const crop = await saveCurrentPcZoneArtifacts(
+    row.absolutePath,
+    image,
+    outDir,
+    definition.label,
+    clamped,
+    { preset: definition.preset, binarized: false }
+  );
+  const ocr = await recognizeOcrZone(row.absolutePath, clamped, {
+    preset: definition.preset,
+    pageSegMode: definition.pageSegMode,
+    charWhitelist: "0123456789,+＋. ",
+  });
+  const tokenAudits = sharedExtractNumericLikeTokenAudit(ocr.text || "");
+  const candidates = currentPcUniqueCandidateValues(
+    (ocr.numbers || []).map((value) => ({ value })),
+    definition.role === "member-row" ? "member" : definition.role
+  ).map((value) => ({
+    value,
+    rawText: ocr.text || "",
+    sourceRole: definition.role,
+    slotIndex: definition.slotIndex,
+    stage: row.stage,
+    side: row.side,
+    roiName: definition.label,
+    normalizedBox: currentPcNormalizedBox(clamped, image),
+    preprocessingVariant: `${definition.preset}/psm${definition.pageSegMode}`,
+    confidence: null,
+    provenance: `${definition.label}:${definition.preset}:psm${definition.pageSegMode}`,
+  }));
+  return {
+    role: definition.role,
+    slotIndex: definition.slotIndex,
+    label: definition.label,
+    zone: clamped,
+    normalizedBox: currentPcNormalizedBox(clamped, image),
+    crop,
+    preprocessingVariant: `${definition.preset}/psm${definition.pageSegMode}`,
+    text: ocr.text || "",
+    numbers: ocr.numbers || [],
+    tokenAudits,
+    candidates,
+  };
+}
+
+function currentPcEvidenceEntryFromExistingSource({
+  role,
+  label,
+  stage,
+  side,
+  source = {},
+  normalizedBox = null,
+}) {
+  const numbers = uniqueNumbers([
+    ...(source.numbers || []),
+    ...((source.traces || []).flatMap((trace) => trace.numbers || [])),
+  ]);
+  const candidateRole = role === "member-row" ? "member" : role;
+  const candidates = currentPcUniqueCandidateValues(
+    numbers.map((value) => ({ value })),
+    candidateRole
+  ).map((value) => ({
+    value,
+    rawText: source.text || "",
+    sourceRole: role,
+    slotIndex: null,
+    stage,
+    side,
+    roiName: label,
+    normalizedBox,
+    preprocessingVariant: "existing-fixed-roi",
+    confidence: null,
+    provenance: `${label}:existing-fixed-roi`,
+  }));
+  return {
+    role,
+    slotIndex: null,
+    label,
+    zone: null,
+    normalizedBox,
+    crop: null,
+    preprocessingVariant: "existing-fixed-roi",
+    text: source.text || "",
+    numbers,
+    tokenAudits: sharedExtractNumericLikeTokenAudit(source.text || "", numbers),
+    candidates,
+  };
+}
+
+function currentPcExistingFixedRoiSlotEvidence(row, sideAnalysis, image) {
+  const roi =
+    sideAnalysis.currentPcGroupedRawTokenEvidenceSimulation?.evidence?.roiProvenance ||
+    sideAnalysis.currentPcStage3SevenDigitBonusDisplacementSimulation?.evidence?.roiProvenance ||
+    null;
+  const summary = sideAnalysis.candidateSourceSummary || {};
+  const bonusNumbers = uniqueNumbers([
+    ...(sideAnalysis.bonusCandidates || []),
+    ...((summary.bonusCandidates || {}).numbers || []),
+  ]);
+  return [
+    currentPcEvidenceEntryFromExistingSource({
+      role: "total",
+      label: "total-slot-existing-fixed-roi",
+      stage: row.stage,
+      side: row.side,
+      source: {
+        text: [summary.totalDirect?.text, summary.totalCandidates?.text].filter(Boolean).join("\n"),
+        numbers: [
+          ...(summary.totalDirect?.numbers || []),
+          ...(summary.totalCandidates?.numbers || []),
+        ],
+        traces: summary.totalCandidates?.traces || [],
+      },
+      normalizedBox: roi?.total?.zone ? currentPcNormalizedBox(roi.total.zone, image) : null,
+    }),
+    currentPcEvidenceEntryFromExistingSource({
+      role: "member-row",
+      label: "member-row-existing-fixed-roi",
+      stage: row.stage,
+      side: row.side,
+      source: summary.memberCandidates || {},
+      normalizedBox: roi?.members?.zone ? currentPcNormalizedBox(roi.members.zone, image) : null,
+    }),
+    currentPcEvidenceEntryFromExistingSource({
+      role: "bonus",
+      label: "bonus-slot-existing-fixed-roi",
+      stage: row.stage,
+      side: row.side,
+      source: {
+        text: summary.bonusCandidates?.text || "",
+        numbers: bonusNumbers,
+      },
+      normalizedBox: roi?.bonus?.[0]?.zone ? currentPcNormalizedBox(roi.bonus[0].zone, image) : null,
+    }),
+  ];
+}
+
+function currentPcSlotRoiRowClassification(row) {
+  if (!row.failed) return "exact current production result already correct";
+  const exactMembers = row.expectedMembers.every((value, index) =>
+    currentPcSlotEvidenceContainsValue(row.slotEvidence, `member${index + 1}`, value)
+  );
+  const exactBonus =
+    row.expectedBonus === 0 ||
+    currentPcSlotEvidenceContainsValue(row.slotEvidence, "bonus", row.expectedBonus);
+  const exactTotal = currentPcSlotEvidenceContainsValue(
+    row.slotEvidence,
+    "total",
+    row.expectedTotal
+  );
+  const selectedMembersExact = arraysEqualWithinOne(row.selectedMembers, row.expectedMembers);
+  const selectedBonusExact = Math.abs(row.selectedBonus - row.expectedBonus) <= 1;
+  const selectedTotalExact = Math.abs(row.selectedTotal - row.expectedTotal) <= 1;
+
+  if (row.simulation?.wouldApply && proposalMatchesExpected(row.simulation.proposed, row.expected)) {
+    if (!selectedMembersExact) return "slot-specific candidates fix member role assignment";
+    if (!selectedBonusExact) return "slot-specific candidates fix bonus/member displacement";
+    if (!selectedTotalExact) return "slot-specific candidates fix total/member confusion";
+    return "slot-specific candidates contain exact expected members/bonus/total";
+  }
+  if (exactMembers && exactBonus && exactTotal) {
+    return "slot-specific candidates contain exact values but still lack unique equation";
+  }
+  if ((row.simulation?.strictProposalCount || 0) > 1) {
+    return "slot-specific candidates add unsafe/noisy alternatives";
+  }
+  if (
+    row.expectedBonus > 0 &&
+    !exactBonus &&
+    (exactMembers || selectedMembersExact) &&
+    exactTotal
+  ) {
+    return "slot-specific candidates do not help: missing exact bonus evidence";
+  }
+  if (exactMembers || exactBonus || exactTotal) {
+    return "slot-specific candidates contain partial exact evidence only";
+  }
+  return "slot-specific candidates do not help";
+}
+
+async function writeCurrentPcSlotRoiDiagnosticsArtifacts(analysis = []) {
+  await fs.rm(currentPcSlotRoiDiagnosticsDir, { recursive: true, force: true });
+  await fs.mkdir(currentPcSlotRoiDiagnosticsDir, { recursive: true });
+  const rows = [];
+
+  for (const item of analysis.filter((entry) => entry.expected)) {
+    for (const stage of stages) {
+      const stageKey = `stage${stage}`;
+      for (const side of sides) {
+        const expected = currentPcExpectedStageSide(item, stage, side);
+        const sideAnalysis = item.stages?.[stageKey]?.[side];
+        if (!expected || !sideAnalysis) continue;
+        const selected = currentPcSelectedStageSideValues(sideAnalysis);
+        const failed = hasCurrentPcSideFailure(item, stage, side);
+        const row = {
+          image: item.fileName,
+          absolutePath: item.absolutePath,
+          stage,
+          side,
+          failed,
+          expected,
+          expectedMembers: expected.members,
+          expectedBonus: expected.bonus,
+          expectedTotal: expected.total,
+          selectedMembers: selected.selectedMembers,
+          selectedBonus: selected.selectedBonus,
+          selectedTotal: selected.selectedTotal,
+          existingRecoveries: {
+            groupedRawApplied: Boolean(sideAnalysis.currentPcGroupedRawTokenRecovery?.applied),
+            stage3SevenDigitApplied: Boolean(
+              sideAnalysis.currentPcStage3SevenDigitBonusDisplacementRecovery?.applied
+            ),
+          },
+          slotEvidence: [],
+          simulation: null,
+          classification: null,
+          artifact: null,
+        };
+
+        if (failed) {
+          const image = await readImageSize(item.absolutePath);
+          const outDir = path.join(
+            currentPcSlotRoiDiagnosticsDir,
+            safeArtifactName(`${item.fileName}-stage${stage}-${side}`)
+          );
+          await fs.mkdir(outDir, { recursive: true });
+          const slotEvidence = currentPcExistingFixedRoiSlotEvidence(row, sideAnalysis, image);
+          const selectedMembersExact = arraysEqualWithinOne(row.selectedMembers, row.expectedMembers);
+          const slotDefinitions = currentPcSlotRoiDefinitions(image, stage, side).filter(
+            (definition) =>
+              definition.role.startsWith("member") &&
+              definition.role !== "member-row" &&
+              (!selectedMembersExact ||
+                Math.abs(row.selectedMembers[definition.slotIndex] - row.expectedMembers[definition.slotIndex]) > 1)
+          );
+          for (const definition of slotDefinitions) {
+            slotEvidence.push(await recognizeCurrentPcSlotRoi(row, image, outDir, definition));
+          }
+          row.slotEvidence = slotEvidence;
+          row.simulation = buildCurrentPcSlotSpecificRoiCandidateSimulation({
+            slotEvidence,
+            selectedMembers: row.selectedMembers,
+            selectedBonus: row.selectedBonus,
+            selectedTotal: row.selectedTotal,
+          });
+          row.artifact = path
+            .relative(
+              rootDir,
+              path.join(outDir, "slot-specific-roi-diagnostics.json")
+            )
+            .replaceAll("\\", "/");
+          row.classification = currentPcSlotRoiRowClassification(row);
+          await fs.writeFile(
+            path.join(outDir, "slot-specific-roi-diagnostics.json"),
+            JSON.stringify(row, null, 2)
+          );
+        } else {
+          row.classification = currentPcSlotRoiRowClassification(row);
+        }
+        rows.push(row);
+      }
+    }
+  }
+
+  const accepted = rows.filter((row) => row.simulation?.wouldApply);
+  const truePositives = accepted.filter((row) => proposalMatchesExpected(row.simulation.proposed, row.expected));
+  const falsePositives = accepted.filter((row) => !proposalMatchesExpected(row.simulation.proposed, row.expected));
+  const failedRows = rows.filter((row) => row.failed);
+  const falseNegatives = failedRows.filter(
+    (row) => !row.simulation?.wouldApply && row.classification !== "exact current production result already correct"
+  );
+  const blocked = failedRows.filter((row) => !row.simulation?.wouldApply);
+  const summary = {
+    outputDir: path.relative(rootDir, currentPcSlotRoiDiagnosticsDir).replaceAll("\\", "/"),
+    totalFixtures: analysis.filter((entry) => entry.expected).length,
+    totalStageSides: rows.length,
+    failingStageSides: failedRows.length,
+    correctStageSides: rows.length - failedRows.length,
+    simulation: {
+      tp: truePositives.length,
+      fp: falsePositives.length,
+      fn: falseNegatives.length,
+      blocked: blocked.length,
+    },
+    classificationCounts: Object.fromEntries(
+      [...rows.reduce((map, row) => {
+        map.set(row.classification, (map.get(row.classification) || 0) + 1);
+        return map;
+      }, new Map()).entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    ),
+    rows,
+  };
+  const summaryPath = path.join(currentPcSlotRoiDiagnosticsDir, "summary.json");
+  await fs.writeFile(summaryPath, JSON.stringify(summary, null, 2));
+  summary.summaryPath = path.relative(rootDir, summaryPath).replaceAll("\\", "/");
+  return summary;
+}
+
+function buildCurrentPcSlotRoiDiagnosticsReport(diagnostics) {
+  const rows = diagnostics?.rows || [];
+  const failedRows = rows.filter((row) => row.failed);
+  const exactMemberRows = failedRows.filter((row) =>
+    row.expectedMembers.every((value, index) =>
+      currentPcSlotEvidenceContainsValue(row.slotEvidence, `member${index + 1}`, value)
+    )
+  );
+  const exactBonusRows = failedRows.filter(
+    (row) =>
+      row.expectedBonus === 0 ||
+      currentPcSlotEvidenceContainsValue(row.slotEvidence, "bonus", row.expectedBonus)
+  );
+  const exactTotalRows = failedRows.filter((row) =>
+    currentPcSlotEvidenceContainsValue(row.slotEvidence, "total", row.expectedTotal)
+  );
+  const uniqueExactRows = failedRows.filter(
+    (row) => row.simulation?.wouldApply && proposalMatchesExpected(row.simulation.proposed, row.expected)
+  );
+  const accepted = rows.filter((row) => row.simulation?.wouldApply);
+  const falsePositives = accepted.filter(
+    (row) => !proposalMatchesExpected(row.simulation.proposed, row.expected)
+  );
+  const overlapGrouped = accepted.filter((row) => row.existingRecoveries?.groupedRawApplied);
+  const overlapStage3 = accepted.filter((row) => row.existingRecoveries?.stage3SevenDigitApplied);
+  const classificationCounts = diagnostics?.classificationCounts || {};
+  const lines = [
+    "# Current-PC Slot-Specific ROI Candidate Investigation",
+    "",
+    "This is runner-only diagnostics for current-PC slot-specific ROI candidate extraction. It does not change final OCR output, production recovery behavior, smartphone OCR, or legacy desktop OCR.",
+    "",
+    "Run with:",
+    "",
+    "```bash",
+    "node scripts/ocr-test-images.mjs --current-pc-baseline --current-pc-slot-roi-diagnostics",
+    "```",
+    "",
+    "## ROI Definitions",
+    "",
+    "- Layout gate: current-PC `541x961` / `current-pc-2026-07-result` geometry via the existing detector.",
+    "- `total-slot`: existing current-PC fixed total ROI for the stage/side.",
+    "- `member-row`: existing current-PC fixed member-row ROI for the stage/side.",
+    "- `member1-slot`, `member2-slot`, `member3-slot`: the fixed member-row ROI split into thirds with small horizontal overlap.",
+    "- `bonus-slot`: existing current-PC crown/plus bonus ROI for the stage/side.",
+    "- All coordinates are saved as image-relative normalized boxes in `tmp/current-pc-slot-roi-diagnostics/`.",
+    "",
+    "## Summary",
+    "",
+    `- current-PC fixtures evaluated: ${diagnostics?.totalFixtures || 0}`,
+    `- stage/side rows evaluated: ${diagnostics?.totalStageSides || 0}`,
+    `- failing stage/side rows with slot OCR diagnostics: ${diagnostics?.failingStageSides || 0}`,
+    `- exact current production result already correct: ${diagnostics?.correctStageSides || 0}`,
+    `- rows where slot-specific candidates contain all exact expected members: ${exactMemberRows.length}`,
+    `- rows where slot-specific candidates contain exact expected bonus or no bonus needed: ${exactBonusRows.length}`,
+    `- rows where slot-specific candidates contain exact expected total: ${exactTotalRows.length}`,
+    `- rows with unique strict exact slot interpretation: ${uniqueExactRows.length}`,
+    `- blocked by missing/OCR-confused bonus evidence: ${
+      failedRows.filter((row) => row.classification === "slot-specific candidates do not help: missing exact bonus evidence").length
+    }`,
+    `- blocked by competing/noisy interpretation: ${
+      failedRows.filter((row) => row.classification === "slot-specific candidates add unsafe/noisy alternatives").length
+    }`,
+    `- artifact directory: \`${diagnostics?.outputDir || "-"}\``,
+    "- final OCR output changed: no",
+    "- production recovery enabled: no",
+    "",
+    "## Runner-Only Hypothetical Solver",
+    "",
+    "- simulation name: `currentPcSlotSpecificRoiCandidateSimulation`",
+    "- guard: corrected member values must come from their matching slot ROI, already-correct selected members may be retained, bonus must come from bonus ROI when nonzero, total must come from total ROI, and the exact equation must be unique.",
+    "- selected current values may be present in candidate sets only so the simulation can preserve already-correct slots while testing whether slot-specific evidence repairs the wrong slots.",
+    "",
+    "| metric | count |",
+    "| --- | ---: |",
+    `| TP | ${diagnostics?.simulation?.tp || 0} |`,
+    `| FP | ${diagnostics?.simulation?.fp || 0} |`,
+    `| FN | ${diagnostics?.simulation?.fn || 0} |`,
+    `| blocked | ${diagnostics?.simulation?.blocked || 0} |`,
+    "",
+    "## Classification Counts",
+    "",
+    "| classification | count |",
+    "| --- | ---: |",
+  ];
+  for (const [classification, count] of Object.entries(classificationCounts)) {
+    lines.push(`| ${classification} | ${count} |`);
+  }
+
+  lines.push(
+    "",
+    "## Accepted Simulation Cases",
+    "",
+    "| image | stage | side | proposed members | bonus | total | overlaps existing recovery | artifact |",
+    "| --- | ---: | --- | --- | ---: | ---: | --- | --- |"
+  );
+  if (accepted.length === 0) {
+    lines.push("| none | - | - | - | - | - | - | - |");
+  } else {
+    for (const row of accepted) {
+      const proposed = row.simulation.proposed || {};
+      const overlap = [
+        row.existingRecoveries?.groupedRawApplied ? "grouped/raw" : "",
+        row.existingRecoveries?.stage3SevenDigitApplied ? "stage3-7digit" : "",
+      ].filter(Boolean).join(", ") || "-";
+      lines.push(
+        `| ${row.image} | ${row.stage} | ${row.side} | ${formatDebugNumbers(proposed.members || [])} | ${formatNumber(proposed.bonus || 0) || "-"} | ${formatNumber(proposed.total || 0)} | ${overlap} | ${row.artifact || "-"} |`
+      );
+    }
+  }
+
+  lines.push(
+    "",
+    "## Unsafe / Blocked Examples",
+    "",
+    "| image | stage | side | classification | rejection reasons | expected | selected | artifact |",
+    "| --- | ---: | --- | --- | --- | --- | --- | --- |"
+  );
+  for (const row of failedRows.slice(0, 40)) {
+    lines.push(
+      `| ${row.image} | ${row.stage} | ${row.side} | ${row.classification} | ${(row.simulation?.rejectionReasons || []).join(", ") || "-"} | members ${formatDebugNumbers(row.expectedMembers)} bonus ${formatNumber(row.expectedBonus) || "-"} total ${formatNumber(row.expectedTotal)} | members ${formatDebugNumbers(row.selectedMembers)} bonus ${formatNumber(row.selectedBonus) || "-"} total ${formatNumber(row.selectedTotal)} | ${row.artifact || "-"} |`
+    );
+  }
+
+  lines.push(
+    "",
+    "## Overlap With Existing Recoveries",
+    "",
+    `- accepted rows already covered by \`currentPcGroupedRawTokenRecovery\`: ${overlapGrouped.length}`,
+    `- accepted rows already covered by \`applyCurrentPcStage3SevenDigitBonusDisplacementRecovery\`: ${overlapStage3.length}`,
+    "- This report distinguishes actual production recovery application from diagnostic evidence. A row with slot candidates is not considered recovered unless the production result changed.",
+    "",
+    "## Production Recommendation",
+    "",
+    falsePositives.length > 0
+      ? "Do not productionize. The runner-only slot-specific solver produced at least one false positive under the current strict guards."
+      : uniqueExactRows.length >= 2
+        ? "Do not productionize yet. Although strict slot-specific evidence can produce unique exact interpretations, browser/UI parity and a separate production-readiness audit would be required before any adoption."
+        : "Do not productionize. Slot-specific ROI evidence is useful diagnostically, but this pass does not establish a repeated zero-risk production target.",
+    "",
+    "## Browser/UI Parity",
+    "",
+    "Browser/UI parity would be required before productionization because this diagnostic path performs additional runner-only slot OCR over fixed ROIs. The browser would need to expose the same slot candidate provenance before any final-output recovery could safely use it.",
+    ""
+  );
+
+  return lines.join("\n");
+}
+
 async function writeCurrentPcBaselineArtifacts(report) {
   const currentPcItems = report.filter((item) => item.source === "current-pc");
   await fs.rm(currentPcBaselineDir, { recursive: true, force: true });
@@ -9851,6 +10543,7 @@ async function main() {
   const currentPcStage3MemberRowDiagnostics = args.includes(
     "--current-pc-stage3-member-row-diagnostics"
   );
+  const currentPcSlotRoiDiagnostics = args.includes("--current-pc-slot-roi-diagnostics");
   const debugArtifacts =
     currentPcBaseline ||
     args.includes("--debug-artifacts") ||
@@ -9876,6 +10569,7 @@ async function main() {
       value !== "--current-pc-baseline" &&
       value !== "--current-pc-bonus-diagnostics" &&
       value !== "--current-pc-stage3-member-row-diagnostics" &&
+      value !== "--current-pc-slot-roi-diagnostics" &&
       value !== "--debug-artifacts" &&
       value !== "--debug-ocr-artifacts" &&
       value !== "--fixed-roi-experiment" &&
@@ -9999,6 +10693,12 @@ async function main() {
           currentPcBaselineArtifacts.analysis.filter((item) => item.expected)
         )
       : null;
+  const currentPcSlotRoiDiagnosticsArtifacts =
+    currentPcBaselineArtifacts && currentPcSlotRoiDiagnostics
+      ? await writeCurrentPcSlotRoiDiagnosticsArtifacts(
+          currentPcBaselineArtifacts.analysis.filter((item) => item.expected)
+        )
+      : null;
   if (currentPcBaselineArtifacts) {
     await fs.writeFile(
       currentPcBaselineReportPath,
@@ -10038,6 +10738,12 @@ async function main() {
         buildCurrentPcStage3MemberRowDiagnosticsReport(
           currentPcStage3MemberRowDiagnosticsArtifacts
         )
+      );
+    }
+    if (currentPcSlotRoiDiagnosticsArtifacts) {
+      await fs.writeFile(
+        currentPcSlotRoiDiagnosticsReportPath,
+        buildCurrentPcSlotRoiDiagnosticsReport(currentPcSlotRoiDiagnosticsArtifacts)
       );
     }
   }
@@ -10089,6 +10795,13 @@ async function main() {
                     report: path.relative(rootDir, currentPcStage3MemberRowDiagnosticsReportPath).replaceAll("\\", "/"),
                     outputDir: currentPcStage3MemberRowDiagnosticsArtifacts.outputDir,
                     summary: currentPcStage3MemberRowDiagnosticsArtifacts.summaryPath,
+                  }
+                : null,
+              slotRoiDiagnostics: currentPcSlotRoiDiagnosticsArtifacts
+                ? {
+                    report: path.relative(rootDir, currentPcSlotRoiDiagnosticsReportPath).replaceAll("\\", "/"),
+                    outputDir: currentPcSlotRoiDiagnosticsArtifacts.outputDir,
+                    summary: currentPcSlotRoiDiagnosticsArtifacts.summaryPath,
                   }
                 : null,
             }
