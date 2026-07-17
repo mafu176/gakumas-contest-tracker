@@ -1,6 +1,6 @@
 # Current-PC Crown Bonus Rule Simulation
 
-Generated: 2026-07-17T09:29:41.196Z
+Generated: 2026-07-17T10:34:44.565Z
 
 ## Scope
 

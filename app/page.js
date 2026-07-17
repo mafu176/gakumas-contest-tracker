@@ -125,6 +125,7 @@ import {
   applySmartphoneStage3SelfSevenDigitDisplacementRecovery,
   applySmartphoneStage3EnemySevenDigitRecovery,
   buildCurrentPcCandidateSourceSummary,
+  buildCurrentPcCrownBonusRuleEvidence,
   buildCurrentPcGroupedRawTokenEvidenceSimulation,
   buildCurrentPcStage3SevenDigitBonusDisplacementSimulation,
   applyCurrentPcGroupedRawTokenRecovery,
@@ -3288,6 +3289,12 @@ export default function Home() {
 
             return {
               ...groupedRawSimulation,
+              selectedMembers,
+              selectedTotal,
+              rawCandidates,
+              displayedTotalCandidates: totalReferences.filter((value) => value >= 10000),
+              bonusCandidates,
+              candidateSourceSummary: sourceSummary,
               currentPcStage3SevenDigitBonusDisplacementSimulation:
                 stage3SevenDigitBonusDisplacementSimulation,
             };
@@ -3355,9 +3362,26 @@ export default function Home() {
             "enemy",
             enemyCurrentPcEvidence
           );
+          const buildCurrentPcCrownSideAnalysis = (side, evidence) => {
+            const isSelf = side === "self";
+            return {
+              selectedMembers: isSelf ? correctedSelfMembers : correctedEnemyMembers,
+              selectedTotal: isSelf ? selfTotal : enemyTotal,
+              rawCandidates: evidence.rawCandidates || [],
+              displayedTotalCandidates: evidence.displayedTotalCandidates || [],
+              bonusCandidates: evidence.bonusCandidates || [],
+              candidateSourceSummary: evidence.candidateSourceSummary || null,
+            };
+          };
+          const currentPcCrownBonusRuleSimulation = buildCurrentPcCrownBonusRuleEvidence({
+            stage,
+            self: buildCurrentPcCrownSideAnalysis("self", selfCurrentPcEvidenceWithRecovery),
+            enemy: buildCurrentPcCrownSideAnalysis("enemy", enemyCurrentPcEvidenceWithRecovery),
+          });
           currentPcGroupedRawEvidence.stages[`stage${stage}`] = {
             self: selfCurrentPcEvidenceWithRecovery,
             enemy: enemyCurrentPcEvidenceWithRecovery,
+            currentPcCrownBonusRuleSimulation,
           };
           const formatEvidenceSummary = (side, evidence) => {
             const tokens = evidence.evidence?.eligibleTokens || [];
@@ -3385,11 +3409,28 @@ export default function Home() {
               simulation.wouldApply ? "yes" : "no"
             } rejection=${simulation.rejectionReasons.join(",") || "none"}${proposalText}`;
           };
+          const formatCrownBonusRuleSummary = (simulation) => {
+            if (!simulation) return "";
+            const proposal = simulation.proposed || {};
+            const rank1 = simulation.evidence?.rank1;
+            const proposalText = proposal.self && proposal.enemy
+              ? ` self=${proposal.self.members.join(",")}+${proposal.self.bonus || 0}=${proposal.self.total} enemy=${proposal.enemy.members.join(",")}+${proposal.enemy.bonus || 0}=${proposal.enemy.total}`
+              : "";
+            const rankText = rank1
+              ? ` rank1=${rank1.side}.member${rank1.slot}:${rank1.value}`
+              : "";
+            return `[currentPC crown-bonus rule] wouldApply=${
+              simulation.wouldApply ? "yes" : "no"
+            } rejection=${simulation.rejectionReasons.join(",") || "none"}${rankText} bonus=${
+              simulation.evidence?.calculatedBonus || 0
+            }${proposalText}`;
+          };
           currentPcEvidenceDebugText = [
             formatEvidenceSummary("self", selfCurrentPcEvidenceWithRecovery),
             formatEvidenceSummary("enemy", enemyCurrentPcEvidenceWithRecovery),
             formatStage3BonusDisplacementSummary("self", selfCurrentPcEvidenceWithRecovery),
             formatStage3BonusDisplacementSummary("enemy", enemyCurrentPcEvidenceWithRecovery),
+            formatCrownBonusRuleSummary(currentPcCrownBonusRuleSimulation),
           ].join("\n");
         }
 

@@ -16,6 +16,7 @@ import {
   applySmartphoneStage3EnemySevenDigitRecovery,
   applyCurrentPcGroupedRawTokenRecovery,
   applyCurrentPcStage3SevenDigitBonusDisplacementRecovery,
+  buildCurrentPcCrownBonusRuleEvidence as sharedBuildCurrentPcCrownBonusRuleEvidence,
   buildCurrentPcCandidateSourceSummary as sharedBuildCurrentPcCandidateSourceSummary,
   buildCurrentPcGroupedRawTokenEvidenceSimulation as sharedBuildCurrentPcGroupedRawTokenEvidenceSimulation,
   buildCurrentPcStage3SevenDigitBonusDisplacementSimulation as sharedBuildCurrentPcStage3SevenDigitBonusDisplacementSimulation,
@@ -88,6 +89,11 @@ const currentPcCrownBonusSimulationReportPath = path.join(
   rootDir,
   "docs",
   "current-pc-crown-bonus-rule-simulation.md"
+);
+const currentPcCrownBonusParityReportPath = path.join(
+  rootDir,
+  "docs",
+  "current-pc-crown-bonus-rule-parity.md"
 );
 let currentPcBaselineScanSummary = null;
 const unsupportedNextScreenMessage =
@@ -8837,215 +8843,13 @@ function proposalMatchesExpected(proposal, expected) {
   );
 }
 
-function currentPcSelectedBonus(sideAnalysis = {}) {
-  const selectedMembers = sideAnalysis?.selectedMembers || [];
-  const memberSum = selectedMembers.reduce((sum, value) => sum + Number(value || 0), 0);
-  return Math.max(0, Number(sideAnalysis?.selectedTotal || 0) - memberSum);
-}
-
-function currentPcMemberEvidenceForValue(sideAnalysis = {}, value, slotIndex) {
-  const normalizedValue = Number(value || 0);
-  if (normalizedValue <= 0) return [];
-  const memberCandidates = sideAnalysis?.candidateSourceSummary?.memberCandidates || {};
-  const evidence = [];
-  if ((memberCandidates.numbers || []).some((candidate) => Math.abs(Number(candidate || 0) - normalizedValue) <= 1)) {
-    const matchingTokens = (memberCandidates.tokenAudit || []).filter(
-      (token) => Math.abs(Number(token.normalizedValue || 0) - normalizedValue) <= 1
-    );
-    evidence.push({
-      source: "member-row",
-      role: `member${slotIndex + 1}`,
-      value: normalizedValue,
-      text: memberCandidates.text || "",
-      tokens: matchingTokens.map((token) => ({
-        rawToken: token.rawToken || token.token || "",
-        normalizedValue: token.normalizedValue || 0,
-        shape: token.shape || token.tokenShape || "",
-        textIndex: token.textIndex ?? null,
-      })),
-    });
-  }
-  if ((sideAnalysis?.rawCandidates || []).some((candidate) => Math.abs(Number(candidate || 0) - normalizedValue) <= 1)) {
-    evidence.push({
-      source: "raw-candidates",
-      role: `member${slotIndex + 1}`,
-      value: normalizedValue,
-    });
-  }
-  return evidence;
-}
-
-function currentPcTotalEvidenceForValue(sideAnalysis = {}, value) {
-  const normalizedValue = Number(value || 0);
-  if (normalizedValue <= 0) return [];
-  const summary = sideAnalysis?.candidateSourceSummary || {};
-  const evidence = [];
-  const pushEvidence = (entry) => {
-    if (!entry) return;
-    evidence.push({
-      source: entry.source,
-      value: normalizedValue,
-      text: entry.text || "",
-      pass: entry.pass || null,
-      tokens: entry.tokens || [],
-    });
-  };
-
-  if ((sideAnalysis.displayedTotalCandidates || []).some((candidate) => Math.abs(Number(candidate || 0) - normalizedValue) <= 1)) {
-    pushEvidence({ source: "displayed-total-candidates" });
-  }
-  if ((summary.totalDirect?.numbers || []).some((candidate) => Math.abs(Number(candidate || 0) - normalizedValue) <= 1)) {
-    pushEvidence({
-      source: "total-direct",
-      text: summary.totalDirect.text || "",
-      pass: summary.totalDirect.pass || null,
-      tokens: (summary.totalDirect.tokenAudit || []).filter(
-        (token) => Math.abs(Number(token.normalizedValue || 0) - normalizedValue) <= 1
-      ),
-    });
-  }
-  for (const trace of summary.totalTraces || []) {
-    if ((trace.numbers || []).some((candidate) => Math.abs(Number(candidate || 0) - normalizedValue) <= 1)) {
-      pushEvidence({
-        source: "total-trace",
-        text: trace.text || "",
-        pass: trace.pass || null,
-      });
-    }
-  }
-  for (const traceAudit of summary.totalTraceTokenAudit || []) {
-    const tokens = (traceAudit.tokens || []).filter(
-      (token) => Math.abs(Number(token.normalizedValue || 0) - normalizedValue) <= 1
-    );
-    if (tokens.length > 0) {
-      pushEvidence({
-        source: "total-trace-token-audit",
-        text: traceAudit.text || "",
-        pass: traceAudit.pass || null,
-        tokens: tokens.map((token) => ({
-          rawToken: token.rawToken || token.token || "",
-          normalizedValue: token.normalizedValue || 0,
-          shape: token.shape || token.tokenShape || "",
-          textIndex: token.textIndex ?? null,
-        })),
-      });
-    }
-  }
-  if ((sideAnalysis.rawCandidates || []).some((candidate) => Math.abs(Number(candidate || 0) - normalizedValue) <= 1)) {
-    pushEvidence({ source: "raw-candidates" });
-  }
-  return evidence;
-}
-
 function buildCurrentPcCrownBonusRuleStageSimulation(item, stage) {
   const stageKey = `stage${stage}`;
-  const self = item.stages?.[stageKey]?.self;
-  const enemy = item.stages?.[stageKey]?.enemy;
-  const rejectionReasons = [];
-  if (!self || !enemy) {
-    return {
-      wouldApply: false,
-      rejectionReasons: ["missing-stage-side-analysis"],
-      proposed: null,
-      evidence: {},
-    };
-  }
-
-  const selected = {
-    self: {
-      members: [...(self.selectedMembers || [])].map((value) => Number(value || 0)).slice(0, 3),
-      total: Number(self.selectedTotal || 0),
-      bonus: currentPcSelectedBonus(self),
-    },
-    enemy: {
-      members: [...(enemy.selectedMembers || [])].map((value) => Number(value || 0)).slice(0, 3),
-      total: Number(enemy.selectedTotal || 0),
-      bonus: currentPcSelectedBonus(enemy),
-    },
-  };
-  for (const side of sides) {
-    while (selected[side].members.length < 3) selected[side].members.push(0);
-  }
-
-  const memberEvidence = { self: [], enemy: [] };
-  for (const side of sides) {
-    const sideAnalysis = side === "self" ? self : enemy;
-    for (let index = 0; index < 3; index += 1) {
-      const value = selected[side].members[index];
-      const evidence = currentPcMemberEvidenceForValue(sideAnalysis, value, index);
-      memberEvidence[side].push(evidence);
-      if (value <= 0) rejectionReasons.push(`missing-${side}-member${index + 1}`);
-      if (value > 0 && evidence.length === 0) {
-        rejectionReasons.push(`missing-${side}-member${index + 1}-evidence`);
-      }
-    }
-  }
-
-  const allMembers = [
-    ...selected.self.members.map((value, index) => ({ side: "self", slot: index + 1, value })),
-    ...selected.enemy.members.map((value, index) => ({ side: "enemy", slot: index + 1, value })),
-  ];
-  const positiveMembers = allMembers.filter((entry) => entry.value > 0);
-  if (positiveMembers.length !== 6) rejectionReasons.push("missing-member-evidence");
-
-  const maxValue = Math.max(...positiveMembers.map((entry) => entry.value), 0);
-  const maxEntries = positiveMembers.filter((entry) => entry.value === maxValue);
-  if (maxEntries.length !== 1) rejectionReasons.push("non-unique-global-rank1-member");
-  const rank1 = maxEntries[0] || null;
-  const winningSide = rank1?.side || null;
-  const calculatedBonus = maxValue > 0 ? Math.floor(maxValue * 0.2) : 0;
-  const proposed = {
-    self: {
-      members: selected.self.members,
-      bonus: winningSide === "self" ? calculatedBonus : 0,
-      total:
-        selected.self.members.reduce((sum, value) => sum + value, 0) +
-        (winningSide === "self" ? calculatedBonus : 0),
-    },
-    enemy: {
-      members: selected.enemy.members,
-      bonus: winningSide === "enemy" ? calculatedBonus : 0,
-      total:
-        selected.enemy.members.reduce((sum, value) => sum + value, 0) +
-        (winningSide === "enemy" ? calculatedBonus : 0),
-    },
-  };
-
-  const totalEvidence = {
-    self: currentPcTotalEvidenceForValue(self, proposed.self.total),
-    enemy: currentPcTotalEvidenceForValue(enemy, proposed.enemy.total),
-  };
-  if (totalEvidence.self.length === 0) rejectionReasons.push("missing-self-exact-total-evidence");
-  if (totalEvidence.enemy.length === 0) rejectionReasons.push("missing-enemy-exact-total-evidence");
-
-  const sideWouldChange = {};
-  for (const side of sides) {
-    sideWouldChange[side] =
-      !arraysEqualWithinOne(proposed[side].members, selected[side].members) ||
-      Math.abs(Number(proposed[side].bonus || 0) - Number(selected[side].bonus || 0)) > 1 ||
-      Math.abs(Number(proposed[side].total || 0) - Number(selected[side].total || 0)) > 1;
-  }
-  if (!sideWouldChange.self && !sideWouldChange.enemy) {
-    rejectionReasons.push("existing-result-already-satisfies-crown-bonus-rule");
-  }
-
-  const wouldApply = rejectionReasons.length === 0 && (sideWouldChange.self || sideWouldChange.enemy);
-  return {
-    wouldApply,
-    rejectionReasons,
-    selected,
-    proposed,
-    sideWouldChange,
-    evidence: {
-      memberEvidence,
-      totalEvidence,
-      rank1,
-      winningSide,
-      calculatedBonus,
-      uniqueInterpretation: rejectionReasons.length === 0,
-      rule: "bonus=floor(max(all 6 selected raw members)*0.20)",
-    },
-  };
+  return sharedBuildCurrentPcCrownBonusRuleEvidence({
+    stage,
+    self: item.stages?.[stageKey]?.self,
+    enemy: item.stages?.[stageKey]?.enemy,
+  });
 }
 
 function currentPcCrownBonusPotentialTarget(item, stage, side, stageSimulation) {
@@ -9587,6 +9391,189 @@ function buildCurrentPcCrownBonusRuleSimulationEvaluation(analysis) {
           ...slotRoiOverlap.map((row) => `${row.screenshot}|${row.stage}|${row.side}`),
         ]).size,
     },
+  };
+}
+
+function buildCurrentPcBrowserEquivalentCrownBonusRuleSimulation(item, stage) {
+  const stageKey = `stage${stage}`;
+  const buildSide = (side) => {
+    const sideAnalysis = item.stages?.[stageKey]?.[side];
+    if (!sideAnalysis) return null;
+    return {
+      selectedMembers: sideAnalysis.selectedMembers || [],
+      selectedTotal: sideAnalysis.selectedTotal || 0,
+      rawCandidates: sideAnalysis.rawCandidates || [],
+      displayedTotalCandidates: sideAnalysis.displayedTotalCandidates || [],
+      bonusCandidates: sideAnalysis.bonusCandidates || [],
+      candidateSourceSummary: sideAnalysis.candidateSourceSummary || null,
+    };
+  };
+  return sharedBuildCurrentPcCrownBonusRuleEvidence({
+    stage,
+    self: buildSide("self"),
+    enemy: buildSide("enemy"),
+  });
+}
+
+function currentPcCrownBonusEvidenceValues(evidence = []) {
+  return [...new Set((evidence || []).map((entry) => `${entry.source}:${entry.value}:${entry.pass || ""}`))].sort();
+}
+
+function currentPcCrownBonusRuleFingerprint(sim = null) {
+  return {
+    wouldApply: Boolean(sim?.wouldApply),
+    rejectionReasons: [...(sim?.rejectionReasons || [])].sort(),
+    selected: {
+      self: {
+        members: sim?.selected?.self?.members || [],
+        total: sim?.selected?.self?.total || 0,
+        bonus: sim?.selected?.self?.bonus || 0,
+      },
+      enemy: {
+        members: sim?.selected?.enemy?.members || [],
+        total: sim?.selected?.enemy?.total || 0,
+        bonus: sim?.selected?.enemy?.bonus || 0,
+      },
+    },
+    proposed: {
+      self: {
+        members: sim?.proposed?.self?.members || [],
+        total: sim?.proposed?.self?.total || 0,
+        bonus: sim?.proposed?.self?.bonus || 0,
+      },
+      enemy: {
+        members: sim?.proposed?.enemy?.members || [],
+        total: sim?.proposed?.enemy?.total || 0,
+        bonus: sim?.proposed?.enemy?.bonus || 0,
+      },
+    },
+    sideWouldChange: {
+      self: Boolean(sim?.sideWouldChange?.self),
+      enemy: Boolean(sim?.sideWouldChange?.enemy),
+    },
+    rank1: sim?.evidence?.rank1 || null,
+    winningSide: sim?.evidence?.winningSide || null,
+    calculatedBonus: sim?.evidence?.calculatedBonus || 0,
+    uniqueInterpretation: Boolean(sim?.evidence?.uniqueInterpretation),
+    totalEvidence: {
+      self: currentPcCrownBonusEvidenceValues(sim?.evidence?.totalEvidence?.self || []),
+      enemy: currentPcCrownBonusEvidenceValues(sim?.evidence?.totalEvidence?.enemy || []),
+    },
+  };
+}
+
+function compareCurrentPcCrownBonusRuleParity(analysis, crownBonusSimulation) {
+  const rows = [];
+  let stagesCompared = 0;
+  let wouldApplyDisagreements = 0;
+  let proposedMemberDisagreements = 0;
+  let proposedBonusDisagreements = 0;
+  let proposedTotalDisagreements = 0;
+  let selectedMemberDisagreements = 0;
+  let selectedTotalEvidenceMismatches = 0;
+  let missingInBrowserEquivalent = 0;
+  let missingInRunner = 0;
+  let metadataOnlyMismatches = 0;
+  let safetyRelevantMismatches = 0;
+
+  const tpKeys = new Set(
+    (crownBonusSimulation.accepted || []).map((row) => `${row.screenshot}|${row.stage}|${row.side}`)
+  );
+  const tpCaseRows = [];
+
+  const arraysSame = (left, right) => JSON.stringify(left || []) === JSON.stringify(right || []);
+  const jsonSame = (left, right) => JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
+
+  for (const item of analysis) {
+    if (!item.expected) continue;
+    for (const stage of stages) {
+      stagesCompared += 1;
+      const runnerSim = buildCurrentPcCrownBonusRuleStageSimulation(item, stage);
+      const browserSim = buildCurrentPcBrowserEquivalentCrownBonusRuleSimulation(item, stage);
+      const runner = currentPcCrownBonusRuleFingerprint(runnerSim);
+      const browser = currentPcCrownBonusRuleFingerprint(browserSim);
+      const mismatchFields = [];
+      const metadataMismatchFields = [];
+
+      if (!runnerSim) missingInRunner += 1;
+      if (!browserSim) missingInBrowserEquivalent += 1;
+      if (runner.wouldApply !== browser.wouldApply) {
+        wouldApplyDisagreements += 1;
+        mismatchFields.push("wouldApply");
+      }
+      for (const side of sides) {
+        if (!arraysSame(runner.proposed[side].members, browser.proposed[side].members)) {
+          proposedMemberDisagreements += 1;
+          mismatchFields.push(`${side}.proposed.members`);
+        }
+        if (Math.abs(Number(runner.proposed[side].bonus || 0) - Number(browser.proposed[side].bonus || 0)) > 1) {
+          proposedBonusDisagreements += 1;
+          mismatchFields.push(`${side}.proposed.bonus`);
+        }
+        if (Math.abs(Number(runner.proposed[side].total || 0) - Number(browser.proposed[side].total || 0)) > 1) {
+          proposedTotalDisagreements += 1;
+          mismatchFields.push(`${side}.proposed.total`);
+        }
+        if (!arraysSame(runner.selected[side].members, browser.selected[side].members)) {
+          selectedMemberDisagreements += 1;
+          mismatchFields.push(`${side}.selected.members`);
+        }
+        if (!arraysSame(runner.totalEvidence[side], browser.totalEvidence[side])) {
+          selectedTotalEvidenceMismatches += 1;
+          metadataMismatchFields.push(`${side}.totalEvidence`);
+        }
+      }
+      if (!jsonSame(runner.rank1, browser.rank1)) mismatchFields.push("rank1");
+      if (runner.winningSide !== browser.winningSide) mismatchFields.push("winningSide");
+      if (Math.abs(Number(runner.calculatedBonus || 0) - Number(browser.calculatedBonus || 0)) > 1) {
+        mismatchFields.push("calculatedBonus");
+      }
+      if (runner.uniqueInterpretation !== browser.uniqueInterpretation) {
+        mismatchFields.push("uniqueInterpretation");
+      }
+
+      const hasSafetyMismatch = mismatchFields.length > 0;
+      const hasMetadataMismatch = !hasSafetyMismatch && metadataMismatchFields.length > 0;
+      if (hasSafetyMismatch) safetyRelevantMismatches += 1;
+      if (hasMetadataMismatch) metadataOnlyMismatches += 1;
+      const row = {
+        screenshot: item.fileName,
+        stage,
+        runner,
+        browser,
+        runnerWouldApply: runner.wouldApply,
+        browserWouldApply: browser.wouldApply,
+        mismatchFields,
+        metadataMismatchFields,
+        safetyRelevant: hasSafetyMismatch,
+      };
+      rows.push(row);
+      for (const side of sides) {
+        if (tpKeys.has(`${item.fileName}|${stage}|${side}`)) {
+          tpCaseRows.push({ ...row, side });
+        }
+      }
+    }
+  }
+
+  return {
+    stagesCompared,
+    rows,
+    tpRows: tpCaseRows,
+    tpParityExact: tpCaseRows.filter(
+      (row) => row.mismatchFields.length === 0 && row.metadataMismatchFields.length === 0
+    ).length,
+    wouldApplyDisagreements,
+    proposedMemberDisagreements,
+    proposedBonusDisagreements,
+    proposedTotalDisagreements,
+    selectedMemberDisagreements,
+    selectedTotalEvidenceMismatches,
+    missingInBrowserEquivalent,
+    missingInRunner,
+    metadataOnlyMismatches,
+    safetyRelevantMismatches,
+    mismatchRows: rows.filter((row) => row.mismatchFields.length > 0 || row.metadataMismatchFields.length > 0),
   };
 }
 
@@ -11200,6 +11187,154 @@ function buildCurrentPcCrownBonusRuleSimulationReport(simulation) {
   return lines.join("\n");
 }
 
+function buildCurrentPcCrownBonusRuleParityReport(parity, simulation) {
+  const generatedAt = new Date().toISOString();
+  const lines = [
+    "# Current-PC Crown Bonus Rule Parity",
+    "",
+    `Generated: ${generatedAt}`,
+    "",
+    "## Purpose",
+    "",
+    "This report proves that the evidence used by `currentPcCrownBonusRuleSimulation` is available through shared runner/browser-equivalent plumbing. It is evidence-only: final OCR members, bonuses, and totals are not changed.",
+    "",
+    "## Shared Evidence Schema",
+    "",
+    "The shared helper is `buildCurrentPcCrownBonusRuleEvidence(...)` in `app/lib/ocr.js`.",
+    "",
+    "Stage-level inputs:",
+    "",
+    "- `self.selectedMembers` / `enemy.selectedMembers`",
+    "- `self.selectedTotal` / `enemy.selectedTotal`",
+    "- `candidateSourceSummary.memberCandidates` for selected-member provenance",
+    "- `displayedTotalCandidates`, `totalDirect`, and `totalTrace` evidence for exact total provenance",
+    "",
+    "Stage-level outputs:",
+    "",
+    "- selected six-member interpretation",
+    "- selected self/enemy totals and implied current bonus",
+    "- member evidence per slot",
+    "- exact total evidence per side",
+    "- global rank-1 member",
+    "- winning side",
+    "- derived crown bonus: `floor(max(all 6 selected raw members) * 0.20)`",
+    "- proposed self/enemy totals",
+    "- `sideWouldChange`",
+    "- `wouldApply`",
+    "- rejection reasons",
+    "",
+    "## Evidence Flow",
+    "",
+    "Runner flow:",
+    "",
+    "1. Current-PC OCR extracts stage/side member rows, total candidates, total traces, and candidate source summaries.",
+    "2. Existing production recoveries run first: grouped/raw token recovery, then Stage3 7-digit bonus-displacement recovery.",
+    "3. `buildCurrentPcCrownBonusRuleEvidence(...)` evaluates the post-recovery selected six-member stage state.",
+    "4. The simulation is recorded under baseline diagnostics only.",
+    "",
+    "Browser/UI-equivalent flow:",
+    "",
+    "1. The UI current-PC OCR path builds the same candidate source summaries for each side.",
+    "2. Existing production recoveries run first and may update the selected members/totals.",
+    "3. The UI path calls `buildCurrentPcCrownBonusRuleEvidence(...)` after those recoveries.",
+    "4. The result is attached to debug/evidence state only; final `stageScores` are unchanged by the crown-bonus rule.",
+    "",
+    "Intended future precedence if productionized: grouped/raw recovery first, Stage3 7-digit bonus-displacement second, crown-bonus rule last. This task does not productionize that final step.",
+    "",
+    "## Global Parity Counts",
+    "",
+    "| metric | count |",
+    "| --- | ---: |",
+    `| stages compared | ${parity.stagesCompared} |`,
+    `| crown-bonus simulation TP | ${simulation.truePositives} |`,
+    `| crown-bonus simulation FP | ${simulation.falsePositives} |`,
+    `| crown-bonus simulation FN | ${simulation.falseNegatives} |`,
+    `| crown-bonus simulation blocked | ${simulation.blocked} |`,
+    `| TP parity exact | ${parity.tpParityExact} / ${simulation.truePositives} |`,
+    `| wouldApply disagreements | ${parity.wouldApplyDisagreements} |`,
+    `| proposed member disagreements | ${parity.proposedMemberDisagreements} |`,
+    `| proposed bonus disagreements | ${parity.proposedBonusDisagreements} |`,
+    `| proposed total disagreements | ${parity.proposedTotalDisagreements} |`,
+    `| selected member disagreements | ${parity.selectedMemberDisagreements} |`,
+    `| selected total evidence mismatches | ${parity.selectedTotalEvidenceMismatches} |`,
+    `| missing evidence in browser-equivalent | ${parity.missingInBrowserEquivalent} |`,
+    `| missing evidence in runner | ${parity.missingInRunner} |`,
+    `| metadata-only mismatches | ${parity.metadataOnlyMismatches} |`,
+    `| safety-relevant mismatches | ${parity.safetyRelevantMismatches} |`,
+    "",
+    "## TP Parity Rows",
+    "",
+    "| screenshot | stage | side | runner apply | browser-equivalent apply | rank-1 | winning side | derived bonus | proposed self total | proposed enemy total | parity |",
+    "| --- | ---: | --- | --- | --- | --- | --- | ---: | ---: | ---: | --- |"
+  ];
+
+  if (parity.tpRows.length === 0) {
+    lines.push("| - | - | - | - | - | - | - | - | - | - | - |");
+  }
+  for (const row of parity.tpRows) {
+    const rank1 = row.runner.rank1
+      ? `${row.runner.rank1.side}.member${row.runner.rank1.slot}=${formatNumber(row.runner.rank1.value)}`
+      : "-";
+    const parityLabel =
+      row.mismatchFields.length === 0 && row.metadataMismatchFields.length === 0
+        ? "exact"
+        : row.mismatchFields.length > 0
+          ? `safety mismatch: ${row.mismatchFields.join(",")}`
+          : `metadata-only: ${row.metadataMismatchFields.join(",")}`;
+    lines.push(
+      `| ${row.screenshot} | ${row.stage} | ${row.side} | ${row.runnerWouldApply ? "yes" : "no"} | ${
+        row.browserWouldApply ? "yes" : "no"
+      } | ${rank1} | ${row.runner.winningSide || "-"} | ${formatNumber(
+        row.runner.calculatedBonus || 0
+      )} | ${formatNumber(row.runner.proposed.self.total || 0)} | ${formatNumber(
+        row.runner.proposed.enemy.total || 0
+      )} | ${parityLabel} |`
+    );
+  }
+
+  lines.push(
+    "",
+    "## Mismatch Rows",
+    "",
+    "| screenshot | stage | mismatch type | fields | safety relevant |",
+    "| --- | ---: | --- | --- | --- |"
+  );
+  if (parity.mismatchRows.length === 0) {
+    lines.push("| - | - | - | - | no |");
+  }
+  for (const row of parity.mismatchRows) {
+    const fields =
+      row.mismatchFields.length > 0
+        ? row.mismatchFields.join(", ")
+        : row.metadataMismatchFields.join(", ");
+    lines.push(
+      `| ${row.screenshot} | ${row.stage} | ${
+        row.mismatchFields.length > 0 ? "safety-relevant" : "metadata-only"
+      } | ${fields || "-"} | ${row.safetyRelevant ? "yes" : "no"} |`
+    );
+  }
+
+  lines.push(
+    "",
+    "## Production Readiness",
+    "",
+    parity.safetyRelevantMismatches === 0 &&
+      parity.wouldApplyDisagreements === 0 &&
+      parity.tpParityExact === simulation.truePositives
+      ? "Evidence parity is strong enough for a separate production-readiness audit next. This task still does not change final OCR output."
+      : "Do not productionize. Resolve parity mismatches before any final-output recovery.",
+    "",
+    "Recommended next step:",
+    "",
+    "1. Perform a production-readiness audit for applying the same shared helper after existing current-PC recoveries.",
+    "2. Confirm browser/UI debug logs on representative TP rows.",
+    "3. Only then consider a production recovery that preserves these exact guards.",
+    ""
+  );
+
+  return lines.join("\n");
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const debugNext = args.includes("--debug-next");
@@ -11377,6 +11512,10 @@ async function main() {
     );
     const crownBonusRuleSimulation =
       buildCurrentPcCrownBonusRuleSimulationEvaluation(expectedCurrentPcAnalysis);
+    const crownBonusRuleParity = compareCurrentPcCrownBonusRuleParity(
+      expectedCurrentPcAnalysis,
+      crownBonusRuleSimulation
+    );
     const groupedRawParity = compareCurrentPcGroupedRawEvidenceParity(
       expectedCurrentPcAnalysis,
       groupedRawTokenSimulation
@@ -11398,8 +11537,19 @@ async function main() {
       buildCurrentPcCrownBonusRuleSimulationReport(crownBonusRuleSimulation)
     );
     await fs.writeFile(
+      currentPcCrownBonusParityReportPath,
+      buildCurrentPcCrownBonusRuleParityReport(
+        crownBonusRuleParity,
+        crownBonusRuleSimulation
+      )
+    );
+    await fs.writeFile(
       path.join(currentPcBaselineDir, "crown-bonus-rule-simulation.json"),
       JSON.stringify(crownBonusRuleSimulation, null, 2)
+    );
+    await fs.writeFile(
+      path.join(currentPcBaselineDir, "crown-bonus-rule-parity.json"),
+      JSON.stringify(crownBonusRuleParity, null, 2)
     );
     if (currentPcBonusDiagnosticsArtifacts) {
       await fs.writeFile(
@@ -11457,10 +11607,14 @@ async function main() {
               groupedRawParityReport: path.relative(rootDir, currentPcGroupedRawParityReportPath).replaceAll("\\", "/"),
               stage3SevenDigitParityReport: path.relative(rootDir, currentPcStage3SevenDigitParityReportPath).replaceAll("\\", "/"),
               crownBonusRuleSimulationReport: path.relative(rootDir, currentPcCrownBonusSimulationReportPath).replaceAll("\\", "/"),
+              crownBonusRuleParityReport: path.relative(rootDir, currentPcCrownBonusParityReportPath).replaceAll("\\", "/"),
               outputDir: currentPcBaselineArtifacts.outputDir,
               summary: currentPcBaselineArtifacts.summaryPath,
               crownBonusRuleSimulation: path
                 .relative(rootDir, path.join(currentPcBaselineDir, "crown-bonus-rule-simulation.json"))
+                .replaceAll("\\", "/"),
+              crownBonusRuleParity: path
+                .relative(rootDir, path.join(currentPcBaselineDir, "crown-bonus-rule-parity.json"))
                 .replaceAll("\\", "/"),
               bonusDiagnostics: currentPcBonusDiagnosticsArtifacts
                 ? {

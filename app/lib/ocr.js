@@ -1771,6 +1771,223 @@ function arraysEqualWithinOne(left = [], right = []) {
   return left.every((value, index) => Math.abs(Number(value || 0) - Number(right[index] || 0)) <= 1);
 }
 
+function currentPcSelectedBonus(sideAnalysis = {}) {
+  const selectedMembers = sideAnalysis?.selectedMembers || [];
+  const memberSum = selectedMembers.reduce((sum, value) => sum + Number(value || 0), 0);
+  return Math.max(0, Number(sideAnalysis?.selectedTotal || 0) - memberSum);
+}
+
+function currentPcMemberEvidenceForValue(sideAnalysis = {}, value, slotIndex) {
+  const normalizedValue = Number(value || 0);
+  if (normalizedValue <= 0) return [];
+  const memberCandidates = sideAnalysis?.candidateSourceSummary?.memberCandidates || {};
+  const evidence = [];
+  if ((memberCandidates.numbers || []).some((candidate) => Math.abs(Number(candidate || 0) - normalizedValue) <= 1)) {
+    const matchingTokens = (memberCandidates.tokenAudit || []).filter(
+      (token) => Math.abs(Number(token.normalizedValue || 0) - normalizedValue) <= 1
+    );
+    evidence.push({
+      source: "member-row",
+      role: `member${slotIndex + 1}`,
+      value: normalizedValue,
+      text: memberCandidates.text || "",
+      tokens: matchingTokens.map((token) => ({
+        rawToken: token.rawToken || token.token || "",
+        normalizedValue: token.normalizedValue || 0,
+        shape: token.shape || token.tokenShape || "",
+        textIndex: token.textIndex ?? null,
+      })),
+    });
+  }
+  if ((sideAnalysis?.rawCandidates || []).some((candidate) => Math.abs(Number(candidate || 0) - normalizedValue) <= 1)) {
+    evidence.push({
+      source: "raw-candidates",
+      role: `member${slotIndex + 1}`,
+      value: normalizedValue,
+    });
+  }
+  return evidence;
+}
+
+function currentPcTotalEvidenceForValue(sideAnalysis = {}, value) {
+  const normalizedValue = Number(value || 0);
+  if (normalizedValue <= 0) return [];
+  const summary = sideAnalysis?.candidateSourceSummary || {};
+  const evidence = [];
+  const pushEvidence = (entry) => {
+    if (!entry) return;
+    evidence.push({
+      source: entry.source,
+      value: normalizedValue,
+      text: entry.text || "",
+      pass: entry.pass || null,
+      tokens: entry.tokens || [],
+    });
+  };
+
+  if ((sideAnalysis.displayedTotalCandidates || []).some((candidate) => Math.abs(Number(candidate || 0) - normalizedValue) <= 1)) {
+    pushEvidence({ source: "displayed-total-candidates" });
+  }
+  if ((summary.totalDirect?.numbers || []).some((candidate) => Math.abs(Number(candidate || 0) - normalizedValue) <= 1)) {
+    pushEvidence({
+      source: "total-direct",
+      text: summary.totalDirect.text || "",
+      pass: summary.totalDirect.pass || null,
+      tokens: (summary.totalDirect.tokenAudit || []).filter(
+        (token) => Math.abs(Number(token.normalizedValue || 0) - normalizedValue) <= 1
+      ),
+    });
+  }
+  for (const trace of summary.totalTraces || []) {
+    if ((trace.numbers || []).some((candidate) => Math.abs(Number(candidate || 0) - normalizedValue) <= 1)) {
+      pushEvidence({
+        source: "total-trace",
+        text: trace.text || "",
+        pass: trace.pass || null,
+      });
+    }
+  }
+  for (const traceAudit of summary.totalTraceTokenAudit || []) {
+    const tokens = (traceAudit.tokens || []).filter(
+      (token) => Math.abs(Number(token.normalizedValue || 0) - normalizedValue) <= 1
+    );
+    if (tokens.length > 0) {
+      pushEvidence({
+        source: "total-trace-token-audit",
+        text: traceAudit.text || "",
+        pass: traceAudit.pass || null,
+        tokens: tokens.map((token) => ({
+          rawToken: token.rawToken || token.token || "",
+          normalizedValue: token.normalizedValue || 0,
+          shape: token.shape || token.tokenShape || "",
+          textIndex: token.textIndex ?? null,
+        })),
+      });
+    }
+  }
+  if ((sideAnalysis.rawCandidates || []).some((candidate) => Math.abs(Number(candidate || 0) - normalizedValue) <= 1)) {
+    pushEvidence({ source: "raw-candidates" });
+  }
+  return evidence;
+}
+
+export function buildCurrentPcCrownBonusRuleEvidence({
+  stage = 0,
+  self = null,
+  enemy = null,
+}) {
+  const rejectionReasons = [];
+  if (!self || !enemy) {
+    return {
+      wouldApply: false,
+      rejectionReasons: ["missing-stage-side-analysis"],
+      proposed: null,
+      evidence: {},
+    };
+  }
+
+  const selected = {
+    self: {
+      members: [...(self.selectedMembers || [])].map((value) => Number(value || 0)).slice(0, 3),
+      total: Number(self.selectedTotal || 0),
+      bonus: currentPcSelectedBonus(self),
+    },
+    enemy: {
+      members: [...(enemy.selectedMembers || [])].map((value) => Number(value || 0)).slice(0, 3),
+      total: Number(enemy.selectedTotal || 0),
+      bonus: currentPcSelectedBonus(enemy),
+    },
+  };
+  for (const side of ["self", "enemy"]) {
+    while (selected[side].members.length < 3) selected[side].members.push(0);
+  }
+
+  const memberEvidence = { self: [], enemy: [] };
+  for (const side of ["self", "enemy"]) {
+    const sideAnalysis = side === "self" ? self : enemy;
+    for (let index = 0; index < 3; index += 1) {
+      const value = selected[side].members[index];
+      const evidence = currentPcMemberEvidenceForValue(sideAnalysis, value, index);
+      memberEvidence[side].push(evidence);
+      if (value <= 0) rejectionReasons.push(`missing-${side}-member${index + 1}`);
+      if (value > 0 && evidence.length === 0) {
+        rejectionReasons.push(`missing-${side}-member${index + 1}-evidence`);
+      }
+    }
+  }
+
+  const allMembers = [
+    ...selected.self.members.map((value, index) => ({ side: "self", slot: index + 1, value })),
+    ...selected.enemy.members.map((value, index) => ({ side: "enemy", slot: index + 1, value })),
+  ];
+  const positiveMembers = allMembers.filter((entry) => entry.value > 0);
+  if (positiveMembers.length !== 6) rejectionReasons.push("missing-member-evidence");
+
+  const maxValue = Math.max(...positiveMembers.map((entry) => entry.value), 0);
+  const maxEntries = positiveMembers.filter((entry) => entry.value === maxValue);
+  if (maxEntries.length !== 1) rejectionReasons.push("non-unique-global-rank1-member");
+  const rank1 = maxEntries[0] || null;
+  const winningSide = rank1?.side || null;
+  const calculatedBonus = maxValue > 0 ? Math.floor(maxValue * 0.2) : 0;
+  const proposed = {
+    self: {
+      members: selected.self.members,
+      bonus: winningSide === "self" ? calculatedBonus : 0,
+      total:
+        selected.self.members.reduce((sum, value) => sum + value, 0) +
+        (winningSide === "self" ? calculatedBonus : 0),
+    },
+    enemy: {
+      members: selected.enemy.members,
+      bonus: winningSide === "enemy" ? calculatedBonus : 0,
+      total:
+        selected.enemy.members.reduce((sum, value) => sum + value, 0) +
+        (winningSide === "enemy" ? calculatedBonus : 0),
+    },
+  };
+
+  const totalEvidence = {
+    self: currentPcTotalEvidenceForValue(self, proposed.self.total),
+    enemy: currentPcTotalEvidenceForValue(enemy, proposed.enemy.total),
+  };
+  if (totalEvidence.self.length === 0) rejectionReasons.push("missing-self-exact-total-evidence");
+  if (totalEvidence.enemy.length === 0) rejectionReasons.push("missing-enemy-exact-total-evidence");
+
+  const sideWouldChange = {};
+  for (const side of ["self", "enemy"]) {
+    sideWouldChange[side] =
+      !arraysEqualWithinOne(proposed[side].members, selected[side].members) ||
+      Math.abs(Number(proposed[side].bonus || 0) - Number(selected[side].bonus || 0)) > 1 ||
+      Math.abs(Number(proposed[side].total || 0) - Number(selected[side].total || 0)) > 1;
+  }
+  if (!sideWouldChange.self && !sideWouldChange.enemy) {
+    rejectionReasons.push("existing-result-already-satisfies-crown-bonus-rule");
+  }
+
+  const uniqueRejectionReasons = [...new Set(rejectionReasons)];
+  const wouldApply =
+    uniqueRejectionReasons.length === 0 && (sideWouldChange.self || sideWouldChange.enemy);
+  return {
+    wouldApply,
+    rejectionReasons: uniqueRejectionReasons,
+    selected,
+    proposed,
+    sideWouldChange,
+    stage,
+    evidence: {
+      memberEvidence,
+      totalEvidence,
+      rank1,
+      winningSide,
+      calculatedBonus,
+      uniqueInterpretation: uniqueRejectionReasons.length === 0,
+      rule: "bonus=floor(max(all 6 selected raw members)*0.20)",
+    },
+    note:
+      "Current-PC evidence-only crown bonus rule simulation. It does not change OCR output.",
+  };
+}
+
 export function buildCurrentPcGroupedExactInterpretations({
   rawCandidates = [],
   displayedTotalCandidates = [],
