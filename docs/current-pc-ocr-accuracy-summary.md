@@ -14,23 +14,23 @@ Fixture set: 58 expected current-PC screenshots, 174 stages, 348 stage/side rows
 
 | level / field | pass | fail | total | accuracy |
 | --- | ---: | ---: | ---: | ---: |
-| image | 9 | 49 | 58 | 15.5% |
-| stage | 105 | 69 | 174 | 60.3% |
-| stage/side row | 269 | 79 | 348 | 77.3% |
-| all 3 members | 277 | 71 | 348 | 79.6% |
-| bonus | 286 | 62 | 348 | 82.2% |
-| total | 288 | 60 | 348 | 82.8% |
+| image | 21 | 37 | 58 | 36.2% |
+| stage | 128 | 46 | 174 | 73.6% |
+| stage/side row | 292 | 56 | 348 | 83.9% |
+| all 3 members | 300 | 48 | 348 | 86.2% |
+| bonus | 307 | 41 | 348 | 88.2% |
+| total | 303 | 45 | 348 | 87.1% |
 
 ## Stage/Side Position Breakdown
 
 | position | pass | fail | total | accuracy |
 | --- | ---: | ---: | ---: | ---: |
-| Stage1 self | 50 | 8 | 58 | 86.2% |
-| Stage1 enemy | 52 | 6 | 58 | 89.7% |
-| Stage2 self | 44 | 14 | 58 | 75.9% |
-| Stage2 enemy | 51 | 7 | 58 | 87.9% |
-| Stage3 self | 24 | 34 | 58 | 41.4% |
-| Stage3 enemy | 48 | 10 | 58 | 82.8% |
+| Stage1 self | 53 | 5 | 58 | 91.4% |
+| Stage1 enemy | 53 | 5 | 58 | 91.4% |
+| Stage2 self | 49 | 9 | 58 | 84.5% |
+| Stage2 enemy | 54 | 4 | 58 | 93.1% |
+| Stage3 self | 34 | 24 | 58 | 58.6% |
+| Stage3 enemy | 49 | 9 | 58 | 84.5% |
 
 Stage3 self is the weakest remaining position after the current production recoveries.
 
@@ -38,21 +38,22 @@ Stage3 self is the weakest remaining position after the current production recov
 
 | field | exact matches | total | accuracy |
 | --- | ---: | ---: | ---: |
-| member1 | 311 | 348 | 89.4% |
-| member2 | 299 | 348 | 85.9% |
-| member3 | 290 | 348 | 83.3% |
-| all 3 members | 277 | 348 | 79.6% |
-| bonus | 286 | 348 | 82.2% |
-| total | 288 | 348 | 82.8% |
+| member1 | 321 | 348 | 92.2% |
+| member2 | 317 | 348 | 91.1% |
+| member3 | 312 | 348 | 89.7% |
+| all 3 members | 300 | 348 | 86.2% |
+| bonus | 307 | 348 | 88.2% |
+| total | 303 | 348 | 87.1% |
 
 ## Crown-Bonus Before/After
 
 | state | pass | fail | total | accuracy |
 | --- | ---: | ---: | ---: | ---: |
 | before `applyCurrentPcCrownBonusRuleRecovery` | 235 | 113 | 348 | 67.5% |
-| after current production recoveries | 269 | 79 | 348 | 77.3% |
+| after crown-bonus recovery | 269 | 79 | 348 | 77.3% |
+| after stage-wide six-member solver recovery | 292 | 56 | 348 | 83.9% |
 
-The crown-bonus production recovery adds 34 exact stage/side row passes. This matches the 34 TP cases from `currentPcCrownBonusRuleSimulation`.
+The crown-bonus production recovery adds 34 exact stage/side row passes. The stage-wide six-member solver adds 23 more exact stage/side row passes after grouped/raw, Stage3 7-digit bonus-displacement, and crown-bonus recovery have already run.
 
 ## Production Recovery Impact
 
@@ -61,10 +62,11 @@ The crown-bonus production recovery adds 34 exact stage/side row passes. This ma
 | `currentPcGroupedRawTokenRecovery` | 13 |
 | `currentPcStage3SevenDigitBonusDisplacementRecovery` | 11 |
 | `currentPcCrownBonusRuleRecovery` | 34 |
-| unique corrected rows | 58 |
-| rows still failing after all production recoveries | 79 |
+| `currentPcStageWideSixMemberCandidateSolverRecovery` | 23 |
+| unique corrected rows | 81 |
+| rows still failing after all production recoveries | 56 |
 
-Overlap between the three production recovery sets is 0 rows in this 58-fixture baseline.
+Overlap between the four production recovery sets is 0 rows in this 58-fixture baseline.
 
 ## Counting Notes
 

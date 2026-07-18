@@ -131,6 +131,7 @@ import {
   buildCurrentPcStage3SevenDigitBonusDisplacementSimulation,
   applyCurrentPcCrownBonusRuleRecovery,
   applyCurrentPcGroupedRawTokenRecovery,
+  applyCurrentPcStageWideSixMemberCandidateSolverRecovery,
   applyCurrentPcStage3SevenDigitBonusDisplacementRecovery,
   applyDesktopMemberShape,
   pickDesktopTotalFromMemberShape,
@@ -3423,12 +3424,47 @@ export default function Home() {
                 enemyCurrentPcEvidenceWithRecovery
               ),
             });
+          const currentPcStageWideSixMemberCandidateSolverRecovery =
+            applyCurrentPcStageWideSixMemberCandidateSolverRecovery({
+              stage,
+              selectedSelfMembers: correctedSelfMembers,
+              selectedEnemyMembers: correctedEnemyMembers,
+              selectedSelfTotal: selfTotal,
+              selectedEnemyTotal: enemyTotal,
+              simulation: currentPcStageWideSixMemberCandidateSolverSimulation,
+              layoutDetection: currentPcLayoutDetection,
+              mode: "current-pc",
+              previousRecoveries: {
+                self: {
+                  groupedRaw: selfCurrentPcEvidenceWithRecovery.productionRecovery,
+                  stage3SevenDigit:
+                    selfCurrentPcEvidenceWithRecovery.currentPcStage3SevenDigitBonusDisplacementRecovery,
+                  crownBonus: currentPcCrownBonusRuleRecovery,
+                },
+                enemy: {
+                  groupedRaw: enemyCurrentPcEvidenceWithRecovery.productionRecovery,
+                  stage3SevenDigit:
+                    enemyCurrentPcEvidenceWithRecovery.currentPcStage3SevenDigitBonusDisplacementRecovery,
+                  crownBonus: currentPcCrownBonusRuleRecovery,
+                },
+              },
+            });
+          if (currentPcStageWideSixMemberCandidateSolverRecovery.applied) {
+            correctionLogs.push(currentPcStageWideSixMemberCandidateSolverRecovery.message);
+            correctedSelfMembers =
+              currentPcStageWideSixMemberCandidateSolverRecovery.self.members;
+            correctedEnemyMembers =
+              currentPcStageWideSixMemberCandidateSolverRecovery.enemy.members;
+            selfTotal = currentPcStageWideSixMemberCandidateSolverRecovery.self.total;
+            enemyTotal = currentPcStageWideSixMemberCandidateSolverRecovery.enemy.total;
+          }
           currentPcGroupedRawEvidence.stages[`stage${stage}`] = {
             self: selfCurrentPcEvidenceWithRecovery,
             enemy: enemyCurrentPcEvidenceWithRecovery,
             currentPcCrownBonusRuleSimulation,
             currentPcCrownBonusRuleRecovery,
             currentPcStageWideSixMemberCandidateSolverSimulation,
+            currentPcStageWideSixMemberCandidateSolverRecovery,
           };
           const formatEvidenceSummary = (side, evidence) => {
             const tokens = evidence.evidence?.eligibleTokens || [];

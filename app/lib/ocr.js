@@ -3232,6 +3232,185 @@ export function applyCurrentPcCrownBonusRuleRecovery({
   };
 }
 
+export function applyCurrentPcStageWideSixMemberCandidateSolverRecovery({
+  stage = 0,
+  selectedSelfMembers = [],
+  selectedEnemyMembers = [],
+  selectedSelfTotal = 0,
+  selectedEnemyTotal = 0,
+  simulation = null,
+  layoutDetection = null,
+  mode = "",
+  previousRecoveries = null,
+}) {
+  const currentPcLayout =
+    mode === "current-pc" ||
+    layoutDetection?.detected ||
+    layoutDetection?.layoutFamily === "current-pc-2026-07-result" ||
+    layoutDetection?.family === "current-pc-2026-07-result";
+  const currentSelfMembers = normalizeCurrentPcRecoveryMembers(selectedSelfMembers);
+  const currentEnemyMembers = normalizeCurrentPcRecoveryMembers(selectedEnemyMembers);
+  const proposedSelfMembers = normalizeCurrentPcRecoveryMembers(simulation?.proposed?.self?.members || []);
+  const proposedEnemyMembers = normalizeCurrentPcRecoveryMembers(
+    simulation?.proposed?.enemy?.members || []
+  );
+  const proposedSelfBonus = Number(simulation?.proposed?.self?.bonus || 0);
+  const proposedEnemyBonus = Number(simulation?.proposed?.enemy?.bonus || 0);
+  const proposedSelfTotal = Number(simulation?.proposed?.self?.total || 0);
+  const proposedEnemyTotal = Number(simulation?.proposed?.enemy?.total || 0);
+  const validInterpretationCount = Number(simulation?.evidence?.validInterpretationCount || 0);
+  const combinationCount = Number(simulation?.evidence?.combinationCount || 0);
+  const totalEvidence = simulation?.proposed?.totalEvidence || {};
+  const rank1 = simulation?.proposed?.rank1 || null;
+  const winningSide = simulation?.proposed?.winningSide || null;
+  const calculatedBonus = Number(simulation?.proposed?.calculatedBonus || 0);
+  const changedSlots = simulation?.proposed?.changedMemberSlots || [];
+  const candidateSources = simulation?.evidence?.candidateSourcesUsed || [];
+  const rejectionReasons = [];
+
+  if (!currentPcLayout) rejectionReasons.push("not-current-pc-layout");
+  if (!simulation?.wouldApply) rejectionReasons.push("simulation-would-not-apply");
+  if (simulation?.rejectionReasons?.length) {
+    rejectionReasons.push(...simulation.rejectionReasons);
+  }
+  if (validInterpretationCount !== 1) {
+    rejectionReasons.push("not-unique-stage-wide-six-member-interpretation");
+  }
+  if (combinationCount <= 0 || combinationCount > 20000) {
+    rejectionReasons.push("unsafe-stage-wide-candidate-combination-count");
+  }
+  if (!simulation?.sideWouldChange?.self && !simulation?.sideWouldChange?.enemy) {
+    rejectionReasons.push("selected-stage-already-matches-proposal");
+  }
+  for (const side of ["self", "enemy"]) {
+    const prior = previousRecoveries?.[side] || {};
+    if (
+      simulation?.sideWouldChange?.[side] &&
+      (prior.groupedRaw?.applied ||
+        prior.stage3SevenDigit?.applied ||
+        prior.crownBonus?.applied)
+    ) {
+      rejectionReasons.push(`${side}-would-overwrite-prior-production-recovery`);
+    }
+  }
+  if (proposedSelfMembers.filter((value) => value > 0).length !== 3) {
+    rejectionReasons.push("proposal-self-does-not-have-three-members");
+  }
+  if (proposedEnemyMembers.filter((value) => value > 0).length !== 3) {
+    rejectionReasons.push("proposal-enemy-does-not-have-three-members");
+  }
+  if (!rank1 || !["self", "enemy"].includes(winningSide)) {
+    rejectionReasons.push("missing-unique-global-rank1-member");
+  }
+  if (calculatedBonus <= 0) rejectionReasons.push("missing-derived-crown-bonus");
+  if (winningSide === "self" && proposedSelfBonus !== calculatedBonus) {
+    rejectionReasons.push("self-bonus-does-not-match-derived-crown-bonus");
+  }
+  if (winningSide === "enemy" && proposedEnemyBonus !== calculatedBonus) {
+    rejectionReasons.push("enemy-bonus-does-not-match-derived-crown-bonus");
+  }
+  if (winningSide === "self" && proposedEnemyBonus !== 0) {
+    rejectionReasons.push("losing-enemy-side-has-bonus");
+  }
+  if (winningSide === "enemy" && proposedSelfBonus !== 0) {
+    rejectionReasons.push("losing-self-side-has-bonus");
+  }
+  const selfMemberSum = proposedSelfMembers.reduce((sum, value) => sum + value, 0);
+  const enemyMemberSum = proposedEnemyMembers.reduce((sum, value) => sum + value, 0);
+  if (Math.abs(selfMemberSum + proposedSelfBonus - proposedSelfTotal) > 1) {
+    rejectionReasons.push("self-proposal-equation-not-exact");
+  }
+  if (Math.abs(enemyMemberSum + proposedEnemyBonus - proposedEnemyTotal) > 1) {
+    rejectionReasons.push("enemy-proposal-equation-not-exact");
+  }
+  if (!Array.isArray(totalEvidence.self) || totalEvidence.self.length === 0) {
+    rejectionReasons.push("missing-self-exact-total-evidence");
+  }
+  if (!Array.isArray(totalEvidence.enemy) || totalEvidence.enemy.length === 0) {
+    rejectionReasons.push("missing-enemy-exact-total-evidence");
+  }
+  if (changedSlots.length === 0) {
+    rejectionReasons.push("missing-changed-member-slot");
+  }
+  for (const slot of changedSlots) {
+    const sources = slot.sources || [];
+    if (sources.length === 0) {
+      rejectionReasons.push(`missing-${slot.side}-member${slot.slot}-changed-source`);
+    }
+    if (sources.some((source) => source.source === "selected-current-output")) {
+      rejectionReasons.push(`changed-${slot.side}-member${slot.slot}-uses-selected-only-source`);
+    }
+    if (
+      sources.some((source) =>
+        /total|bonus/i.test(String(source.source || ""))
+      )
+    ) {
+      rejectionReasons.push(`changed-${slot.side}-member${slot.slot}-uses-total-or-bonus-source`);
+    }
+  }
+  const allowedSources = new Set([
+    "selected-current-output",
+    "member-row-token-order",
+    "member-row-number-order",
+    "grouped-raw-member-token-order",
+    "stage3-seven-digit-member-row-order",
+    "stage3-seven-digit-proposal-member",
+  ]);
+  if (candidateSources.some((source) => !allowedSources.has(source))) {
+    rejectionReasons.push("unexpected-stage-wide-candidate-source");
+  }
+  if (
+    Math.abs(Number(selectedSelfTotal || 0) - proposedSelfTotal) <= 1 &&
+    Math.abs(Number(selectedEnemyTotal || 0) - proposedEnemyTotal) <= 1 &&
+    arraysEqualWithinOne(currentSelfMembers, proposedSelfMembers) &&
+    arraysEqualWithinOne(currentEnemyMembers, proposedEnemyMembers)
+  ) {
+    rejectionReasons.push("selected-stage-already-matches-proposal");
+  }
+
+  const uniqueRejectionReasons = [...new Set(rejectionReasons)];
+  const formatTotalEvidence = (side) =>
+    (totalEvidence?.[side] || [])
+      .slice(0, 4)
+      .map((item) => `${item.source || "unknown"}:${item.value}`)
+      .join(";");
+  const formatChangedSlots = () =>
+    changedSlots
+      .map((slot) => {
+        const sources = (slot.sources || [])
+          .slice(0, 4)
+          .map((source) =>
+            [source.source, source.token, source.shape, source.textIndex ?? ""]
+              .filter((value) => value !== undefined && value !== null && value !== "")
+              .join(":")
+          )
+          .join("|");
+        return `${slot.side}.member${slot.slot}:${slot.from}->${slot.to}{${sources || "source"}}`;
+      })
+      .join(";");
+
+  return {
+    applied: uniqueRejectionReasons.length === 0,
+    stage,
+    self: {
+      members: proposedSelfMembers,
+      bonus: proposedSelfBonus,
+      total: proposedSelfTotal,
+    },
+    enemy: {
+      members: proposedEnemyMembers,
+      bonus: proposedEnemyBonus,
+      total: proposedEnemyTotal,
+    },
+    rank1,
+    winningSide,
+    calculatedBonus,
+    changedMemberSlots: changedSlots,
+    reason: uniqueRejectionReasons.join(",") || "applied",
+    message: `currentPcStageWideSixMemberCandidateSolverRecovery applied stage=${stage} previousSelf=${currentSelfMembers.join(",")} previousEnemy=${currentEnemyMembers.join(",")} proposedSelf=${proposedSelfMembers.join(",")}+${proposedSelfBonus}=${proposedSelfTotal} proposedEnemy=${proposedEnemyMembers.join(",")}+${proposedEnemyBonus}=${proposedEnemyTotal} changed=${formatChangedSlots() || "none"} rank1=${winningSide}.member${rank1?.slot || "?"}:${rank1?.value || 0} derivedBonus=${calculatedBonus} totalEvidence=self[${formatTotalEvidence("self") || "exact"}] enemy[${formatTotalEvidence("enemy") || "exact"}]`,
+  };
+}
+
 function extractDigitGroups(text = "") {
   const normalized = String(text ?? "").replace(/[\uFF10-\uFF19]/g, (char) =>
     String.fromCharCode(char.charCodeAt(0) - 0xfee0)

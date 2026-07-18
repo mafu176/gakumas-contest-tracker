@@ -1,12 +1,12 @@
 # Current-PC Stage-Wide Six-Member Candidate Solver
 
-Generated: 2026-07-18T01:39:17.554Z
+Generated: 2026-07-18T08:31:40.838Z
 
 ## Scope
 
-- runner-only simulation: yes
-- final OCR output changed: no
-- production recovery added: no
+- runner-only simulation: no; production recovery now uses the same strict shared evidence
+- final OCR output changed: yes, only when the strict solver guard applies
+- production recovery added: yes, `applyCurrentPcStageWideSixMemberCandidateSolverRecovery(...)`
 - smartphone OCR changed: no
 - legacy desktop OCR changed: no
 - filename/stage-specific logic: no
@@ -44,26 +44,26 @@ The solver builds six member-slot candidate pools for each current-PC stage: sel
 | metric | count |
 | --- | ---: |
 | current-PC stages evaluated | 174 |
-| currently failing stages | 69 |
-| currently failing stage/side rows | 79 |
+| currently failing stages | 46 |
+| currently failing stage/side rows | 56 |
 | TP stages | 23 |
 | FP stages | 0 |
 | FN stages | 3 |
 | blocked failing stages | 43 |
 | accepted stage corrections | 23 |
 | accepted stage/side corrections | 23 |
-| unique additional recovery potential | 23 |
+| production stage/side rows recovered | 23 |
 
 ## Stage3 Self Impact
 
 | metric | count |
 | --- | ---: |
-| current Stage3 self PASS | 24 / 58 |
-| current Stage3 self FAIL | 34 / 58 |
-| failures with exact wrong/missing member candidates in pool | 17 |
+| current Stage3 self PASS | 34 / 58 |
+| current Stage3 self FAIL | 24 / 58 |
+| failures with exact wrong/missing member candidates in pool | 7 |
 | uniquely solvable Stage3 self rows | 10 |
 | remaining blocked Stage3 self rows | 24 |
-| projected Stage3 self PASS if productionized | 34 / 58 (58.6%) |
+| Stage3 self PASS after production recovery | 34 / 58 (58.6%) |
 
 ## Accepted Cases By Position
 
@@ -94,7 +94,7 @@ The solver builds six member-slot candidate pools for each current-PC stage: sel
 | `applyCurrentPcCrownBonusRuleRecovery` | 0 |
 | prior slot-specific ROI TP cases | 0 / 2 |
 
-The accepted cases are evaluated after all current production recoveries. Any accepted row would be additional potential beyond the current production output.
+The accepted cases are evaluated after grouped/raw, Stage3 7-digit bonus-displacement, and crown-bonus production recoveries. The stage-wide solver is now the final current-PC production recovery pass and does not overwrite rows already changed by those earlier recoveries.
 
 ## Accepted TP Cases
 
@@ -129,8 +129,12 @@ The accepted cases are evaluated after all current production recoveries. Any ac
 No false positives were found.
 
 
-## Production Readiness Recommendation
+## Production Result
 
-Do not productionize yet. The next step should be shared runner/browser evidence parity for this exact stage-wide evidence schema.
+The strict stage-wide six-member solver has been productionized for current-PC only. It uses the shared evidence helper that already had clean runner/browser-equivalent parity, accepts only unique exact six-member interpretations, and logs:
 
-If TP remains meaningful with FP = 0 after parity, a later production candidate would still need to prove that browser/UI state exposes the same member candidate pools and exact total evidence. If TP is low, the next better target is likely Stage3 self candidate-source capture or preprocessing/ROI improvement rather than a solver.
+```text
+currentPcStageWideSixMemberCandidateSolverRecovery applied ...
+```
+
+No smartphone OCR, legacy desktop OCR, filename-specific logic, near-match repair, or hard-coded score values were added.

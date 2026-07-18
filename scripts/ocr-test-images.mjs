@@ -16,6 +16,7 @@ import {
   applySmartphoneStage3EnemySevenDigitRecovery,
   applyCurrentPcGroupedRawTokenRecovery,
   applyCurrentPcCrownBonusRuleRecovery,
+  applyCurrentPcStageWideSixMemberCandidateSolverRecovery,
   applyCurrentPcStage3SevenDigitBonusDisplacementRecovery,
   buildCurrentPcCrownBonusRuleEvidence as sharedBuildCurrentPcCrownBonusRuleEvidence,
   buildCurrentPcCandidateSourceSummary as sharedBuildCurrentPcCandidateSourceSummary,
@@ -4533,6 +4534,8 @@ async function runOcrForImage(imagePath, options = {}) {
     let currentPcStage3SevenDigitBonusDisplacementRecoveryBySide = null;
     let currentPcCrownBonusRuleSimulation = null;
     let currentPcCrownBonusRuleRecovery = null;
+    let currentPcStageWideSixMemberCandidateSolverSimulation = null;
+    let currentPcStageWideSixMemberCandidateSolverRecovery = null;
     if (ocrSource === "current-pc") {
       const buildCurrentPcRecoverySideArtifact = (side) => {
         const isSelf = side === "self";
@@ -4754,6 +4757,68 @@ async function runOcrForImage(imagePath, options = {}) {
         selfTotal = currentPcCrownBonusRuleRecovery.self.total;
         enemyTotal = currentPcCrownBonusRuleRecovery.enemy.total;
       }
+      const buildCurrentPcStageWideSideAnalysis = (side) => {
+        const isSelf = side === "self";
+        const sideAnalysis = currentPcPreRecoveryAnalysisBySide[side] || {};
+        return {
+          selectedMembers: isSelf ? self : enemy,
+          selectedTotal: isSelf ? selfTotal : enemyTotal,
+          rawCandidates: sideAnalysis.rawCandidates || [],
+          displayedTotalCandidates: sideAnalysis.displayedTotalCandidates || [],
+          bonusCandidates: sideAnalysis.bonusCandidates || [],
+          candidateSourceSummary: sideAnalysis.candidateSourceSummary || null,
+          currentPcGroupedRawTokenEvidenceSimulation:
+            sideAnalysis.currentPcGroupedRawTokenEvidenceSimulation || null,
+          currentPcStage3SevenDigitBonusDisplacementSimulation:
+            sideAnalysis.currentPcStage3SevenDigitBonusDisplacementSimulation || null,
+        };
+      };
+      currentPcStageWideSixMemberCandidateSolverSimulation =
+        sharedBuildCurrentPcStageWideSixMemberCandidateSolverEvidence({
+          stage,
+          self: buildCurrentPcStageWideSideAnalysis("self"),
+          enemy: buildCurrentPcStageWideSideAnalysis("enemy"),
+        });
+      currentPcStageWideSixMemberCandidateSolverRecovery =
+        applyCurrentPcStageWideSixMemberCandidateSolverRecovery({
+          stage,
+          selectedSelfMembers: self,
+          selectedEnemyMembers: enemy,
+          selectedSelfTotal: selfTotal,
+          selectedEnemyTotal: enemyTotal,
+          simulation: currentPcStageWideSixMemberCandidateSolverSimulation,
+          layoutDetection,
+          mode: ocrSource,
+          previousRecoveries: {
+            self: {
+              groupedRaw: currentPcProductionRecoveryBySide.self,
+              stage3SevenDigit: currentPcStage3SevenDigitBonusDisplacementRecoveryBySide.self,
+              crownBonus: currentPcCrownBonusRuleRecovery,
+            },
+            enemy: {
+              groupedRaw: currentPcProductionRecoveryBySide.enemy,
+              stage3SevenDigit: currentPcStage3SevenDigitBonusDisplacementRecoveryBySide.enemy,
+              crownBonus: currentPcCrownBonusRuleRecovery,
+            },
+          },
+        });
+      if (currentPcStageWideSixMemberCandidateSolverRecovery.applied) {
+        knownCorrectionDeltas.push({
+          pass: "currentPcStageWideSixMemberCandidateSolverRecovery applied",
+          before: cloneStageState({ self, enemy, selfTotal, enemyTotal }),
+          after: cloneStageState({
+            self: currentPcStageWideSixMemberCandidateSolverRecovery.self.members,
+            enemy: currentPcStageWideSixMemberCandidateSolverRecovery.enemy.members,
+            selfTotal: currentPcStageWideSixMemberCandidateSolverRecovery.self.total,
+            enemyTotal: currentPcStageWideSixMemberCandidateSolverRecovery.enemy.total,
+          }),
+          message: currentPcStageWideSixMemberCandidateSolverRecovery.message,
+        });
+        self = currentPcStageWideSixMemberCandidateSolverRecovery.self.members;
+        enemy = currentPcStageWideSixMemberCandidateSolverRecovery.enemy.members;
+        selfTotal = currentPcStageWideSixMemberCandidateSolverRecovery.self.total;
+        enemyTotal = currentPcStageWideSixMemberCandidateSolverRecovery.enemy.total;
+      }
     }
 
     const stageResult = {
@@ -4888,6 +4953,8 @@ async function runOcrForImage(imagePath, options = {}) {
             currentPcStage3SevenDigitBonusDisplacementRecoveryBySide?.[side] || null,
           currentPcCrownBonusRuleSimulation,
           currentPcCrownBonusRuleRecovery,
+          currentPcStageWideSixMemberCandidateSolverSimulation,
+          currentPcStageWideSixMemberCandidateSolverRecovery,
           sparseTotalAsMemberSimulation,
           stage3SelfSevenDigitDisplacementSimulation,
           stage3EnemySevenDigitRecoverySimulation:
@@ -4907,6 +4974,8 @@ async function runOcrForImage(imagePath, options = {}) {
         knownCorrectionDeltas,
         currentPcCrownBonusRuleSimulation,
         currentPcCrownBonusRuleRecovery,
+        currentPcStageWideSixMemberCandidateSolverSimulation,
+        currentPcStageWideSixMemberCandidateSolverRecovery,
         self: buildSideArtifact("self"),
         enemy: buildSideArtifact("enemy"),
       };
@@ -9767,6 +9836,10 @@ function buildCurrentPcStageWideSharedSideAnalysis(item, stage, side) {
 
 function buildCurrentPcStageWideSixMemberCandidateSolverStage(item, stage) {
   const stageKey = `stage${stage}`;
+  const artifactSimulation =
+    item.result?.[stageKey]?.debugArtifact?.currentPcStageWideSixMemberCandidateSolverSimulation ||
+    item.stages?.[stageKey]?.debugArtifact?.currentPcStageWideSixMemberCandidateSolverSimulation ||
+    item.stages?.[stageKey]?.currentPcStageWideSixMemberCandidateSolverSimulation;
   const selfAnalysis = item.stages?.[stageKey]?.self;
   const enemyAnalysis = item.stages?.[stageKey]?.enemy;
   if (!selfAnalysis || !enemyAnalysis) {
@@ -9783,11 +9856,13 @@ function buildCurrentPcStageWideSixMemberCandidateSolverStage(item, stage) {
     };
   }
 
-  const simulation = sharedBuildCurrentPcStageWideSixMemberCandidateSolverEvidence({
-    stage,
-    self: buildCurrentPcStageWideSharedSideAnalysis(item, stage, "self"),
-    enemy: buildCurrentPcStageWideSharedSideAnalysis(item, stage, "enemy"),
-  });
+  const simulation =
+    artifactSimulation ||
+    sharedBuildCurrentPcStageWideSixMemberCandidateSolverEvidence({
+      stage,
+      self: buildCurrentPcStageWideSharedSideAnalysis(item, stage, "self"),
+      enemy: buildCurrentPcStageWideSharedSideAnalysis(item, stage, "enemy"),
+    });
   const expectedPresence = currentPcStageWideExpectedPresentInPools(
     item,
     stage,
@@ -9885,7 +9960,7 @@ function buildCurrentPcStageWideSixMemberCandidateSolverEvaluation(analysis) {
         const changedSides = sides.filter((side) => simulation.sideWouldChange?.[side]);
         for (const side of changedSides) {
           increment(stagePositionBreakdown, `Stage${stage} ${side}`);
-          if (hasCurrentPcSideFailure(item, stage, side)) acceptedStageSideCorrections += 1;
+          acceptedStageSideCorrections += 1;
           const sideAnalysis = item.stages?.[stageKey]?.[side];
           if (sideAnalysis?.currentPcGroupedRawTokenRecovery?.applied) overlap.groupedRaw += 1;
           if (sideAnalysis?.currentPcStage3SevenDigitBonusDisplacementRecovery?.applied) {
@@ -10315,6 +10390,7 @@ function buildCurrentPcBrowserEquivalentStageWideSideAnalysis(item, stage, side)
 function buildCurrentPcBrowserEquivalentStageWideSixMemberCandidateSolverSimulation(item, stage) {
   const stageKey = `stage${stage}`;
   const artifactSimulation =
+    item.result?.[stageKey]?.debugArtifact?.currentPcStageWideSixMemberCandidateSolverSimulation ||
     item.stages?.[stageKey]?.debugArtifact?.currentPcStageWideSixMemberCandidateSolverSimulation;
   if (artifactSimulation) return artifactSimulation;
   const stageSimulation =

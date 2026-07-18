@@ -1,17 +1,17 @@
 # Current-PC Stage-Wide Six-Member Candidate Solver Parity
 
-Generated: 2026-07-18T01:39:17.557Z
+Generated: 2026-07-18T08:31:40.840Z
 
 ## Purpose
 
-This report checks that the runner and browser-equivalent paths can build the same evidence for the current-PC stage-wide six-member candidate solver. The solver remains evidence-only and does not change final OCR output.
+This report checks that the runner and browser-equivalent paths can build the same evidence for the current-PC stage-wide six-member candidate solver. The production recovery now uses this same shared evidence and still requires the exact strict guard before changing final OCR output.
 
 ## Shared Evidence Helper
 
 - `buildCurrentPcStageWideSixMemberCandidateSolverEvidence(...)` in `app/lib/ocr.js`
 - Inputs are post-production-recovery stage/side analyses for current-PC self and enemy rows.
 - Outputs include selected values, six member-slot candidate pools, exact total evidence, valid interpretations, `wouldApply`, and rejection reasons.
-- The browser/UI path records this evidence for diagnostics only; no stage result is rewritten by this solver.
+- The browser/UI path records this evidence and applies `applyCurrentPcStageWideSixMemberCandidateSolverRecovery(...)` only when the strict shared simulation would apply with one unique interpretation.
 
 ## Parity Counts
 
@@ -68,6 +68,6 @@ This report checks that the runner and browser-equivalent paths can build the sa
 No runner/browser-equivalent mismatches were found.
 
 
-## Production Recommendation
+## Production Result
 
-Parity is clean enough to attempt a later production-readiness audit, but this report does not productionize the solver.
+Parity remains clean for all 23 TP stages: 23/23 exact, no wouldApply disagreements, no proposed recovery disagreements, and no safety-relevant mismatches. The production recovery is current-PC only and runs after grouped/raw, Stage3 7-digit bonus-displacement, and crown-bonus recoveries.
