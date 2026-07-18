@@ -1,23 +1,30 @@
 # Current-PC Stage-Wide Solver Stage3 Variant Evidence
 
-Generated: 2026-07-18T20:13:46.084Z
+Generated: 2026-07-18T22:25:38.233Z
 
 ## Purpose
 
 This runner-only report measures whether Stage3 member-row ROI/preprocessing variant OCR evidence can add useful exact member candidates to the existing current-PC stage-wide six-member solver.
 
-No production OCR output is changed. The simulation only adds exact 7-digit candidates from Stage3 member-row diagnostic variants to a copy of the existing stage-wide candidate pools, then requires the same strict six-member + crown-bonus + exact-total uniqueness guard.
+The first broad variant-evidence experiment produced one false positive because row-order variant evidence assigned a 7-digit value to the wrong member slot while still satisfying the total equation. This follow-up experiment rejects row-order, taller, wider, shifted, and other ambiguous row-level evidence, allowing only explicit member-slot variant crops.
+
+No production OCR output is changed.
 
 ## Command
 
-`node scripts/ocr-test-images.mjs --current-pc-baseline --current-pc-stage-wide-variant-solver`
+`node scripts/ocr-test-images.mjs --current-pc-baseline --current-pc-stage-wide-slot-proven-variant-solver`
+
+## Policy
+
+- policy: `slot-proven-stage3-variant-evidence`
+- slot-proven only: yes
 
 ## Strict Guards
 
 - current-PC baseline only
 - Stage3 variant evidence only; Stage1 and Stage2 candidate pools are unchanged
 - exact numeric candidates only, limited to clean 7-digit member-like values
-- candidate must map to a member slot by slot ROI or deterministic row order
+- candidate must come from an explicit slot ROI (`member1-slot`, `member2-slot`, or `member3-slot`)
 - candidate must not come from bonus-only or total-only evidence
 - all six member slots must have candidate evidence
 - changed members must have non-selected member provenance
@@ -25,60 +32,60 @@ No production OCR output is changed. The simulation only adds exact 7-digit cand
 - crown bonus is derived only by the confirmed `floor(max(all six members) * 0.20)` rule
 - exactly one complete interpretation may satisfy the equations
 - no filename, screenshot ID, hard-coded value, near-match, inferred digit, or total-derived member logic is used
+- ambiguous row-order provenance is rejected even when totals and crown-bonus equations match
 
 ## Summary
 
 | metric | count |
 | --- | ---: |
 | failing stages evaluated | 46 |
-| TP stages | 27 |
-| FP stages | 1 |
+| TP stages | 25 |
+| FP stages | 0 |
 | FN stages | 3 |
-| blocked stages | 38 |
-| accepted stage corrections | 27 |
-| accepted stage/side corrections | 27 |
-| unique additions beyond current production | 4 |
-| unique additions beyond existing stage-wide solver | 4 |
+| blocked stages | 41 |
+| accepted stage corrections | 25 |
+| accepted stage/side corrections | 25 |
+| unique additions beyond current production | 2 |
+| unique additions beyond existing stage-wide solver | 2 |
 
 ## Stage3 Self Impact
 
 | metric | count |
 | --- | ---: |
 | remaining Stage3 self failures inspected | 24 |
-| gained at least one exact variant candidate | 19 |
-| gained all missing exact member evidence | 4 |
-| uniquely solvable by strict guard | 3 |
+| gained at least one exact variant candidate | 7 |
+| gained all missing exact member evidence | 3 |
+| uniquely solvable by strict guard | 2 |
 | ambiguous with competing interpretations | 0 |
-| still missing exact member evidence | 20 |
-| projected Stage3 self recovery rate from this simulation | 3 / 24 (12.5%) |
+| still missing exact member evidence | 21 |
+| projected Stage3 self recovery rate from this simulation | 2 / 24 (8.3%) |
 
 ## Variant Evidence Sources
 
 | variant source | candidates added | candidates used in accepted changes |
 | --- | ---: | ---: |
-| baseline-threshold-row-variant | 11 | 0 |
-| crown-bonus-threshold-row-variant | 19 | 0 |
-| current-member-row-roi | 16 | 0 |
 | member1-slot | 4 | 0 |
 | member2-slot | 3 | 0 |
 | member3-slot | 6 | 2 |
-| shifted-down-member-row-roi | 15 | 0 |
-| shifted-left-member-row-roi | 12 | 0 |
-| shifted-right-member-row-roi | 18 | 0 |
-| shifted-up-member-row-roi | 14 | 0 |
-| taller-member-row-roi | 19 | 2 |
-| tighter-vertical-member-row-roi | 18 | 0 |
-| wider-member-row-roi | 25 | 0 |
+
+## True Incremental TP Cases
+
+These rows require a Stage3 slot-proven variant candidate that is not already enough under the existing production stage-wide solver.
+
+| screenshot | stage | side | changed member slot | slot-proven variant source | value | total evidence | crown-bonus equation | why unique |
+| --- | ---: | --- | --- | --- | ---: | --- | --- | --- |
+| 2026-07-11_223152331.png | 3 | self | member3: - -> 1,002,601 | member3-slot | 1,002,601 | self total evidence 2,509,763 from displayed/trace candidates; enemy total evidence 3,006,155 from displayed/trace candidates | self 808,246 + 698,916 + 1,002,601 + 0 = 2,509,763; enemy 115,012 + 1,059,979 + 1,525,970 + 305,194 = 3,006,155 | one complete six-member interpretation satisfies both totals and the crown-bonus rule under the existing stage-wide within-one fixture tolerance |
+| 2026-07-15_184150257.png | 3 | self | member3: 20,098 -> 1,004,934 | member3-slot | 1,004,934 | self total evidence 3,137,336 from displayed/trace/raw candidates; enemy total evidence 1,964,733 from displayed/trace candidates | self 987,319 + 944,097 + 1,004,934 + 200,986 = 3,137,336; enemy 918,339 + 605,478 + 440,916 + 0 = 1,964,733 | one complete six-member interpretation satisfies both exact totals and the crown-bonus rule |
+
+Note: the first incremental row is accepted by the same within-one tolerance already used by the current stage-wide solver evaluator. A browser/UI parity pass should explicitly preserve the slot-proven-only policy and audit exact-vs-within-one behavior before any production use.
 
 ## Accepted TP Cases
 
 | screenshot | stage | selected six members | proposed six members | changed member slots | variant candidates | rank-1 | winning side | derived bonus | total evidence | why unique |
 | --- | ---: | --- | --- | --- | --- | --- | --- | ---: | --- | --- |
 | 2026-07-11_223152331.png | 3 | self 698916, 0, 0<br>enemy 115012, 1059979, 1525970 | self 808246, 698916, 1002601<br>enemy 115012, 1059979, 1525970 | self.member1: 698,916 -> 808,246 (member-row-token-order:808,246:comma-grouped; grouped-raw-parsed-member-token:808,246:comma-grouped; stage3-seven-digit-member-row-order:808246)<br>self.member2: - -> 698,916 (member-row-token-order:698,916:comma-grouped; grouped-raw-parsed-member-token:698,916:comma-grouped; stage3-seven-digit-member-row-order:698916)<br>self.member3: - -> 1,002,601 (stage3-member-row-variant:member3-slot:1002601) | self.member3 1,002,601 (member3-slot, slot token=1002601) | enemy.member3=1,525,970 | enemy | 305,194 | self: displayed-total-candidates<br>total-trace pass1 "+ A 2,509,764"<br>total-trace pass1 "2,509,764"<br>total-trace pass1 "2,509,764n 808 2468 98.916 1.002 .&00)°"<br>enemy: displayed-total-candidates<br>total-trace pass1 "> + VIN 3,006,155¢"<br>total-trace pass1 "- bh ALLE 3,006,155:"<br>total-trace pass1 "3,006,155: 115 121.059 9781 /R25 O07)" | exactly one complete six-member interpretation satisfies both exact totals and the crown-bonus rule |
-| 2026-07-11_223346581.png | 3 | self 745929, 364665, 937345<br>enemy 706573, 353903, 467485 | self 745929, 1360665, 937345<br>enemy 706573, 353903, 467485 | self.member2: 364,665 -> 1,360,665 (stage3-member-row-variant:taller-member-row-roi:1360665) | self.member2 1,360,665 (taller-member-row-roi, row token=1360665) | self.member2=1,360,665 | self | 272,133 | self: displayed-total-candidates<br>total-trace pass1 "WWI had 3,316,072n"<br>total-trace pass1 "© 3,316,072"<br>total-trace pass1 "3,316,072n TARE 9901 2&0 6565 917 JAR"<br>enemy: displayed-total-candidates<br>total-trace pass1 "2+ 1,527,961"<br>total-trace pass1 "aT 1,527,961"<br>total-trace pass1 "© 1,527,961m" | exactly one complete six-member interpretation satisfies both exact totals and the crown-bonus rule |
 | 2026-07-11_223753187.png | 1 | self 482143, 434415, 13190<br>enemy 497467, 180814, 141128 | self 482143, 434415, 659532<br>enemy 497467, 180814, 141128 | self.member3: 13,190 -> 659,532 (member-row-token-order:659,532:comma-grouped; grouped-raw-parsed-member-token:659,532:comma-grouped) | - | self.member3=659,532 | self | 131,906 | self: displayed-total-candidates<br>total-direct pass1 "© 1,707,996m"<br>total-trace pass1 "Yin + AC 1,707,996¢"<br>total-trace pass1 "WWI ME 1,707,996m"<br>enemy: displayed-total-candidates<br>total-direct pass1 "© 819,409"<br>total-trace pass1 "a4 * 819,409%"<br>total-trace pass1 ""819,409" | exactly one complete six-member interpretation satisfies both exact totals and the crown-bonus rule |
 | 2026-07-11_223753187.png | 2 | self 237023, 284827, 479567<br>enemy 158516, 248983, 323424 | self 397838, 237023, 284827<br>enemy 158516, 248983, 323424 | self.member1: 237,023 -> 397,838 (member-row-token-order:397,838:comma-grouped; grouped-raw-parsed-member-token:397,838:comma-grouped)<br>self.member2: 284,827 -> 237,023 (member-row-token-order:237,023:comma-grouped; grouped-raw-parsed-member-token:237,023:comma-grouped)<br>self.member3: 479,567 -> 284,827 (member-row-token-order:284,827:comma-grouped; grouped-raw-parsed-member-token:284,827:comma-grouped) | - | self.member1=397,838 | self | 79,567 | self: displayed-total-candidates<br>total-trace pass1 "~~ 999,255x"<br>total-trace-token-audit pass1 "Vin vA 999.255m"<br>total-trace-token-audit pass1 "WLI oo 999.255m"<br>enemy: displayed-total-candidates<br>total-trace pass1 "= 730,923"<br>total-trace-token-audit pass1 "= 730,923"<br>total-trace-token-audit pass1 "730.9230" | exactly one complete six-member interpretation satisfies both exact totals and the crown-bonus rule |
-| 2026-07-15_184109879.png | 3 | self 742946, 1099253, 919939<br>enemy 523915, 120363, 224072 | self 742946, 1099253, 919939<br>enemy 523915, 1114421, 1120363 | enemy.member2: 120,363 -> 1,114,421 (member-row-token-order:1,114,421:comma-grouped; grouped-raw-parsed-member-token:1,114,421:comma-grouped; stage3-seven-digit-member-row-order:1114421)<br>enemy.member3: 224,072 -> 1,120,363 (stage3-member-row-variant:taller-member-row-roi:1120363) | enemy.member3 1,120,363 (taller-member-row-roi, row token=1120363) | enemy.member3=1,120,363 | enemy | 224,072 | self: displayed-total-candidates<br>total-trace pass1 "+ A 2,762,138"<br>total-trace pass1 "2,762,138m"<br>total-trace pass1 "2,762,138m 742 9A61.099 25% 914 O30"<br>enemy: displayed-total-candidates<br>total-direct pass1 ""2982772"<br>total-trace pass1 ""2982772"<br>total-trace-token-audit pass1 ""2982772" | exactly one complete six-member interpretation satisfies both exact totals and the crown-bonus rule |
 | 2026-07-15_184125225.png | 1 | self 228420, 601624, 67279<br>enemy 393994, 0, 0 | self 228420, 601624, 67279<br>enemy 224956, 592786, 393994 | enemy.member1: 393,994 -> 224,956 (member-row-token-order:224.956:period-grouped; grouped-raw-eligible-grouped-member-token:224.956:period-grouped)<br>enemy.member2: - -> 592,786 (member-row-token-order:592,786:comma-grouped; grouped-raw-parsed-member-token:592,786:comma-grouped)<br>enemy.member3: - -> 393,994 (member-row-token-order:393,994:comma-grouped; grouped-raw-parsed-member-token:393,994:comma-grouped) | - | self.member2=601,624 | self | 120,324 | self: displayed-total-candidates<br>total-direct pass1 "1,017,647»"<br>total-trace pass1 "* A 1,017,647"<br>total-trace pass1 "1,017,647»"<br>enemy: displayed-total-candidates<br>total-trace pass1 "A * WALIN 1,211,736¢"<br>total-trace pass1 "wn 7 LEN 1,211,736"<br>total-trace pass1 "1,211,736" | exactly one complete six-member interpretation satisfies both exact totals and the crown-bonus rule |
 | 2026-07-15_184133120.png | 2 | self 95338, 240099, 390975<br>enemy 431286, 294591, 36257 | self 95338, 240099, 390975<br>enemy 214812, 431286, 294591 | enemy.member1: 431,286 -> 214,812 (member-row-token-order:214.812:period-grouped; grouped-raw-eligible-grouped-member-token:214.812:period-grouped)<br>enemy.member2: 294,591 -> 431,286 (member-row-token-order:431,286:comma-grouped; grouped-raw-parsed-member-token:431,286:comma-grouped)<br>enemy.member3: 36,257 -> 294,591 (member-row-token-order:294,591:comma-grouped; grouped-raw-parsed-member-token:294,591:comma-grouped) | - | enemy.member2=431,286 | enemy | 86,257 | self: displayed-total-candidates<br>total-trace pass1 "Tr A 726,412"<br>total-trace pass1 "726,412"<br>total-trace-token-audit pass1 "Tr A 726,412"<br>enemy: displayed-total-candidates<br>total-trace pass1 "YF 4 a WWII 1,026,946¢"<br>total-trace pass1 "a bi E LR 1,026,946¢"<br>total-trace pass1 "1,026,946r" | exactly one complete six-member interpretation satisfies both exact totals and the crown-bonus rule |
 | 2026-07-15_184150257.png | 3 | self 987319, 944097, 20098<br>enemy 918339, 605478, 440916 | self 987319, 944097, 1004934<br>enemy 918339, 605478, 440916 | self.member3: 20,098 -> 1,004,934 (stage3-member-row-variant:member3-slot:1004934) | self.member3 1,004,934 (member3-slot, slot token=1004934) | self.member3=1,004,934 | self | 200,986 | self: displayed-total-candidates<br>total-trace pass1 "WWII pad 3,137,336m"<br>total-trace pass1 "3,137,336m SAT 319 944.097 1.004.932."<br>total-trace-token-audit pass1 "WWII pad 3,137,336m"<br>enemy: displayed-total-candidates<br>total-trace pass1 "2+ 1,964,733"<br>total-trace pass1 "aT 1,964,733"<br>total-trace pass1 "1,964,733m" | exactly one complete six-member interpretation satisfies both exact totals and the crown-bonus rule |
@@ -106,41 +113,46 @@ No production OCR output is changed. The simulation only adds exact 7-digit cand
 
 | reason | count |
 | --- | ---: |
-| no exact six-member equation | 41 |
-| still missing exact member evidence | 34 |
-| exact candidate exists but wrong/unknown slot provenance | 17 |
+| no exact six-member equation | 44 |
+| still missing exact member evidence | 37 |
+| exact candidate exists but wrong/unknown slot provenance | 9 |
 | missing exact enemy total evidence | 3 |
 | missing exact self total evidence | 2 |
 
 ## False Positives
 
-False positives were found. This is enough to block productionization.
+No false positives were found.
 
-| screenshot | stage | selected six members | proposed six members | expected six members | variant candidates | why unsafe |
-| --- | ---: | --- | --- | --- | --- | --- |
-| スクリーンショット 2026-07-14 061325391.png | 3 | self 191935, 883071, 738387<br>enemy 610336, 178601, 63221 | self 1033971, 883071, 1191935<br>enemy 610336, 178601, 63221 | self 1033971, 1191935, 883071<br>enemy 610336, 178601, 63221 | self.member1 1033971 (wider-member-row-roi / tighter-vertical-member-row-roi)<br>self.member3 1191935 (taller-member-row-roi) | exact totals and the crown equation match, but row-order variant evidence maps member slots incorrectly; this would swap member2/member3 while preserving the total |
+
+## Previous FP Recheck
+
+| previous FP screenshot | stage | status under slot-proven policy | reason |
+| --- | ---: | --- | --- |
+| スクリーンショット 2026-07-14 061325391.png | 3 | rejected | still missing exact member evidence, no exact six-member equation |
 
 ## Representative Blocked Rows
 
 | screenshot | stage | classification | reasons | rejection reasons | expected presence | variant candidates |
 | --- | ---: | --- | --- | --- | --- | ---: |
+| 2026-07-11_223346581.png | 3 | blocked | still missing exact member evidence<br>no exact six-member equation | no-complete-six-member-exact-total-interpretation | present=no<br>self=ok<br>enemy=ok | 0 |
 | 2026-07-11_223426685.png | 2 | blocked | missing exact self total evidence<br>no exact six-member equation | no-complete-six-member-exact-total-interpretation | present=yes<br>self=ok<br>enemy=ok | 0 |
-| 2026-07-11_223426685.png | 3 | blocked | still missing exact member evidence<br>no exact six-member equation<br>exact candidate exists but wrong/unknown slot provenance | no-complete-six-member-exact-total-interpretation | present=no<br>self=ok<br>enemy=ok | 8 |
+| 2026-07-11_223426685.png | 3 | blocked | still missing exact member evidence<br>no exact six-member equation | no-complete-six-member-exact-total-interpretation | present=no<br>self=ok<br>enemy=ok | 0 |
 | 2026-07-11_223513004.png | 2 | blocked | missing exact self total evidence<br>no exact six-member equation | no-complete-six-member-exact-total-interpretation | present=yes<br>self=ok<br>enemy=ok | 0 |
-| 2026-07-11_223513004.png | 3 | blocked | still missing exact member evidence<br>no exact six-member equation<br>exact candidate exists but wrong/unknown slot provenance | no-complete-six-member-exact-total-interpretation | present=no<br>self=ok<br>enemy=ok | 8 |
-| 2026-07-11_223613166.png | 3 | blocked | still missing exact member evidence<br>no exact six-member equation<br>exact candidate exists but wrong/unknown slot provenance | no-complete-six-member-exact-total-interpretation | present=no<br>self=ok<br>enemy=ok | 11 |
-| 2026-07-11_223714046.png | 3 | blocked | still missing exact member evidence<br>no exact six-member equation<br>exact candidate exists but wrong/unknown slot provenance | missing-self-member3-candidate<br>no-complete-six-member-exact-total-interpretation | present=no<br>self=ok<br>enemy=ok | 10 |
-| 2026-07-11_223753187.png | 3 | blocked | still missing exact member evidence<br>missing exact enemy total evidence<br>no exact six-member equation<br>exact candidate exists but wrong/unknown slot provenance | no-complete-six-member-exact-total-interpretation | present=no<br>self=ok<br>enemy=ok | 7 |
-| 2026-07-11_223834078.png | 3 | blocked | still missing exact member evidence<br>no exact six-member equation<br>exact candidate exists but wrong/unknown slot provenance | missing-enemy-member3-candidate<br>no-complete-six-member-exact-total-interpretation | present=no<br>self=ok<br>enemy=ok | 14 |
-| 2026-07-11_223907986.png | 3 | blocked | still missing exact member evidence<br>no exact six-member equation<br>exact candidate exists but wrong/unknown slot provenance | no-complete-six-member-exact-total-interpretation | present=no<br>self=ok<br>enemy=ok | 3 |
+| 2026-07-11_223513004.png | 3 | blocked | still missing exact member evidence<br>no exact six-member equation | no-complete-six-member-exact-total-interpretation | present=no<br>self=ok<br>enemy=ok | 0 |
+| 2026-07-11_223613166.png | 3 | blocked | still missing exact member evidence<br>no exact six-member equation<br>exact candidate exists but wrong/unknown slot provenance | no-complete-six-member-exact-total-interpretation | present=no<br>self=ok<br>enemy=ok | 1 |
+| 2026-07-11_223714046.png | 3 | blocked | still missing exact member evidence<br>no exact six-member equation | missing-self-member3-candidate<br>no-complete-six-member-exact-total-interpretation | present=no<br>self=ok<br>enemy=ok | 0 |
+| 2026-07-11_223753187.png | 3 | blocked | still missing exact member evidence<br>missing exact enemy total evidence<br>no exact six-member equation | no-complete-six-member-exact-total-interpretation | present=no<br>self=ok<br>enemy=ok | 0 |
+| 2026-07-11_223834078.png | 3 | blocked | still missing exact member evidence<br>no exact six-member equation<br>exact candidate exists but wrong/unknown slot provenance | missing-enemy-member3-candidate<br>no-complete-six-member-exact-total-interpretation | present=no<br>self=ok<br>enemy=ok | 2 |
+| 2026-07-11_223907986.png | 3 | blocked | still missing exact member evidence<br>no exact six-member equation<br>exact candidate exists but wrong/unknown slot provenance | no-complete-six-member-exact-total-interpretation | present=no<br>self=ok<br>enemy=ok | 1 |
 | 2026-07-11_223950902.png | 1 | blocked | still missing exact member evidence<br>no exact six-member equation | no-complete-six-member-exact-total-interpretation | present=no<br>self=ok<br>enemy=ok | 0 |
-| 2026-07-11_223950902.png | 3 | blocked | still missing exact member evidence<br>no exact six-member equation<br>exact candidate exists but wrong/unknown slot provenance | no-complete-six-member-exact-total-interpretation | present=no<br>self=ok<br>enemy=ok | 8 |
-| 2026-07-15_184117455.png | 3 | blocked | still missing exact member evidence<br>no exact six-member equation<br>exact candidate exists but wrong/unknown slot provenance | missing-self-member2-candidate<br>missing-self-member3-candidate<br>no-complete-six-member-exact-total-interpretation | present=no<br>self=ok<br>enemy=ok | 2 |
-| 2026-07-15_184125225.png | 3 | blocked | still missing exact member evidence<br>no exact six-member equation<br>exact candidate exists but wrong/unknown slot provenance | no-complete-six-member-exact-total-interpretation | present=no<br>self=ok<br>enemy=ok | 6 |
-| 2026-07-15_184133120.png | 3 | blocked | still missing exact member evidence<br>no exact six-member equation<br>exact candidate exists but wrong/unknown slot provenance | no-complete-six-member-exact-total-interpretation | present=no<br>self=ok<br>enemy=ok | 16 |
+| 2026-07-11_223950902.png | 3 | blocked | still missing exact member evidence<br>no exact six-member equation<br>exact candidate exists but wrong/unknown slot provenance | no-complete-six-member-exact-total-interpretation | present=no<br>self=ok<br>enemy=ok | 1 |
+| 2026-07-15_184109879.png | 3 | blocked | still missing exact member evidence<br>no exact six-member equation | no-complete-six-member-exact-total-interpretation | present=no<br>self=ok<br>enemy=ok | 0 |
+| 2026-07-15_184117455.png | 3 | blocked | still missing exact member evidence<br>no exact six-member equation | missing-self-member2-candidate<br>missing-self-member3-candidate<br>no-complete-six-member-exact-total-interpretation | present=no<br>self=ok<br>enemy=ok | 0 |
+| 2026-07-15_184125225.png | 3 | blocked | still missing exact member evidence<br>no exact six-member equation<br>exact candidate exists but wrong/unknown slot provenance | no-complete-six-member-exact-total-interpretation | present=no<br>self=ok<br>enemy=ok | 1 |
+| 2026-07-15_184133120.png | 3 | blocked | still missing exact member evidence<br>no exact six-member equation | no-complete-six-member-exact-total-interpretation | present=no<br>self=ok<br>enemy=ok | 0 |
 | 2026-07-15_184158330.png | 1 | blocked | still missing exact member evidence<br>no exact six-member equation | no-complete-six-member-exact-total-interpretation | present=no<br>self=ok<br>enemy=ok | 0 |
-| 2026-07-15_184205486.png | 3 | blocked | still missing exact member evidence<br>no exact six-member equation<br>exact candidate exists but wrong/unknown slot provenance | missing-self-member3-candidate<br>no-complete-six-member-exact-total-interpretation | present=no<br>self=ok<br>enemy=ok | 23 |
-| 2026-07-15_184217948.png | 3 | blocked | still missing exact member evidence<br>no exact six-member equation<br>exact candidate exists but wrong/unknown slot provenance | missing-self-member3-candidate<br>no-complete-six-member-exact-total-interpretation | present=no<br>self=ok<br>enemy=ok | 19 |
+| 2026-07-15_184205486.png | 3 | blocked | still missing exact member evidence<br>no exact six-member equation<br>exact candidate exists but wrong/unknown slot provenance | missing-self-member3-candidate<br>no-complete-six-member-exact-total-interpretation | present=no<br>self=ok<br>enemy=ok | 1 |
+| 2026-07-15_184217948.png | 3 | blocked | still missing exact member evidence<br>no exact six-member equation<br>exact candidate exists but wrong/unknown slot provenance | missing-self-member3-candidate<br>no-complete-six-member-exact-total-interpretation | present=no<br>self=ok<br>enemy=ok | 2 |
 | スクリーンショット 2026-07-11 144932916.png | 2 | blocked | missing exact enemy total evidence<br>no exact six-member equation | no-complete-six-member-exact-total-interpretation | present=yes<br>self=ok<br>enemy=ok | 0 |
 | スクリーンショット 2026-07-11 145018419.png | 2 | blocked | missing exact enemy total evidence<br>no exact six-member equation | no-complete-six-member-exact-total-interpretation | present=yes<br>self=ok<br>enemy=ok | 0 |
 | スクリーンショット 2026-07-11 145018419.png | 3 | blocked | still missing exact member evidence<br>no exact six-member equation | no-complete-six-member-exact-total-interpretation | present=no<br>self=ok<br>enemy=ok | 0 |
@@ -150,22 +162,22 @@ False positives were found. This is enough to block productionization.
 | スクリーンショット 2026-07-12 223746520.png | 2 | blocked | still missing exact member evidence<br>no exact six-member equation | no-complete-six-member-exact-total-interpretation | present=no<br>self=ok<br>enemy=ok | 0 |
 | スクリーンショット 2026-07-14 060656479.png | 1 | blocked | still missing exact member evidence<br>no exact six-member equation | no-complete-six-member-exact-total-interpretation | present=no<br>self=ok<br>enemy=ok | 0 |
 | スクリーンショット 2026-07-14 060656479.png | 2 | blocked | still missing exact member evidence<br>no exact six-member equation | no-complete-six-member-exact-total-interpretation | present=no<br>self=ok<br>enemy=ok | 0 |
+| スクリーンショット 2026-07-14 061325391.png | 3 | blocked | still missing exact member evidence<br>no exact six-member equation | no-complete-six-member-exact-total-interpretation | present=no<br>self=ok<br>enemy=ok | 0 |
 | スクリーンショット 2026-07-14 061545315.png | 3 | false-negative | no exact six-member equation | no-complete-six-member-exact-total-interpretation | present=yes<br>self=ok<br>enemy=ok | 0 |
-| スクリーンショット 2026-07-14 061634001.png | 3 | blocked | still missing exact member evidence<br>no exact six-member equation<br>exact candidate exists but wrong/unknown slot provenance | no-complete-six-member-exact-total-interpretation | present=no<br>self=ok<br>enemy=ok | 1 |
-| スクリーンショット 2026-07-15 130019543.png | 1 | blocked | still missing exact member evidence<br>no exact six-member equation | no-complete-six-member-exact-total-interpretation | present=no<br>self=ok<br>enemy=ok | 0 |
-| スクリーンショット 2026-07-15 130026795.png | 2 | blocked | still missing exact member evidence<br>no exact six-member equation | no-complete-six-member-exact-total-interpretation | present=no<br>self=ok<br>enemy=ok | 0 |
 
 ## Overlap
 
 | recovery / simulation | overlapping accepted rows |
 | --- | ---: |
 | existing stage-wide solver | 23 |
-| currentPcGroupedRawTokenRecovery | 3 |
+| currentPcGroupedRawTokenRecovery | 2 |
 | currentPcStage3SevenDigitBonusDisplacementRecovery | 1 |
 | currentPcCrownBonusRuleRecovery | 0 |
 
 ## Recommendation
 
-Do not productionize. The variant-augmented solver produced at least one false positive.
+Do not productionize yet, but a browser/UI parity investigation is justified next. The narrowed policy eliminates the previous false positive, keeps ambiguous row-order evidence out of the candidate pool, and retains two true incremental TP rows with explicit member-slot provenance.
+
+The next parity task should keep the slot-proven-only policy intact and explicitly decide whether the existing within-one evaluator tolerance is acceptable for this recovery family. If the parity pass requires exact fixture equality only, this direction should be re-scored before any production implementation.
 
 This remains runner-only because the variant OCR evidence is generated by diagnostic crops/preprocessing variants under `tmp/`. Browser/UI parity is not proven for these extra candidates, and the current production path should not consume them until the evidence plumbing is shared and parity-checked.

@@ -10217,12 +10217,14 @@ function currentPcStage3VariantCandidateValues(variant = {}) {
   }));
 }
 
-function buildCurrentPcStage3VariantEvidenceMap(diagnostics = null) {
+function buildCurrentPcStage3VariantEvidenceMap(diagnostics = null, options = {}) {
+  const slotProvenOnly = Boolean(options.slotProvenOnly);
   const map = new Map();
   for (const row of diagnostics?.rows || []) {
     const key = `${row.image}|${row.stage}|${row.side}`;
     const entries = [];
     for (const variant of row.variants || []) {
+      if (slotProvenOnly && variant.zoneKind !== "slot") continue;
       for (const candidate of currentPcStage3VariantCandidateValues(variant)) {
         const slotIndex = currentPcStage3VariantCandidateSlot(variant, candidate.tokenIndex);
         if (slotIndex === null) continue;
@@ -10493,8 +10495,16 @@ function buildCurrentPcStageWideVariantSimulationFromPools({
   };
 }
 
-function buildCurrentPcStageWideVariantEvidenceEvaluation(analysis, diagnostics) {
-  const variantEvidenceMap = buildCurrentPcStage3VariantEvidenceMap(diagnostics);
+function buildCurrentPcStageWideVariantEvidenceEvaluation(analysis, diagnostics, options = {}) {
+  const policyName =
+    options.policyName ||
+    (options.slotProvenOnly ? "slot-proven-stage3-variant-evidence" : "broad-stage3-variant-evidence");
+  const command =
+    options.command ||
+    (options.slotProvenOnly
+      ? "node scripts/ocr-test-images.mjs --current-pc-baseline --current-pc-stage-wide-slot-proven-variant-solver"
+      : "node scripts/ocr-test-images.mjs --current-pc-baseline --current-pc-stage-wide-variant-solver");
+  const variantEvidenceMap = buildCurrentPcStage3VariantEvidenceMap(diagnostics, options);
   const rows = [];
   const accepted = [];
   const falsePositiveRows = [];
@@ -10693,6 +10703,9 @@ function buildCurrentPcStageWideVariantEvidenceEvaluation(analysis, diagnostics)
     }
   }
   return {
+    policyName,
+    command,
+    slotProvenOnly: Boolean(options.slotProvenOnly),
     truePositives,
     falsePositives,
     falseNegatives,
@@ -10735,6 +10748,21 @@ function buildCurrentPcStageWideVariantEvidenceReport(simulation) {
   const generatedAt = new Date().toISOString();
   const stage3Self = simulation.stage3Self || {};
   const blockedRows = simulation.blockedRows || [];
+  const variantUsedByChangedSlot = (row) =>
+    (row.variantCandidates || []).filter((candidate) =>
+      (row.changedMemberSlots || []).some(
+        (slot) =>
+          slot.side === candidate.side &&
+          Number(slot.slot || 0) === Number(candidate.slotIndex || 0) + 1 &&
+          Number(slot.to || 0) === Number(candidate.value || 0)
+      )
+    );
+  const incrementalAccepted = (simulation.accepted || []).filter(
+    (row) => variantUsedByChangedSlot(row).length > 0
+  );
+  const previousFalsePositiveBlocked = (blockedRows || []).find(
+    (row) => row.screenshot === "スクリーンショット 2026-07-14 061325391.png" && row.stage === 3
+  );
   const stage3ProjectedPass =
     stage3Self.remainingFailures > 0
       ? ((stage3Self.uniquelySolvable / stage3Self.remainingFailures) * 100).toFixed(1)
@@ -10748,18 +10776,29 @@ function buildCurrentPcStageWideVariantEvidenceReport(simulation) {
     "",
     "This runner-only report measures whether Stage3 member-row ROI/preprocessing variant OCR evidence can add useful exact member candidates to the existing current-PC stage-wide six-member solver.",
     "",
-    "No production OCR output is changed. The simulation only adds exact 7-digit candidates from Stage3 member-row diagnostic variants to a copy of the existing stage-wide candidate pools, then requires the same strict six-member + crown-bonus + exact-total uniqueness guard.",
+    simulation.slotProvenOnly
+      ? "The first broad variant-evidence experiment produced one false positive because row-order variant evidence assigned a 7-digit value to the wrong member slot while still satisfying the total equation. This follow-up experiment rejects row-order, taller, wider, shifted, and other ambiguous row-level evidence, allowing only explicit member-slot variant crops."
+      : "No production OCR output is changed. The simulation only adds exact 7-digit candidates from Stage3 member-row diagnostic variants to a copy of the existing stage-wide candidate pools, then requires the same strict six-member + crown-bonus + exact-total uniqueness guard.",
+    "",
+    "No production OCR output is changed.",
     "",
     "## Command",
     "",
-    "`node scripts/ocr-test-images.mjs --current-pc-baseline --current-pc-stage-wide-variant-solver`",
+    `\`${simulation.command || "node scripts/ocr-test-images.mjs --current-pc-baseline --current-pc-stage-wide-variant-solver"}\``,
+    "",
+    "## Policy",
+    "",
+    `- policy: \`${simulation.policyName || "broad-stage3-variant-evidence"}\``,
+    `- slot-proven only: ${simulation.slotProvenOnly ? "yes" : "no"}`,
     "",
     "## Strict Guards",
     "",
     "- current-PC baseline only",
     "- Stage3 variant evidence only; Stage1 and Stage2 candidate pools are unchanged",
     "- exact numeric candidates only, limited to clean 7-digit member-like values",
-    "- candidate must map to a member slot by slot ROI or deterministic row order",
+    simulation.slotProvenOnly
+      ? "- candidate must come from an explicit slot ROI (`member1-slot`, `member2-slot`, or `member3-slot`)"
+      : "- candidate must map to a member slot by slot ROI or deterministic row order",
     "- candidate must not come from bonus-only or total-only evidence",
     "- all six member slots must have candidate evidence",
     "- changed members must have non-selected member provenance",
@@ -10767,6 +10806,9 @@ function buildCurrentPcStageWideVariantEvidenceReport(simulation) {
     "- crown bonus is derived only by the confirmed `floor(max(all six members) * 0.20)` rule",
     "- exactly one complete interpretation may satisfy the equations",
     "- no filename, screenshot ID, hard-coded value, near-match, inferred digit, or total-derived member logic is used",
+    simulation.slotProvenOnly
+      ? "- ambiguous row-order provenance is rejected even when totals and crown-bonus equations match"
+      : "- ambiguous row-order provenance is allowed in this broad experiment and is therefore not production-safe",
     "",
     "## Summary",
     "",
@@ -10851,6 +10893,42 @@ function buildCurrentPcStageWideVariantEvidenceReport(simulation) {
 
   lines.push(
     "",
+    "## True Incremental TP Cases",
+    "",
+    "These rows require a Stage3 variant candidate that is not already enough under the existing production stage-wide solver.",
+    "",
+    "| screenshot | stage | side | changed member slot | slot-proven variant source | value | total evidence | crown-bonus equation | why unique |",
+    "| --- | ---: | --- | --- | --- | ---: | --- | --- | --- |"
+  );
+  if (incrementalAccepted.length === 0) {
+    lines.push("| none | - | - | - | - | - | - | - | - |");
+  }
+  for (const row of incrementalAccepted) {
+    const variants = variantUsedByChangedSlot(row);
+    for (const candidate of variants) {
+      const changedSlot = (row.changedMemberSlots || []).find(
+        (slot) =>
+          slot.side === candidate.side &&
+          Number(slot.slot || 0) === Number(candidate.slotIndex || 0) + 1 &&
+          Number(slot.to || 0) === Number(candidate.value || 0)
+      );
+      const totalEvidence = [
+        `self: ${formatCurrentPcStageWideEvidence(row.selfTotalEvidence || [])}`,
+        `enemy: ${formatCurrentPcStageWideEvidence(row.enemyTotalEvidence || [])}`,
+      ].join("<br>");
+      const equation = [
+        `self ${formatDebugNumbers(row.proposed?.self?.members || [])}+${formatNumber(row.proposed?.self?.bonus || 0) || 0}=${formatNumber(row.proposed?.self?.total || 0)}`,
+        `enemy ${formatDebugNumbers(row.proposed?.enemy?.members || [])}+${formatNumber(row.proposed?.enemy?.bonus || 0) || 0}=${formatNumber(row.proposed?.enemy?.total || 0)}`,
+        `rank1 ${row.rank1 ? `${row.rank1.side}.member${row.rank1.slot}=${formatNumber(row.rank1.value)}` : "-"}`,
+      ].join("<br>");
+      lines.push(
+        `| ${row.screenshot} | ${row.stage} | ${candidate.side} | member${Number(candidate.slotIndex || 0) + 1}: ${formatNumber(changedSlot?.from || 0) || "-"} -> ${formatNumber(candidate.value)} | ${candidate.variantLabel || "-"} | ${formatNumber(candidate.value)} | ${totalEvidence} | ${equation} | ${row.uniqueness} |`
+      );
+    }
+  }
+
+  lines.push(
+    "",
     "## Blocked Breakdown",
     "",
     "| reason | count |",
@@ -10890,6 +10968,19 @@ function buildCurrentPcStageWideVariantEvidenceReport(simulation) {
     }
   }
 
+  if (simulation.slotProvenOnly) {
+    lines.push(
+      "",
+      "## Previous FP Recheck",
+      "",
+      "| previous FP screenshot | stage | status under slot-proven policy | reason |",
+      "| --- | ---: | --- | --- |",
+      previousFalsePositiveBlocked
+        ? `| スクリーンショット 2026-07-14 061325391.png | 3 | rejected | ${(previousFalsePositiveBlocked.reasons || []).join(", ") || (previousFalsePositiveBlocked.rejectionReasons || []).join(", ") || "ambiguous row-order candidates removed"} |`
+        : "| スクリーンショット 2026-07-14 061325391.png | 3 | not present as wouldApply/blocked row | ambiguous row-order candidates were removed before candidate-pool construction |"
+    );
+  }
+
   lines.push(
     "",
     "## Representative Blocked Rows",
@@ -10925,9 +11016,10 @@ function buildCurrentPcStageWideVariantEvidenceReport(simulation) {
     "",
     simulation.falsePositives > 0
       ? "Do not productionize. The variant-augmented solver produced at least one false positive."
-      : simulation.truePositives > 0
-        ? "Do not productionize yet. The result is promising enough for a later shared runner/browser parity pass if the TP yield is worth pursuing."
-        : "Do not productionize. The variant evidence does not add a meaningful safe recovery yield under the current strict guard.",
+      : (simulation.uniqueAdditionalRecoveriesBeyondCurrentProduction || 0) >= 2 &&
+          simulation.slotProvenOnly
+        ? "Do not productionize yet, but browser/UI parity is justified next. The slot-proven policy has FP = 0 and at least two true incremental TP rows with explicit member-slot provenance."
+        : "Do not productionize. The slot-proven variant evidence is either too low-yield or not yet safe enough to justify browser/UI parity.",
     "",
     "This remains runner-only because the variant OCR evidence is generated by diagnostic crops/preprocessing variants under `tmp/`. Browser/UI parity is not proven for these extra candidates, and the current production path should not consume them until the evidence plumbing is shared and parity-checked.",
     ""
@@ -13460,6 +13552,9 @@ async function main() {
   const currentPcStageWideVariantSolver = args.includes(
     "--current-pc-stage-wide-variant-solver"
   );
+  const currentPcStageWideSlotProvenVariantSolver = args.includes(
+    "--current-pc-stage-wide-slot-proven-variant-solver"
+  );
   const currentPcSlotRoiDiagnostics = args.includes("--current-pc-slot-roi-diagnostics");
   const debugArtifacts =
     currentPcBaseline ||
@@ -13487,6 +13582,7 @@ async function main() {
       value !== "--current-pc-bonus-diagnostics" &&
       value !== "--current-pc-stage3-member-row-diagnostics" &&
       value !== "--current-pc-stage-wide-variant-solver" &&
+      value !== "--current-pc-stage-wide-slot-proven-variant-solver" &&
       value !== "--current-pc-slot-roi-diagnostics" &&
       value !== "--debug-artifacts" &&
       value !== "--debug-ocr-artifacts" &&
@@ -13607,7 +13703,9 @@ async function main() {
       : null;
   const currentPcStage3MemberRowDiagnosticsArtifacts =
     currentPcBaselineArtifacts &&
-    (currentPcStage3MemberRowDiagnostics || currentPcStageWideVariantSolver)
+    (currentPcStage3MemberRowDiagnostics ||
+      currentPcStageWideVariantSolver ||
+      currentPcStageWideSlotProvenVariantSolver)
       ? await writeCurrentPcStage3MemberRowDiagnosticsArtifacts(
           currentPcBaselineArtifacts.analysis.filter((item) => item.expected)
         )
@@ -13635,10 +13733,23 @@ async function main() {
     const stageWideSixMemberSolverSimulation =
       buildCurrentPcStageWideSixMemberCandidateSolverEvaluation(expectedCurrentPcAnalysis);
     stageWideVariantSolverSimulation =
-      currentPcStageWideVariantSolver && currentPcStage3MemberRowDiagnosticsArtifacts
+      (currentPcStageWideVariantSolver || currentPcStageWideSlotProvenVariantSolver) &&
+      currentPcStage3MemberRowDiagnosticsArtifacts
         ? buildCurrentPcStageWideVariantEvidenceEvaluation(
             expectedCurrentPcAnalysis,
-            currentPcStage3MemberRowDiagnosticsArtifacts
+            currentPcStage3MemberRowDiagnosticsArtifacts,
+            currentPcStageWideSlotProvenVariantSolver
+              ? {
+                  slotProvenOnly: true,
+                  policyName: "slot-proven-stage3-variant-evidence",
+                  command:
+                    "node scripts/ocr-test-images.mjs --current-pc-baseline --current-pc-stage-wide-slot-proven-variant-solver",
+                }
+              : {
+                  policyName: "broad-stage3-variant-evidence",
+                  command:
+                    "node scripts/ocr-test-images.mjs --current-pc-baseline --current-pc-stage-wide-variant-solver",
+                }
           )
         : null;
     const stageWideSixMemberSolverParity =
@@ -13712,7 +13823,9 @@ async function main() {
       await fs.writeFile(
         path.join(
           currentPcBaselineDir,
-          "stage-wide-six-member-candidate-solver-stage3-variant-evidence.json"
+          currentPcStageWideSlotProvenVariantSolver
+            ? "stage-wide-six-member-candidate-solver-stage3-slot-proven-variant-evidence.json"
+            : "stage-wide-six-member-candidate-solver-stage3-variant-evidence.json"
         ),
         JSON.stringify(stageWideVariantSolverSimulation, null, 2)
       );
@@ -13804,7 +13917,9 @@ async function main() {
                         rootDir,
                         path.join(
                           currentPcBaselineDir,
-                          "stage-wide-six-member-candidate-solver-stage3-variant-evidence.json"
+                          currentPcStageWideSlotProvenVariantSolver
+                            ? "stage-wide-six-member-candidate-solver-stage3-slot-proven-variant-evidence.json"
+                            : "stage-wide-six-member-candidate-solver-stage3-variant-evidence.json"
                         )
                       )
                       .replaceAll("\\", "/"),
