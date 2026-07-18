@@ -127,6 +127,7 @@ import {
   buildCurrentPcCandidateSourceSummary,
   buildCurrentPcCrownBonusRuleEvidence,
   buildCurrentPcGroupedRawTokenEvidenceSimulation,
+  buildCurrentPcStageWideSixMemberCandidateSolverEvidence,
   buildCurrentPcStage3SevenDigitBonusDisplacementSimulation,
   applyCurrentPcCrownBonusRuleRecovery,
   applyCurrentPcGroupedRawTokenRecovery,
@@ -3396,11 +3397,38 @@ export default function Home() {
             selfTotal = currentPcCrownBonusRuleRecovery.self.total;
             enemyTotal = currentPcCrownBonusRuleRecovery.enemy.total;
           }
+          const buildCurrentPcStageWideSolverSideAnalysis = (side, evidence) => {
+            const isSelf = side === "self";
+            return {
+              selectedMembers: isSelf ? correctedSelfMembers : correctedEnemyMembers,
+              selectedTotal: isSelf ? selfTotal : enemyTotal,
+              rawCandidates: evidence.rawCandidates || [],
+              displayedTotalCandidates: evidence.displayedTotalCandidates || [],
+              bonusCandidates: evidence.bonusCandidates || [],
+              candidateSourceSummary: evidence.candidateSourceSummary || null,
+              currentPcGroupedRawTokenEvidenceSimulation: evidence,
+              currentPcStage3SevenDigitBonusDisplacementSimulation:
+                evidence.currentPcStage3SevenDigitBonusDisplacementSimulation || null,
+            };
+          };
+          const currentPcStageWideSixMemberCandidateSolverSimulation =
+            buildCurrentPcStageWideSixMemberCandidateSolverEvidence({
+              stage,
+              self: buildCurrentPcStageWideSolverSideAnalysis(
+                "self",
+                selfCurrentPcEvidenceWithRecovery
+              ),
+              enemy: buildCurrentPcStageWideSolverSideAnalysis(
+                "enemy",
+                enemyCurrentPcEvidenceWithRecovery
+              ),
+            });
           currentPcGroupedRawEvidence.stages[`stage${stage}`] = {
             self: selfCurrentPcEvidenceWithRecovery,
             enemy: enemyCurrentPcEvidenceWithRecovery,
             currentPcCrownBonusRuleSimulation,
             currentPcCrownBonusRuleRecovery,
+            currentPcStageWideSixMemberCandidateSolverSimulation,
           };
           const formatEvidenceSummary = (side, evidence) => {
             const tokens = evidence.evidence?.eligibleTokens || [];
@@ -3444,12 +3472,28 @@ export default function Home() {
               simulation.evidence?.calculatedBonus || 0
             }${proposalText}`;
           };
+          const formatStageWideSolverSummary = (simulation) => {
+            if (!simulation) return "";
+            const proposal = simulation.proposed || {};
+            const proposalText =
+              proposal.self && proposal.enemy
+                ? ` self=${proposal.self.members.join(",")}+${proposal.self.bonus || 0}=${proposal.self.total} enemy=${proposal.enemy.members.join(",")}+${proposal.enemy.bonus || 0}=${proposal.enemy.total}`
+                : "";
+            return `[currentPC stage-wide six-member solver] wouldApply=${
+              simulation.wouldApply ? "yes" : "no"
+            } rejection=${simulation.rejectionReasons.join(",") || "none"} pools=self:${
+              (simulation.evidence?.candidatePoolSizes?.self || []).join("/")
+            } enemy:${(simulation.evidence?.candidatePoolSizes?.enemy || []).join("/")} interpretations=${
+              simulation.evidence?.validInterpretationCount || 0
+            }${proposalText}`;
+          };
           currentPcEvidenceDebugText = [
             formatEvidenceSummary("self", selfCurrentPcEvidenceWithRecovery),
             formatEvidenceSummary("enemy", enemyCurrentPcEvidenceWithRecovery),
             formatStage3BonusDisplacementSummary("self", selfCurrentPcEvidenceWithRecovery),
             formatStage3BonusDisplacementSummary("enemy", enemyCurrentPcEvidenceWithRecovery),
             formatCrownBonusRuleSummary(currentPcCrownBonusRuleSimulation),
+            formatStageWideSolverSummary(currentPcStageWideSixMemberCandidateSolverSimulation),
           ].join("\n");
         }
 

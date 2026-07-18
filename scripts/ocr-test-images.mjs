@@ -20,6 +20,7 @@ import {
   buildCurrentPcCrownBonusRuleEvidence as sharedBuildCurrentPcCrownBonusRuleEvidence,
   buildCurrentPcCandidateSourceSummary as sharedBuildCurrentPcCandidateSourceSummary,
   buildCurrentPcGroupedRawTokenEvidenceSimulation as sharedBuildCurrentPcGroupedRawTokenEvidenceSimulation,
+  buildCurrentPcStageWideSixMemberCandidateSolverEvidence as sharedBuildCurrentPcStageWideSixMemberCandidateSolverEvidence,
   buildCurrentPcStage3SevenDigitBonusDisplacementSimulation as sharedBuildCurrentPcStage3SevenDigitBonusDisplacementSimulation,
   collectCurrentPcGroupedRawTokenEvidence as sharedCollectCurrentPcGroupedRawTokenEvidence,
   collectCurrentPcSourceTokenAudits as sharedCollectCurrentPcSourceTokenAudits,
@@ -100,6 +101,11 @@ const currentPcStageWideSolverReportPath = path.join(
   rootDir,
   "docs",
   "current-pc-stage-wide-six-member-candidate-solver.md"
+);
+const currentPcStageWideSolverParityReportPath = path.join(
+  rootDir,
+  "docs",
+  "current-pc-stage-wide-six-member-candidate-solver-parity.md"
 );
 let currentPcBaselineScanSummary = null;
 const unsupportedNextScreenMessage =
@@ -9729,7 +9735,7 @@ function currentPcStageWideExpectedPresentInPools(item, stage, pools) {
     for (let index = 0; index < 3; index += 1) {
       const expectedValue = Number(expected?.members?.[index] || 0);
       const hasValue = (pools[side]?.[index] || []).some((candidate) =>
-        valueInList(expectedValue, [candidate.value])
+        valueInList(expectedValue, [candidate.value ?? candidate])
       );
       if (!hasValue) missing.push(`${side}.member${index + 1}`);
     }
@@ -9740,154 +9746,53 @@ function currentPcStageWideExpectedPresentInPools(item, stage, pools) {
   };
 }
 
+function buildCurrentPcStageWideSharedSideAnalysis(item, stage, side) {
+  const stageKey = `stage${stage}`;
+  const sideAnalysis = item.stages?.[stageKey]?.[side];
+  if (!sideAnalysis) return null;
+  const selected = currentPcSelectedStageSideValues(sideAnalysis);
+  return {
+    selectedMembers: selected.selectedMembers,
+    selectedTotal: selected.selectedTotal,
+    rawCandidates: sideAnalysis.rawCandidates || [],
+    displayedTotalCandidates: sideAnalysis.displayedTotalCandidates || [],
+    bonusCandidates: sideAnalysis.bonusCandidates || [],
+    candidateSourceSummary: sideAnalysis.candidateSourceSummary || null,
+    currentPcGroupedRawTokenEvidenceSimulation:
+      sideAnalysis.currentPcGroupedRawTokenEvidenceSimulation || null,
+    currentPcStage3SevenDigitBonusDisplacementSimulation:
+      sideAnalysis.currentPcStage3SevenDigitBonusDisplacementSimulation || null,
+  };
+}
+
 function buildCurrentPcStageWideSixMemberCandidateSolverStage(item, stage) {
   const stageKey = `stage${stage}`;
   const selfAnalysis = item.stages?.[stageKey]?.self;
   const enemyAnalysis = item.stages?.[stageKey]?.enemy;
-  const rejectionReasons = [];
   if (!selfAnalysis || !enemyAnalysis) {
     return {
       wouldApply: false,
       rejectionReasons: ["missing-stage-side-analysis"],
+      selected: null,
       proposed: null,
+      sideWouldChange: { self: false, enemy: false },
+      stage,
       evidence: {},
+      note:
+        "Runner-only current-PC stage-wide six-member candidate solver simulation. It does not change final OCR output.",
     };
   }
 
-  const pools = currentPcStageWideBuildMemberPools(item, stage);
-  const candidatePoolSizes = {
-    self: pools.self.map((pool) => pool.length),
-    enemy: pools.enemy.map((pool) => pool.length),
-  };
-  for (const side of sides) {
-    for (let index = 0; index < 3; index += 1) {
-      if ((pools[side]?.[index] || []).length === 0) {
-        rejectionReasons.push(`missing-${side}-member${index + 1}-candidate`);
-      }
-    }
-  }
-  const combinationCount = currentPcStageWideCombinationCount(pools);
-  if (combinationCount > 20000) {
-    rejectionReasons.push("candidate-pool-explosion");
-  }
-
-  const selected = {
-    self: currentPcSelectedStageSideValues(selfAnalysis),
-    enemy: currentPcSelectedStageSideValues(enemyAnalysis),
-  };
-  const validInterpretations = [];
-  const invalidInterpretationCounts = new Map();
-  const incrementInvalid = (reason) =>
-    invalidInterpretationCounts.set(reason, (invalidInterpretationCounts.get(reason) || 0) + 1);
-
-  if (rejectionReasons.length === 0) {
-    for (const self1 of pools.self[0]) {
-      for (const self2 of pools.self[1]) {
-        for (const self3 of pools.self[2]) {
-          for (const enemy1 of pools.enemy[0]) {
-            for (const enemy2 of pools.enemy[1]) {
-              for (const enemy3 of pools.enemy[2]) {
-                const selfMembers = [self1.value, self2.value, self3.value];
-                const enemyMembers = [enemy1.value, enemy2.value, enemy3.value];
-                const proposal = currentPcStageWideProposalFromMembers({
-                  stage,
-                  selfMembers,
-                  enemyMembers,
-                  item,
-                });
-                if (!proposal) {
-                  incrementInvalid("global-rank1-tie-or-missing");
-                  continue;
-                }
-                const changedSources = [];
-                let changedMemberWithoutEvidence = false;
-                [
-                  ["self", [self1, self2, self3]],
-                  ["enemy", [enemy1, enemy2, enemy3]],
-                ].forEach(([side, candidates]) => {
-                  candidates.forEach((candidate, index) => {
-                    const selectedValue = selected[side].selectedMembers[index];
-                    const changed = Math.abs(Number(candidate.value || 0) - Number(selectedValue || 0)) > 1;
-                    if (changed) {
-                      const nonSelectedSources = (candidate.sources || []).filter(
-                        (source) => source.source !== "selected-current-output"
-                      );
-                      if (nonSelectedSources.length === 0) changedMemberWithoutEvidence = true;
-                      changedSources.push({
-                        side,
-                        slot: index + 1,
-                        from: selectedValue,
-                        to: candidate.value,
-                        sources: nonSelectedSources,
-                      });
-                    }
-                  });
-                });
-                if (changedMemberWithoutEvidence) {
-                  incrementInvalid("changed-member-without-member-provenance");
-                  continue;
-                }
-                if (changedSources.length === 0) {
-                  incrementInvalid("proposal-equals-current-six-members");
-                  continue;
-                }
-                if (proposal.totalEvidence.self.length === 0) {
-                  incrementInvalid("missing-self-exact-total-evidence");
-                  continue;
-                }
-                if (proposal.totalEvidence.enemy.length === 0) {
-                  incrementInvalid("missing-enemy-exact-total-evidence");
-                  continue;
-                }
-                validInterpretations.push({
-                  ...proposal,
-                  changedMemberSlots: changedSources,
-                  candidateSources: {
-                    self: [self1, self2, self3].map((candidate) => candidate.sources || []),
-                    enemy: [enemy1, enemy2, enemy3].map((candidate) => candidate.sources || []),
-                  },
-                });
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
-  const dedupedInterpretations = validInterpretations.filter(
-    (proposal, index, all) =>
-      all.findIndex(
-        (other) =>
-          arraysEqualWithinOne(other.self.members, proposal.self.members) &&
-          arraysEqualWithinOne(other.enemy.members, proposal.enemy.members) &&
-          Math.abs(Number(other.self.total || 0) - Number(proposal.self.total || 0)) <= 1 &&
-          Math.abs(Number(other.enemy.total || 0) - Number(proposal.enemy.total || 0)) <= 1 &&
-          Math.abs(Number(other.self.bonus || 0) - Number(proposal.self.bonus || 0)) <= 1 &&
-          Math.abs(Number(other.enemy.bonus || 0) - Number(proposal.enemy.bonus || 0)) <= 1
-      ) === index
+  const simulation = sharedBuildCurrentPcStageWideSixMemberCandidateSolverEvidence({
+    stage,
+    self: buildCurrentPcStageWideSharedSideAnalysis(item, stage, "self"),
+    enemy: buildCurrentPcStageWideSharedSideAnalysis(item, stage, "enemy"),
+  });
+  const expectedPresence = currentPcStageWideExpectedPresentInPools(
+    item,
+    stage,
+    simulation.evidence?.memberPools || { self: [[], [], []], enemy: [[], [], []] }
   );
-  if (dedupedInterpretations.length === 0) rejectionReasons.push("no-complete-six-member-exact-total-interpretation");
-  if (dedupedInterpretations.length > 1) rejectionReasons.push("multiple-complete-six-member-interpretations");
-
-  const proposed = dedupedInterpretations.length === 1 ? dedupedInterpretations[0] : null;
-  const sideWouldChange = {
-    self:
-      proposed &&
-      (!arraysEqualWithinOne(proposed.self.members, selected.self.selectedMembers) ||
-        Math.abs(Number(proposed.self.bonus || 0) - Number(selected.self.selectedBonus || 0)) > 1 ||
-        Math.abs(Number(proposed.self.total || 0) - Number(selected.self.selectedTotal || 0)) > 1),
-    enemy:
-      proposed &&
-      (!arraysEqualWithinOne(proposed.enemy.members, selected.enemy.selectedMembers) ||
-        Math.abs(Number(proposed.enemy.bonus || 0) - Number(selected.enemy.selectedBonus || 0)) > 1 ||
-        Math.abs(Number(proposed.enemy.total || 0) - Number(selected.enemy.selectedTotal || 0)) > 1),
-  };
-  if (proposed && !sideWouldChange.self && !sideWouldChange.enemy) {
-    rejectionReasons.push("selected-stage-already-matches-proposal");
-  }
-
-  const expectedPresence = currentPcStageWideExpectedPresentInPools(item, stage, pools);
   const expectedSelf = currentPcExpectedStageSide(item, stage, "self");
   const expectedEnemy = currentPcExpectedStageSide(item, stage, "enemy");
   const expectedTotalEvidence = {
@@ -9896,56 +9801,20 @@ function buildCurrentPcStageWideSixMemberCandidateSolverStage(item, stage) {
   };
 
   return {
-    wouldApply: rejectionReasons.length === 0 && Boolean(proposed),
-    rejectionReasons: [...new Set(rejectionReasons)],
-    selected: {
-      self: {
-        members: selected.self.selectedMembers,
-        bonus: selected.self.selectedBonus,
-        total: selected.self.selectedTotal,
-      },
-      enemy: {
-        members: selected.enemy.selectedMembers,
-        bonus: selected.enemy.selectedBonus,
-        total: selected.enemy.selectedTotal,
-      },
-    },
-    proposed,
-    sideWouldChange,
-    stage,
+    ...simulation,
     evidence: {
-      candidatePoolSizes,
-      combinationCount,
-      memberPools: {
-        self: pools.self.map((pool) => pool.map((candidate) => candidate.value)),
-        enemy: pools.enemy.map((pool) => pool.map((candidate) => candidate.value)),
-      },
-      memberPoolSources: {
-        self: pools.self.map((pool) => pool.map((candidate) => candidate)),
-        enemy: pools.enemy.map((pool) => pool.map((candidate) => candidate)),
-      },
-      validInterpretationCount: dedupedInterpretations.length,
-      validInterpretations: dedupedInterpretations.slice(0, 10),
-      invalidInterpretationCounts: Object.fromEntries(invalidInterpretationCounts.entries()),
+      ...(simulation.evidence || {}),
       expectedPresence,
       expectedTotalEvidence,
-      candidateSourcesUsed: [
-        "selected-current-output",
-        "member-row-token-order",
-        "member-row-number-order",
-        "grouped-raw-member-token-order",
-        "stage3-seven-digit-member-row-order",
-        "stage3-seven-digit-proposal-member",
-      ],
-      rule: "stage-wide six member candidate search + bonus=floor(max(all 6 candidates)*0.20) + exact self/enemy total evidence",
     },
     note:
-      "Runner-only current-PC stage-wide six-member candidate solver simulation. It does not change final OCR output.",
+      "Runner-only current-PC stage-wide six-member candidate solver simulation using shared evidence plumbing. It does not change final OCR output.",
   };
 }
 
 function buildCurrentPcStageWideSixMemberCandidateSolverEvaluation(analysis) {
   const rows = [];
+  const stageSimulations = [];
   const accepted = [];
   const falsePositiveRows = [];
   const blockedRows = [];
@@ -9985,6 +9854,11 @@ function buildCurrentPcStageWideSixMemberCandidateSolverEvaluation(analysis) {
         if (hasCurrentPcSideFailure(item, stage, side)) failingStageSideRows += 1;
       }
       const simulation = buildCurrentPcStageWideSixMemberCandidateSolverStage(item, stage);
+      stageSimulations.push({
+        screenshot: item.fileName,
+        stage,
+        simulation,
+      });
       const matchesExpected = currentPcStageWideStageMatchesExpected(simulation.proposed, item, stage);
       const targetEvidenceReady =
         stageHasFailure &&
@@ -10169,6 +10043,7 @@ function buildCurrentPcStageWideSixMemberCandidateSolverEvaluation(analysis) {
     acceptedStageSideCorrections,
     uniqueAdditionalRecoveryPotential: acceptedStageSideCorrections,
     rows,
+    stageSimulations,
     accepted,
     falsePositiveRows,
     blockedRows,
@@ -10400,6 +10275,294 @@ function compareCurrentPcCrownBonusRuleParity(analysis, crownBonusSimulation) {
     metadataOnlyMismatches,
     safetyRelevantMismatches,
     mismatchRows: rows.filter((row) => row.mismatchFields.length > 0 || row.metadataMismatchFields.length > 0),
+  };
+}
+
+function buildCurrentPcBrowserEquivalentStageWideSideAnalysis(item, stage, side) {
+  const stageKey = `stage${stage}`;
+  const sideAnalysis = item.stages?.[stageKey]?.[side];
+  if (!sideAnalysis) return null;
+  const groupedRawSimulation = buildCurrentPcBrowserEquivalentGroupedRawSimulation(
+    item,
+    stage,
+    side,
+    sideAnalysis
+  );
+  const stage3SevenDigitSimulation =
+    buildCurrentPcBrowserEquivalentStage3SevenDigitBonusDisplacementSimulation(
+      item,
+      stage,
+      side,
+      sideAnalysis
+    );
+  const selected = currentPcSelectedStageSideValues(sideAnalysis);
+  return {
+    selectedMembers: selected.selectedMembers,
+    selectedTotal: selected.selectedTotal,
+    rawCandidates: sideAnalysis.rawCandidates || [],
+    displayedTotalCandidates: sideAnalysis.displayedTotalCandidates || [],
+    bonusCandidates: sideAnalysis.bonusCandidates || [],
+    candidateSourceSummary:
+      sideAnalysis.candidateSourceSummary ||
+      sharedBuildCurrentPcCandidateSourceSummary(
+        buildCurrentPcBrowserEquivalentCandidateSources(item, stage, side, sideAnalysis)
+      ),
+    currentPcGroupedRawTokenEvidenceSimulation: groupedRawSimulation,
+    currentPcStage3SevenDigitBonusDisplacementSimulation: stage3SevenDigitSimulation,
+  };
+}
+
+function buildCurrentPcBrowserEquivalentStageWideSixMemberCandidateSolverSimulation(item, stage) {
+  const stageKey = `stage${stage}`;
+  const artifactSimulation =
+    item.stages?.[stageKey]?.debugArtifact?.currentPcStageWideSixMemberCandidateSolverSimulation;
+  if (artifactSimulation) return artifactSimulation;
+  const stageSimulation =
+    item.stages?.[stageKey]?.currentPcStageWideSixMemberCandidateSolverSimulation;
+  if (stageSimulation) return stageSimulation;
+  return sharedBuildCurrentPcStageWideSixMemberCandidateSolverEvidence({
+    stage,
+    self: buildCurrentPcBrowserEquivalentStageWideSideAnalysis(item, stage, "self"),
+    enemy: buildCurrentPcBrowserEquivalentStageWideSideAnalysis(item, stage, "enemy"),
+  });
+}
+
+function currentPcStageWideEvidenceFingerprint(evidence = []) {
+  return [...new Set((evidence || []).map((entry) => {
+    const tokens = (entry.tokens || [])
+      .map((token) =>
+        [token.rawToken || token.token || "", token.normalizedValue || 0, token.shape || token.tokenShape || ""].join(":")
+      )
+      .sort()
+      .join(",");
+    return [
+      entry.source || "",
+      entry.value || 0,
+      entry.pass || "",
+      entry.text || "",
+      tokens,
+    ].join("|");
+  }))].sort();
+}
+
+function currentPcStageWideMemberPoolsFingerprint(pools = [[], [], []]) {
+  return (pools || [[], [], []]).map((slot) =>
+    [...new Set((slot || []).map((value) => Number(value || 0)))].sort((a, b) => a - b)
+  );
+}
+
+function currentPcStageWideProposalFingerprint(proposed = null) {
+  return {
+    self: {
+      members: proposed?.self?.members || [],
+      bonus: proposed?.self?.bonus || 0,
+      total: proposed?.self?.total || 0,
+    },
+    enemy: {
+      members: proposed?.enemy?.members || [],
+      bonus: proposed?.enemy?.bonus || 0,
+      total: proposed?.enemy?.total || 0,
+    },
+    rank1: proposed?.rank1 || null,
+    winningSide: proposed?.winningSide || null,
+    calculatedBonus: proposed?.calculatedBonus || 0,
+    changedMemberSlots: (proposed?.changedMemberSlots || []).map((slot) => ({
+      side: slot.side,
+      slot: slot.slot,
+      from: slot.from,
+      to: slot.to,
+      sources: (slot.sources || []).map((source) =>
+        [source.source || "", source.token || "", source.shape || "", source.textIndex ?? ""].join(":")
+      ),
+    })),
+    totalEvidence: {
+      self: currentPcStageWideEvidenceFingerprint(proposed?.totalEvidence?.self || []),
+      enemy: currentPcStageWideEvidenceFingerprint(proposed?.totalEvidence?.enemy || []),
+    },
+  };
+}
+
+function currentPcStageWideSolverFingerprint(sim = null) {
+  return {
+    wouldApply: Boolean(sim?.wouldApply),
+    rejectionReasons: [...(sim?.rejectionReasons || [])].sort(),
+    selected: {
+      self: {
+        members: sim?.selected?.self?.members || [],
+        total: sim?.selected?.self?.total || 0,
+        bonus: sim?.selected?.self?.bonus || 0,
+      },
+      enemy: {
+        members: sim?.selected?.enemy?.members || [],
+        total: sim?.selected?.enemy?.total || 0,
+        bonus: sim?.selected?.enemy?.bonus || 0,
+      },
+    },
+    proposed: currentPcStageWideProposalFingerprint(sim?.proposed || null),
+    sideWouldChange: {
+      self: Boolean(sim?.sideWouldChange?.self),
+      enemy: Boolean(sim?.sideWouldChange?.enemy),
+    },
+    candidatePoolSizes: sim?.evidence?.candidatePoolSizes || { self: [], enemy: [] },
+    memberPools: {
+      self: currentPcStageWideMemberPoolsFingerprint(sim?.evidence?.memberPools?.self || []),
+      enemy: currentPcStageWideMemberPoolsFingerprint(sim?.evidence?.memberPools?.enemy || []),
+    },
+    combinationCount: sim?.evidence?.combinationCount || 0,
+    validInterpretationCount: sim?.evidence?.validInterpretationCount || 0,
+    invalidInterpretationCounts: sim?.evidence?.invalidInterpretationCounts || {},
+  };
+}
+
+function compareCurrentPcStageWideSixMemberCandidateSolverParity(
+  analysis,
+  stageWideSixMemberSolverSimulation
+) {
+  const rows = [];
+  let stagesCompared = 0;
+  let wouldApplyDisagreements = 0;
+  let proposedSixMemberDisagreements = 0;
+  let proposedBonusDisagreements = 0;
+  let proposedTotalDisagreements = 0;
+  let selectedDisagreements = 0;
+  let candidatePoolMismatches = 0;
+  let interpretationMismatches = 0;
+  let missingInBrowserEquivalent = 0;
+  let missingInRunner = 0;
+  let metadataOnlyMismatches = 0;
+  let safetyRelevantMismatches = 0;
+
+  const tpKeys = new Set(
+    (stageWideSixMemberSolverSimulation.accepted || []).map(
+      (row) => `${row.screenshot}|${row.stage}`
+    )
+  );
+  const runnerSimulationByStage = new Map(
+    (stageWideSixMemberSolverSimulation.stageSimulations || []).map((row) => [
+      `${row.screenshot}|${row.stage}`,
+      row.simulation,
+    ])
+  );
+  const tpRows = [];
+  const arraysSame = (left, right) => JSON.stringify(left || []) === JSON.stringify(right || []);
+  const jsonSame = (left, right) => JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
+
+  for (const item of analysis) {
+    if (!item.expected) continue;
+    for (const stage of stages) {
+      stagesCompared += 1;
+      const runnerSim =
+        runnerSimulationByStage.get(`${item.fileName}|${stage}`) ||
+        buildCurrentPcStageWideSixMemberCandidateSolverStage(item, stage);
+      const browserSim = buildCurrentPcBrowserEquivalentStageWideSixMemberCandidateSolverSimulation(
+        item,
+        stage
+      );
+      const runner = currentPcStageWideSolverFingerprint(runnerSim);
+      const browser = currentPcStageWideSolverFingerprint(browserSim);
+      const mismatchFields = [];
+      const metadataMismatchFields = [];
+
+      if (!runnerSim) missingInRunner += 1;
+      if (!browserSim) missingInBrowserEquivalent += 1;
+      if (runner.wouldApply !== browser.wouldApply) {
+        wouldApplyDisagreements += 1;
+        mismatchFields.push("wouldApply");
+      }
+      for (const side of sides) {
+        if (!arraysSame(runner.selected[side].members, browser.selected[side].members)) {
+          selectedDisagreements += 1;
+          mismatchFields.push(`${side}.selected.members`);
+        }
+        if (!arraysSame(runner.proposed[side].members, browser.proposed[side].members)) {
+          proposedSixMemberDisagreements += 1;
+          mismatchFields.push(`${side}.proposed.members`);
+        }
+        if (
+          Math.abs(Number(runner.proposed[side].bonus || 0) - Number(browser.proposed[side].bonus || 0)) >
+          1
+        ) {
+          proposedBonusDisagreements += 1;
+          mismatchFields.push(`${side}.proposed.bonus`);
+        }
+        if (
+          Math.abs(Number(runner.proposed[side].total || 0) - Number(browser.proposed[side].total || 0)) >
+          1
+        ) {
+          proposedTotalDisagreements += 1;
+          mismatchFields.push(`${side}.proposed.total`);
+        }
+        if (!jsonSame(runner.memberPools[side], browser.memberPools[side])) {
+          candidatePoolMismatches += 1;
+          metadataMismatchFields.push(`${side}.memberPools`);
+        }
+      }
+      if (!jsonSame(runner.candidatePoolSizes, browser.candidatePoolSizes)) {
+        candidatePoolMismatches += 1;
+        metadataMismatchFields.push("candidatePoolSizes");
+      }
+      if (runner.validInterpretationCount !== browser.validInterpretationCount) {
+        interpretationMismatches += 1;
+        mismatchFields.push("validInterpretationCount");
+      }
+      if (!jsonSame(runner.invalidInterpretationCounts, browser.invalidInterpretationCounts)) {
+        interpretationMismatches += 1;
+        metadataMismatchFields.push("invalidInterpretationCounts");
+      }
+      if (!jsonSame(runner.proposed.rank1, browser.proposed.rank1)) mismatchFields.push("rank1");
+      if (runner.proposed.winningSide !== browser.proposed.winningSide) {
+        mismatchFields.push("winningSide");
+      }
+      if (
+        Math.abs(
+          Number(runner.proposed.calculatedBonus || 0) -
+            Number(browser.proposed.calculatedBonus || 0)
+        ) > 1
+      ) {
+        mismatchFields.push("calculatedBonus");
+      }
+
+      const hasSafetyMismatch = mismatchFields.length > 0;
+      const hasMetadataMismatch = !hasSafetyMismatch && metadataMismatchFields.length > 0;
+      if (hasSafetyMismatch) safetyRelevantMismatches += 1;
+      if (hasMetadataMismatch) metadataOnlyMismatches += 1;
+      const row = {
+        screenshot: item.fileName,
+        stage,
+        runner,
+        browser,
+        runnerWouldApply: runner.wouldApply,
+        browserWouldApply: browser.wouldApply,
+        mismatchFields,
+        metadataMismatchFields,
+        safetyRelevant: hasSafetyMismatch,
+      };
+      rows.push(row);
+      if (tpKeys.has(`${item.fileName}|${stage}`)) tpRows.push(row);
+    }
+  }
+
+  return {
+    stagesCompared,
+    rows,
+    tpRows,
+    tpParityExact: tpRows.filter(
+      (row) => row.mismatchFields.length === 0 && row.metadataMismatchFields.length === 0
+    ).length,
+    wouldApplyDisagreements,
+    proposedSixMemberDisagreements,
+    proposedBonusDisagreements,
+    proposedTotalDisagreements,
+    selectedDisagreements,
+    candidatePoolMismatches,
+    interpretationMismatches,
+    missingInBrowserEquivalent,
+    missingInRunner,
+    metadataOnlyMismatches,
+    safetyRelevantMismatches,
+    mismatchRows: rows.filter(
+      (row) => row.mismatchFields.length > 0 || row.metadataMismatchFields.length > 0
+    ),
   };
 }
 
@@ -12202,6 +12365,96 @@ function buildCurrentPcStageWideSixMemberCandidateSolverReport(simulation) {
   return lines.join("\n");
 }
 
+function buildCurrentPcStageWideSixMemberCandidateSolverParityReport(parity, simulation) {
+  const generatedAt = new Date().toISOString();
+  const lines = [
+    "# Current-PC Stage-Wide Six-Member Candidate Solver Parity",
+    "",
+    `Generated: ${generatedAt}`,
+    "",
+    "## Purpose",
+    "",
+    "This report checks that the runner and browser-equivalent paths can build the same evidence for the current-PC stage-wide six-member candidate solver. The solver remains evidence-only and does not change final OCR output.",
+    "",
+    "## Shared Evidence Helper",
+    "",
+    "- `buildCurrentPcStageWideSixMemberCandidateSolverEvidence(...)` in `app/lib/ocr.js`",
+    "- Inputs are post-production-recovery stage/side analyses for current-PC self and enemy rows.",
+    "- Outputs include selected values, six member-slot candidate pools, exact total evidence, valid interpretations, `wouldApply`, and rejection reasons.",
+    "- The browser/UI path records this evidence for diagnostics only; no stage result is rewritten by this solver.",
+    "",
+    "## Parity Counts",
+    "",
+    "| metric | count |",
+    "| --- | ---: |",
+    `| stages compared | ${parity.stagesCompared} |`,
+    `| solver TP stages | ${simulation.truePositives} |`,
+    `| solver FP stages | ${simulation.falsePositives} |`,
+    `| solver FN stages | ${simulation.falseNegatives} |`,
+    `| solver blocked stages | ${simulation.blocked} |`,
+    `| TP parity exact | ${parity.tpParityExact} / ${simulation.truePositives} |`,
+    `| wouldApply disagreements | ${parity.wouldApplyDisagreements} |`,
+    `| proposed six-member disagreements | ${parity.proposedSixMemberDisagreements} |`,
+    `| proposed bonus disagreements | ${parity.proposedBonusDisagreements} |`,
+    `| proposed total disagreements | ${parity.proposedTotalDisagreements} |`,
+    `| selected value disagreements | ${parity.selectedDisagreements} |`,
+    `| candidate-pool metadata mismatches | ${parity.candidatePoolMismatches} |`,
+    `| interpretation metadata mismatches | ${parity.interpretationMismatches} |`,
+    `| missing evidence in browser-equivalent | ${parity.missingInBrowserEquivalent} |`,
+    `| missing evidence in runner | ${parity.missingInRunner} |`,
+    `| metadata-only mismatch rows | ${parity.metadataOnlyMismatches} |`,
+    `| safety-relevant mismatch rows | ${parity.safetyRelevantMismatches} |`,
+    "",
+    "## TP Parity Rows",
+    "",
+    "| screenshot | stage | runner wouldApply | browser-equivalent wouldApply | proposed self | proposed enemy | mismatch fields | metadata mismatch fields |",
+    "| --- | ---: | --- | --- | --- | --- | --- | --- |"
+  ];
+  if ((parity.tpRows || []).length === 0) {
+    lines.push("| none | - | - | - | - | - | - | - |");
+  }
+  for (const row of parity.tpRows || []) {
+    const proposedSelf = `${formatDebugNumbers(row.runner.proposed?.self?.members || [])}+${formatNumber(row.runner.proposed?.self?.bonus || 0) || 0}=${formatNumber(row.runner.proposed?.self?.total || 0) || 0}`;
+    const proposedEnemy = `${formatDebugNumbers(row.runner.proposed?.enemy?.members || [])}+${formatNumber(row.runner.proposed?.enemy?.bonus || 0) || 0}=${formatNumber(row.runner.proposed?.enemy?.total || 0) || 0}`;
+    lines.push(
+      `| ${row.screenshot} | ${row.stage} | ${row.runnerWouldApply ? "yes" : "no"} | ${row.browserWouldApply ? "yes" : "no"} | ${proposedSelf} | ${proposedEnemy} | ${row.mismatchFields.join(", ") || "none"} | ${row.metadataMismatchFields.join(", ") || "none"} |`
+    );
+  }
+
+  lines.push(
+    "",
+    "## Mismatch Rows",
+    "",
+    (parity.mismatchRows || []).length === 0
+      ? "No runner/browser-equivalent mismatches were found."
+      : "Mismatches were found and must be reviewed before any production candidate.",
+    ""
+  );
+  if ((parity.mismatchRows || []).length > 0) {
+    lines.push(
+      "| screenshot | stage | runner wouldApply | browser-equivalent wouldApply | mismatch fields | metadata mismatch fields | safety relevant |",
+      "| --- | ---: | --- | --- | --- | --- | --- |"
+    );
+    for (const row of parity.mismatchRows || []) {
+      lines.push(
+        `| ${row.screenshot} | ${row.stage} | ${row.runnerWouldApply ? "yes" : "no"} | ${row.browserWouldApply ? "yes" : "no"} | ${row.mismatchFields.join(", ") || "none"} | ${row.metadataMismatchFields.join(", ") || "none"} | ${row.safetyRelevant ? "yes" : "no"} |`
+      );
+    }
+  }
+
+  lines.push(
+    "",
+    "## Production Recommendation",
+    "",
+    parity.safetyRelevantMismatches > 0 || parity.tpParityExact !== simulation.truePositives
+      ? "Do not productionize yet. Evidence parity is not exact for all TP rows."
+      : "Parity is clean enough to attempt a later production-readiness audit, but this report does not productionize the solver.",
+    ""
+  );
+
+  return lines.join("\n");
+}
+
 function buildCurrentPcCrownBonusRuleParityReport(parity, simulation) {
   const generatedAt = new Date().toISOString();
   const lines = [
@@ -12527,6 +12780,11 @@ async function main() {
       buildCurrentPcCrownBonusRuleSimulationEvaluation(expectedCurrentPcAnalysis);
     const stageWideSixMemberSolverSimulation =
       buildCurrentPcStageWideSixMemberCandidateSolverEvaluation(expectedCurrentPcAnalysis);
+    const stageWideSixMemberSolverParity =
+      compareCurrentPcStageWideSixMemberCandidateSolverParity(
+        expectedCurrentPcAnalysis,
+        stageWideSixMemberSolverSimulation
+      );
     const crownBonusRuleParity = compareCurrentPcCrownBonusRuleParity(
       expectedCurrentPcAnalysis,
       crownBonusRuleSimulation
@@ -12563,6 +12821,13 @@ async function main() {
       buildCurrentPcStageWideSixMemberCandidateSolverReport(stageWideSixMemberSolverSimulation)
     );
     await fs.writeFile(
+      currentPcStageWideSolverParityReportPath,
+      buildCurrentPcStageWideSixMemberCandidateSolverParityReport(
+        stageWideSixMemberSolverParity,
+        stageWideSixMemberSolverSimulation
+      )
+    );
+    await fs.writeFile(
       path.join(currentPcBaselineDir, "crown-bonus-rule-simulation.json"),
       JSON.stringify(crownBonusRuleSimulation, null, 2)
     );
@@ -12573,6 +12838,10 @@ async function main() {
     await fs.writeFile(
       path.join(currentPcBaselineDir, "stage-wide-six-member-candidate-solver-simulation.json"),
       JSON.stringify(stageWideSixMemberSolverSimulation, null, 2)
+    );
+    await fs.writeFile(
+      path.join(currentPcBaselineDir, "stage-wide-six-member-candidate-solver-parity.json"),
+      JSON.stringify(stageWideSixMemberSolverParity, null, 2)
     );
     if (currentPcBonusDiagnosticsArtifacts) {
       await fs.writeFile(
@@ -12632,6 +12901,7 @@ async function main() {
               crownBonusRuleSimulationReport: path.relative(rootDir, currentPcCrownBonusSimulationReportPath).replaceAll("\\", "/"),
               crownBonusRuleParityReport: path.relative(rootDir, currentPcCrownBonusParityReportPath).replaceAll("\\", "/"),
               stageWideSixMemberSolverReport: path.relative(rootDir, currentPcStageWideSolverReportPath).replaceAll("\\", "/"),
+              stageWideSixMemberSolverParityReport: path.relative(rootDir, currentPcStageWideSolverParityReportPath).replaceAll("\\", "/"),
               outputDir: currentPcBaselineArtifacts.outputDir,
               summary: currentPcBaselineArtifacts.summaryPath,
               crownBonusRuleSimulation: path
@@ -12644,6 +12914,12 @@ async function main() {
                 .relative(
                   rootDir,
                   path.join(currentPcBaselineDir, "stage-wide-six-member-candidate-solver-simulation.json")
+                )
+                .replaceAll("\\", "/"),
+              stageWideSixMemberSolverParity: path
+                .relative(
+                  rootDir,
+                  path.join(currentPcBaselineDir, "stage-wide-six-member-candidate-solver-parity.json")
                 )
                 .replaceAll("\\", "/"),
               bonusDiagnostics: currentPcBonusDiagnosticsArtifacts

@@ -1988,6 +1988,404 @@ export function buildCurrentPcCrownBonusRuleEvidence({
   };
 }
 
+function currentPcStageWideMemberRange(value) {
+  const number = Number(value || 0);
+  return Number.isFinite(number) && number >= 10000 && number < 2000000;
+}
+
+function currentPcStageWideAddMemberCandidate(pools, side, slotIndex, value, source) {
+  const number = Number(value || 0);
+  if (!currentPcStageWideMemberRange(number)) return;
+  const pool = pools[side][slotIndex];
+  if (!pool.has(number)) {
+    pool.set(number, {
+      value: number,
+      sources: [],
+    });
+  }
+  pool.get(number).sources.push(source);
+}
+
+function currentPcStageWideOrderedMemberCandidates(sideAnalysis = {}, stage = 0) {
+  const evidence = [];
+  const summary = sideAnalysis.candidateSourceSummary || {};
+  const memberCandidates = summary.memberCandidates || {};
+  const tokenValues = (memberCandidates.tokenAudit || [])
+    .map((token) => ({
+      value: Number(token.normalizedValue || 0),
+      token: token.rawToken || token.token || "",
+      textIndex: Number(token.textIndex ?? -1),
+      shape: token.shape || token.tokenShape || "",
+      text: memberCandidates.text || "",
+    }))
+    .filter((token) => currentPcStageWideMemberRange(token.value))
+    .sort((a, b) => a.textIndex - b.textIndex);
+  const orderedTokenValues = tokenValues.filter(
+    (item, index, all) =>
+      all.findIndex((other) => other.value === item.value && other.textIndex === item.textIndex) ===
+      index
+  );
+  orderedTokenValues.forEach((token, index) => {
+    if (index < 3) {
+      evidence.push({
+        slotIndex: index,
+        value: token.value,
+        source: "member-row-token-order",
+        token: token.token,
+        shape: token.shape,
+        textIndex: token.textIndex,
+        text: token.text,
+      });
+    }
+  });
+
+  if (orderedTokenValues.length === 0) {
+    (memberCandidates.numbers || [])
+      .map((value) => Number(value || 0))
+      .filter(currentPcStageWideMemberRange)
+      .slice(0, 3)
+      .forEach((value, index) => {
+        evidence.push({
+          slotIndex: index,
+          value,
+          source: "member-row-number-order",
+          token: String(value),
+          text: memberCandidates.text || "",
+        });
+      });
+  }
+
+  const eligibleTokens =
+    sideAnalysis.currentPcGroupedRawTokenEvidenceSimulation?.evidence?.eligibleTokens || [];
+  const orderedGrouped = currentPcOrderedMemberValuesFromTokenEvidence(
+    sideAnalysis,
+    eligibleTokens
+  );
+  orderedGrouped.slice(0, 3).forEach((entry, index) => {
+    evidence.push({
+      slotIndex: index,
+      value: Number(entry.value || 0),
+      source: `grouped-raw-${entry.source || "member-token"}`,
+      token: entry.token || "",
+      shape: entry.shape || "",
+      textIndex: entry.textIndex ?? null,
+    });
+  });
+
+  const stage3Evidence =
+    stage === 3 ? sideAnalysis.currentPcStage3SevenDigitBonusDisplacementSimulation?.evidence : null;
+  (stage3Evidence?.memberRowNumbers || []).slice(0, 3).forEach((value, index) => {
+    evidence.push({
+      slotIndex: index,
+      value: Number(value || 0),
+      source: "stage3-seven-digit-member-row-order",
+      token: String(value),
+    });
+  });
+  for (const proposal of stage3Evidence?.proposals || []) {
+    (proposal.proposedMembers || []).slice(0, 3).forEach((value, index) => {
+      evidence.push({
+        slotIndex: index,
+        value: Number(value || 0),
+        source: "stage3-seven-digit-proposal-member",
+        token: String(value),
+        memberRowText: proposal.memberRowText || "",
+      });
+    });
+  }
+
+  return evidence.filter((entry) => currentPcStageWideMemberRange(entry.value));
+}
+
+function currentPcStageWideBuildMemberPools({ stage = 0, self = null, enemy = null }) {
+  const pools = {
+    self: [new Map(), new Map(), new Map()],
+    enemy: [new Map(), new Map(), new Map()],
+  };
+
+  for (const side of ["self", "enemy"]) {
+    const sideAnalysis = side === "self" ? self : enemy;
+    if (!sideAnalysis) continue;
+    const selected = [...(sideAnalysis.selectedMembers || [])]
+      .map((value) => Number(value) || 0)
+      .slice(0, 3);
+    while (selected.length < 3) selected.push(0);
+    selected.forEach((value, index) => {
+      currentPcStageWideAddMemberCandidate(pools, side, index, value, {
+        source: "selected-current-output",
+        memberCompatible: true,
+        selected: true,
+      });
+    });
+    for (const entry of currentPcStageWideOrderedMemberCandidates(sideAnalysis, stage)) {
+      currentPcStageWideAddMemberCandidate(pools, side, entry.slotIndex, entry.value, {
+        source: entry.source,
+        memberCompatible: true,
+        selected: false,
+        token: entry.token || "",
+        shape: entry.shape || "",
+        textIndex: entry.textIndex ?? null,
+        text: entry.text || entry.memberRowText || "",
+      });
+    }
+  }
+
+  return {
+    self: pools.self.map((pool) => [...pool.values()]),
+    enemy: pools.enemy.map((pool) => [...pool.values()]),
+  };
+}
+
+function currentPcStageWideCombinationCount(pools) {
+  return [...pools.self, ...pools.enemy].reduce(
+    (product, pool) => product * Math.max(pool.length, 1),
+    1
+  );
+}
+
+function currentPcStageWideProposalFromMembers({
+  stage = 0,
+  selfMembers = [],
+  enemyMembers = [],
+  self = null,
+  enemy = null,
+}) {
+  const allMembers = [
+    ...selfMembers.map((value, index) => ({ side: "self", slot: index + 1, value })),
+    ...enemyMembers.map((value, index) => ({ side: "enemy", slot: index + 1, value })),
+  ];
+  const maxValue = Math.max(...allMembers.map((entry) => entry.value));
+  const maxEntries = allMembers.filter((entry) => entry.value === maxValue);
+  if (maxEntries.length !== 1) return null;
+  const rank1 = maxEntries[0];
+  const winningSide = rank1.side;
+  const calculatedBonus = Math.floor(maxValue * 0.2);
+  const selfBonus = winningSide === "self" ? calculatedBonus : 0;
+  const enemyBonus = winningSide === "enemy" ? calculatedBonus : 0;
+  const selfTotal = selfMembers.reduce((sum, value) => sum + value, 0) + selfBonus;
+  const enemyTotal = enemyMembers.reduce((sum, value) => sum + value, 0) + enemyBonus;
+  return {
+    self: { members: selfMembers, bonus: selfBonus, total: selfTotal },
+    enemy: { members: enemyMembers, bonus: enemyBonus, total: enemyTotal },
+    rank1,
+    winningSide,
+    calculatedBonus,
+    totalEvidence: {
+      self: currentPcTotalEvidenceForValue(self, selfTotal),
+      enemy: currentPcTotalEvidenceForValue(enemy, enemyTotal),
+    },
+    stage,
+  };
+}
+
+export function buildCurrentPcStageWideSixMemberCandidateSolverEvidence({
+  stage = 0,
+  self = null,
+  enemy = null,
+}) {
+  const rejectionReasons = [];
+  if (!self || !enemy) {
+    return {
+      wouldApply: false,
+      rejectionReasons: ["missing-stage-side-analysis"],
+      selected: null,
+      proposed: null,
+      sideWouldChange: { self: false, enemy: false },
+      stage,
+      evidence: {},
+      note:
+        "Current-PC shared evidence-only stage-wide six-member candidate solver. It does not change OCR output.",
+    };
+  }
+
+  const pools = currentPcStageWideBuildMemberPools({ stage, self, enemy });
+  const candidatePoolSizes = {
+    self: pools.self.map((pool) => pool.length),
+    enemy: pools.enemy.map((pool) => pool.length),
+  };
+  for (const side of ["self", "enemy"]) {
+    for (let index = 0; index < 3; index += 1) {
+      if ((pools[side]?.[index] || []).length === 0) {
+        rejectionReasons.push(`missing-${side}-member${index + 1}-candidate`);
+      }
+    }
+  }
+  const combinationCount = currentPcStageWideCombinationCount(pools);
+  if (combinationCount > 20000) {
+    rejectionReasons.push("candidate-pool-explosion");
+  }
+
+  const selected = {
+    self: {
+      members: [...(self.selectedMembers || [])].map((value) => Number(value) || 0).slice(0, 3),
+      bonus: currentPcSelectedBonus(self),
+      total: Number(self.selectedTotal || 0),
+    },
+    enemy: {
+      members: [...(enemy.selectedMembers || [])].map((value) => Number(value) || 0).slice(0, 3),
+      bonus: currentPcSelectedBonus(enemy),
+      total: Number(enemy.selectedTotal || 0),
+    },
+  };
+  for (const side of ["self", "enemy"]) {
+    while (selected[side].members.length < 3) selected[side].members.push(0);
+  }
+
+  const validInterpretations = [];
+  const invalidInterpretationCounts = new Map();
+  const incrementInvalid = (reason) =>
+    invalidInterpretationCounts.set(reason, (invalidInterpretationCounts.get(reason) || 0) + 1);
+
+  if (rejectionReasons.length === 0) {
+    for (const self1 of pools.self[0]) {
+      for (const self2 of pools.self[1]) {
+        for (const self3 of pools.self[2]) {
+          for (const enemy1 of pools.enemy[0]) {
+            for (const enemy2 of pools.enemy[1]) {
+              for (const enemy3 of pools.enemy[2]) {
+                const selfMembers = [self1.value, self2.value, self3.value];
+                const enemyMembers = [enemy1.value, enemy2.value, enemy3.value];
+                const proposal = currentPcStageWideProposalFromMembers({
+                  stage,
+                  selfMembers,
+                  enemyMembers,
+                  self,
+                  enemy,
+                });
+                if (!proposal) {
+                  incrementInvalid("global-rank1-tie-or-missing");
+                  continue;
+                }
+                const changedSources = [];
+                let changedMemberWithoutEvidence = false;
+                [
+                  ["self", [self1, self2, self3]],
+                  ["enemy", [enemy1, enemy2, enemy3]],
+                ].forEach(([side, candidates]) => {
+                  candidates.forEach((candidate, index) => {
+                    const selectedValue = selected[side].members[index];
+                    const changed =
+                      Math.abs(Number(candidate.value || 0) - Number(selectedValue || 0)) > 1;
+                    if (changed) {
+                      const nonSelectedSources = (candidate.sources || []).filter(
+                        (source) => source.source !== "selected-current-output"
+                      );
+                      if (nonSelectedSources.length === 0) changedMemberWithoutEvidence = true;
+                      changedSources.push({
+                        side,
+                        slot: index + 1,
+                        from: selectedValue,
+                        to: candidate.value,
+                        sources: nonSelectedSources,
+                      });
+                    }
+                  });
+                });
+                if (changedMemberWithoutEvidence) {
+                  incrementInvalid("changed-member-without-member-provenance");
+                  continue;
+                }
+                if (changedSources.length === 0) {
+                  incrementInvalid("proposal-equals-current-six-members");
+                  continue;
+                }
+                if (proposal.totalEvidence.self.length === 0) {
+                  incrementInvalid("missing-self-exact-total-evidence");
+                  continue;
+                }
+                if (proposal.totalEvidence.enemy.length === 0) {
+                  incrementInvalid("missing-enemy-exact-total-evidence");
+                  continue;
+                }
+                validInterpretations.push({
+                  ...proposal,
+                  changedMemberSlots: changedSources,
+                  candidateSources: {
+                    self: [self1, self2, self3].map((candidate) => candidate.sources || []),
+                    enemy: [enemy1, enemy2, enemy3].map((candidate) => candidate.sources || []),
+                  },
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  const dedupedInterpretations = validInterpretations.filter(
+    (proposal, index, all) =>
+      all.findIndex(
+        (other) =>
+          arraysEqualWithinOne(other.self.members, proposal.self.members) &&
+          arraysEqualWithinOne(other.enemy.members, proposal.enemy.members) &&
+          Math.abs(Number(other.self.total || 0) - Number(proposal.self.total || 0)) <= 1 &&
+          Math.abs(Number(other.enemy.total || 0) - Number(proposal.enemy.total || 0)) <= 1 &&
+          Math.abs(Number(other.self.bonus || 0) - Number(proposal.self.bonus || 0)) <= 1 &&
+          Math.abs(Number(other.enemy.bonus || 0) - Number(proposal.enemy.bonus || 0)) <= 1
+      ) === index
+  );
+  if (dedupedInterpretations.length === 0) {
+    rejectionReasons.push("no-complete-six-member-exact-total-interpretation");
+  }
+  if (dedupedInterpretations.length > 1) {
+    rejectionReasons.push("multiple-complete-six-member-interpretations");
+  }
+
+  const proposed = dedupedInterpretations.length === 1 ? dedupedInterpretations[0] : null;
+  const sideWouldChange = {
+    self:
+      proposed &&
+      (!arraysEqualWithinOne(proposed.self.members, selected.self.members) ||
+        Math.abs(Number(proposed.self.bonus || 0) - Number(selected.self.bonus || 0)) > 1 ||
+        Math.abs(Number(proposed.self.total || 0) - Number(selected.self.total || 0)) > 1),
+    enemy:
+      proposed &&
+      (!arraysEqualWithinOne(proposed.enemy.members, selected.enemy.members) ||
+        Math.abs(Number(proposed.enemy.bonus || 0) - Number(selected.enemy.bonus || 0)) > 1 ||
+        Math.abs(Number(proposed.enemy.total || 0) - Number(selected.enemy.total || 0)) > 1),
+  };
+  if (proposed && !sideWouldChange.self && !sideWouldChange.enemy) {
+    rejectionReasons.push("selected-stage-already-matches-proposal");
+  }
+
+  return {
+    wouldApply: rejectionReasons.length === 0 && Boolean(proposed),
+    rejectionReasons: [...new Set(rejectionReasons)],
+    selected,
+    proposed,
+    sideWouldChange,
+    stage,
+    evidence: {
+      candidatePoolSizes,
+      combinationCount,
+      memberPools: {
+        self: pools.self.map((pool) => pool.map((candidate) => candidate.value)),
+        enemy: pools.enemy.map((pool) => pool.map((candidate) => candidate.value)),
+      },
+      memberPoolSources: {
+        self: pools.self.map((pool) => pool.map((candidate) => candidate)),
+        enemy: pools.enemy.map((pool) => pool.map((candidate) => candidate)),
+      },
+      validInterpretationCount: dedupedInterpretations.length,
+      validInterpretations: dedupedInterpretations.slice(0, 10),
+      invalidInterpretationCounts: Object.fromEntries(invalidInterpretationCounts.entries()),
+      candidateSourcesUsed: [
+        "selected-current-output",
+        "member-row-token-order",
+        "member-row-number-order",
+        "grouped-raw-member-token-order",
+        "stage3-seven-digit-member-row-order",
+        "stage3-seven-digit-proposal-member",
+      ],
+      rule:
+        "stage-wide six member candidate search + bonus=floor(max(all 6 candidates)*0.20) + exact self/enemy total evidence",
+    },
+    note:
+      "Current-PC shared evidence-only stage-wide six-member candidate solver. It does not change OCR output.",
+  };
+}
+
 export function buildCurrentPcGroupedExactInterpretations({
   rawCandidates = [],
   displayedTotalCandidates = [],
