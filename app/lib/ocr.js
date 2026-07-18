@@ -1771,6 +1771,14 @@ function arraysEqualWithinOne(left = [], right = []) {
   return left.every((value, index) => Math.abs(Number(value || 0) - Number(right[index] || 0)) <= 1);
 }
 
+function arraysEqualWithinTolerance(left = [], right = [], tolerance = 1) {
+  if (left.length !== right.length) return false;
+  return left.every(
+    (value, index) =>
+      Math.abs(Number(value || 0) - Number(right[index] || 0)) <= Number(tolerance || 0)
+  );
+}
+
 function currentPcSelectedBonus(sideAnalysis = {}) {
   const selectedMembers = sideAnalysis?.selectedMembers || [];
   const memberSum = selectedMembers.reduce((sum, value) => sum + Number(value || 0), 0);
@@ -1809,8 +1817,9 @@ function currentPcMemberEvidenceForValue(sideAnalysis = {}, value, slotIndex) {
   return evidence;
 }
 
-function currentPcTotalEvidenceForValue(sideAnalysis = {}, value) {
+function currentPcTotalEvidenceForValue(sideAnalysis = {}, value, tolerance = 1) {
   const normalizedValue = Number(value || 0);
+  const allowedDifference = Number(tolerance || 0);
   if (normalizedValue <= 0) return [];
   const summary = sideAnalysis?.candidateSourceSummary || {};
   const evidence = [];
@@ -1825,21 +1834,21 @@ function currentPcTotalEvidenceForValue(sideAnalysis = {}, value) {
     });
   };
 
-  if ((sideAnalysis.displayedTotalCandidates || []).some((candidate) => Math.abs(Number(candidate || 0) - normalizedValue) <= 1)) {
+  if ((sideAnalysis.displayedTotalCandidates || []).some((candidate) => Math.abs(Number(candidate || 0) - normalizedValue) <= allowedDifference)) {
     pushEvidence({ source: "displayed-total-candidates" });
   }
-  if ((summary.totalDirect?.numbers || []).some((candidate) => Math.abs(Number(candidate || 0) - normalizedValue) <= 1)) {
+  if ((summary.totalDirect?.numbers || []).some((candidate) => Math.abs(Number(candidate || 0) - normalizedValue) <= allowedDifference)) {
     pushEvidence({
       source: "total-direct",
       text: summary.totalDirect.text || "",
       pass: summary.totalDirect.pass || null,
       tokens: (summary.totalDirect.tokenAudit || []).filter(
-        (token) => Math.abs(Number(token.normalizedValue || 0) - normalizedValue) <= 1
+        (token) => Math.abs(Number(token.normalizedValue || 0) - normalizedValue) <= allowedDifference
       ),
     });
   }
   for (const trace of summary.totalTraces || []) {
-    if ((trace.numbers || []).some((candidate) => Math.abs(Number(candidate || 0) - normalizedValue) <= 1)) {
+    if ((trace.numbers || []).some((candidate) => Math.abs(Number(candidate || 0) - normalizedValue) <= allowedDifference)) {
       pushEvidence({
         source: "total-trace",
         text: trace.text || "",
@@ -1849,7 +1858,7 @@ function currentPcTotalEvidenceForValue(sideAnalysis = {}, value) {
   }
   for (const traceAudit of summary.totalTraceTokenAudit || []) {
     const tokens = (traceAudit.tokens || []).filter(
-      (token) => Math.abs(Number(token.normalizedValue || 0) - normalizedValue) <= 1
+      (token) => Math.abs(Number(token.normalizedValue || 0) - normalizedValue) <= allowedDifference
     );
     if (tokens.length > 0) {
       pushEvidence({
@@ -1865,7 +1874,7 @@ function currentPcTotalEvidenceForValue(sideAnalysis = {}, value) {
       });
     }
   }
-  if ((sideAnalysis.rawCandidates || []).some((candidate) => Math.abs(Number(candidate || 0) - normalizedValue) <= 1)) {
+  if ((sideAnalysis.rawCandidates || []).some((candidate) => Math.abs(Number(candidate || 0) - normalizedValue) <= allowedDifference)) {
     pushEvidence({ source: "raw-candidates" });
   }
   return evidence;
@@ -2097,7 +2106,12 @@ function currentPcStageWideOrderedMemberCandidates(sideAnalysis = {}, stage = 0)
   return evidence.filter((entry) => currentPcStageWideMemberRange(entry.value));
 }
 
-function currentPcStageWideBuildMemberPools({ stage = 0, self = null, enemy = null }) {
+function currentPcStageWideBuildMemberPools({
+  stage = 0,
+  self = null,
+  enemy = null,
+  additionalMemberCandidates = [],
+}) {
   const pools = {
     self: [new Map(), new Map(), new Map()],
     enemy: [new Map(), new Map(), new Map()],
@@ -2130,6 +2144,27 @@ function currentPcStageWideBuildMemberPools({ stage = 0, self = null, enemy = nu
     }
   }
 
+  for (const entry of additionalMemberCandidates || []) {
+    const side = entry?.side;
+    const slotIndex = Number(entry?.slotIndex ?? entry?.slot ?? -1);
+    if (!["self", "enemy"].includes(side) || slotIndex < 0 || slotIndex > 2) continue;
+    currentPcStageWideAddMemberCandidate(pools, side, slotIndex, entry.value, {
+      source: entry.source || "additional-member-candidate",
+      memberCompatible: true,
+      selected: false,
+      token: entry.token || String(entry.value || ""),
+      shape: entry.shape || "",
+      textIndex: entry.textIndex ?? null,
+      text: entry.text || "",
+      variantLabel: entry.variantLabel || "",
+      zoneKind: entry.zoneKind || "",
+      slotSpecific: Boolean(entry.slotSpecific),
+      rowOrderBased: Boolean(entry.rowOrderBased),
+      zone: entry.zone || null,
+      preprocessing: entry.preprocessing || null,
+    });
+  }
+
   return {
     self: pools.self.map((pool) => [...pool.values()]),
     enemy: pools.enemy.map((pool) => [...pool.values()]),
@@ -2149,6 +2184,7 @@ function currentPcStageWideProposalFromMembers({
   enemyMembers = [],
   self = null,
   enemy = null,
+  totalEvidenceTolerance = 1,
 }) {
   const allMembers = [
     ...selfMembers.map((value, index) => ({ side: "self", slot: index + 1, value })),
@@ -2171,8 +2207,8 @@ function currentPcStageWideProposalFromMembers({
     winningSide,
     calculatedBonus,
     totalEvidence: {
-      self: currentPcTotalEvidenceForValue(self, selfTotal),
-      enemy: currentPcTotalEvidenceForValue(enemy, enemyTotal),
+      self: currentPcTotalEvidenceForValue(self, selfTotal, totalEvidenceTolerance),
+      enemy: currentPcTotalEvidenceForValue(enemy, enemyTotal, totalEvidenceTolerance),
     },
     stage,
   };
@@ -2182,8 +2218,12 @@ export function buildCurrentPcStageWideSixMemberCandidateSolverEvidence({
   stage = 0,
   self = null,
   enemy = null,
+  additionalMemberCandidates = [],
+  comparisonTolerance = 1,
+  policyName = "stage-wide-six-member-candidate-solver",
 }) {
   const rejectionReasons = [];
+  const tolerance = Number(comparisonTolerance || 0);
   if (!self || !enemy) {
     return {
       wouldApply: false,
@@ -2198,7 +2238,12 @@ export function buildCurrentPcStageWideSixMemberCandidateSolverEvidence({
     };
   }
 
-  const pools = currentPcStageWideBuildMemberPools({ stage, self, enemy });
+  const pools = currentPcStageWideBuildMemberPools({
+    stage,
+    self,
+    enemy,
+    additionalMemberCandidates,
+  });
   const candidatePoolSizes = {
     self: pools.self.map((pool) => pool.length),
     enemy: pools.enemy.map((pool) => pool.length),
@@ -2251,6 +2296,7 @@ export function buildCurrentPcStageWideSixMemberCandidateSolverEvidence({
                   enemyMembers,
                   self,
                   enemy,
+                  totalEvidenceTolerance: tolerance,
                 });
                 if (!proposal) {
                   incrementInvalid("global-rank1-tie-or-missing");
@@ -2265,7 +2311,8 @@ export function buildCurrentPcStageWideSixMemberCandidateSolverEvidence({
                   candidates.forEach((candidate, index) => {
                     const selectedValue = selected[side].members[index];
                     const changed =
-                      Math.abs(Number(candidate.value || 0) - Number(selectedValue || 0)) > 1;
+                      Math.abs(Number(candidate.value || 0) - Number(selectedValue || 0)) >
+                      tolerance;
                     if (changed) {
                       const nonSelectedSources = (candidate.sources || []).filter(
                         (source) => source.source !== "selected-current-output"
@@ -2317,12 +2364,16 @@ export function buildCurrentPcStageWideSixMemberCandidateSolverEvidence({
     (proposal, index, all) =>
       all.findIndex(
         (other) =>
-          arraysEqualWithinOne(other.self.members, proposal.self.members) &&
-          arraysEqualWithinOne(other.enemy.members, proposal.enemy.members) &&
-          Math.abs(Number(other.self.total || 0) - Number(proposal.self.total || 0)) <= 1 &&
-          Math.abs(Number(other.enemy.total || 0) - Number(proposal.enemy.total || 0)) <= 1 &&
-          Math.abs(Number(other.self.bonus || 0) - Number(proposal.self.bonus || 0)) <= 1 &&
-          Math.abs(Number(other.enemy.bonus || 0) - Number(proposal.enemy.bonus || 0)) <= 1
+          arraysEqualWithinTolerance(other.self.members, proposal.self.members, tolerance) &&
+          arraysEqualWithinTolerance(other.enemy.members, proposal.enemy.members, tolerance) &&
+          Math.abs(Number(other.self.total || 0) - Number(proposal.self.total || 0)) <=
+            tolerance &&
+          Math.abs(Number(other.enemy.total || 0) - Number(proposal.enemy.total || 0)) <=
+            tolerance &&
+          Math.abs(Number(other.self.bonus || 0) - Number(proposal.self.bonus || 0)) <=
+            tolerance &&
+          Math.abs(Number(other.enemy.bonus || 0) - Number(proposal.enemy.bonus || 0)) <=
+            tolerance
       ) === index
   );
   if (dedupedInterpretations.length === 0) {
@@ -2336,14 +2387,18 @@ export function buildCurrentPcStageWideSixMemberCandidateSolverEvidence({
   const sideWouldChange = {
     self:
       proposed &&
-      (!arraysEqualWithinOne(proposed.self.members, selected.self.members) ||
-        Math.abs(Number(proposed.self.bonus || 0) - Number(selected.self.bonus || 0)) > 1 ||
-        Math.abs(Number(proposed.self.total || 0) - Number(selected.self.total || 0)) > 1),
+      (!arraysEqualWithinTolerance(proposed.self.members, selected.self.members, tolerance) ||
+        Math.abs(Number(proposed.self.bonus || 0) - Number(selected.self.bonus || 0)) >
+          tolerance ||
+        Math.abs(Number(proposed.self.total || 0) - Number(selected.self.total || 0)) >
+          tolerance),
     enemy:
       proposed &&
-      (!arraysEqualWithinOne(proposed.enemy.members, selected.enemy.members) ||
-        Math.abs(Number(proposed.enemy.bonus || 0) - Number(selected.enemy.bonus || 0)) > 1 ||
-        Math.abs(Number(proposed.enemy.total || 0) - Number(selected.enemy.total || 0)) > 1),
+      (!arraysEqualWithinTolerance(proposed.enemy.members, selected.enemy.members, tolerance) ||
+        Math.abs(Number(proposed.enemy.bonus || 0) - Number(selected.enemy.bonus || 0)) >
+          tolerance ||
+        Math.abs(Number(proposed.enemy.total || 0) - Number(selected.enemy.total || 0)) >
+          tolerance),
   };
   if (proposed && !sideWouldChange.self && !sideWouldChange.enemy) {
     rejectionReasons.push("selected-stage-already-matches-proposal");
@@ -2377,7 +2432,11 @@ export function buildCurrentPcStageWideSixMemberCandidateSolverEvidence({
         "grouped-raw-member-token-order",
         "stage3-seven-digit-member-row-order",
         "stage3-seven-digit-proposal-member",
+        ...new Set((additionalMemberCandidates || []).map((candidate) => candidate.source)),
       ],
+      additionalMemberCandidates: additionalMemberCandidates || [],
+      comparisonTolerance: tolerance,
+      policyName,
       rule:
         "stage-wide six member candidate search + bonus=floor(max(all 6 candidates)*0.20) + exact self/enemy total evidence",
     },
