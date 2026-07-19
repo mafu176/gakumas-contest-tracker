@@ -16,6 +16,7 @@ import {
   applySmartphoneStage3EnemySevenDigitRecovery,
   applyCurrentPcGroupedRawTokenRecovery,
   applyCurrentPcCrownBonusRuleRecovery,
+  applyCurrentPcExactMembersCrownBonusTotalRecovery,
   applyCurrentPcStageWideSixMemberCandidateSolverRecovery,
   applyCurrentPcStage3SevenDigitBonusDisplacementRecovery,
   buildCurrentPcCrownBonusRuleEvidence as sharedBuildCurrentPcCrownBonusRuleEvidence,
@@ -4547,6 +4548,8 @@ async function runOcrForImage(imagePath, options = {}) {
     let currentPcCrownBonusRuleRecovery = null;
     let currentPcStageWideSixMemberCandidateSolverSimulation = null;
     let currentPcStageWideSixMemberCandidateSolverRecovery = null;
+    let currentPcExactMembersCrownBonusTotalRecoverySimulation = null;
+    let currentPcExactMembersCrownBonusTotalRecovery = null;
     if (ocrSource === "current-pc") {
       const buildCurrentPcRecoverySideArtifact = (side) => {
         const isSelf = side === "self";
@@ -4830,6 +4833,85 @@ async function runOcrForImage(imagePath, options = {}) {
         selfTotal = currentPcStageWideSixMemberCandidateSolverRecovery.self.total;
         enemyTotal = currentPcStageWideSixMemberCandidateSolverRecovery.enemy.total;
       }
+      const buildCurrentPcExactMembersSideAnalysis = (side) => {
+        const isSelf = side === "self";
+        const sideAnalysis = currentPcPreRecoveryAnalysisBySide[side] || {};
+        return {
+          selectedMembers: isSelf ? self : enemy,
+          selectedTotal: isSelf ? selfTotal : enemyTotal,
+          rawCandidates: sideAnalysis.rawCandidates || [],
+          displayedTotalCandidates: sideAnalysis.displayedTotalCandidates || [],
+          bonusCandidates: sideAnalysis.bonusCandidates || [],
+          candidateSourceSummary: sideAnalysis.candidateSourceSummary || null,
+        };
+      };
+      currentPcExactMembersCrownBonusTotalRecoverySimulation = {
+        self: sharedBuildCurrentPcExactMembersCrownBonusTotalRecoveryEvidence({
+          stage,
+          side: "self",
+          self: buildCurrentPcExactMembersSideAnalysis("self"),
+          enemy: buildCurrentPcExactMembersSideAnalysis("enemy"),
+          previousRecoveries: {
+            self: {
+              groupedRaw: currentPcProductionRecoveryBySide.self,
+              stage3SevenDigit: currentPcStage3SevenDigitBonusDisplacementRecoveryBySide.self,
+              crownBonus: currentPcCrownBonusRuleRecovery,
+              stageWideSixMember: currentPcStageWideSixMemberCandidateSolverRecovery,
+            },
+          },
+        }),
+        enemy: sharedBuildCurrentPcExactMembersCrownBonusTotalRecoveryEvidence({
+          stage,
+          side: "enemy",
+          self: buildCurrentPcExactMembersSideAnalysis("self"),
+          enemy: buildCurrentPcExactMembersSideAnalysis("enemy"),
+          previousRecoveries: {
+            enemy: {
+              groupedRaw: currentPcProductionRecoveryBySide.enemy,
+              stage3SevenDigit: currentPcStage3SevenDigitBonusDisplacementRecoveryBySide.enemy,
+              crownBonus: currentPcCrownBonusRuleRecovery,
+              stageWideSixMember: currentPcStageWideSixMemberCandidateSolverRecovery,
+            },
+          },
+        }),
+      };
+      currentPcExactMembersCrownBonusTotalRecovery = {};
+      const applyCurrentPcExactMembersCrownBonusTotalRecoveryToSide = (side) => {
+        const isSelf = side === "self";
+        const recovery = applyCurrentPcExactMembersCrownBonusTotalRecovery({
+          stage,
+          side,
+          selectedMembers: isSelf ? self : enemy,
+          selectedTotal: isSelf ? selfTotal : enemyTotal,
+          simulation: currentPcExactMembersCrownBonusTotalRecoverySimulation[side],
+          layoutDetection,
+          mode: ocrSource,
+        });
+        if (!recovery.applied) return recovery;
+        knownCorrectionDeltas.push({
+          pass: "currentPcExactMembersCrownBonusTotalRecovery applied",
+          before: cloneStageState({ self, enemy, selfTotal, enemyTotal }),
+          after: cloneStageState({
+            self: isSelf ? recovery.members : self,
+            enemy: isSelf ? enemy : recovery.members,
+            selfTotal: isSelf ? recovery.total : selfTotal,
+            enemyTotal: isSelf ? enemyTotal : recovery.total,
+          }),
+          message: recovery.message,
+        });
+        if (isSelf) {
+          self = recovery.members;
+          selfTotal = recovery.total;
+        } else {
+          enemy = recovery.members;
+          enemyTotal = recovery.total;
+        }
+        return recovery;
+      };
+      currentPcExactMembersCrownBonusTotalRecovery.self =
+        applyCurrentPcExactMembersCrownBonusTotalRecoveryToSide("self");
+      currentPcExactMembersCrownBonusTotalRecovery.enemy =
+        applyCurrentPcExactMembersCrownBonusTotalRecoveryToSide("enemy");
     }
 
     const stageResult = {
@@ -4966,6 +5048,10 @@ async function runOcrForImage(imagePath, options = {}) {
           currentPcCrownBonusRuleRecovery,
           currentPcStageWideSixMemberCandidateSolverSimulation,
           currentPcStageWideSixMemberCandidateSolverRecovery,
+          currentPcExactMembersCrownBonusTotalRecoverySimulation:
+            currentPcExactMembersCrownBonusTotalRecoverySimulation?.[side] || null,
+          currentPcExactMembersCrownBonusTotalRecovery:
+            currentPcExactMembersCrownBonusTotalRecovery?.[side] || null,
           sparseTotalAsMemberSimulation,
           stage3SelfSevenDigitDisplacementSimulation,
           stage3EnemySevenDigitRecoverySimulation:
@@ -4987,6 +5073,8 @@ async function runOcrForImage(imagePath, options = {}) {
         currentPcCrownBonusRuleRecovery,
         currentPcStageWideSixMemberCandidateSolverSimulation,
         currentPcStageWideSixMemberCandidateSolverRecovery,
+        currentPcExactMembersCrownBonusTotalRecoverySimulation,
+        currentPcExactMembersCrownBonusTotalRecovery,
         self: buildSideArtifact("self"),
         enemy: buildSideArtifact("enemy"),
       };
@@ -7043,6 +7131,14 @@ function buildCurrentPcSideAnalysis(stageResult, side, options = {}) {
       sideArtifact?.currentPcStage3SevenDigitBonusDisplacementRecovery || null,
     currentPcCrownBonusRuleSimulation: sideArtifact?.currentPcCrownBonusRuleSimulation || null,
     currentPcCrownBonusRuleRecovery: sideArtifact?.currentPcCrownBonusRuleRecovery || null,
+    currentPcStageWideSixMemberCandidateSolverSimulation:
+      sideArtifact?.currentPcStageWideSixMemberCandidateSolverSimulation || null,
+    currentPcStageWideSixMemberCandidateSolverRecovery:
+      sideArtifact?.currentPcStageWideSixMemberCandidateSolverRecovery || null,
+    currentPcExactMembersCrownBonusTotalRecoverySimulation:
+      sideArtifact?.currentPcExactMembersCrownBonusTotalRecoverySimulation || null,
+    currentPcExactMembersCrownBonusTotalRecovery:
+      sideArtifact?.currentPcExactMembersCrownBonusTotalRecovery || null,
   };
 }
 
@@ -9060,6 +9156,17 @@ function currentPcExactMembersBonusTotalTarget(item, stage, side) {
   );
 }
 
+function currentPcExactMembersBonusTotalTargetFromSimulation(item, stage, side, simulation) {
+  const expected = currentPcExpectedStageSide(item, stage, side);
+  if (!expected) return false;
+  const selected = simulation?.selected || currentPcFinalSelectedStageSide(item, stage, side);
+  return (
+    arraysEqualWithinTolerance(selected.members || [], expected.members || [], 0) &&
+    (Number(selected.bonus || 0) !== Number(expected.bonus || 0) ||
+      Number(selected.total || 0) !== Number(expected.total || 0))
+  );
+}
+
 function currentPcExactMemberEvidenceComplete(stageSimulation) {
   const memberEvidence = stageSimulation?.evidence?.memberEvidence || {};
   return sides.every((side) => {
@@ -9096,25 +9203,32 @@ function buildCurrentPcExactMembersCrownBonusTotalRecoveryStageSide(
 ) {
   const stageKey = `stage${stage}`;
   const sideAnalysis = item.stages?.[stageKey]?.[side];
-  const simulation = sharedBuildCurrentPcExactMembersCrownBonusTotalRecoveryEvidence({
-    stage,
-    side,
-    self: currentPcExactMembersSharedSideAnalysis(item, stage, "self"),
-    enemy: currentPcExactMembersSharedSideAnalysis(item, stage, "enemy"),
-    previousRecoveries: {
-      [side]: {
-        groupedRaw: sideAnalysis?.currentPcGroupedRawTokenRecovery || null,
-        stage3SevenDigit:
-          sideAnalysis?.currentPcStage3SevenDigitBonusDisplacementRecovery || null,
-        crownBonus: sideAnalysis?.currentPcCrownBonusRuleRecovery || null,
-        stageWideSixMember:
-          sideAnalysis?.currentPcStageWideSixMemberCandidateSolverRecovery || null,
+  const artifactSimulation =
+    sideAnalysis?.currentPcExactMembersCrownBonusTotalRecoverySimulation ||
+    item.stages?.[stageKey]?.debugArtifact
+      ?.currentPcExactMembersCrownBonusTotalRecoverySimulation?.[side] ||
+    null;
+  const simulation =
+    artifactSimulation ||
+    sharedBuildCurrentPcExactMembersCrownBonusTotalRecoveryEvidence({
+      stage,
+      side,
+      self: currentPcExactMembersSharedSideAnalysis(item, stage, "self"),
+      enemy: currentPcExactMembersSharedSideAnalysis(item, stage, "enemy"),
+      previousRecoveries: {
+        [side]: {
+          groupedRaw: sideAnalysis?.currentPcGroupedRawTokenRecovery || null,
+          stage3SevenDigit:
+            sideAnalysis?.currentPcStage3SevenDigitBonusDisplacementRecovery || null,
+          crownBonus: sideAnalysis?.currentPcCrownBonusRuleRecovery || null,
+          stageWideSixMember:
+            sideAnalysis?.currentPcStageWideSixMemberCandidateSolverRecovery || null,
+        },
       },
-    },
-  });
+    });
   return {
     ...simulation,
-    target: currentPcExactMembersBonusTotalTarget(item, stage, side),
+    target: currentPcExactMembersBonusTotalTargetFromSimulation(item, stage, side, simulation),
     evidence: {
       ...(simulation.evidence || {}),
       currentCrownBonusRejectionReasons:
@@ -9172,13 +9286,13 @@ function buildCurrentPcExactMembersCrownBonusTotalRecoverySimulation(analysis) {
         if (!expected) continue;
         const sideFailed = hasCurrentPcSideFailure(item, stage, side);
         if (sideFailed) failingStageSideRows += 1;
-        const target = currentPcExactMembersBonusTotalTarget(item, stage, side);
-        if (target) targetRows += 1;
         const simulation = buildCurrentPcExactMembersCrownBonusTotalRecoveryStageSide(
           item,
           stage,
           side
         );
+        const target = Boolean(simulation.target);
+        if (target) targetRows += 1;
         const matchesExpected = proposalMatchesExpectedWithTolerance(
           simulation.proposed,
           expected,
@@ -9277,8 +9391,8 @@ function buildCurrentPcExactMembersCrownBonusTotalRecoverySimulation(analysis) {
     name: "currentPcExactMembersCrownBonusTotalRecoverySimulation",
     scope: {
       currentPcOnly: true,
-      finalOcrOutputChanged: false,
-      productionRecoveryAdded: false,
+      finalOcrOutputChanged: true,
+      productionRecoveryAdded: true,
       exactEqualityOnly: true,
       nearMatchUsed: false,
       withinOneToleranceUsed: false,
@@ -9366,6 +9480,12 @@ function buildCurrentPcBrowserEquivalentExactMembersCrownBonusTotalRecoveryStage
 ) {
   const stageKey = `stage${stage}`;
   const sideAnalysis = item.stages?.[stageKey]?.[side];
+  const artifactSimulation =
+    item.stages?.[stageKey]?.debugArtifact
+      ?.currentPcExactMembersCrownBonusTotalRecoverySimulation?.[side] ||
+    sideAnalysis?.currentPcExactMembersCrownBonusTotalRecoverySimulation ||
+    null;
+  if (artifactSimulation) return artifactSimulation;
   return sharedBuildCurrentPcExactMembersCrownBonusTotalRecoveryEvidence({
     stage,
     side,
@@ -9608,9 +9728,9 @@ function buildCurrentPcExactMembersBonusTotalRecoveryReport(simulation, parity =
     "",
     "## Scope",
     "",
-    "- runner-only simulation: yes",
-    "- final OCR output changed: no",
-    "- production recovery added: no",
+    "- runner-only simulation retained: yes",
+    "- final OCR output changed: yes, when `applyCurrentPcExactMembersCrownBonusTotalRecovery(...)` applies",
+    "- production recovery added: yes",
     "- smartphone OCR changed: no",
     "- legacy desktop OCR changed: no",
     "- filename/screenshot-specific logic: no",
@@ -9701,16 +9821,16 @@ function buildCurrentPcExactMembersBonusTotalRecoveryReport(simulation, parity =
     "",
     "## Overlap With Existing Recoveries",
     "",
-    "- The accepted rows are still failing after the current production recovery stack.",
+    "- The accepted rows were still failing after the prior production recovery stack.",
     "- `currentPcGroupedRawTokenRecovery`, `currentPcStage3SevenDigitBonusDisplacementRecovery`, `currentPcCrownBonusRuleRecovery`, and `currentPcStageWideSixMemberCandidateSolverRecovery` did not apply to the accepted rows.",
     "- The existing full-stage crown-bonus recovery rejects two accepted rows because only the opposite-side total evidence is missing; the target side itself has exact members, exact derived bonus, and exact target total evidence.",
-    "- Future production order, if pursued, should remain after the current four production recoveries and should reject any row where an earlier recovery already applied.",
+    "- Production order remains after the current four production recoveries and rejects any row where an earlier recovery already applied.",
     "",
     "## Recommendation",
     "",
     simulation.recommendation === "browser-ui-parity-next"
-      ? "Proceed to shared runner/browser-equivalent parity for this exact-only side-local recovery before any production work. Productionization is not recommended from this report alone."
-      : "Defer productionization. The exact-only side-local guard does not yet have enough safe incremental positives.",
+      ? "`applyCurrentPcExactMembersCrownBonusTotalRecovery(...)` is enabled for current-PC only using the same strict shared guard. Recommended next step: real-browser spot-check one or both TP rows and confirm the correction log includes `currentPcExactMembersCrownBonusTotalRecovery applied ...`."
+      : "Disable production recovery or resolve parity/simulation regressions before relying on this guard.",
     "",
   ].join("\n");
 }

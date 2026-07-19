@@ -1,12 +1,12 @@
 # Current-PC Exact Members Bonus/Total Recovery Investigation
 
-Generated: 2026-07-19T17:20:19.391Z
+Generated: 2026-07-19T19:23:59.973Z
 
 ## Scope
 
-- runner-only simulation: yes
-- final OCR output changed: no
-- production recovery added: no
+- runner-only simulation retained: yes
+- final OCR output changed: yes, when `applyCurrentPcExactMembersCrownBonusTotalRecovery(...)` applies
+- production recovery added: yes
 - smartphone OCR changed: no
 - legacy desktop OCR changed: no
 - filename/screenshot-specific logic: no
@@ -34,7 +34,7 @@ Unlike the existing full-stage crown-bonus recovery, this side-local simulation 
 
 | metric | count |
 | --- | ---: |
-| failing stage/side rows | 56 |
+| failing stage/side rows | 54 |
 | exact-member bonus/total target rows | 8 |
 | TP | 2 |
 | FP | 0 |
@@ -81,19 +81,19 @@ Unlike the existing full-stage crown-bonus recovery, this side-local simulation 
 
 | screenshot | stage | side | selected | expected | proposed | evidence | image would pass |
 | --- | ---: | --- | --- | --- | --- | --- | --- |
-| スクリーンショット 2026-07-11 144932916.png | 2 | self | members 221508, 128329, 176419; bonus 0; total 526,256 | members 221508, 128329, 176419; bonus 44,301; total 570,557 | members 221508, 128329, 176419; bonus 44,301; total 570,557 | rank1=self.member1 221,508<br>winning=self<br>derived=44,301<br>targetTotalEvidence=5<br>oppositeTotalEvidence=0<br>sixMemberEvidence=yes<br>currentCrownRejection=missing-enemy-exact-total-evidence<br>stageWideRejection=none | yes |
-| スクリーンショット 2026-07-11 145018419.png | 2 | self | members 262782, 104193, 143648; bonus 0; total 510,623 | members 262782, 104193, 143648; bonus 52,556; total 563,179 | members 262782, 104193, 143648; bonus 52,556; total 563,179 | rank1=self.member1 262,782<br>winning=self<br>derived=52,556<br>targetTotalEvidence=5<br>oppositeTotalEvidence=0<br>sixMemberEvidence=yes<br>currentCrownRejection=missing-enemy-exact-total-evidence<br>stageWideRejection=none | no |
+| スクリーンショット 2026-07-11 144932916.png | 2 | self | members 221508, 128329, 176419; bonus 0; total 526,256 | members 221508, 128329, 176419; bonus 44,301; total 570,557 | members 221508, 128329, 176419; bonus 44,301; total 570,557 | rank1=self.member1 221,508<br>winning=self<br>derived=44,301<br>targetTotalEvidence=5<br>oppositeTotalEvidence=0<br>sixMemberEvidence=yes<br>currentCrownRejection=missing-enemy-exact-total-evidence<br>stageWideRejection=no-complete-six-member-exact-total-interpretation | yes |
+| スクリーンショット 2026-07-11 145018419.png | 2 | self | members 262782, 104193, 143648; bonus 0; total 510,623 | members 262782, 104193, 143648; bonus 52,556; total 563,179 | members 262782, 104193, 143648; bonus 52,556; total 563,179 | rank1=self.member1 262,782<br>winning=self<br>derived=52,556<br>targetTotalEvidence=5<br>oppositeTotalEvidence=0<br>sixMemberEvidence=yes<br>currentCrownRejection=missing-enemy-exact-total-evidence<br>stageWideRejection=no-complete-six-member-exact-total-interpretation | no |
 
 ## Rejected Exact-Member Targets
 
 | screenshot | stage | side | selected | expected | proposed | rejection reasons | evidence |
 | --- | ---: | --- | --- | --- | --- | --- | --- |
-| 2026-07-11_223426685.png | 2 | self | members 401629, 286311, 563518; bonus 11,270; total 1,262,728 | members 401629, 286311, 563518; bonus 112,703; total 1,364,161 | members 401629, 286311, 563518; bonus 112,703; total 1,364,161 | missing-target-exact-total-evidence | rank1=self.member3 563,518<br>winning=self<br>derived=112,703<br>targetTotalEvidence=0<br>oppositeTotalEvidence=8<br>sixMemberEvidence=yes<br>currentCrownRejection=missing-self-exact-total-evidence<br>stageWideRejection=none |
-| 2026-07-11_223513004.png | 2 | self | members 401629, 286311, 563518; bonus 11,270; total 1,262,728 | members 401629, 286311, 563518; bonus 112,703; total 1,364,161 | members 401629, 286311, 563518; bonus 112,703; total 1,364,161 | missing-target-exact-total-evidence | rank1=self.member3 563,518<br>winning=self<br>derived=112,703<br>targetTotalEvidence=0<br>oppositeTotalEvidence=8<br>sixMemberEvidence=yes<br>currentCrownRejection=missing-self-exact-total-evidence<br>stageWideRejection=none |
-| スクリーンショット 2026-07-11 145215861.png | 1 | self | members 433069, 362726, 149521; bonus 0; total 945,316 | members 433069, 362726, 149521; bonus 86,613; total 1,031,929 | members 433069, 362726, 149521; bonus 86,613; total 1,031,929 | missing-enemy-member1-evidence<br>missing-six-member-evidence | rank1=self.member1 433,069<br>winning=self<br>derived=86,613<br>targetTotalEvidence=11<br>oppositeTotalEvidence=11<br>sixMemberEvidence=no<br>currentCrownRejection=missing-enemy-member1-evidence<br>stageWideRejection=none |
-| スクリーンショット 2026-07-14 061545315.png | 3 | self | members 810180, 535044, 909283; bonus 18,185; total 2,272,692 | members 810180, 535044, 909283; bonus 181,856; total 2,436,363 | members 810180, 535044, 909283; bonus 181,856; total 2,436,363 | missing-enemy-member1-evidence<br>missing-six-member-evidence | rank1=self.member3 909,283<br>winning=self<br>derived=181,856<br>targetTotalEvidence=10<br>oppositeTotalEvidence=13<br>sixMemberEvidence=no<br>currentCrownRejection=missing-enemy-member1-evidence<br>stageWideRejection=none |
-| スクリーンショット 2026-07-16 063115987.png | 1 | self | members 322660, 198361, 153346; bonus 0; total 674,367 | members 322660, 198361, 153346; bonus 64,532; total 738,899 | members 322660, 198361, 153346; bonus 0; total 674,367 | missing-target-exact-total-evidence<br>side-already-matches-proposal | rank1=enemy.member3 388,430<br>winning=enemy<br>derived=77,686<br>targetTotalEvidence=0<br>oppositeTotalEvidence=0<br>sixMemberEvidence=yes<br>currentCrownRejection=missing-self-exact-total-evidence, missing-enemy-exact-total-evidence<br>stageWideRejection=none |
-| スクリーンショット 2026-07-16 063115987.png | 2 | self | members 203712, 141269, 151188; bonus 0; total 496,169 | members 203712, 141269, 151188; bonus 40,742; total 536,911 | members 203712, 141269, 151188; bonus 40,742; total 536,911 | missing-enemy-member2-evidence<br>missing-six-member-evidence | rank1=self.member1 203,712<br>winning=self<br>derived=40,742<br>targetTotalEvidence=5<br>oppositeTotalEvidence=8<br>sixMemberEvidence=no<br>currentCrownRejection=missing-enemy-member2-evidence<br>stageWideRejection=none |
+| 2026-07-11_223426685.png | 2 | self | members 401629, 286311, 563518; bonus 11,270; total 1,262,728 | members 401629, 286311, 563518; bonus 112,703; total 1,364,161 | members 401629, 286311, 563518; bonus 112,703; total 1,364,161 | missing-target-exact-total-evidence | rank1=self.member3 563,518<br>winning=self<br>derived=112,703<br>targetTotalEvidence=0<br>oppositeTotalEvidence=8<br>sixMemberEvidence=yes<br>currentCrownRejection=missing-self-exact-total-evidence<br>stageWideRejection=no-complete-six-member-exact-total-interpretation |
+| 2026-07-11_223513004.png | 2 | self | members 401629, 286311, 563518; bonus 11,270; total 1,262,728 | members 401629, 286311, 563518; bonus 112,703; total 1,364,161 | members 401629, 286311, 563518; bonus 112,703; total 1,364,161 | missing-target-exact-total-evidence | rank1=self.member3 563,518<br>winning=self<br>derived=112,703<br>targetTotalEvidence=0<br>oppositeTotalEvidence=8<br>sixMemberEvidence=yes<br>currentCrownRejection=missing-self-exact-total-evidence<br>stageWideRejection=no-complete-six-member-exact-total-interpretation |
+| スクリーンショット 2026-07-11 145215861.png | 1 | self | members 433069, 362726, 149521; bonus 0; total 945,316 | members 433069, 362726, 149521; bonus 86,613; total 1,031,929 | members 433069, 362726, 149521; bonus 86,613; total 1,031,929 | missing-enemy-member1-evidence<br>missing-six-member-evidence | rank1=self.member1 433,069<br>winning=self<br>derived=86,613<br>targetTotalEvidence=11<br>oppositeTotalEvidence=11<br>sixMemberEvidence=no<br>currentCrownRejection=missing-enemy-member1-evidence<br>stageWideRejection=no-complete-six-member-exact-total-interpretation |
+| スクリーンショット 2026-07-14 061545315.png | 3 | self | members 810180, 535044, 909283; bonus 18,185; total 2,272,692 | members 810180, 535044, 909283; bonus 181,856; total 2,436,363 | members 810180, 535044, 909283; bonus 181,856; total 2,436,363 | missing-enemy-member1-evidence<br>missing-six-member-evidence | rank1=self.member3 909,283<br>winning=self<br>derived=181,856<br>targetTotalEvidence=10<br>oppositeTotalEvidence=13<br>sixMemberEvidence=no<br>currentCrownRejection=missing-enemy-member1-evidence<br>stageWideRejection=no-complete-six-member-exact-total-interpretation |
+| スクリーンショット 2026-07-16 063115987.png | 1 | self | members 322660, 198361, 153346; bonus 0; total 674,367 | members 322660, 198361, 153346; bonus 64,532; total 738,899 | members 322660, 198361, 153346; bonus 0; total 674,367 | missing-target-exact-total-evidence<br>side-already-matches-proposal | rank1=enemy.member3 388,430<br>winning=enemy<br>derived=77,686<br>targetTotalEvidence=0<br>oppositeTotalEvidence=0<br>sixMemberEvidence=yes<br>currentCrownRejection=missing-self-exact-total-evidence, missing-enemy-exact-total-evidence<br>stageWideRejection=no-complete-six-member-exact-total-interpretation |
+| スクリーンショット 2026-07-16 063115987.png | 2 | self | members 203712, 141269, 151188; bonus 0; total 496,169 | members 203712, 141269, 151188; bonus 40,742; total 536,911 | members 203712, 141269, 151188; bonus 40,742; total 536,911 | missing-enemy-member2-evidence<br>missing-six-member-evidence | rank1=self.member1 203,712<br>winning=self<br>derived=40,742<br>targetTotalEvidence=5<br>oppositeTotalEvidence=8<br>sixMemberEvidence=no<br>currentCrownRejection=missing-enemy-member2-evidence<br>stageWideRejection=no-complete-six-member-exact-total-interpretation |
 
 ## Position Breakdown
 
@@ -103,11 +103,11 @@ Unlike the existing full-stage crown-bonus recovery, this side-local simulation 
 
 ## Overlap With Existing Recoveries
 
-- The accepted rows are still failing after the current production recovery stack.
+- The accepted rows were still failing after the prior production recovery stack.
 - `currentPcGroupedRawTokenRecovery`, `currentPcStage3SevenDigitBonusDisplacementRecovery`, `currentPcCrownBonusRuleRecovery`, and `currentPcStageWideSixMemberCandidateSolverRecovery` did not apply to the accepted rows.
 - The existing full-stage crown-bonus recovery rejects two accepted rows because only the opposite-side total evidence is missing; the target side itself has exact members, exact derived bonus, and exact target total evidence.
-- Future production order, if pursued, should remain after the current four production recoveries and should reject any row where an earlier recovery already applied.
+- Production order remains after the current four production recoveries and rejects any row where an earlier recovery already applied.
 
 ## Recommendation
 
-Proceed to shared runner/browser-equivalent parity for this exact-only side-local recovery before any production work. Productionization is not recommended from this report alone.
+`applyCurrentPcExactMembersCrownBonusTotalRecovery(...)` is enabled for current-PC only using the same strict shared guard. Recommended next step: real-browser spot-check one or both TP rows and confirm the correction log includes `currentPcExactMembersCrownBonusTotalRecovery applied ...`.

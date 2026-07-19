@@ -2151,6 +2151,101 @@ export function buildCurrentPcExactMembersCrownBonusTotalRecoveryEvidence({
   };
 }
 
+export function applyCurrentPcExactMembersCrownBonusTotalRecovery({
+  stage = 0,
+  side = "",
+  selectedMembers = [],
+  selectedTotal = 0,
+  simulation = null,
+  layoutDetection = null,
+  mode = "",
+}) {
+  const currentPcLayout =
+    mode === "current-pc" ||
+    layoutDetection?.detected ||
+    layoutDetection?.layoutFamily === "current-pc-2026-07-result" ||
+    layoutDetection?.family === "current-pc-2026-07-result";
+  const currentMembers = normalizeCurrentPcRecoveryMembers(selectedMembers);
+  const proposedMembers = normalizeCurrentPcRecoveryMembers(simulation?.proposed?.members || []);
+  const proposedBonus = Number(simulation?.proposed?.bonus || 0);
+  const proposedTotal = Number(simulation?.proposed?.total || 0);
+  const selectedBonus = Number(simulation?.selected?.bonus || 0);
+  const rank1 = simulation?.evidence?.rank1 || null;
+  const winningSide = simulation?.evidence?.winningSide || null;
+  const calculatedBonus = Number(simulation?.evidence?.calculatedBonus || 0);
+  const targetTotalEvidence = simulation?.evidence?.targetTotalEvidence || [];
+  const rejectionReasons = [];
+
+  if (!currentPcLayout) rejectionReasons.push("not-current-pc-layout");
+  if (!simulation?.wouldApply) rejectionReasons.push("simulation-would-not-apply");
+  if (simulation?.rejectionReasons?.length) {
+    rejectionReasons.push(...simulation.rejectionReasons);
+  }
+  if (!["self", "enemy"].includes(side) || simulation?.side !== side) {
+    rejectionReasons.push("target-side-mismatch");
+  }
+  if (!arraysEqualWithinTolerance(currentMembers, proposedMembers, 0)) {
+    rejectionReasons.push("proposal-would-change-members");
+  }
+  if (proposedMembers.filter((value) => value > 0).length !== 3) {
+    rejectionReasons.push("proposal-does-not-have-three-members");
+  }
+  if (!simulation?.evidence?.memberEvidenceComplete) {
+    rejectionReasons.push("missing-six-member-evidence");
+  }
+  if (!rank1 || !["self", "enemy"].includes(winningSide)) {
+    rejectionReasons.push("missing-unique-global-rank1-member");
+  }
+  if (calculatedBonus <= 0) rejectionReasons.push("missing-derived-crown-bonus");
+  if (winningSide === side && proposedBonus !== calculatedBonus) {
+    rejectionReasons.push("target-bonus-does-not-match-derived-crown-bonus");
+  }
+  if (winningSide !== side && proposedBonus !== 0) {
+    rejectionReasons.push("losing-target-side-has-bonus");
+  }
+  if (!Array.isArray(targetTotalEvidence) || targetTotalEvidence.length === 0) {
+    rejectionReasons.push("missing-target-exact-total-evidence");
+  }
+  if (!simulation?.evidence?.targetEquationExact) {
+    rejectionReasons.push("proposal-equation-not-exact");
+  }
+  if (
+    simulation?.evidence?.uniqueInterpretation !== true ||
+    simulation?.evidence?.noCompetingInterpretation !== true
+  ) {
+    rejectionReasons.push("not-unique-exact-members-bonus-total-interpretation");
+  }
+  if (
+    Number(selectedTotal || 0) === proposedTotal &&
+    Number(selectedBonus || 0) === proposedBonus
+  ) {
+    rejectionReasons.push("selected-side-already-matches-proposal");
+  }
+
+  const uniqueRejectionReasons = [...new Set(rejectionReasons)];
+  const totalEvidenceSummary = targetTotalEvidence
+    .slice(0, 4)
+    .map((item) => `${item.source || "unknown"}:${item.value}`)
+    .join(";");
+
+  return {
+    applied: uniqueRejectionReasons.length === 0,
+    stage,
+    side,
+    members: proposedMembers,
+    bonus: proposedBonus,
+    total: proposedTotal,
+    previousTotal: Number(selectedTotal || 0),
+    previousBonus: selectedBonus,
+    rank1,
+    winningSide,
+    calculatedBonus,
+    totalEvidence: targetTotalEvidence,
+    reason: uniqueRejectionReasons.join(",") || "applied",
+    message: `currentPcExactMembersCrownBonusTotalRecovery applied stage=${stage} side=${side} members=${proposedMembers.join(",")} rank1=${winningSide}.member${rank1?.slot || "?"}:${rank1?.value || 0} winningSide=${winningSide || "unknown"} derivedBonus=${calculatedBonus} previousTotal=${Number(selectedTotal || 0)} correctedTotal=${proposedTotal} bonus=${proposedBonus} totalEvidence=${totalEvidenceSummary || "exact"}`,
+  };
+}
+
 function currentPcStageWideMemberRange(value) {
   const number = Number(value || 0);
   return Number.isFinite(number) && number >= 10000 && number < 2000000;
