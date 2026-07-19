@@ -113,6 +113,11 @@ const currentPcStageWideVariantSolverReportPath = path.join(
   "docs",
   "current-pc-stage-wide-solver-stage3-variant-evidence.md"
 );
+const currentPcExactMembersBonusTotalRecoveryReportPath = path.join(
+  rootDir,
+  "docs",
+  "current-pc-exact-members-bonus-total-recovery-investigation.md"
+);
 let currentPcBaselineScanSummary = null;
 const unsupportedNextScreenMessage =
   "Next screen is unsupported for OCR. Use normal result or high-score screen.";
@@ -9031,6 +9036,424 @@ function currentPcCrownBonusPotentialTarget(item, stage, side, stageSimulation) 
   );
 }
 
+function currentPcFinalSelectedStageSide(item, stage, side) {
+  const stageResult = item.result?.[`stage${stage}`] || {};
+  const members = [0, 1, 2].map((index) => Number(stageResult[side]?.[index] || 0));
+  const total = Number(stageResult[`${side}Total`] || 0);
+  const memberSum = members.reduce((sum, value) => sum + value, 0);
+  return {
+    members,
+    bonus: total - memberSum,
+    total,
+  };
+}
+
+function currentPcExactMembersBonusTotalTarget(item, stage, side) {
+  const expected = currentPcExpectedStageSide(item, stage, side);
+  if (!expected || !hasCurrentPcSideFailure(item, stage, side)) return false;
+  const selected = currentPcFinalSelectedStageSide(item, stage, side);
+  return (
+    arraysEqualWithinTolerance(selected.members, expected.members || [], 0) &&
+    (Number(selected.bonus || 0) !== Number(expected.bonus || 0) ||
+      Number(selected.total || 0) !== Number(expected.total || 0))
+  );
+}
+
+function currentPcExactMemberEvidenceComplete(stageSimulation) {
+  const memberEvidence = stageSimulation?.evidence?.memberEvidence || {};
+  return sides.every((side) => {
+    const sideEvidence = memberEvidence[side] || [];
+    return (
+      sideEvidence.length === 3 &&
+      sideEvidence.every((slotEvidence) => Array.isArray(slotEvidence) && slotEvidence.length > 0)
+    );
+  });
+}
+
+function buildCurrentPcExactMembersCrownBonusTotalRecoveryStageSide(
+  item,
+  stage,
+  side
+) {
+  const stageKey = `stage${stage}`;
+  const sideAnalysis = item.stages?.[stageKey]?.[side];
+  const stageSimulation =
+    sideAnalysis?.currentPcCrownBonusRuleSimulation ||
+    buildCurrentPcCrownBonusRuleStageSimulation(item, stage);
+  const selected = currentPcFinalSelectedStageSide(item, stage, side);
+  const oppositeSide = side === "self" ? "enemy" : "self";
+  const oppositeSelected = currentPcFinalSelectedStageSide(item, stage, oppositeSide);
+  const proposed = stageSimulation?.proposed?.[side] || null;
+  const rejectionReasons = [];
+  const target = currentPcExactMembersBonusTotalTarget(item, stage, side);
+
+  if (!target) rejectionReasons.push("not-exact-members-bonus-total-target");
+  if (!proposed) rejectionReasons.push("missing-crown-bonus-proposal");
+  if (!arraysEqualWithinTolerance(selected.members, proposed?.members || [], 0)) {
+    rejectionReasons.push("proposal-would-change-members");
+  }
+  if (!currentPcExactMemberEvidenceComplete(stageSimulation)) {
+    rejectionReasons.push("missing-six-member-evidence");
+  }
+  const rank1 = stageSimulation?.evidence?.rank1 || null;
+  if (!rank1 || !stageSimulation?.evidence?.winningSide) {
+    rejectionReasons.push("missing-unique-global-rank1");
+  }
+  const targetTotalEvidence = stageSimulation?.evidence?.totalEvidence?.[side] || [];
+  if (!targetTotalEvidence.length) rejectionReasons.push("missing-target-exact-total-evidence");
+  const sideWouldChange =
+    Number(selected.bonus || 0) !== Number(proposed?.bonus || 0) ||
+    Number(selected.total || 0) !== Number(proposed?.total || 0);
+  if (!sideWouldChange) rejectionReasons.push("side-already-matches-proposal");
+  const exactEquation =
+    (proposed?.members || []).reduce((sum, value) => sum + Number(value || 0), 0) +
+      Number(proposed?.bonus || 0) ===
+    Number(proposed?.total || 0);
+  if (!exactEquation) rejectionReasons.push("proposal-equation-not-exact");
+  if (
+    sideAnalysis?.currentPcGroupedRawTokenRecovery?.applied ||
+    sideAnalysis?.currentPcStage3SevenDigitBonusDisplacementRecovery?.applied ||
+    sideAnalysis?.currentPcCrownBonusRuleRecovery?.applied ||
+    sideAnalysis?.currentPcStageWideSixMemberCandidateSolverRecovery?.applied
+  ) {
+    rejectionReasons.push("existing-production-recovery-already-applied");
+  }
+
+  const wouldApply = rejectionReasons.length === 0;
+  return {
+    wouldApply,
+    rejectionReasons,
+    target,
+    stage,
+    side,
+    selected,
+    oppositeSelected,
+    proposed,
+    evidence: {
+      rank1,
+      winningSide: stageSimulation?.evidence?.winningSide || null,
+      calculatedBonus: stageSimulation?.evidence?.calculatedBonus || 0,
+      targetTotalEvidence,
+      oppositeTotalEvidence: stageSimulation?.evidence?.totalEvidence?.[oppositeSide] || [],
+      memberEvidenceComplete: currentPcExactMemberEvidenceComplete(stageSimulation),
+      currentCrownBonusRejectionReasons: stageSimulation?.rejectionReasons || [],
+      currentStageWideRejectionReasons:
+        item.stages?.[stageKey]?.debugArtifact?.currentPcStageWideSixMemberCandidateSolverSimulation
+          ?.rejectionReasons ||
+        sideAnalysis?.currentPcStageWideSixMemberCandidateSolverSimulation?.rejectionReasons ||
+        [],
+    },
+  };
+}
+
+function buildCurrentPcExactMembersCrownBonusTotalRecoverySimulation(analysis) {
+  const rows = [];
+  const accepted = [];
+  const rejectedTargets = [];
+  const clusterBreakdown = new Map();
+  const positionBreakdown = new Map();
+  let truePositives = 0;
+  let falsePositives = 0;
+  let falseNegatives = 0;
+  let blocked = 0;
+  let targetRows = 0;
+  let failingStageSideRows = 0;
+
+  const increment = (map, key) => map.set(key, (map.get(key) || 0) + 1);
+
+  const rowPasses = (item, stage, side, override = null) => {
+    const expected = currentPcExpectedStageSide(item, stage, side);
+    const selected = override || currentPcFinalSelectedStageSide(item, stage, side);
+    return proposalMatchesExpectedWithTolerance(selected, expected, 0);
+  };
+
+  const imageWouldPassWithAcceptedRows = (item, acceptedRowsForImage) => {
+    for (const stage of stages) {
+      for (const side of sides) {
+        const override = acceptedRowsForImage.find(
+          (row) => row.stage === stage && row.side === side
+        )?.proposed;
+        if (!rowPasses(item, stage, side, override || null)) return false;
+      }
+    }
+    return true;
+  };
+
+  for (const item of analysis) {
+    if (!item.expected) continue;
+    const acceptedForImage = [];
+    for (const stage of stages) {
+      for (const side of sides) {
+        const expected = currentPcExpectedStageSide(item, stage, side);
+        if (!expected) continue;
+        const sideFailed = hasCurrentPcSideFailure(item, stage, side);
+        if (sideFailed) failingStageSideRows += 1;
+        const target = currentPcExactMembersBonusTotalTarget(item, stage, side);
+        if (target) targetRows += 1;
+        const simulation = buildCurrentPcExactMembersCrownBonusTotalRecoveryStageSide(
+          item,
+          stage,
+          side
+        );
+        const matchesExpected = proposalMatchesExpectedWithTolerance(
+          simulation.proposed,
+          expected,
+          0
+        );
+        let classification = "correctly-unchanged";
+
+        if (simulation.wouldApply && matchesExpected) {
+          truePositives += 1;
+          classification = "true-positive";
+          accepted.push({
+            screenshot: item.fileName,
+            stage,
+            side,
+            selected: simulation.selected,
+            expected,
+            oppositeSelected: simulation.oppositeSelected,
+            proposed: simulation.proposed,
+            evidence: simulation.evidence,
+          });
+          acceptedForImage.push({ stage, side, proposed: simulation.proposed });
+          increment(positionBreakdown, `stage${stage}-${side}`);
+        } else if (simulation.wouldApply && !matchesExpected) {
+          falsePositives += 1;
+          classification = "false-positive";
+        } else if (target) {
+          falseNegatives += 1;
+          classification = "false-negative";
+          rejectedTargets.push({
+            screenshot: item.fileName,
+            stage,
+            side,
+            selected: simulation.selected,
+            expected,
+            oppositeSelected: simulation.oppositeSelected,
+            proposed: simulation.proposed,
+            rejectionReasons: simulation.rejectionReasons,
+            evidence: simulation.evidence,
+          });
+        } else if (sideFailed) {
+          blocked += 1;
+          classification = "blocked";
+        }
+
+        if (target || simulation.wouldApply) {
+          if (!matchesExpected) {
+            increment(
+              clusterBreakdown,
+              "exact target members but global rank/side is not safely known"
+            );
+          } else if (!simulation.evidence.memberEvidenceComplete) {
+            increment(clusterBreakdown, "exact members but six-member evidence incomplete");
+          } else if (!simulation.evidence.targetTotalEvidence?.length) {
+            increment(clusterBreakdown, "exact members + derived bonus but exact target total evidence missing");
+          } else if (simulation.wouldApply) {
+            increment(clusterBreakdown, "exact members + derived bonus + exact target total evidence");
+          } else {
+            increment(clusterBreakdown, "exact members but blocked by strict guard");
+          }
+        }
+
+        if (target || simulation.wouldApply || classification === "false-positive") {
+          rows.push({
+            screenshot: item.fileName,
+            stage,
+            side,
+            classification,
+            target,
+            wouldApply: simulation.wouldApply,
+            selected: simulation.selected,
+            expected,
+            oppositeSelected: simulation.oppositeSelected,
+            proposed: simulation.proposed,
+            rejectionReasons: simulation.rejectionReasons,
+            evidence: simulation.evidence,
+            matchesExpected,
+          });
+        }
+      }
+    }
+    if (acceptedForImage.length > 0) {
+      const imageWouldPass = imageWouldPassWithAcceptedRows(item, acceptedForImage);
+      for (const acceptedRow of accepted) {
+        if (acceptedRow.screenshot !== item.fileName) continue;
+        acceptedRow.imageWouldPass = imageWouldPass;
+      }
+    }
+  }
+
+  const mapToRows = (map) =>
+    [...map.entries()]
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+
+  return {
+    name: "currentPcExactMembersCrownBonusTotalRecoverySimulation",
+    scope: {
+      currentPcOnly: true,
+      finalOcrOutputChanged: false,
+      productionRecoveryAdded: false,
+      exactEqualityOnly: true,
+      nearMatchUsed: false,
+      withinOneToleranceUsed: false,
+      memberChangesAllowed: false,
+    },
+    failingStageSideRows,
+    targetRows,
+    truePositives,
+    falsePositives,
+    falseNegatives,
+    blocked,
+    trueIncrementalTp: truePositives,
+    acceptedStageSideCorrections: accepted.length,
+    imageLevelPotentialGain: accepted.filter((row) => row.imageWouldPass).length,
+    rows,
+    accepted,
+    rejectedTargets,
+    clusterBreakdown: mapToRows(clusterBreakdown),
+    positionBreakdown: mapToRows(positionBreakdown),
+    recommendation:
+      truePositives >= 2 && falsePositives === 0
+        ? "browser-ui-parity-next"
+        : "defer-productionization",
+  };
+}
+
+function buildCurrentPcExactMembersBonusTotalRecoveryReport(simulation) {
+  const generated = new Date().toISOString();
+  const acceptedRows = simulation.accepted || [];
+  const rejectedRows = simulation.rejectedTargets || [];
+  const formatMaybeZero = (value) =>
+    Number(value || 0) === 0 ? "0" : formatNumber(Number(value || 0));
+  const formatSide = (side) =>
+    side
+      ? `members ${formatDebugNumbers(side.members || [])}; bonus ${formatMaybeZero(
+          side.bonus
+        )}; total ${formatMaybeZero(side.total)}`
+      : "-";
+  const formatEvidence = (evidence) => {
+    if (!evidence) return "-";
+    return [
+      `rank1=${evidence.rank1 ? `${evidence.rank1.side}.member${evidence.rank1.slot} ${formatNumber(evidence.rank1.value)}` : "-"}`,
+      `winning=${evidence.winningSide || "-"}`,
+      `derived=${formatNumber(evidence.calculatedBonus || 0)}`,
+      `targetTotalEvidence=${evidence.targetTotalEvidence?.length || 0}`,
+      `oppositeTotalEvidence=${evidence.oppositeTotalEvidence?.length || 0}`,
+      `sixMemberEvidence=${evidence.memberEvidenceComplete ? "yes" : "no"}`,
+      `currentCrownRejection=${evidence.currentCrownBonusRejectionReasons?.join(", ") || "none"}`,
+      `stageWideRejection=${evidence.currentStageWideRejectionReasons?.join(", ") || "none"}`,
+    ].join("<br>");
+  };
+  const clusterRows = (simulation.clusterBreakdown || [])
+    .map((row) => `| ${row.name} | ${row.count} |`)
+    .join("\n");
+  const positionRows = (simulation.positionBreakdown || [])
+    .map((row) => `| ${row.name} | ${row.count} |`)
+    .join("\n");
+  const acceptedTable = acceptedRows.length
+    ? acceptedRows
+        .map(
+          (row) =>
+            `| ${row.screenshot} | ${row.stage} | ${row.side} | ${formatSide(row.selected)} | ${formatSide(row.expected)} | ${formatSide(row.proposed)} | ${formatEvidence(row.evidence)} | ${row.imageWouldPass ? "yes" : "no"} |`
+        )
+        .join("\n")
+    : "| - | - | - | - | - | - | - | - |";
+  const rejectedTable = rejectedRows.length
+    ? rejectedRows
+        .map(
+          (row) =>
+            `| ${row.screenshot} | ${row.stage} | ${row.side} | ${formatSide(row.selected)} | ${formatSide(row.expected)} | ${formatSide(row.proposed)} | ${row.rejectionReasons.join("<br>") || "-"} | ${formatEvidence(row.evidence)} |`
+        )
+        .join("\n")
+    : "| - | - | - | - | - | - | - | - |";
+
+  return [
+    "# Current-PC Exact Members Bonus/Total Recovery Investigation",
+    "",
+    `Generated: ${generated}`,
+    "",
+    "## Scope",
+    "",
+    "- runner-only simulation: yes",
+    "- final OCR output changed: no",
+    "- production recovery added: no",
+    "- smartphone OCR changed: no",
+    "- legacy desktop OCR changed: no",
+    "- filename/screenshot-specific logic: no",
+    "- exact equality only: yes",
+    "- within-one tolerance or near-match guessing: no",
+    "- member changes: not allowed",
+    "",
+    "## Guard Shape",
+    "",
+    "The simulation targets rows where the current production output still fails even though the target side's three final selected members already exactly match the expected fixture.",
+    "",
+    "A side-local correction is accepted only when:",
+    "",
+    "- all three target-side members are unchanged",
+    "- all six selected member slots have exact member evidence in the shared crown-bonus evidence",
+    "- the global rank-1 member is unique",
+    "- the crown bonus is derived from `floor(max(all six selected members) * 0.20)`",
+    "- exact target-side total OCR evidence exists",
+    "- the target-side proposed total equation is exact",
+    "- no existing production recovery has already applied to that row",
+    "",
+    "Unlike the existing full-stage crown-bonus recovery, this side-local simulation does not require exact total evidence for the opposite side. It still requires reliable six-member evidence, so rows with missing opposite member evidence remain blocked.",
+    "",
+    "## Summary",
+    "",
+    "| metric | count |",
+    "| --- | ---: |",
+    `| failing stage/side rows | ${simulation.failingStageSideRows} |`,
+    `| exact-member bonus/total target rows | ${simulation.targetRows} |`,
+    `| TP | ${simulation.truePositives} |`,
+    `| FP | ${simulation.falsePositives} |`,
+    `| FN | ${simulation.falseNegatives} |`,
+    `| non-target blocked failing rows | ${simulation.blocked} |`,
+    `| true incremental TP beyond current production | ${simulation.trueIncrementalTp} |`,
+    `| image-level full PASS gain if applied | ${simulation.imageLevelPotentialGain} |`,
+    "",
+    "## Cluster Breakdown",
+    "",
+    "| cluster | rows |",
+    "| --- | ---: |",
+    clusterRows || "| - | 0 |",
+    "",
+    "## Accepted Rows",
+    "",
+    "| screenshot | stage | side | selected | expected | proposed | evidence | image would pass |",
+    "| --- | ---: | --- | --- | --- | --- | --- | --- |",
+    acceptedTable,
+    "",
+    "## Rejected Exact-Member Targets",
+    "",
+    "| screenshot | stage | side | selected | expected | proposed | rejection reasons | evidence |",
+    "| --- | ---: | --- | --- | --- | --- | --- | --- |",
+    rejectedTable,
+    "",
+    "## Position Breakdown",
+    "",
+    "| position | accepted rows |",
+    "| --- | ---: |",
+    positionRows || "| - | 0 |",
+    "",
+    "## Overlap With Existing Recoveries",
+    "",
+    "- The accepted rows are still failing after the current production recovery stack.",
+    "- `currentPcGroupedRawTokenRecovery`, `currentPcStage3SevenDigitBonusDisplacementRecovery`, `currentPcCrownBonusRuleRecovery`, and `currentPcStageWideSixMemberCandidateSolverRecovery` did not apply to the accepted rows.",
+    "- The existing full-stage crown-bonus recovery rejects two accepted rows because only the opposite-side total evidence is missing; the target side itself has exact members, exact derived bonus, and exact target total evidence.",
+    "",
+    "## Recommendation",
+    "",
+    simulation.recommendation === "browser-ui-parity-next"
+      ? "Proceed to shared runner/browser-equivalent parity for this exact-only side-local recovery before any production work. Productionization is not recommended from this report alone."
+      : "Defer productionization. The exact-only side-local guard does not yet have enough safe incremental positives.",
+    "",
+  ].join("\n");
+}
+
 function isCurrentPcStage3SelfDisplacementTarget(item) {
   const expected = currentPcExpectedStageSide(item, 3, "self");
   const actual = item.stages?.stage3?.self;
@@ -13960,6 +14383,7 @@ async function main() {
   let stageWideVariantSolverSimulation = null;
   let stageWideVariantStrictExactSimulation = null;
   let stageWideVariantParity = null;
+  let exactMembersBonusTotalRecoverySimulation = null;
   if (currentPcBaselineArtifacts) {
     await fs.writeFile(
       currentPcBaselineReportPath,
@@ -13975,6 +14399,10 @@ async function main() {
       buildCurrentPcCrownBonusRuleSimulationEvaluation(expectedCurrentPcAnalysis);
     const stageWideSixMemberSolverSimulation =
       buildCurrentPcStageWideSixMemberCandidateSolverEvaluation(expectedCurrentPcAnalysis);
+    exactMembersBonusTotalRecoverySimulation =
+      buildCurrentPcExactMembersCrownBonusTotalRecoverySimulation(
+        expectedCurrentPcAnalysis
+      );
     stageWideVariantSolverSimulation =
       (currentPcStageWideVariantSolver || currentPcStageWideSlotProvenVariantSolver) &&
       currentPcStage3MemberRowDiagnosticsArtifacts
@@ -14066,6 +14494,12 @@ async function main() {
       )
     );
     await fs.writeFile(
+      currentPcExactMembersBonusTotalRecoveryReportPath,
+      buildCurrentPcExactMembersBonusTotalRecoveryReport(
+        exactMembersBonusTotalRecoverySimulation
+      )
+    );
+    await fs.writeFile(
       path.join(currentPcBaselineDir, "crown-bonus-rule-simulation.json"),
       JSON.stringify(crownBonusRuleSimulation, null, 2)
     );
@@ -14080,6 +14514,10 @@ async function main() {
     await fs.writeFile(
       path.join(currentPcBaselineDir, "stage-wide-six-member-candidate-solver-parity.json"),
       JSON.stringify(stageWideSixMemberSolverParity, null, 2)
+    );
+    await fs.writeFile(
+      path.join(currentPcBaselineDir, "exact-members-crown-bonus-total-recovery-simulation.json"),
+      JSON.stringify(exactMembersBonusTotalRecoverySimulation, null, 2)
     );
     if (stageWideVariantSolverSimulation) {
       await fs.writeFile(
@@ -14177,6 +14615,9 @@ async function main() {
               crownBonusRuleParityReport: path.relative(rootDir, currentPcCrownBonusParityReportPath).replaceAll("\\", "/"),
               stageWideSixMemberSolverReport: path.relative(rootDir, currentPcStageWideSolverReportPath).replaceAll("\\", "/"),
               stageWideSixMemberSolverParityReport: path.relative(rootDir, currentPcStageWideSolverParityReportPath).replaceAll("\\", "/"),
+              exactMembersBonusTotalRecoveryReport: path
+                .relative(rootDir, currentPcExactMembersBonusTotalRecoveryReportPath)
+                .replaceAll("\\", "/"),
               outputDir: currentPcBaselineArtifacts.outputDir,
               summary: currentPcBaselineArtifacts.summaryPath,
               crownBonusRuleSimulation: path
@@ -14195,6 +14636,15 @@ async function main() {
                 .relative(
                   rootDir,
                   path.join(currentPcBaselineDir, "stage-wide-six-member-candidate-solver-parity.json")
+                )
+                .replaceAll("\\", "/"),
+              exactMembersBonusTotalRecoverySimulation: path
+                .relative(
+                  rootDir,
+                  path.join(
+                    currentPcBaselineDir,
+                    "exact-members-crown-bonus-total-recovery-simulation.json"
+                  )
                 )
                 .replaceAll("\\", "/"),
               stageWideVariantSolver: stageWideVariantSolverSimulation
