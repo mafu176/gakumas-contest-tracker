@@ -19,6 +19,7 @@ import {
   applyCurrentPcStageWideSixMemberCandidateSolverRecovery,
   applyCurrentPcStage3SevenDigitBonusDisplacementRecovery,
   buildCurrentPcCrownBonusRuleEvidence as sharedBuildCurrentPcCrownBonusRuleEvidence,
+  buildCurrentPcExactMembersCrownBonusTotalRecoveryEvidence as sharedBuildCurrentPcExactMembersCrownBonusTotalRecoveryEvidence,
   buildCurrentPcCandidateSourceSummary as sharedBuildCurrentPcCandidateSourceSummary,
   buildCurrentPcGroupedRawTokenEvidenceSimulation as sharedBuildCurrentPcGroupedRawTokenEvidenceSimulation,
   buildCurrentPcStageWideSixMemberCandidateSolverEvidence as sharedBuildCurrentPcStageWideSixMemberCandidateSolverEvidence,
@@ -9070,6 +9071,24 @@ function currentPcExactMemberEvidenceComplete(stageSimulation) {
   });
 }
 
+function currentPcExactMembersSharedSideAnalysis(item, stage, side) {
+  const stageKey = `stage${stage}`;
+  const sideAnalysis = item.stages?.[stageKey]?.[side] || {};
+  const selected = currentPcFinalSelectedStageSide(item, stage, side);
+  return {
+    selectedMembers: selected.members,
+    selectedTotal: selected.total,
+    rawCandidates: sideAnalysis.rawCandidates || [],
+    displayedTotalCandidates: sideAnalysis.displayedTotalCandidates || [],
+    bonusCandidates: sideAnalysis.bonusCandidates || [],
+    candidateSourceSummary: sideAnalysis.candidateSourceSummary || null,
+    currentPcGroupedRawTokenEvidenceSimulation:
+      sideAnalysis.currentPcGroupedRawTokenEvidenceSimulation || null,
+    currentPcStage3SevenDigitBonusDisplacementSimulation:
+      sideAnalysis.currentPcStage3SevenDigitBonusDisplacementSimulation || null,
+  };
+}
+
 function buildCurrentPcExactMembersCrownBonusTotalRecoveryStageSide(
   item,
   stage,
@@ -9077,66 +9096,31 @@ function buildCurrentPcExactMembersCrownBonusTotalRecoveryStageSide(
 ) {
   const stageKey = `stage${stage}`;
   const sideAnalysis = item.stages?.[stageKey]?.[side];
-  const stageSimulation =
-    sideAnalysis?.currentPcCrownBonusRuleSimulation ||
-    buildCurrentPcCrownBonusRuleStageSimulation(item, stage);
-  const selected = currentPcFinalSelectedStageSide(item, stage, side);
-  const oppositeSide = side === "self" ? "enemy" : "self";
-  const oppositeSelected = currentPcFinalSelectedStageSide(item, stage, oppositeSide);
-  const proposed = stageSimulation?.proposed?.[side] || null;
-  const rejectionReasons = [];
-  const target = currentPcExactMembersBonusTotalTarget(item, stage, side);
-
-  if (!target) rejectionReasons.push("not-exact-members-bonus-total-target");
-  if (!proposed) rejectionReasons.push("missing-crown-bonus-proposal");
-  if (!arraysEqualWithinTolerance(selected.members, proposed?.members || [], 0)) {
-    rejectionReasons.push("proposal-would-change-members");
-  }
-  if (!currentPcExactMemberEvidenceComplete(stageSimulation)) {
-    rejectionReasons.push("missing-six-member-evidence");
-  }
-  const rank1 = stageSimulation?.evidence?.rank1 || null;
-  if (!rank1 || !stageSimulation?.evidence?.winningSide) {
-    rejectionReasons.push("missing-unique-global-rank1");
-  }
-  const targetTotalEvidence = stageSimulation?.evidence?.totalEvidence?.[side] || [];
-  if (!targetTotalEvidence.length) rejectionReasons.push("missing-target-exact-total-evidence");
-  const sideWouldChange =
-    Number(selected.bonus || 0) !== Number(proposed?.bonus || 0) ||
-    Number(selected.total || 0) !== Number(proposed?.total || 0);
-  if (!sideWouldChange) rejectionReasons.push("side-already-matches-proposal");
-  const exactEquation =
-    (proposed?.members || []).reduce((sum, value) => sum + Number(value || 0), 0) +
-      Number(proposed?.bonus || 0) ===
-    Number(proposed?.total || 0);
-  if (!exactEquation) rejectionReasons.push("proposal-equation-not-exact");
-  if (
-    sideAnalysis?.currentPcGroupedRawTokenRecovery?.applied ||
-    sideAnalysis?.currentPcStage3SevenDigitBonusDisplacementRecovery?.applied ||
-    sideAnalysis?.currentPcCrownBonusRuleRecovery?.applied ||
-    sideAnalysis?.currentPcStageWideSixMemberCandidateSolverRecovery?.applied
-  ) {
-    rejectionReasons.push("existing-production-recovery-already-applied");
-  }
-
-  const wouldApply = rejectionReasons.length === 0;
-  return {
-    wouldApply,
-    rejectionReasons,
-    target,
+  const simulation = sharedBuildCurrentPcExactMembersCrownBonusTotalRecoveryEvidence({
     stage,
     side,
-    selected,
-    oppositeSelected,
-    proposed,
+    self: currentPcExactMembersSharedSideAnalysis(item, stage, "self"),
+    enemy: currentPcExactMembersSharedSideAnalysis(item, stage, "enemy"),
+    previousRecoveries: {
+      [side]: {
+        groupedRaw: sideAnalysis?.currentPcGroupedRawTokenRecovery || null,
+        stage3SevenDigit:
+          sideAnalysis?.currentPcStage3SevenDigitBonusDisplacementRecovery || null,
+        crownBonus: sideAnalysis?.currentPcCrownBonusRuleRecovery || null,
+        stageWideSixMember:
+          sideAnalysis?.currentPcStageWideSixMemberCandidateSolverRecovery || null,
+      },
+    },
+  });
+  return {
+    ...simulation,
+    target: currentPcExactMembersBonusTotalTarget(item, stage, side),
     evidence: {
-      rank1,
-      winningSide: stageSimulation?.evidence?.winningSide || null,
-      calculatedBonus: stageSimulation?.evidence?.calculatedBonus || 0,
-      targetTotalEvidence,
-      oppositeTotalEvidence: stageSimulation?.evidence?.totalEvidence?.[oppositeSide] || [],
-      memberEvidenceComplete: currentPcExactMemberEvidenceComplete(stageSimulation),
-      currentCrownBonusRejectionReasons: stageSimulation?.rejectionReasons || [],
+      ...(simulation.evidence || {}),
+      currentCrownBonusRejectionReasons:
+        sideAnalysis?.currentPcCrownBonusRuleSimulation?.rejectionReasons ||
+        buildCurrentPcCrownBonusRuleStageSimulation(item, stage)?.rejectionReasons ||
+        [],
       currentStageWideRejectionReasons:
         item.stages?.[stageKey]?.debugArtifact?.currentPcStageWideSixMemberCandidateSolverSimulation
           ?.rejectionReasons ||
@@ -9321,7 +9305,235 @@ function buildCurrentPcExactMembersCrownBonusTotalRecoverySimulation(analysis) {
   };
 }
 
-function buildCurrentPcExactMembersBonusTotalRecoveryReport(simulation) {
+function currentPcExactMembersEvidenceFingerprint(evidence = []) {
+  return (evidence || [])
+    .map((entry) => ({
+      source: entry.source || "",
+      value: Number(entry.value || 0),
+      pass: entry.pass || null,
+      text: entry.text || "",
+      tokens: (entry.tokens || []).map((token) => ({
+        rawToken: token.rawToken || token.token || "",
+        value: Number(token.normalizedValue || 0),
+        shape: token.shape || token.tokenShape || "",
+        textIndex: token.textIndex ?? null,
+      })),
+    }))
+    .sort((a, b) => a.source.localeCompare(b.source) || a.value - b.value);
+}
+
+function currentPcExactMembersMemberEvidenceFingerprint(memberEvidence = {}) {
+  const fingerprint = {};
+  for (const side of sides) {
+    fingerprint[side] = (memberEvidence[side] || []).map((slotEvidence) =>
+      currentPcExactMembersEvidenceFingerprint(slotEvidence)
+    );
+  }
+  return fingerprint;
+}
+
+function currentPcExactMembersRecoveryFingerprint(sim = null) {
+  if (!sim) return null;
+  return {
+    wouldApply: Boolean(sim.wouldApply),
+    rejectionReasons: [...(sim.rejectionReasons || [])].sort(),
+    selected: sim.selected || null,
+    oppositeSelected: sim.oppositeSelected || null,
+    proposed: sim.proposed || null,
+    rank1: sim.evidence?.rank1 || null,
+    winningSide: sim.evidence?.winningSide || null,
+    calculatedBonus: Number(sim.evidence?.calculatedBonus || 0),
+    targetTotalEvidence: currentPcExactMembersEvidenceFingerprint(
+      sim.evidence?.targetTotalEvidence || []
+    ),
+    oppositeTotalEvidence: currentPcExactMembersEvidenceFingerprint(
+      sim.evidence?.oppositeTotalEvidence || []
+    ),
+    memberEvidence: currentPcExactMembersMemberEvidenceFingerprint(
+      sim.evidence?.memberEvidence || {}
+    ),
+    memberEvidenceComplete: Boolean(sim.evidence?.memberEvidenceComplete),
+    targetEquationExact: Boolean(sim.evidence?.targetEquationExact),
+    uniqueInterpretation: Boolean(sim.evidence?.uniqueInterpretation),
+    noCompetingInterpretation: Boolean(sim.evidence?.noCompetingInterpretation),
+  };
+}
+
+function buildCurrentPcBrowserEquivalentExactMembersCrownBonusTotalRecoveryStageSide(
+  item,
+  stage,
+  side
+) {
+  const stageKey = `stage${stage}`;
+  const sideAnalysis = item.stages?.[stageKey]?.[side];
+  return sharedBuildCurrentPcExactMembersCrownBonusTotalRecoveryEvidence({
+    stage,
+    side,
+    self: currentPcExactMembersSharedSideAnalysis(item, stage, "self"),
+    enemy: currentPcExactMembersSharedSideAnalysis(item, stage, "enemy"),
+    previousRecoveries: {
+      [side]: {
+        groupedRaw: sideAnalysis?.currentPcGroupedRawTokenRecovery || null,
+        stage3SevenDigit:
+          sideAnalysis?.currentPcStage3SevenDigitBonusDisplacementRecovery || null,
+        crownBonus: sideAnalysis?.currentPcCrownBonusRuleRecovery || null,
+        stageWideSixMember:
+          sideAnalysis?.currentPcStageWideSixMemberCandidateSolverRecovery || null,
+      },
+    },
+  });
+}
+
+function compareCurrentPcExactMembersCrownBonusTotalRecoveryParity(
+  analysis,
+  simulation
+) {
+  const acceptedKeys = new Set(
+    (simulation.accepted || []).map((row) => `${row.screenshot}|${row.stage}|${row.side}`)
+  );
+  const rows = [];
+  const mismatches = [];
+  let rowsCompared = 0;
+  let runnerWouldApply = 0;
+  let browserWouldApply = 0;
+  let tpParityExact = 0;
+  let wouldApplyDisagreements = 0;
+  let memberDisagreements = 0;
+  let globalRank1Disagreements = 0;
+  let derivedBonusDisagreements = 0;
+  let targetTotalProposalDisagreements = 0;
+  let exactTotalEvidenceMismatches = 0;
+  let missingRequiredBrowserEvidence = 0;
+  let missingRequiredRunnerEvidence = 0;
+  let safetyRelevantMismatches = 0;
+
+  const noteMismatch = (row, field) => {
+    row.mismatchFields.push(field);
+    mismatches.push(row);
+  };
+
+  for (const item of analysis) {
+    if (!item.expected) continue;
+    for (const stage of stages) {
+      for (const side of sides) {
+        rowsCompared += 1;
+        const key = `${item.fileName}|${stage}|${side}`;
+        const runnerSim = buildCurrentPcExactMembersCrownBonusTotalRecoveryStageSide(
+          item,
+          stage,
+          side
+        );
+        const browserSim =
+          buildCurrentPcBrowserEquivalentExactMembersCrownBonusTotalRecoveryStageSide(
+            item,
+            stage,
+            side
+          );
+        const runner = currentPcExactMembersRecoveryFingerprint(runnerSim);
+        const browser = currentPcExactMembersRecoveryFingerprint(browserSim);
+        if (runner?.wouldApply) runnerWouldApply += 1;
+        if (browser?.wouldApply) browserWouldApply += 1;
+        const row = {
+          screenshot: item.fileName,
+          stage,
+          side,
+          acceptedTp: acceptedKeys.has(key),
+          runnerWouldApply: runner?.wouldApply || false,
+          browserWouldApply: browser?.wouldApply || false,
+          runnerProposed: runner?.proposed || null,
+          browserProposed: browser?.proposed || null,
+          runnerRank1: runner?.rank1 || null,
+          browserRank1: browser?.rank1 || null,
+          runnerRejectionReasons: runner?.rejectionReasons || [],
+          browserRejectionReasons: browser?.rejectionReasons || [],
+          mismatchFields: [],
+        };
+
+        if (JSON.stringify(runner?.wouldApply) !== JSON.stringify(browser?.wouldApply)) {
+          wouldApplyDisagreements += 1;
+          noteMismatch(row, "wouldApply");
+        }
+        if (
+          JSON.stringify(runner?.selected) !== JSON.stringify(browser?.selected) ||
+          JSON.stringify(runner?.oppositeSelected) !== JSON.stringify(browser?.oppositeSelected)
+        ) {
+          memberDisagreements += 1;
+          noteMismatch(row, "selected-members");
+        }
+        if (JSON.stringify(runner?.rank1) !== JSON.stringify(browser?.rank1)) {
+          globalRank1Disagreements += 1;
+          noteMismatch(row, "global-rank1");
+        }
+        if (Number(runner?.calculatedBonus || 0) !== Number(browser?.calculatedBonus || 0)) {
+          derivedBonusDisagreements += 1;
+          noteMismatch(row, "derived-bonus");
+        }
+        if (JSON.stringify(runner?.proposed) !== JSON.stringify(browser?.proposed)) {
+          targetTotalProposalDisagreements += 1;
+          noteMismatch(row, "target-total-proposal");
+        }
+        if (
+          JSON.stringify(runner?.targetTotalEvidence) !==
+          JSON.stringify(browser?.targetTotalEvidence)
+        ) {
+          exactTotalEvidenceMismatches += 1;
+          noteMismatch(row, "exact-target-total-evidence");
+        }
+        if (runner?.wouldApply && !(runner?.targetTotalEvidence || []).length) {
+          missingRequiredRunnerEvidence += 1;
+          noteMismatch(row, "missing-required-runner-evidence");
+        }
+        if (browser?.wouldApply && !(browser?.targetTotalEvidence || []).length) {
+          missingRequiredBrowserEvidence += 1;
+          noteMismatch(row, "missing-required-browser-evidence");
+        }
+        const safetyRelevant = row.mismatchFields.some((field) =>
+          [
+            "wouldApply",
+            "selected-members",
+            "global-rank1",
+            "derived-bonus",
+            "target-total-proposal",
+            "exact-target-total-evidence",
+            "missing-required-runner-evidence",
+            "missing-required-browser-evidence",
+          ].includes(field)
+        );
+        if (safetyRelevant) safetyRelevantMismatches += 1;
+        if (
+          row.acceptedTp &&
+          runner?.wouldApply &&
+          browser?.wouldApply &&
+          row.mismatchFields.length === 0
+        ) {
+          tpParityExact += 1;
+        }
+        if (row.acceptedTp || row.mismatchFields.length > 0) rows.push(row);
+      }
+    }
+  }
+
+  return {
+    rowsCompared,
+    runnerWouldApply,
+    browserWouldApply,
+    tpParityExact,
+    tpRows: acceptedKeys.size,
+    wouldApplyDisagreements,
+    memberDisagreements,
+    globalRank1Disagreements,
+    derivedBonusDisagreements,
+    targetTotalProposalDisagreements,
+    exactTotalEvidenceMismatches,
+    missingRequiredBrowserEvidence,
+    missingRequiredRunnerEvidence,
+    safetyRelevantMismatches,
+    rows,
+    mismatches,
+  };
+}
+
+function buildCurrentPcExactMembersBonusTotalRecoveryReport(simulation, parity = null) {
   const generated = new Date().toISOString();
   const acceptedRows = simulation.accepted || [];
   const rejectedRows = simulation.rejectedTargets || [];
@@ -9365,6 +9577,26 @@ function buildCurrentPcExactMembersBonusTotalRecoveryReport(simulation) {
         .map(
           (row) =>
             `| ${row.screenshot} | ${row.stage} | ${row.side} | ${formatSide(row.selected)} | ${formatSide(row.expected)} | ${formatSide(row.proposed)} | ${row.rejectionReasons.join("<br>") || "-"} | ${formatEvidence(row.evidence)} |`
+        )
+        .join("\n")
+    : "| - | - | - | - | - | - | - | - |";
+  const parityRows = parity?.rows?.length
+    ? parity.rows
+        .map(
+          (row) =>
+            `| ${row.screenshot} | ${row.stage} | ${row.side} | ${
+              row.runnerWouldApply ? "yes" : "no"
+            } | ${row.browserWouldApply ? "yes" : "no"} | ${
+              row.runnerRank1
+                ? `${row.runnerRank1.side}.member${row.runnerRank1.slot} ${formatNumber(row.runnerRank1.value)}`
+                : "-"
+            } | ${
+              row.runnerProposed
+                ? `${formatDebugNumbers(row.runnerProposed.members)} + ${formatMaybeZero(
+                    row.runnerProposed.bonus
+                  )} = ${formatMaybeZero(row.runnerProposed.total)}`
+                : "-"
+            } | ${row.mismatchFields.join("<br>") || "none"} |`
         )
         .join("\n")
     : "| - | - | - | - | - | - | - | - |";
@@ -9415,6 +9647,34 @@ function buildCurrentPcExactMembersBonusTotalRecoveryReport(simulation) {
     `| true incremental TP beyond current production | ${simulation.trueIncrementalTp} |`,
     `| image-level full PASS gain if applied | ${simulation.imageLevelPotentialGain} |`,
     "",
+    "## Runner / Browser-Equivalent Parity",
+    "",
+    parity
+      ? [
+          "| metric | count |",
+          "| --- | ---: |",
+          `| rows compared | ${parity.rowsCompared} |`,
+          `| runner wouldApply | ${parity.runnerWouldApply} |`,
+          `| browser-equivalent wouldApply | ${parity.browserWouldApply} |`,
+          `| TP parity exact | ${parity.tpParityExact} / ${parity.tpRows} |`,
+          `| wouldApply disagreements | ${parity.wouldApplyDisagreements} |`,
+          `| member disagreements | ${parity.memberDisagreements} |`,
+          `| global rank-1 disagreements | ${parity.globalRank1Disagreements} |`,
+          `| derived bonus disagreements | ${parity.derivedBonusDisagreements} |`,
+          `| target total proposal disagreements | ${parity.targetTotalProposalDisagreements} |`,
+          `| exact target total evidence mismatches | ${parity.exactTotalEvidenceMismatches} |`,
+          `| missing required browser evidence | ${parity.missingRequiredBrowserEvidence} |`,
+          `| missing required runner evidence | ${parity.missingRequiredRunnerEvidence} |`,
+          `| safety-relevant mismatches | ${parity.safetyRelevantMismatches} |`,
+        ].join("\n")
+      : "Parity was not generated.",
+    "",
+    "### Parity Rows",
+    "",
+    "| screenshot | stage | side | runner apply | browser-equivalent apply | rank1 | proposed target side | mismatch fields |",
+    "| --- | ---: | --- | --- | --- | --- | --- | --- |",
+    parityRows,
+    "",
     "## Cluster Breakdown",
     "",
     "| cluster | rows |",
@@ -9444,6 +9704,7 @@ function buildCurrentPcExactMembersBonusTotalRecoveryReport(simulation) {
     "- The accepted rows are still failing after the current production recovery stack.",
     "- `currentPcGroupedRawTokenRecovery`, `currentPcStage3SevenDigitBonusDisplacementRecovery`, `currentPcCrownBonusRuleRecovery`, and `currentPcStageWideSixMemberCandidateSolverRecovery` did not apply to the accepted rows.",
     "- The existing full-stage crown-bonus recovery rejects two accepted rows because only the opposite-side total evidence is missing; the target side itself has exact members, exact derived bonus, and exact target total evidence.",
+    "- Future production order, if pursued, should remain after the current four production recoveries and should reject any row where an earlier recovery already applied.",
     "",
     "## Recommendation",
     "",
@@ -14384,6 +14645,7 @@ async function main() {
   let stageWideVariantStrictExactSimulation = null;
   let stageWideVariantParity = null;
   let exactMembersBonusTotalRecoverySimulation = null;
+  let exactMembersBonusTotalRecoveryParity = null;
   if (currentPcBaselineArtifacts) {
     await fs.writeFile(
       currentPcBaselineReportPath,
@@ -14402,6 +14664,11 @@ async function main() {
     exactMembersBonusTotalRecoverySimulation =
       buildCurrentPcExactMembersCrownBonusTotalRecoverySimulation(
         expectedCurrentPcAnalysis
+      );
+    exactMembersBonusTotalRecoveryParity =
+      compareCurrentPcExactMembersCrownBonusTotalRecoveryParity(
+        expectedCurrentPcAnalysis,
+        exactMembersBonusTotalRecoverySimulation
       );
     stageWideVariantSolverSimulation =
       (currentPcStageWideVariantSolver || currentPcStageWideSlotProvenVariantSolver) &&
@@ -14496,7 +14763,8 @@ async function main() {
     await fs.writeFile(
       currentPcExactMembersBonusTotalRecoveryReportPath,
       buildCurrentPcExactMembersBonusTotalRecoveryReport(
-        exactMembersBonusTotalRecoverySimulation
+        exactMembersBonusTotalRecoverySimulation,
+        exactMembersBonusTotalRecoveryParity
       )
     );
     await fs.writeFile(
@@ -14518,6 +14786,10 @@ async function main() {
     await fs.writeFile(
       path.join(currentPcBaselineDir, "exact-members-crown-bonus-total-recovery-simulation.json"),
       JSON.stringify(exactMembersBonusTotalRecoverySimulation, null, 2)
+    );
+    await fs.writeFile(
+      path.join(currentPcBaselineDir, "exact-members-crown-bonus-total-recovery-parity.json"),
+      JSON.stringify(exactMembersBonusTotalRecoveryParity, null, 2)
     );
     if (stageWideVariantSolverSimulation) {
       await fs.writeFile(
@@ -14644,6 +14916,15 @@ async function main() {
                   path.join(
                     currentPcBaselineDir,
                     "exact-members-crown-bonus-total-recovery-simulation.json"
+                  )
+                )
+                .replaceAll("\\", "/"),
+              exactMembersBonusTotalRecoveryParity: path
+                .relative(
+                  rootDir,
+                  path.join(
+                    currentPcBaselineDir,
+                    "exact-members-crown-bonus-total-recovery-parity.json"
                   )
                 )
                 .replaceAll("\\", "/"),

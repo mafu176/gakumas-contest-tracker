@@ -1785,14 +1785,20 @@ function currentPcSelectedBonus(sideAnalysis = {}) {
   return Math.max(0, Number(sideAnalysis?.selectedTotal || 0) - memberSum);
 }
 
-function currentPcMemberEvidenceForValue(sideAnalysis = {}, value, slotIndex) {
+function currentPcMemberEvidenceForValue(sideAnalysis = {}, value, slotIndex, tolerance = 1) {
   const normalizedValue = Number(value || 0);
+  const allowedDifference = Number(tolerance || 0);
   if (normalizedValue <= 0) return [];
   const memberCandidates = sideAnalysis?.candidateSourceSummary?.memberCandidates || {};
   const evidence = [];
-  if ((memberCandidates.numbers || []).some((candidate) => Math.abs(Number(candidate || 0) - normalizedValue) <= 1)) {
+  if (
+    (memberCandidates.numbers || []).some(
+      (candidate) => Math.abs(Number(candidate || 0) - normalizedValue) <= allowedDifference
+    )
+  ) {
     const matchingTokens = (memberCandidates.tokenAudit || []).filter(
-      (token) => Math.abs(Number(token.normalizedValue || 0) - normalizedValue) <= 1
+      (token) =>
+        Math.abs(Number(token.normalizedValue || 0) - normalizedValue) <= allowedDifference
     );
     evidence.push({
       source: "member-row",
@@ -1807,7 +1813,11 @@ function currentPcMemberEvidenceForValue(sideAnalysis = {}, value, slotIndex) {
       })),
     });
   }
-  if ((sideAnalysis?.rawCandidates || []).some((candidate) => Math.abs(Number(candidate || 0) - normalizedValue) <= 1)) {
+  if (
+    (sideAnalysis?.rawCandidates || []).some(
+      (candidate) => Math.abs(Number(candidate || 0) - normalizedValue) <= allowedDifference
+    )
+  ) {
     evidence.push({
       source: "raw-candidates",
       role: `member${slotIndex + 1}`,
@@ -1994,6 +2004,150 @@ export function buildCurrentPcCrownBonusRuleEvidence({
     },
     note:
       "Current-PC evidence-only crown bonus rule simulation. It does not change OCR output.",
+  };
+}
+
+export function buildCurrentPcExactMembersCrownBonusTotalRecoveryEvidence({
+  stage = 0,
+  side = "self",
+  self = null,
+  enemy = null,
+  previousRecoveries = {},
+}) {
+  const rejectionReasons = [];
+  if (!["self", "enemy"].includes(side)) rejectionReasons.push("invalid-target-side");
+  if (!self || !enemy) rejectionReasons.push("missing-stage-side-analysis");
+  const selected = {
+    self: {
+      members: [...(self?.selectedMembers || [])].map((value) => Number(value || 0)).slice(0, 3),
+      total: Number(self?.selectedTotal || 0),
+      bonus: currentPcSelectedBonus(self),
+    },
+    enemy: {
+      members: [...(enemy?.selectedMembers || [])].map((value) => Number(value || 0)).slice(0, 3),
+      total: Number(enemy?.selectedTotal || 0),
+      bonus: currentPcSelectedBonus(enemy),
+    },
+  };
+  for (const currentSide of ["self", "enemy"]) {
+    while (selected[currentSide].members.length < 3) selected[currentSide].members.push(0);
+  }
+
+  const memberEvidence = { self: [], enemy: [] };
+  for (const currentSide of ["self", "enemy"]) {
+    const sideAnalysis = currentSide === "self" ? self : enemy;
+    for (let index = 0; index < 3; index += 1) {
+      const value = selected[currentSide].members[index];
+      const evidence = currentPcMemberEvidenceForValue(sideAnalysis, value, index, 0);
+      memberEvidence[currentSide].push(evidence);
+      if (value <= 0) rejectionReasons.push(`missing-${currentSide}-member${index + 1}`);
+      if (value > 0 && evidence.length === 0) {
+        rejectionReasons.push(`missing-${currentSide}-member${index + 1}-evidence`);
+      }
+    }
+  }
+  const memberEvidenceComplete = ["self", "enemy"].every((currentSide) =>
+    (memberEvidence[currentSide] || []).every(
+      (slotEvidence) => Array.isArray(slotEvidence) && slotEvidence.length > 0
+    )
+  );
+  if (!memberEvidenceComplete) rejectionReasons.push("missing-six-member-evidence");
+
+  const allMembers = [
+    ...selected.self.members.map((value, index) => ({ side: "self", slot: index + 1, value })),
+    ...selected.enemy.members.map((value, index) => ({ side: "enemy", slot: index + 1, value })),
+  ];
+  const positiveMembers = allMembers.filter((entry) => entry.value > 0);
+  if (positiveMembers.length !== 6) rejectionReasons.push("missing-member-evidence");
+  const maxValue = Math.max(...positiveMembers.map((entry) => entry.value), 0);
+  const maxEntries = positiveMembers.filter((entry) => entry.value === maxValue);
+  if (maxEntries.length !== 1) rejectionReasons.push("non-unique-global-rank1-member");
+  const rank1 = maxEntries[0] || null;
+  const winningSide = rank1?.side || null;
+  const calculatedBonus = maxValue > 0 ? Math.floor(maxValue * 0.2) : 0;
+  const proposed = {
+    self: {
+      members: selected.self.members,
+      bonus: winningSide === "self" ? calculatedBonus : 0,
+      total:
+        selected.self.members.reduce((sum, value) => sum + value, 0) +
+        (winningSide === "self" ? calculatedBonus : 0),
+    },
+    enemy: {
+      members: selected.enemy.members,
+      bonus: winningSide === "enemy" ? calculatedBonus : 0,
+      total:
+        selected.enemy.members.reduce((sum, value) => sum + value, 0) +
+        (winningSide === "enemy" ? calculatedBonus : 0),
+    },
+  };
+
+  const targetSide = ["self", "enemy"].includes(side) ? side : "self";
+  const oppositeSide = targetSide === "self" ? "enemy" : "self";
+  const targetAnalysis = targetSide === "self" ? self : enemy;
+  const oppositeAnalysis = oppositeSide === "self" ? self : enemy;
+  const targetTotalEvidence = currentPcTotalEvidenceForValue(
+    targetAnalysis,
+    proposed[targetSide].total,
+    0
+  );
+  const oppositeTotalEvidence = currentPcTotalEvidenceForValue(
+    oppositeAnalysis,
+    proposed[oppositeSide].total,
+    0
+  );
+  if (targetTotalEvidence.length === 0) {
+    rejectionReasons.push("missing-target-exact-total-evidence");
+  }
+  const sideWouldChange =
+    Number(selected[targetSide].bonus || 0) !== Number(proposed[targetSide].bonus || 0) ||
+    Number(selected[targetSide].total || 0) !== Number(proposed[targetSide].total || 0);
+  if (!sideWouldChange) rejectionReasons.push("side-already-matches-proposal");
+  const targetMemberChange = !arraysEqualWithinTolerance(
+    selected[targetSide].members,
+    proposed[targetSide].members,
+    0
+  );
+  if (targetMemberChange) rejectionReasons.push("proposal-would-change-members");
+  const targetEquationExact =
+    proposed[targetSide].members.reduce((sum, value) => sum + Number(value || 0), 0) +
+      Number(proposed[targetSide].bonus || 0) ===
+    Number(proposed[targetSide].total || 0);
+  if (!targetEquationExact) rejectionReasons.push("proposal-equation-not-exact");
+
+  const recoveryApplied = Boolean(
+    previousRecoveries?.[targetSide]?.groupedRaw?.applied ||
+      previousRecoveries?.[targetSide]?.stage3SevenDigit?.applied ||
+      previousRecoveries?.[targetSide]?.crownBonus?.applied ||
+      previousRecoveries?.[targetSide]?.stageWideSixMember?.applied
+  );
+  if (recoveryApplied) rejectionReasons.push("existing-production-recovery-already-applied");
+
+  const uniqueRejectionReasons = [...new Set(rejectionReasons)];
+  return {
+    wouldApply: uniqueRejectionReasons.length === 0,
+    rejectionReasons: uniqueRejectionReasons,
+    stage,
+    side: targetSide,
+    selected: selected[targetSide],
+    oppositeSelected: selected[oppositeSide],
+    proposed: proposed[targetSide],
+    stageProposal: proposed,
+    evidence: {
+      memberEvidence,
+      memberEvidenceComplete,
+      rank1,
+      winningSide,
+      calculatedBonus,
+      targetTotalEvidence,
+      oppositeTotalEvidence,
+      targetEquationExact,
+      uniqueInterpretation: uniqueRejectionReasons.length === 0,
+      noCompetingInterpretation: true,
+      rule: "bonus=floor(max(all 6 selected raw members)*0.20)",
+    },
+    note:
+      "Current-PC evidence-only exact-member crown-bonus total recovery simulation. It does not change OCR output.",
   };
 }
 
