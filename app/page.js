@@ -2028,9 +2028,13 @@ export default function Home() {
         3: { self: ["", "", ""], enemy: ["", "", ""], selfTotal: "", enemyTotal: "" },
       };
 
-      const activeOcrMode = ocrMode === "compare" ? "smartphone" : normalizeOcrMode(ocrMode);
       const compareOcrMode = ocrMode === "compare";
       const currentPcLayoutDetection = detectCurrentPcLayout(image);
+      const requestedOcrMode = compareOcrMode ? "smartphone" : normalizeOcrMode(ocrMode);
+      const activeOcrMode =
+        requestedOcrMode === "desktop" && currentPcLayoutDetection.detected
+          ? "current-pc"
+          : requestedOcrMode;
       const currentPcGroupedRawEvidence = currentPcLayoutDetection.detected
         ? {
             mode: "current-pc",
