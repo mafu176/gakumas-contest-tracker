@@ -8255,6 +8255,359 @@ function currentPcGeometryStrategyCounts(memberSummaries) {
   return counts;
 }
 
+function currentPcGeometryTokenOverlapForAssignedSlot(token) {
+  const assigned = token.metrics?.consensusSlot;
+  return (
+    (token.metrics?.overlaps || []).find((entry) => entry.slot === assigned)?.tokenOverlapPct || 0
+  );
+}
+
+function buildCurrentPcStage3GeometrySlotEvidenceMap(diagnostics = null) {
+  const map = new Map();
+  const rejectedReasonCounts = new Map();
+  const incrementRejected = (reason) =>
+    rejectedReasonCounts.set(reason, (rejectedReasonCounts.get(reason) || 0) + 1);
+  let inspectedTokens = 0;
+  let acceptedTokens = 0;
+  let ambiguousTokens = 0;
+  let concatenatedTokens = 0;
+
+  for (const row of diagnostics?.rows || []) {
+    const key = `${row.image}|${row.stage}|${row.side}`;
+    const entries = [];
+    for (const variant of row.variants || []) {
+      for (const token of variant.tokens || []) {
+        inspectedTokens += 1;
+        const numbers = uniqueNumbers(token.numbers || []);
+        if (numbers.length !== 1) {
+          if (numbers.length > 1) {
+            concatenatedTokens += 1;
+            incrementRejected("concatenated-or-multi-number-token");
+          } else {
+            incrementRejected("no-numeric-token");
+          }
+          continue;
+        }
+        const value = Number(numbers[0] || 0);
+        if (!currentPcStageWideMemberRange(value)) {
+          incrementRejected("outside-member-range");
+          continue;
+        }
+        const metrics = token.metrics || {};
+        const assignedSlot = metrics.consensusSlot || null;
+        const centerSlot =
+          metrics.centerInsideSlots?.length === 1 ? metrics.centerInsideSlots[0] : null;
+        if (!assignedSlot || !centerSlot || assignedSlot !== centerSlot) {
+          ambiguousTokens += 1;
+          incrementRejected("missing-center-overlap-consensus");
+          continue;
+        }
+        if (metrics.maxOverlapSlot !== assignedSlot) {
+          ambiguousTokens += 1;
+          incrementRejected("center-overlap-disagreement");
+          continue;
+        }
+        if (metrics.multiSlotOverlap) {
+          ambiguousTokens += 1;
+          incrementRejected("multi-slot-overlap");
+          continue;
+        }
+        const slotMatch = String(assignedSlot).match(/^member([123])$/);
+        if (!slotMatch) {
+          incrementRejected("invalid-assigned-slot");
+          continue;
+        }
+        acceptedTokens += 1;
+        entries.push({
+          value,
+          slotIndex: Number(slotMatch[1]) - 1,
+          source: `stage3-geometry-slot:${variant.label}`,
+          variantLabel: variant.label,
+          zoneKind: variant.zoneKind,
+          token: token.text || String(value),
+          text: variant.text || "",
+          zone: variant.zone || null,
+          bbox: token.fullBbox || null,
+          centerInsideSlots: metrics.centerInsideSlots || [],
+          nearestSlot: metrics.nearestSlot || null,
+          maxOverlapSlot: metrics.maxOverlapSlot || null,
+          consensusSlot: assignedSlot,
+          overlapPct: currentPcGeometryTokenOverlapForAssignedSlot(token),
+          overlaps: metrics.overlaps || [],
+          slotSpecific: false,
+          rowOrderBased: false,
+          geometryAssigned: true,
+        });
+      }
+    }
+    const deduped = entries.filter(
+      (entry, index, all) =>
+        all.findIndex(
+          (other) =>
+            other.value === entry.value &&
+            other.slotIndex === entry.slotIndex &&
+            other.variantLabel === entry.variantLabel &&
+            JSON.stringify(other.bbox || null) === JSON.stringify(entry.bbox || null)
+        ) === index
+    );
+    map.set(key, deduped);
+  }
+
+  return {
+    map,
+    stats: {
+      inspectedTokens,
+      acceptedTokens,
+      rejectedTokens: inspectedTokens - acceptedTokens,
+      ambiguousTokens,
+      concatenatedTokens,
+      rejectedReasonCounts: Object.fromEntries(
+        [...rejectedReasonCounts.entries()].sort((a, b) => b[1] - a[1])
+      ),
+    },
+  };
+}
+
+function currentPcGeometrySlotCandidateCorrectness(item, stage, side, candidate) {
+  const expected = currentPcExpectedStageSide(item, stage, side);
+  const assignedSlotIndex = Number(candidate.slotIndex);
+  const assignedExpected = Number(expected?.members?.[assignedSlotIndex] || 0);
+  if (assignedExpected === Number(candidate.value || 0)) return "correct-slot";
+  const otherSlotIndex = (expected?.members || []).findIndex(
+    (value, index) => index !== assignedSlotIndex && Number(value || 0) === Number(candidate.value || 0)
+  );
+  if (otherSlotIndex >= 0) return "wrong-slot";
+  return "extra-candidate";
+}
+
+function buildCurrentPcStage3GeometrySlotEvidenceSimulation(analysis, diagnostics) {
+  const { map: geometryEvidenceMap, stats: geometryCandidateStats } =
+    buildCurrentPcStage3GeometrySlotEvidenceMap(diagnostics);
+  const rows = [];
+  const accepted = [];
+  const falsePositiveRows = [];
+  const blockedRows = [];
+  const stageSimulations = [];
+  const candidateCorrectnessCounts = new Map();
+  const rejectedReasonBreakdown = new Map(
+    Object.entries(geometryCandidateStats.rejectedReasonCounts || {})
+  );
+  const overlap = {
+    groupedRaw: 0,
+    stage3SevenDigit: 0,
+    crownBonus: 0,
+    stageWideSixMember: 0,
+    exactMembersBonusTotal: 0,
+  };
+  let truePositives = 0;
+  let falsePositives = 0;
+  let falseNegatives = 0;
+  let blocked = 0;
+  let failingStages = 0;
+  let acceptedStageSideCorrections = 0;
+  let trueIncrementalTp = 0;
+  let stage3SelfIncrementalTp = 0;
+  const acceptedImages = new Set();
+  const wouldBecomeFullPassImages = new Set();
+  const increment = (mapObj, key) => mapObj.set(key, (mapObj.get(key) || 0) + 1);
+
+  for (const item of analysis.filter((entry) => entry.expected)) {
+    const imageAcceptedStages = new Set();
+    const imageFailingStages = [];
+    for (const stage of [3]) {
+      const stageHasFailure = sides.some((side) => hasCurrentPcSideFailure(item, stage, side));
+      if (stageHasFailure) {
+        failingStages += 1;
+        imageFailingStages.push(stage);
+      }
+      const baseSimulation = buildCurrentPcStageWideSixMemberCandidateSolverStage(item, stage);
+      const simulation = buildCurrentPcStageWideVariantSimulationFromPools({
+        item,
+        stage,
+        baseSimulation,
+        variantEvidenceMap: geometryEvidenceMap,
+        comparisonTolerance: 0,
+        policyName: "currentPcStage3GeometrySlotEvidenceSimulation",
+      });
+      const geometryCandidates = simulation.variantEvidence?.addedCandidates || [];
+      for (const candidate of geometryCandidates) {
+        const correctness = currentPcGeometrySlotCandidateCorrectness(
+          item,
+          stage,
+          candidate.side,
+          candidate
+        );
+        increment(candidateCorrectnessCounts, correctness);
+      }
+      stageSimulations.push({ screenshot: item.fileName, stage, simulation });
+      const matchesExpected = currentPcStageWideStageMatchesExpected(
+        simulation.proposed,
+        item,
+        stage,
+        0
+      );
+      const targetEvidenceReady =
+        stageHasFailure &&
+        simulation.evidence?.expectedPresence?.present &&
+        (simulation.evidence?.expectedTotalEvidence?.self || []).length > 0 &&
+        (simulation.evidence?.expectedTotalEvidence?.enemy || []).length > 0;
+      let classification = "correctly-blocked-negative";
+      if (simulation.wouldApply && matchesExpected) {
+        truePositives += 1;
+        classification = "true-positive";
+        imageAcceptedStages.add(stage);
+      } else if (simulation.wouldApply && !matchesExpected) {
+        falsePositives += 1;
+        classification = "false-positive";
+      } else if (!simulation.wouldApply && targetEvidenceReady) {
+        falseNegatives += 1;
+        classification = "false-negative";
+      } else if (stageHasFailure) {
+        blocked += 1;
+        classification = "blocked";
+      }
+
+      if (classification === "true-positive") {
+        const changedSides = sides.filter((side) => simulation.sideWouldChange?.[side]);
+        acceptedStageSideCorrections += changedSides.length;
+        acceptedImages.add(item.fileName);
+        const existingStageWide = Boolean(baseSimulation.wouldApply);
+        if (!existingStageWide) trueIncrementalTp += 1;
+        if (!existingStageWide && simulation.sideWouldChange?.self && stage === 3) {
+          stage3SelfIncrementalTp += 1;
+        }
+        for (const side of sides) {
+          const sideAnalysis = item.stages?.[`stage${stage}`]?.[side];
+          if (sideAnalysis?.currentPcGroupedRawTokenRecovery?.applied) overlap.groupedRaw += 1;
+          if (sideAnalysis?.currentPcStage3SevenDigitBonusDisplacementRecovery?.applied) {
+            overlap.stage3SevenDigit += 1;
+          }
+          if (sideAnalysis?.currentPcCrownBonusRuleRecovery?.applied) overlap.crownBonus += 1;
+          if (sideAnalysis?.currentPcStageWideSixMemberCandidateSolverRecovery?.applied) {
+            overlap.stageWideSixMember += 1;
+          }
+          if (sideAnalysis?.currentPcExactMembersCrownBonusTotalRecovery?.applied) {
+            overlap.exactMembersBonusTotal += 1;
+          }
+        }
+        accepted.push({
+          screenshot: item.fileName,
+          stage,
+          selected: simulation.selected,
+          proposed: simulation.proposed,
+          changedMemberSlots: simulation.proposed?.changedMemberSlots || [],
+          geometryCandidates,
+          geometryCandidatesUsed: geometryCandidates.filter((candidate) =>
+            (simulation.proposed?.changedMemberSlots || []).some(
+              (slot) =>
+                slot.side === candidate.side &&
+                Number(slot.slot || 0) === Number(candidate.slotIndex || 0) + 1 &&
+                Number(slot.to || 0) === Number(candidate.value || 0)
+            )
+          ),
+          rank1: simulation.proposed?.rank1 || null,
+          winningSide: simulation.proposed?.winningSide || null,
+          calculatedBonus: simulation.proposed?.calculatedBonus || 0,
+          selfTotalEvidence: simulation.proposed?.totalEvidence?.self || [],
+          enemyTotalEvidence: simulation.proposed?.totalEvidence?.enemy || [],
+          existingStageWide,
+          sideWouldChange: simulation.sideWouldChange || {},
+        });
+      }
+      if (classification === "false-positive") {
+        falsePositiveRows.push({
+          screenshot: item.fileName,
+          stage,
+          selected: simulation.selected,
+          proposed: simulation.proposed,
+          expected: {
+            self: currentPcExpectedStageSide(item, stage, "self"),
+            enemy: currentPcExpectedStageSide(item, stage, "enemy"),
+          },
+          geometryCandidates,
+        });
+      }
+      if (classification === "blocked" || classification === "false-negative") {
+        blockedRows.push({
+          screenshot: item.fileName,
+          stage,
+          classification,
+          rejectionReasons: simulation.rejectionReasons || [],
+          expectedPresence: simulation.evidence?.expectedPresence || null,
+          geometryCandidateCount: geometryCandidates.length,
+          validInterpretationCount: simulation.evidence?.validInterpretationCount || 0,
+        });
+      }
+      if (stageHasFailure || simulation.wouldApply || geometryCandidates.length > 0) {
+        rows.push({
+          screenshot: item.fileName,
+          stage,
+          classification,
+          wouldApply: simulation.wouldApply,
+          selected: simulation.selected,
+          proposed: simulation.proposed,
+          expected: {
+            self: currentPcExpectedStageSide(item, stage, "self"),
+            enemy: currentPcExpectedStageSide(item, stage, "enemy"),
+          },
+          sideWouldChange: simulation.sideWouldChange,
+          rejectionReasons: simulation.rejectionReasons || [],
+          geometryCandidateCount: geometryCandidates.length,
+          geometryCandidates,
+          exactMatchesExpected: matchesExpected,
+          evidence: {
+            candidatePoolSizes: simulation.evidence?.candidatePoolSizes || null,
+            combinationCount: simulation.evidence?.combinationCount || 0,
+            expectedPresence: simulation.evidence?.expectedPresence || null,
+            validInterpretationCount: simulation.evidence?.validInterpretationCount || 0,
+          },
+        });
+      }
+    }
+    if (
+      !item.pass &&
+      imageFailingStages.length > 0 &&
+      imageFailingStages.every((stage) => imageAcceptedStages.has(stage))
+    ) {
+      wouldBecomeFullPassImages.add(item.fileName);
+    }
+  }
+
+  return {
+    policyName: "currentPcStage3GeometrySlotEvidenceSimulation",
+    command:
+      "node scripts/ocr-test-images.mjs --current-pc-stage3-slot-geometry-from-baseline --current-pc-stage3-geometry-slot-solver",
+    truePositives,
+    falsePositives,
+    falseNegatives,
+    blocked,
+    failingStages,
+    acceptedStageSideCorrections,
+    trueIncrementalTp,
+    stage3SelfIncrementalTp,
+    potentialFullImagePassGain: wouldBecomeFullPassImages.size,
+    potentialFullImagePassImages: [...wouldBecomeFullPassImages].sort(),
+    rows,
+    stageSimulations,
+    accepted,
+    falsePositiveRows,
+    blockedRows,
+    geometryCandidateStats,
+    candidateCorrectnessCounts: Object.fromEntries(
+      [...candidateCorrectnessCounts.entries()].sort()
+    ),
+    wrongSlotAssignments: candidateCorrectnessCounts.get("wrong-slot") || 0,
+    extraCandidateInsertions: candidateCorrectnessCounts.get("extra-candidate") || 0,
+    overlap,
+    recommendation:
+      trueIncrementalTp >= 2 &&
+      falsePositives === 0 &&
+      (candidateCorrectnessCounts.get("wrong-slot") || 0) === 0
+        ? "runner/browser evidence parity next"
+        : "do not productionize",
+  };
+}
+
 async function writeCurrentPcStage3SlotGeometryDiagnosticsArtifacts(analysis = []) {
   const rows = findCurrentPcStage3SlotGeometryRows(analysis);
   await fs.rm(currentPcStage3SlotGeometryDiagnosticsDir, { recursive: true, force: true });
@@ -8415,6 +8768,7 @@ async function writeCurrentPcStage3SlotGeometryDiagnosticsArtifacts(analysis = [
 
 function buildCurrentPcStage3SlotGeometryDiagnosticsReport(diagnostics) {
   const rows = diagnostics?.rows || [];
+  const simulation = diagnostics?.geometrySlotSimulation || null;
   const memberSummaries = rows.flatMap((row) =>
     (row.memberSummaries || []).map((member) => ({ ...member, row }))
   );
@@ -8477,8 +8831,118 @@ function buildCurrentPcStage3SlotGeometryDiagnosticsReport(diagnostics) {
     "",
     "- Full baseline plus geometry: `node scripts/ocr-test-images.mjs --current-pc-baseline --current-pc-stage3-slot-geometry-diagnostics`",
     "- Geometry-only from existing baseline artifacts: `node scripts/ocr-test-images.mjs --current-pc-stage3-slot-geometry-from-baseline`",
+    "- Geometry-slot solver simulation from existing baseline artifacts: `node scripts/ocr-test-images.mjs --current-pc-stage3-slot-geometry-from-baseline --current-pc-stage3-geometry-slot-solver`",
     "",
     "The second command is diagnostics-only and reuses `tmp/current-pc-ocr-baseline/summary.json`; it does not rerun final OCR extraction.",
+    "",
+    "## Expected-Blind Geometry Slot Simulation",
+    ""
+  );
+  if (simulation) {
+    const candidateStats = simulation.geometryCandidateStats || {};
+    lines.push(
+      "This runner-only simulation builds Stage3 member candidates from OCR token bbox geometry only. Expected fixtures are used only after the proposed result is built, for TP/FP/FN scoring.",
+      "",
+      "| Metric | Count |",
+      "| --- | ---: |",
+      `| TP | ${simulation.truePositives} |`,
+      `| FP | ${simulation.falsePositives} |`,
+      `| FN | ${simulation.falseNegatives} |`,
+      `| blocked | ${simulation.blocked} |`,
+      `| accepted stage/side corrections | ${simulation.acceptedStageSideCorrections} |`,
+      `| true incremental TP beyond current production stage-wide solver | ${simulation.trueIncrementalTp} |`,
+      `| Stage3 self incremental TP | ${simulation.stage3SelfIncrementalTp} |`,
+      `| potential full-image PASS gain | ${simulation.potentialFullImagePassGain} |`,
+      `| wrong-slot assignments in geometry candidates | ${simulation.wrongSlotAssignments} |`,
+      `| extra candidate insertions | ${simulation.extraCandidateInsertions} |`,
+      "",
+      "| Candidate Filter | Count |",
+      "| --- | ---: |",
+      `| inspected tokens | ${candidateStats.inspectedTokens || 0} |`,
+      `| accepted tokens | ${candidateStats.acceptedTokens || 0} |`,
+      `| rejected tokens | ${candidateStats.rejectedTokens || 0} |`,
+      `| ambiguous tokens | ${candidateStats.ambiguousTokens || 0} |`,
+      `| concatenated tokens rejected | ${candidateStats.concatenatedTokens || 0} |`,
+      "",
+      "Rejected candidate reasons:",
+      ""
+    );
+    for (const [reason, count] of Object.entries(candidateStats.rejectedReasonCounts || {})) {
+      lines.push(`- ${reason}: ${count}`);
+    }
+    lines.push(
+      "",
+      "Candidate scoring summary:",
+      ""
+    );
+    for (const [bucket, count] of Object.entries(simulation.candidateCorrectnessCounts || {})) {
+      lines.push(`- ${bucket}: ${count}`);
+    }
+    lines.push(
+      "",
+      "Overlap with existing production recoveries:",
+      ""
+    );
+    for (const [name, count] of Object.entries(simulation.overlap || {})) {
+      lines.push(`- ${name}: ${count}`);
+    }
+    lines.push(
+      "",
+      `Recommendation: ${simulation.recommendation}.`,
+      ""
+    );
+    if ((simulation.accepted || []).length > 0) {
+      lines.push(
+        "### Accepted Simulation Cases",
+        "",
+        "| Image | Stage | Changed slots | Proposed self | Proposed enemy | Geometry candidates used | Existing stage-wide? |",
+        "| --- | ---: | --- | --- | --- | --- | --- |"
+      );
+      for (const row of simulation.accepted.slice(0, 20)) {
+        const changed = (row.changedMemberSlots || [])
+          .map((slot) => `${slot.side} member${slot.slot}: ${formatNumber(slot.from)} -> ${formatNumber(slot.to)}`)
+          .join("<br>");
+        const candidates = (row.geometryCandidatesUsed || [])
+          .map((candidate) => {
+            const rawOverlap = Number(candidate.overlapPct || 0);
+            const overlapPercent = rawOverlap <= 1 ? rawOverlap * 100 : rawOverlap;
+            return `${candidate.side || "?"} member${Number(candidate.slotIndex || 0) + 1}=${formatNumber(candidate.value)} (${candidate.variantLabel}, overlap=${Math.round(overlapPercent)}%)`;
+          })
+          .join("<br>");
+        lines.push(
+          `| ${row.screenshot} | ${row.stage} | ${changed || "-"} | ${formatDebugNumbers(row.proposed?.self?.members || [])} / total ${formatNumber(row.proposed?.self?.total || 0)} | ${formatDebugNumbers(row.proposed?.enemy?.members || [])} / total ${formatNumber(row.proposed?.enemy?.total || 0)} | ${candidates || "-"} | ${row.existingStageWide ? "yes" : "no"} |`
+        );
+      }
+    }
+    if ((simulation.falsePositiveRows || []).length > 0) {
+      lines.push(
+        "",
+        "### False Positives",
+        "",
+        "| Image | Stage | Proposed self | Proposed enemy | Geometry candidate count |",
+        "| --- | ---: | --- | --- | ---: |"
+      );
+      for (const row of simulation.falsePositiveRows) {
+        lines.push(
+          `| ${row.screenshot} | ${row.stage} | ${formatDebugNumbers(row.proposed?.self?.members || [])} / total ${formatNumber(row.proposed?.self?.total || 0)} | ${formatDebugNumbers(row.proposed?.enemy?.members || [])} / total ${formatNumber(row.proposed?.enemy?.total || 0)} | ${(row.geometryCandidates || []).length} |`
+        );
+      }
+    }
+    if ((simulation.potentialFullImagePassImages || []).length > 0) {
+      lines.push(
+        "",
+        "Potential full-image PASS gain:",
+        "",
+        ...simulation.potentialFullImagePassImages.map((image) => `- ${image}`)
+      );
+    }
+  } else {
+    lines.push(
+      "No runner-only geometry-slot recovery simulation was requested in this pass. Use the simulation command above to test expected-blind bbox candidate insertion against the current baseline.",
+      ""
+    );
+  }
+  lines.push(
     "",
     "## Slot ROI Geometry",
     "",
@@ -8528,7 +8992,9 @@ function buildCurrentPcStage3SlotGeometryDiagnosticsReport(diagnostics) {
     "",
     "## Simulation Decision",
     "",
-    "No production recovery or runner-only recovery simulation is added by this pass. A future `currentPcStage3GeometrySlotEvidenceSimulation` should only be attempted if a geometry policy shows at least two true incremental positives beyond current production, zero wrong-slot assignments, exact observed member values, exact total evidence, crown-bonus consistency, and unique six-member interpretation.",
+    simulation
+      ? `The runner-only \`${simulation.policyName}\` simulation is available, but final OCR output is unchanged. Production should remain blocked unless the simulation shows meaningful incremental TP, FP=0, no wrong-slot geometry assignments, exact observed member values, exact total evidence, crown-bonus consistency, and unique six-member interpretation.`
+      : "No production recovery is added by this pass. A future `currentPcStage3GeometrySlotEvidenceSimulation` should only be attempted if a geometry policy shows at least two true incremental positives beyond current production, zero wrong-slot assignments, exact observed member values, exact total evidence, crown-bonus consistency, and unique six-member interpretation.",
     "",
     "Important limitation: this pass uses expected values as diagnostic targets for bbox span discovery. It measures whether exact values already present in OCR geometry can be spatially tied to slots; it does not prove that a production candidate selector can safely choose among all competing numeric evidence.",
     "",
@@ -15164,6 +15630,9 @@ async function main() {
   const currentPcStage3SlotGeometryFromBaseline = args.includes(
     "--current-pc-stage3-slot-geometry-from-baseline"
   );
+  const currentPcStage3GeometrySlotSolver = args.includes(
+    "--current-pc-stage3-geometry-slot-solver"
+  );
   const currentPcStageWideVariantSolver = args.includes(
     "--current-pc-stage-wide-variant-solver"
   );
@@ -15198,6 +15667,7 @@ async function main() {
       value !== "--current-pc-stage3-member-row-diagnostics" &&
       value !== "--current-pc-stage3-slot-geometry-diagnostics" &&
       value !== "--current-pc-stage3-slot-geometry-from-baseline" &&
+      value !== "--current-pc-stage3-geometry-slot-solver" &&
       value !== "--current-pc-stage-wide-variant-solver" &&
       value !== "--current-pc-stage-wide-slot-proven-variant-solver" &&
       value !== "--current-pc-slot-roi-diagnostics" &&
@@ -15229,6 +15699,19 @@ async function main() {
       analysis.filter((item) => item.expected)
     );
     artifacts.sourceSummary = path.relative(rootDir, summaryPath).replaceAll("\\", "/");
+    if (currentPcStage3GeometrySlotSolver) {
+      artifacts.geometrySlotSimulation = buildCurrentPcStage3GeometrySlotEvidenceSimulation(
+        analysis.filter((item) => item.expected),
+        artifacts
+      );
+      await fs.writeFile(
+        path.join(
+          currentPcBaselineDir,
+          "stage3-geometry-slot-evidence-simulation.json"
+        ),
+        JSON.stringify(artifacts.geometrySlotSimulation, null, 2)
+      );
+    }
     await fs.writeFile(
       currentPcStage3SlotGeometryReportPath,
       buildCurrentPcStage3SlotGeometryDiagnosticsReport(artifacts)
@@ -15243,6 +15726,18 @@ async function main() {
             outputDir: artifacts.outputDir,
             summary: artifacts.summaryPath,
             rows: artifacts.rows.length,
+            geometrySlotSimulation: artifacts.geometrySlotSimulation
+              ? {
+                  truePositives: artifacts.geometrySlotSimulation.truePositives,
+                  falsePositives: artifacts.geometrySlotSimulation.falsePositives,
+                  falseNegatives: artifacts.geometrySlotSimulation.falseNegatives,
+                  blocked: artifacts.geometrySlotSimulation.blocked,
+                  trueIncrementalTp: artifacts.geometrySlotSimulation.trueIncrementalTp,
+                  stage3SelfIncrementalTp:
+                    artifacts.geometrySlotSimulation.stage3SelfIncrementalTp,
+                  recommendation: artifacts.geometrySlotSimulation.recommendation,
+                }
+              : null,
           },
         },
         null,
@@ -15361,7 +15856,8 @@ async function main() {
         )
       : null;
   const currentPcStage3SlotGeometryDiagnosticsArtifacts =
-    currentPcBaselineArtifacts && currentPcStage3SlotGeometryDiagnostics
+    currentPcBaselineArtifacts &&
+    (currentPcStage3SlotGeometryDiagnostics || currentPcStage3GeometrySlotSolver)
       ? await writeCurrentPcStage3SlotGeometryDiagnosticsArtifacts(
           currentPcBaselineArtifacts.analysis.filter((item) => item.expected)
         )
@@ -15377,6 +15873,7 @@ async function main() {
   let stageWideVariantParity = null;
   let exactMembersBonusTotalRecoverySimulation = null;
   let exactMembersBonusTotalRecoveryParity = null;
+  let currentPcStage3GeometrySlotSimulation = null;
   if (currentPcBaselineArtifacts) {
     await fs.writeFile(
       currentPcBaselineReportPath,
@@ -15401,6 +15898,17 @@ async function main() {
         expectedCurrentPcAnalysis,
         exactMembersBonusTotalRecoverySimulation
       );
+    currentPcStage3GeometrySlotSimulation =
+      currentPcStage3GeometrySlotSolver && currentPcStage3SlotGeometryDiagnosticsArtifacts
+        ? buildCurrentPcStage3GeometrySlotEvidenceSimulation(
+            expectedCurrentPcAnalysis,
+            currentPcStage3SlotGeometryDiagnosticsArtifacts
+          )
+        : null;
+    if (currentPcStage3GeometrySlotSimulation) {
+      currentPcStage3SlotGeometryDiagnosticsArtifacts.geometrySlotSimulation =
+        currentPcStage3GeometrySlotSimulation;
+    }
     stageWideVariantSolverSimulation =
       (currentPcStageWideVariantSolver || currentPcStageWideSlotProvenVariantSolver) &&
       currentPcStage3MemberRowDiagnosticsArtifacts
@@ -15580,6 +16088,12 @@ async function main() {
           currentPcStage3SlotGeometryDiagnosticsArtifacts
         )
       );
+      if (currentPcStage3GeometrySlotSimulation) {
+        await fs.writeFile(
+          path.join(currentPcBaselineDir, "stage3-geometry-slot-evidence-simulation.json"),
+          JSON.stringify(currentPcStage3GeometrySlotSimulation, null, 2)
+        );
+      }
     }
     if (currentPcSlotRoiDiagnosticsArtifacts) {
       await fs.writeFile(
@@ -15722,11 +16236,22 @@ async function main() {
                     summary: currentPcStage3MemberRowDiagnosticsArtifacts.summaryPath,
                   }
                 : null,
-              stage3SlotGeometryDiagnostics: currentPcStage3SlotGeometryDiagnosticsArtifacts
+                  stage3SlotGeometryDiagnostics: currentPcStage3SlotGeometryDiagnosticsArtifacts
                 ? {
                     report: path.relative(rootDir, currentPcStage3SlotGeometryReportPath).replaceAll("\\", "/"),
                     outputDir: currentPcStage3SlotGeometryDiagnosticsArtifacts.outputDir,
                     summary: currentPcStage3SlotGeometryDiagnosticsArtifacts.summaryPath,
+                    geometrySlotSimulation: currentPcStage3GeometrySlotSimulation
+                      ? path
+                          .relative(
+                            rootDir,
+                            path.join(
+                              currentPcBaselineDir,
+                              "stage3-geometry-slot-evidence-simulation.json"
+                            )
+                          )
+                          .replaceAll("\\", "/")
+                      : null,
                   }
                 : null,
               slotRoiDiagnostics: currentPcSlotRoiDiagnosticsArtifacts

@@ -35,8 +35,67 @@ Primary safety criterion is zero wrong-slot assignments. Strategies with wrong-s
 
 - Full baseline plus geometry: `node scripts/ocr-test-images.mjs --current-pc-baseline --current-pc-stage3-slot-geometry-diagnostics`
 - Geometry-only from existing baseline artifacts: `node scripts/ocr-test-images.mjs --current-pc-stage3-slot-geometry-from-baseline`
+- Geometry-slot solver simulation from existing baseline artifacts: `node scripts/ocr-test-images.mjs --current-pc-stage3-slot-geometry-from-baseline --current-pc-stage3-geometry-slot-solver`
 
 The second command is diagnostics-only and reuses `tmp/current-pc-ocr-baseline/summary.json`; it does not rerun final OCR extraction.
+
+## Expected-Blind Geometry Slot Simulation
+
+This runner-only simulation builds Stage3 member candidates from OCR token bbox geometry only. Expected fixtures are used only after the proposed result is built, for TP/FP/FN scoring.
+
+| Metric | Count |
+| --- | ---: |
+| TP | 1 |
+| FP | 0 |
+| FN | 2 |
+| blocked | 24 |
+| accepted stage/side corrections | 1 |
+| true incremental TP beyond current production stage-wide solver | 1 |
+| Stage3 self incremental TP | 1 |
+| potential full-image PASS gain | 1 |
+| wrong-slot assignments in geometry candidates | 0 |
+| extra candidate insertions | 16 |
+
+| Candidate Filter | Count |
+| --- | ---: |
+| inspected tokens | 2644 |
+| accepted tokens | 272 |
+| rejected tokens | 2372 |
+| ambiguous tokens | 433 |
+| concatenated tokens rejected | 92 |
+
+Rejected candidate reasons:
+
+- no-numeric-token: 1765
+- multi-slot-overlap: 392
+- concatenated-or-multi-number-token: 92
+- outside-member-range: 82
+- missing-center-overlap-consensus: 41
+
+Candidate scoring summary:
+
+- correct-slot: 256
+- extra-candidate: 16
+
+Overlap with existing production recoveries:
+
+- groupedRaw: 0
+- stage3SevenDigit: 0
+- crownBonus: 0
+- stageWideSixMember: 0
+- exactMembersBonusTotal: 0
+
+Recommendation: do not productionize.
+
+### Accepted Simulation Cases
+
+| Image | Stage | Changed slots | Proposed self | Proposed enemy | Geometry candidates used | Existing stage-wide? |
+| --- | ---: | --- | --- | --- | --- | --- |
+| スクリーンショット 2026-07-11 145018419.png | 3 | self member3: 5,828 -> 805,828 | 756719, 867029, 805828 / total 2,602,981 | 296074, 110009, 27156 / total 433,239 | self member3=805,828 (current-member-row-roi, overlap=100%)<br>self member3=805,828 (wider-member-row-roi, overlap=100%) | no |
+
+Potential full-image PASS gain:
+
+- スクリーンショット 2026-07-11 145018419.png
 
 ## Slot ROI Geometry
 
@@ -145,7 +204,7 @@ Rows with concatenated or multi-slot runs: 116. These are not split or recovered
 
 ## Simulation Decision
 
-No production recovery or runner-only recovery simulation is added by this pass. A future `currentPcStage3GeometrySlotEvidenceSimulation` should only be attempted if a geometry policy shows at least two true incremental positives beyond current production, zero wrong-slot assignments, exact observed member values, exact total evidence, crown-bonus consistency, and unique six-member interpretation.
+The runner-only `currentPcStage3GeometrySlotEvidenceSimulation` simulation is available, but final OCR output is unchanged. Production should remain blocked unless the simulation shows meaningful incremental TP, FP=0, no wrong-slot geometry assignments, exact observed member values, exact total evidence, crown-bonus consistency, and unique six-member interpretation.
 
 Important limitation: this pass uses expected values as diagnostic targets for bbox span discovery. It measures whether exact values already present in OCR geometry can be spatially tied to slots; it does not prove that a production candidate selector can safely choose among all competing numeric evidence.
 
