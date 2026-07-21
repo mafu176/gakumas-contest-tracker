@@ -52,6 +52,11 @@ const currentPcStage3MemberRowDiagnosticsDir = path.join(
   "tmp",
   "current-pc-stage3-member-row-ocr-diagnostics"
 );
+const currentPcStage3SlotGeometryDiagnosticsDir = path.join(
+  rootDir,
+  "tmp",
+  "current-pc-stage3-slot-geometry-diagnostics"
+);
 const currentPcSlotRoiDiagnosticsDir = path.join(
   rootDir,
   "tmp",
@@ -84,6 +89,11 @@ const currentPcStage3MemberRowDiagnosticsReportPath = path.join(
   rootDir,
   "docs",
   "current-pc-stage3-member-row-ocr-diagnostics.md"
+);
+const currentPcStage3SlotGeometryReportPath = path.join(
+  rootDir,
+  "docs",
+  "current-pc-stage3-slot-geometry-investigation.md"
 );
 const currentPcSlotRoiDiagnosticsReportPath = path.join(
   rootDir,
@@ -3108,13 +3118,14 @@ async function terminateAuditGeometryWorker() {
   auditGeometryWorker = null;
 }
 
-function shiftBbox(bbox, zone) {
+function shiftBbox(bbox, zone, scale = 1) {
   if (!bbox) return null;
+  const safeScale = Number(scale) > 0 ? Number(scale) : 1;
   return {
-    x0: Math.round((bbox.x0 || 0) + zone.left),
-    y0: Math.round((bbox.y0 || 0) + zone.top),
-    x1: Math.round((bbox.x1 || 0) + zone.left),
-    y1: Math.round((bbox.y1 || 0) + zone.top),
+    x0: Math.round((bbox.x0 || 0) / safeScale + zone.left),
+    y0: Math.round((bbox.y0 || 0) / safeScale + zone.top),
+    x1: Math.round((bbox.x1 || 0) / safeScale + zone.left),
+    y1: Math.round((bbox.y1 || 0) / safeScale + zone.top),
   };
 }
 
@@ -3209,16 +3220,16 @@ function findNumberSpansInWords(words = [], values = []) {
   return spans;
 }
 
-function extractGeometryTokens(blocks = [], zone) {
+function extractGeometryTokens(blocks = [], zone, scale = 1) {
   const words = traverseGeometryWords(blocks);
   return words.map((word) => {
     const cropBbox = word.bbox || null;
-    const fullBbox = shiftBbox(cropBbox, zone);
+    const fullBbox = shiftBbox(cropBbox, zone, scale);
     const symbols = (word.symbols || []).map((symbol) => ({
       text: symbol.text,
       confidence: symbol.confidence,
       cropBbox: symbol.bbox,
-      fullBbox: shiftBbox(symbol.bbox, zone),
+      fullBbox: shiftBbox(symbol.bbox, zone, scale),
     }));
     return {
       text: word.text,
@@ -3234,6 +3245,7 @@ function extractGeometryTokens(blocks = [], zone) {
 }
 
 async function recognizeOcrZoneWithGeometry(imagePath, zone, options = {}) {
+  const geometryScale = getOcrPresetConfig(options.preset)?.scale || 4;
   const image = await createPreprocessedStageBuffer(imagePath, zone, options);
   const worker = await getAuditGeometryWorker();
   const result = await worker.recognize(
@@ -3257,13 +3269,14 @@ async function recognizeOcrZoneWithGeometry(imagePath, zone, options = {}) {
   return {
     label: options.label || "zone",
     zone,
+    geometryScale,
     text: result.data.text || "",
     numbers: extractNumbersForZone(result.data.text || ""),
-    tokens: extractGeometryTokens(blocks, zone),
+    tokens: extractGeometryTokens(blocks, zone, geometryScale),
     spans: findNumberSpansInWords(words, targetValues).map((span) => ({
       ...span,
       cropBbox: span.bbox,
-      fullBbox: shiftBbox(span.bbox, zone),
+      fullBbox: shiftBbox(span.bbox, zone, geometryScale),
     })),
     tsv: result.data.tsv || "",
     hocr: result.data.hocr || "",
@@ -7974,6 +7987,557 @@ async function writeCurrentPcStage3MemberRowDiagnosticsArtifacts(analysis = []) 
     outputDir: path.relative(rootDir, currentPcStage3MemberRowDiagnosticsDir).replaceAll("\\", "/"),
     summaryPath: path.relative(rootDir, summaryPath).replaceAll("\\", "/"),
   };
+}
+
+function findCurrentPcStage3SlotGeometryRows(analysis = []) {
+  const rows = [];
+  for (const item of analysis.filter((entry) => entry.expected)) {
+    const stage = 3;
+    const stageKey = `stage${stage}`;
+    for (const side of sides) {
+      const sideAnalysis = item.stages?.[stageKey]?.[side];
+      const expectedStage = item.expectedData?.[stageKey];
+      if (!sideAnalysis || !expectedStage) continue;
+      const { expectedMembers, expectedBonus, expectedTotal } =
+        currentPcExpectedStageSideValues(item, stage, side);
+      const { selectedMembers, selectedBonus, selectedTotal, selectedMemberSum } =
+        currentPcSelectedStageSideValues(sideAnalysis);
+      const memberMatches = expectedMembers.map((expected, index) => ({
+        role: `member${index + 1}`,
+        expected,
+        actual: selectedMembers[index] || 0,
+        pass: Math.abs((selectedMembers[index] || 0) - expected) <= 1,
+      }));
+      rows.push({
+        image: item.fileName,
+        absolutePath: item.absolutePath,
+        pass: item.pass,
+        stage,
+        side,
+        expectedMembers,
+        expectedBonus,
+        expectedTotal,
+        selectedMembers,
+        selectedBonus,
+        selectedTotal,
+        selectedMemberSum,
+        memberMatches,
+        rawCandidates: uniqueNumbers(sideAnalysis.rawCandidates || []),
+        bonusCandidates: uniqueNumbers(sideAnalysis.bonusCandidates || []),
+        displayedTotalCandidates: uniqueNumbers(sideAnalysis.displayedTotalCandidates || []),
+        currentPcGroupedRawTokenRecovery: sideAnalysis.currentPcGroupedRawTokenRecovery || null,
+        currentPcStage3SevenDigitBonusDisplacementRecovery:
+          sideAnalysis.currentPcStage3SevenDigitBonusDisplacementRecovery || null,
+        currentPcCrownBonusRuleRecovery: sideAnalysis.currentPcCrownBonusRuleRecovery || null,
+        currentPcStageWideSixMemberCandidateSolverRecovery:
+          sideAnalysis.currentPcStageWideSixMemberCandidateSolverRecovery || null,
+      });
+    }
+  }
+  return rows;
+}
+
+function currentPcStage3SlotGeometryVariantZones(image, memberZone) {
+  const interesting = new Set([
+    "current-member-row-roi",
+    "wider-member-row-roi",
+    "taller-member-row-roi",
+    "member1-slot",
+    "member2-slot",
+    "member3-slot",
+  ]);
+  return currentPcStage3MemberRowDiagnosticVariantZones(image, memberZone).filter((variant) =>
+    interesting.has(variant.label)
+  );
+}
+
+function rectFromBbox(bbox) {
+  if (!bbox) return null;
+  const left = Number(bbox.left ?? bbox.x0 ?? bbox.x ?? 0);
+  const top = Number(bbox.top ?? bbox.y0 ?? bbox.y ?? 0);
+  const right = Number(bbox.right ?? bbox.x1 ?? left + Number(bbox.width || 0));
+  const bottom = Number(bbox.bottom ?? bbox.y1 ?? top + Number(bbox.height || 0));
+  const width = Math.max(0, right - left);
+  const height = Math.max(0, bottom - top);
+  if (width <= 0 || height <= 0) return null;
+  return {
+    left,
+    top,
+    right,
+    bottom,
+    width,
+    height,
+    centerX: left + width / 2,
+    centerY: top + height / 2,
+    area: width * height,
+  };
+}
+
+function rectIntersectionArea(a, b) {
+  if (!a || !b) return 0;
+  const left = Math.max(a.left, b.left);
+  const top = Math.max(a.top, b.top);
+  const right = Math.min(a.right, b.right);
+  const bottom = Math.min(a.bottom, b.bottom);
+  return Math.max(0, right - left) * Math.max(0, bottom - top);
+}
+
+function slotRectFromZone(slot, index) {
+  const left = Number(slot.left || 0);
+  const top = Number(slot.top || 0);
+  const width = Number(slot.width || 0);
+  const height = Number(slot.height || 0);
+  return {
+    slot: `member${index + 1}`,
+    slotIndex: index,
+    left,
+    top,
+    right: left + width,
+    bottom: top + height,
+    width,
+    height,
+    centerX: left + width / 2,
+    centerY: top + height / 2,
+    area: width * height,
+  };
+}
+
+function currentPcTokenSlotMetrics(bbox, slotRects) {
+  const rect = rectFromBbox(bbox);
+  if (!rect) {
+    return {
+      bbox: null,
+      overlaps: [],
+      centerInsideSlots: [],
+      nearestSlot: null,
+      maxOverlapSlot: null,
+      overlap50Slot: null,
+      overlap70Slot: null,
+      consensusSlot: null,
+      multiSlotOverlap: false,
+    };
+  }
+  const overlaps = slotRects.map((slot) => {
+    const pixels = rectIntersectionArea(rect, slot);
+    return {
+      slot: slot.slot,
+      slotIndex: slot.slotIndex,
+      pixels,
+      tokenOverlapPct: rect.area > 0 ? pixels / rect.area : 0,
+      slotOverlapPct: slot.area > 0 ? pixels / slot.area : 0,
+      centerDistanceX: Math.abs(rect.centerX - slot.centerX),
+    };
+  });
+  const centerInsideSlots = slotRects
+    .filter(
+      (slot) =>
+        rect.centerX >= slot.left &&
+        rect.centerX <= slot.right &&
+        rect.centerY >= slot.top &&
+        rect.centerY <= slot.bottom
+    )
+    .map((slot) => slot.slot);
+  const nearestSlot =
+    [...overlaps].sort((a, b) => a.centerDistanceX - b.centerDistanceX)[0]?.slot || null;
+  const positiveOverlaps = overlaps.filter((entry) => entry.pixels > 0);
+  const maxPixels = Math.max(0, ...positiveOverlaps.map((entry) => entry.pixels));
+  const maxOverlapMatches = positiveOverlaps.filter((entry) => entry.pixels === maxPixels);
+  const maxOverlapSlot = maxOverlapMatches.length === 1 ? maxOverlapMatches[0].slot : null;
+  const overlap50Matches = overlaps.filter((entry) => entry.tokenOverlapPct >= 0.5);
+  const overlap70Matches = overlaps.filter((entry) => entry.tokenOverlapPct >= 0.7);
+  const centerSlot = centerInsideSlots.length === 1 ? centerInsideSlots[0] : null;
+  return {
+    bbox: rect,
+    overlaps,
+    centerInsideSlots,
+    nearestSlot,
+    maxOverlapSlot,
+    overlap50Slot: overlap50Matches.length === 1 ? overlap50Matches[0].slot : null,
+    overlap70Slot: overlap70Matches.length === 1 ? overlap70Matches[0].slot : null,
+    consensusSlot: centerSlot && maxOverlapSlot === centerSlot ? centerSlot : null,
+    multiSlotOverlap: positiveOverlaps.length > 1,
+  };
+}
+
+function currentPcSlotAssignmentResult(slot, expectedSlot) {
+  if (!slot) return "ambiguous";
+  return slot === expectedSlot ? "correct" : "wrong";
+}
+
+function currentPcGeometryObservationAssignments(metrics, expectedSlot) {
+  const centerSlot =
+    metrics.centerInsideSlots?.length === 1 ? metrics.centerInsideSlots[0] : null;
+  return {
+    centerInsideSlot: currentPcSlotAssignmentResult(centerSlot, expectedSlot),
+    nearestCenter: currentPcSlotAssignmentResult(metrics.nearestSlot, expectedSlot),
+    maxOverlap: currentPcSlotAssignmentResult(metrics.maxOverlapSlot, expectedSlot),
+    overlap50: currentPcSlotAssignmentResult(metrics.overlap50Slot, expectedSlot),
+    overlap70: currentPcSlotAssignmentResult(metrics.overlap70Slot, expectedSlot),
+    centerOverlapConsensus: currentPcSlotAssignmentResult(metrics.consensusSlot, expectedSlot),
+  };
+}
+
+function currentPcSummarizeGeometryMember(row, expectedSlot, expectedValue, observations) {
+  const withGeometry = observations.filter((entry) => entry.metrics?.bbox);
+  const strategies = [
+    "centerInsideSlot",
+    "nearestCenter",
+    "maxOverlap",
+    "overlap50",
+    "overlap70",
+    "centerOverlapConsensus",
+  ];
+  const strategyStatus = Object.fromEntries(
+    strategies.map((strategy) => {
+      const assigned = withGeometry
+        .map((entry) => entry.assignments?.[strategy])
+        .filter(Boolean);
+      if (assigned.includes("wrong")) return [strategy, "wrong"];
+      if (assigned.includes("correct")) return [strategy, "correct"];
+      return [strategy, withGeometry.length > 0 ? "ambiguous" : "absent"];
+    })
+  );
+  const concatenated = observations.some((entry) => entry.concatRun);
+  const overlappingCropOnly =
+    observations.length > 0 &&
+    observations.every((entry) => entry.sourceZoneKind === "slot" || entry.metrics?.multiSlotOverlap);
+  return {
+    role: expectedSlot,
+    expected: expectedValue,
+    selected: row.selectedMembers[Number(expectedSlot.replace("member", "")) - 1] || 0,
+    exactValueFound: observations.length > 0,
+    exactValueFoundWithGeometry: withGeometry.length > 0,
+    foundOnlyInOverlappingSlotCrops: overlappingCropOnly,
+    foundInConcatenatedRun: concatenated,
+    ambiguousBetweenSlots: withGeometry.some((entry) => entry.metrics?.multiSlotOverlap),
+    observations: observations.map((entry) => ({
+      source: entry.source,
+      sourceZoneKind: entry.sourceZoneKind,
+      text: entry.text,
+      value: entry.value,
+      bbox: entry.metrics?.bbox || null,
+      centerInsideSlots: entry.metrics?.centerInsideSlots || [],
+      nearestSlot: entry.metrics?.nearestSlot || null,
+      maxOverlapSlot: entry.metrics?.maxOverlapSlot || null,
+      overlap50Slot: entry.metrics?.overlap50Slot || null,
+      overlap70Slot: entry.metrics?.overlap70Slot || null,
+      consensusSlot: entry.metrics?.consensusSlot || null,
+      multiSlotOverlap: Boolean(entry.metrics?.multiSlotOverlap),
+      overlaps: entry.metrics?.overlaps || [],
+      assignments: entry.assignments || {},
+      concatRun: Boolean(entry.concatRun),
+    })),
+    strategyStatus,
+  };
+}
+
+function currentPcGeometryStrategyCounts(memberSummaries) {
+  const strategies = [
+    "centerInsideSlot",
+    "nearestCenter",
+    "maxOverlap",
+    "overlap50",
+    "overlap70",
+    "centerOverlapConsensus",
+  ];
+  const counts = Object.fromEntries(
+    strategies.map((strategy) => [
+      strategy,
+      { correct: 0, wrong: 0, ambiguous: 0, absent: 0 },
+    ])
+  );
+  for (const member of memberSummaries) {
+    for (const strategy of strategies) {
+      const status = member.strategyStatus?.[strategy] || "absent";
+      counts[strategy][status] += 1;
+    }
+  }
+  return counts;
+}
+
+async function writeCurrentPcStage3SlotGeometryDiagnosticsArtifacts(analysis = []) {
+  const rows = findCurrentPcStage3SlotGeometryRows(analysis);
+  await fs.rm(currentPcStage3SlotGeometryDiagnosticsDir, { recursive: true, force: true });
+  await fs.mkdir(currentPcStage3SlotGeometryDiagnosticsDir, { recursive: true });
+  const artifacts = [];
+
+  for (const row of rows) {
+    const image = await readImageSize(row.absolutePath);
+    const fixed = getFixedOcrZones(image, row.stage, "current-pc");
+    const memberZone = row.side === "self" ? fixed.selfMembers : fixed.enemyMembers;
+    const slotRects = currentPcStage3MemberRowDiagnosticVariantZones(image, memberZone)
+      .filter((variant) => variant.zoneKind === "slot")
+      .map((variant, index) => slotRectFromZone(clampZoneToImage(variant.zone, image), index));
+    const outDir = path.join(
+      currentPcStage3SlotGeometryDiagnosticsDir,
+      safeArtifactName(`${row.image}-stage${row.stage}-${row.side}`)
+    );
+    await fs.mkdir(outDir, { recursive: true });
+
+    const variants = [];
+    for (const variant of currentPcStage3SlotGeometryVariantZones(image, memberZone)) {
+      const clamped = clampZoneToImage(variant.zone, image);
+      const crop = await saveCurrentPcZoneArtifacts(
+        row.absolutePath,
+        image,
+        outDir,
+        variant.label,
+        clamped,
+        { preset: variant.preset }
+      );
+      const ocr = await recognizeOcrZoneWithGeometry(row.absolutePath, clamped, {
+        preset: variant.preset || undefined,
+        pageSegMode: variant.pageSegMode,
+        charWhitelist: "0123456789,+＋. ",
+        label: variant.label,
+        targetValues: row.expectedMembers,
+      });
+      const tokens = (ocr.tokens || []).map((token) => {
+        const metrics = currentPcTokenSlotMetrics(token.fullBbox, slotRects);
+        return {
+          text: token.text,
+          confidence: token.confidence,
+          numbers: token.numbers || [],
+          cropBbox: token.cropBbox || null,
+          fullBbox: token.fullBbox || null,
+          metrics,
+          concatRun: (token.numbers || []).length > 1,
+        };
+      });
+      const spans = (ocr.spans || []).map((span) => {
+        const metrics = currentPcTokenSlotMetrics(span.fullBbox, slotRects);
+        const roleIndex = row.expectedMembers.findIndex((value) => value === span.value);
+        const expectedSlot = roleIndex >= 0 ? `member${roleIndex + 1}` : null;
+        return {
+          value: span.value,
+          text: span.sourceWord || span.digitText || "",
+          sourceWord: span.sourceWord || "",
+          cropBbox: span.cropBbox || null,
+          fullBbox: span.fullBbox || null,
+          metrics,
+          expectedSlot,
+          assignments: expectedSlot
+            ? currentPcGeometryObservationAssignments(metrics, expectedSlot)
+            : {},
+          concatRun: (extractNumbersForZone(span.sourceWord || "") || []).length > 1,
+        };
+      });
+      const concatenatedRuns = tokens
+        .filter((token) => token.concatRun || token.metrics?.multiSlotOverlap)
+        .map((token) => ({
+          text: token.text,
+          numbers: token.numbers || [],
+          fullBbox: token.fullBbox || null,
+          spansMultipleSlots: Boolean(token.metrics?.multiSlotOverlap),
+          centerInsideSlots: token.metrics?.centerInsideSlots || [],
+          deterministicSplittingPossible:
+            (token.numbers || []).length > 1 && (token.symbols || []).length > 0
+              ? "unknown"
+              : false,
+        }));
+      variants.push({
+        label: variant.label,
+        zoneKind: variant.zoneKind,
+        zone: clamped,
+        crop,
+        text: ocr.text || "",
+        numbers: ocr.numbers || [],
+        tokens,
+        spans,
+        concatenatedRuns,
+        tsvAvailable: Boolean(ocr.tsv),
+        hocrAvailable: Boolean(ocr.hocr),
+      });
+    }
+
+    const memberSummaries = row.expectedMembers.map((expectedValue, index) => {
+      const expectedSlot = `member${index + 1}`;
+      const observations = variants.flatMap((variant) =>
+        (variant.spans || [])
+          .filter((span) => span.value === expectedValue)
+          .map((span) => ({
+            source: variant.label,
+            sourceZoneKind: variant.zoneKind,
+            text: span.text,
+            value: span.value,
+            metrics: span.metrics,
+            assignments: span.assignments,
+            concatRun: span.concatRun,
+          }))
+      );
+      return currentPcSummarizeGeometryMember(row, expectedSlot, expectedValue, observations);
+    });
+    const strategyCounts = currentPcGeometryStrategyCounts(memberSummaries);
+    const deterministicRecoveredMembers = memberSummaries.filter(
+      (member) =>
+        Math.abs((Number(member.selected) || 0) - member.expected) > 1 &&
+        member.strategyStatus?.centerOverlapConsensus === "correct"
+    );
+    const completeMemberEvidenceByConsensus = memberSummaries.every(
+      (member) => member.strategyStatus?.centerOverlapConsensus === "correct"
+    );
+    const wrongSlotStrategies = Object.fromEntries(
+      Object.entries(strategyCounts).map(([strategy, counts]) => [strategy, counts.wrong])
+    );
+    const artifact = {
+      ...row,
+      imageSize: image,
+      memberRowZone: clampZoneToImage(memberZone, image),
+      slotGeometry: slotRects,
+      variants,
+      memberSummaries,
+      strategyCounts,
+      deterministicRecoveredMembers,
+      completeMemberEvidenceByConsensus,
+      wrongSlotStrategies,
+      bboxAvailable:
+        variants.some((variant) => (variant.tokens || []).some((token) => token.fullBbox)) ||
+        variants.some((variant) => (variant.spans || []).some((span) => span.fullBbox)),
+    };
+    const jsonPath = path.join(outDir, "stage3-slot-geometry-diagnostics.json");
+    await fs.writeFile(jsonPath, JSON.stringify(artifact, null, 2));
+    artifacts.push({
+      ...artifact,
+      artifact: path.relative(rootDir, jsonPath).replaceAll("\\", "/"),
+    });
+  }
+
+  const summaryPath = path.join(currentPcStage3SlotGeometryDiagnosticsDir, "summary.json");
+  await fs.writeFile(summaryPath, JSON.stringify(artifacts, null, 2));
+  return {
+    rows: artifacts,
+    outputDir: path
+      .relative(rootDir, currentPcStage3SlotGeometryDiagnosticsDir)
+      .replaceAll("\\", "/"),
+    summaryPath: path.relative(rootDir, summaryPath).replaceAll("\\", "/"),
+  };
+}
+
+function buildCurrentPcStage3SlotGeometryDiagnosticsReport(diagnostics) {
+  const rows = diagnostics?.rows || [];
+  const memberSummaries = rows.flatMap((row) =>
+    (row.memberSummaries || []).map((member) => ({ ...member, row }))
+  );
+  const exactFound = memberSummaries.filter((member) => member.exactValueFound).length;
+  const exactWithGeometry = memberSummaries.filter(
+    (member) => member.exactValueFoundWithGeometry
+  ).length;
+  const deterministicRecovered = rows.reduce(
+    (sum, row) => sum + (row.deterministicRecoveredMembers || []).length,
+    0
+  );
+  const stage3SelfComplete = rows.filter(
+    (row) => row.side === "self" && row.completeMemberEvidenceByConsensus
+  ).length;
+  const strategyTotals = currentPcGeometryStrategyCounts(memberSummaries);
+  const concatRunRows = rows.filter((row) =>
+    (row.variants || []).some((variant) => (variant.concatenatedRuns || []).length > 0)
+  );
+  const rowLimit = 80;
+  const lines = [
+    "# Current-PC Stage3 Slot Geometry Investigation",
+    "",
+    "This runner-only diagnostic pass measures whether OCR token bounding boxes can assign Stage3 member values to `member1` / `member2` / `member3` deterministically. It writes artifacts under `tmp/` and does not change final OCR output.",
+    "",
+    "## Summary",
+    "",
+    `- output: \`${diagnostics?.outputDir || "tmp/current-pc-stage3-slot-geometry-diagnostics"}\``,
+    diagnostics?.sourceSummary
+      ? `- source baseline summary: \`${diagnostics.sourceSummary}\``
+      : "- source baseline summary: freshly generated current-PC baseline",
+    `- Stage3 side rows inspected: ${rows.length}`,
+    `- expected member values inspected: ${memberSummaries.length}`,
+    `- exact expected values found by diagnostic OCR: ${exactFound} / ${memberSummaries.length}`,
+    `- exact expected values found with bbox geometry: ${exactWithGeometry} / ${memberSummaries.length}`,
+    `- deterministic missing-member recoveries by center+overlap consensus: ${deterministicRecovered}`,
+    `- Stage3 self rows with all three expected members visible by center+overlap consensus: ${stage3SelfComplete}`,
+    `- rows with concatenated or multi-slot OCR runs: ${concatRunRows.length}`,
+    "",
+    "## BBox Availability",
+    "",
+    rows.some((row) => row.bboxAvailable)
+      ? "Tesseract word/symbol geometry is available through the existing runner worker API (`blocks`/`hocr`/`tsv`) and is preserved only in these diagnostics."
+      : "No usable bbox geometry was returned in this run.",
+    "",
+    "## Strategy Comparison",
+    "",
+    "| Strategy | Correct | Wrong slot | Ambiguous | Absent |",
+    "| --- | ---: | ---: | ---: | ---: |",
+  ];
+  for (const [strategy, counts] of Object.entries(strategyTotals)) {
+    lines.push(
+      `| ${strategy} | ${counts.correct} | ${counts.wrong} | ${counts.ambiguous} | ${counts.absent} |`
+    );
+  }
+  lines.push(
+    "",
+    "Primary safety criterion is zero wrong-slot assignments. Strategies with wrong-slot assignments remain diagnostics-only even when they recover exact values.",
+    "",
+    "## Commands",
+    "",
+    "- Full baseline plus geometry: `node scripts/ocr-test-images.mjs --current-pc-baseline --current-pc-stage3-slot-geometry-diagnostics`",
+    "- Geometry-only from existing baseline artifacts: `node scripts/ocr-test-images.mjs --current-pc-stage3-slot-geometry-from-baseline`",
+    "",
+    "The second command is diagnostics-only and reuses `tmp/current-pc-ocr-baseline/summary.json`; it does not rerun final OCR extraction.",
+    "",
+    "## Slot ROI Geometry",
+    "",
+    "| Image | Side | Member row ROI | Slot ROIs |",
+    "| --- | --- | --- | --- |"
+  );
+  for (const row of rows.slice(0, 10)) {
+    const slots = (row.slotGeometry || [])
+      .map((slot) => `${slot.slot}: x=${Math.round(slot.left)},w=${Math.round(slot.width)}`)
+      .join("<br>");
+    const roi = row.memberRowZone
+      ? `x=${row.memberRowZone.left}, y=${row.memberRowZone.top}, w=${row.memberRowZone.width}, h=${row.memberRowZone.height}`
+      : "-";
+    lines.push(`| ${row.image} | ${row.side} | ${roi} | ${slots} |`);
+  }
+  lines.push(
+    "",
+    "## Per-Row Highlights",
+    "",
+    "| Image | Side | Selected members | Expected members | Consensus exact members | Missing recovered by consensus | Wrong-slot strategies | Artifact |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- |"
+  );
+  for (const row of rows.slice(0, rowLimit)) {
+    const consensus = (row.memberSummaries || [])
+      .filter((member) => member.strategyStatus?.centerOverlapConsensus === "correct")
+      .map((member) => `${member.role}=${formatNumber(member.expected)}`)
+      .join("<br>");
+    const recovered = (row.deterministicRecoveredMembers || [])
+      .map((member) => `${member.role}=${formatNumber(member.expected)}`)
+      .join("<br>");
+    const wrong = Object.entries(row.wrongSlotStrategies || {})
+      .filter(([, count]) => count > 0)
+      .map(([strategy, count]) => `${strategy}:${count}`)
+      .join("<br>");
+    lines.push(
+      `| ${row.image} | ${row.side} | ${formatDebugNumbers(row.selectedMembers)} | ${formatDebugNumbers(row.expectedMembers)} | ${consensus || "-"} | ${recovered || "-"} | ${wrong || "0"} | ${row.artifact} |`
+    );
+  }
+  if (rows.length > rowLimit) {
+    lines.push(`| ... | ... | ... | ... | ... | ... | ... | ${rows.length - rowLimit} additional rows omitted from the markdown table; see summary JSON. |`);
+  }
+  lines.push(
+    "",
+    "## Concatenated Runs",
+    "",
+    `Rows with concatenated or multi-slot runs: ${concatRunRows.length}. These are not split or recovered. The JSON artifacts preserve raw text, full bbox, parsed numeric fragments, and whether the run spans multiple slots so a future design can tell geometry-backed evidence from guesswork.`,
+    "",
+    "## Simulation Decision",
+    "",
+    "No production recovery or runner-only recovery simulation is added by this pass. A future `currentPcStage3GeometrySlotEvidenceSimulation` should only be attempted if a geometry policy shows at least two true incremental positives beyond current production, zero wrong-slot assignments, exact observed member values, exact total evidence, crown-bonus consistency, and unique six-member interpretation.",
+    "",
+    "Important limitation: this pass uses expected values as diagnostic targets for bbox span discovery. It measures whether exact values already present in OCR geometry can be spatially tied to slots; it does not prove that a production candidate selector can safely choose among all competing numeric evidence.",
+    "",
+    "## Recommendation",
+    "",
+    "Continue with diagnostics and browser-equivalent evidence comparison before productionization. Geometry can make slot provenance more explicit, but it must first prove zero wrong-slot assignments across the full current-PC fixture set and avoid concatenated/noisy multi-slot runs.",
+    ""
+  );
+  return lines.join("\n");
 }
 
 function buildCurrentPcStage3MemberRowDiagnosticsReport(diagnostics) {
@@ -14594,6 +15158,12 @@ async function main() {
   const currentPcStage3MemberRowDiagnostics = args.includes(
     "--current-pc-stage3-member-row-diagnostics"
   );
+  const currentPcStage3SlotGeometryDiagnostics = args.includes(
+    "--current-pc-stage3-slot-geometry-diagnostics"
+  );
+  const currentPcStage3SlotGeometryFromBaseline = args.includes(
+    "--current-pc-stage3-slot-geometry-from-baseline"
+  );
   const currentPcStageWideVariantSolver = args.includes(
     "--current-pc-stage-wide-variant-solver"
   );
@@ -14626,6 +15196,8 @@ async function main() {
       value !== "--current-pc-baseline" &&
       value !== "--current-pc-bonus-diagnostics" &&
       value !== "--current-pc-stage3-member-row-diagnostics" &&
+      value !== "--current-pc-stage3-slot-geometry-diagnostics" &&
+      value !== "--current-pc-stage3-slot-geometry-from-baseline" &&
       value !== "--current-pc-stage-wide-variant-solver" &&
       value !== "--current-pc-stage-wide-slot-proven-variant-solver" &&
       value !== "--current-pc-slot-roi-diagnostics" &&
@@ -14646,6 +15218,39 @@ async function main() {
         .replace(/^\.?\/*test-images\//i, "")
         .toLowerCase()
     );
+  if (currentPcStage3SlotGeometryFromBaseline) {
+    const summaryPath = path.join(currentPcBaselineDir, "summary.json");
+    const analysis = JSON.parse(await fs.readFile(summaryPath, "utf8")).filter((item) => {
+      if (filters.length === 0) return true;
+      const base = String(item.fileName || "").toLowerCase();
+      return filters.some((filter) => base.includes(filter));
+    });
+    const artifacts = await writeCurrentPcStage3SlotGeometryDiagnosticsArtifacts(
+      analysis.filter((item) => item.expected)
+    );
+    artifacts.sourceSummary = path.relative(rootDir, summaryPath).replaceAll("\\", "/");
+    await fs.writeFile(
+      currentPcStage3SlotGeometryReportPath,
+      buildCurrentPcStage3SlotGeometryDiagnosticsReport(artifacts)
+    );
+    await terminateAuditGeometryWorker();
+    console.log(
+      JSON.stringify(
+        {
+          currentPcStage3SlotGeometryDiagnostics: {
+            source: path.relative(rootDir, summaryPath).replaceAll("\\", "/"),
+            report: path.relative(rootDir, currentPcStage3SlotGeometryReportPath).replaceAll("\\", "/"),
+            outputDir: artifacts.outputDir,
+            summary: artifacts.summaryPath,
+            rows: artifacts.rows.length,
+          },
+        },
+        null,
+        2
+      )
+    );
+    return;
+  }
   const imagePaths = currentPcBaseline
     ? (await collectCurrentPcBaselineImages())
         .filter((imagePath) => {
@@ -14752,6 +15357,12 @@ async function main() {
       currentPcStageWideVariantSolver ||
       currentPcStageWideSlotProvenVariantSolver)
       ? await writeCurrentPcStage3MemberRowDiagnosticsArtifacts(
+          currentPcBaselineArtifacts.analysis.filter((item) => item.expected)
+        )
+      : null;
+  const currentPcStage3SlotGeometryDiagnosticsArtifacts =
+    currentPcBaselineArtifacts && currentPcStage3SlotGeometryDiagnostics
+      ? await writeCurrentPcStage3SlotGeometryDiagnosticsArtifacts(
           currentPcBaselineArtifacts.analysis.filter((item) => item.expected)
         )
       : null;
@@ -14962,11 +15573,22 @@ async function main() {
         )
       );
     }
+    if (currentPcStage3SlotGeometryDiagnosticsArtifacts) {
+      await fs.writeFile(
+        currentPcStage3SlotGeometryReportPath,
+        buildCurrentPcStage3SlotGeometryDiagnosticsReport(
+          currentPcStage3SlotGeometryDiagnosticsArtifacts
+        )
+      );
+    }
     if (currentPcSlotRoiDiagnosticsArtifacts) {
       await fs.writeFile(
         currentPcSlotRoiDiagnosticsReportPath,
         buildCurrentPcSlotRoiDiagnosticsReport(currentPcSlotRoiDiagnosticsArtifacts)
       );
+    }
+    if (currentPcStage3SlotGeometryDiagnosticsArtifacts) {
+      await terminateAuditGeometryWorker();
     }
   }
 
@@ -15098,6 +15720,13 @@ async function main() {
                     report: path.relative(rootDir, currentPcStage3MemberRowDiagnosticsReportPath).replaceAll("\\", "/"),
                     outputDir: currentPcStage3MemberRowDiagnosticsArtifacts.outputDir,
                     summary: currentPcStage3MemberRowDiagnosticsArtifacts.summaryPath,
+                  }
+                : null,
+              stage3SlotGeometryDiagnostics: currentPcStage3SlotGeometryDiagnosticsArtifacts
+                ? {
+                    report: path.relative(rootDir, currentPcStage3SlotGeometryReportPath).replaceAll("\\", "/"),
+                    outputDir: currentPcStage3SlotGeometryDiagnosticsArtifacts.outputDir,
+                    summary: currentPcStage3SlotGeometryDiagnosticsArtifacts.summaryPath,
                   }
                 : null,
               slotRoiDiagnostics: currentPcSlotRoiDiagnosticsArtifacts
