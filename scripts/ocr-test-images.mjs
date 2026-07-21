@@ -57,6 +57,11 @@ const currentPcStage3SlotGeometryDiagnosticsDir = path.join(
   "tmp",
   "current-pc-stage3-slot-geometry-diagnostics"
 );
+const currentPcStage3MergedRunImageSplitDir = path.join(
+  rootDir,
+  "tmp",
+  "current-pc-stage3-self-merged-run-image-split-experiment"
+);
 const currentPcSlotRoiDiagnosticsDir = path.join(
   rootDir,
   "tmp",
@@ -124,6 +129,11 @@ const currentPcStageWideVariantSolverReportPath = path.join(
   rootDir,
   "docs",
   "current-pc-stage-wide-solver-stage3-variant-evidence.md"
+);
+const currentPcStage3MergedRunImageSplitReportPath = path.join(
+  rootDir,
+  "docs",
+  "current-pc-stage3-self-merged-run-image-split-experiment.md"
 );
 const currentPcExactMembersBonusTotalRecoveryReportPath = path.join(
   rootDir,
@@ -8082,6 +8092,49 @@ function rectIntersectionArea(a, b) {
   return Math.max(0, right - left) * Math.max(0, bottom - top);
 }
 
+function rectIntersection(a, b) {
+  if (!a || !b) return null;
+  const left = Math.max(a.left, b.left);
+  const top = Math.max(a.top, b.top);
+  const right = Math.min(a.right, b.right);
+  const bottom = Math.min(a.bottom, b.bottom);
+  const width = Math.max(0, right - left);
+  const height = Math.max(0, bottom - top);
+  if (width <= 0 || height <= 0) return null;
+  return {
+    left,
+    top,
+    right,
+    bottom,
+    width,
+    height,
+    centerX: left + width / 2,
+    centerY: top + height / 2,
+    area: width * height,
+  };
+}
+
+function zoneFromRect(rect) {
+  return {
+    left: Math.floor(rect.left),
+    top: Math.floor(rect.top),
+    width: Math.max(1, Math.ceil(rect.right) - Math.floor(rect.left)),
+    height: Math.max(1, Math.ceil(rect.bottom) - Math.floor(rect.top)),
+  };
+}
+
+function padZone(zone, image, padX = 0, padY = 0) {
+  return clampZoneToImage(
+    {
+      left: zone.left - padX,
+      top: zone.top - padY,
+      width: zone.width + padX * 2,
+      height: zone.height + padY * 2,
+    },
+    image
+  );
+}
+
 function slotRectFromZone(slot, index) {
   const left = Number(slot.left || 0);
   const top = Number(slot.top || 0);
@@ -8606,6 +8659,671 @@ function buildCurrentPcStage3GeometrySlotEvidenceSimulation(analysis, diagnostic
         ? "runner/browser evidence parity next"
         : "do not productionize",
   };
+}
+
+function currentPcMergedRunTokenDetected(token = {}) {
+  const numbers = uniqueNumbers(token.numbers || []);
+  const digitText = normalizeDigits(token.text || "");
+  const hasMergedNumericShape = numbers.length > 1 || digitText.length >= 10;
+  return (
+    Boolean(token.concatRun) ||
+    hasMergedNumericShape ||
+    (Boolean(token.metrics?.multiSlotOverlap) && hasMergedNumericShape)
+  );
+}
+
+function currentPcMergedRunSplitPreprocessingVariants() {
+  return [
+    { label: "default-psm7", preset: null, pageSegMode: "7" },
+    { label: "score-slot-psm7", preset: "score-slot", pageSegMode: "7" },
+    { label: "crown-bonus-psm7", preset: "crown-bonus", pageSegMode: "7" },
+  ];
+}
+
+function currentPcCleanSplitCandidateValues(numbers = []) {
+  return uniqueNumbers(numbers || []).filter((value) => currentPcStageWideMemberRange(value));
+}
+
+function currentPcStage3SelfMergedRunImageSplitCandidateCorrectness(item, candidate) {
+  const expected = currentPcExpectedStageSide(item, 3, "self");
+  const assignedSlotIndex = Number(candidate.slotIndex);
+  const assignedExpected = Number(expected?.members?.[assignedSlotIndex] || 0);
+  if (assignedExpected === Number(candidate.value || 0)) return "correct-slot";
+  const otherSlotIndex = (expected?.members || []).findIndex(
+    (value, index) => index !== assignedSlotIndex && Number(value || 0) === Number(candidate.value || 0)
+  );
+  if (otherSlotIndex >= 0) return "wrong-slot";
+  return "extra-candidate";
+}
+
+async function writeCurrentPcStage3SelfMergedRunImageSplitArtifacts(analysis = [], geometryDiagnostics = null) {
+  await fs.rm(currentPcStage3MergedRunImageSplitDir, { recursive: true, force: true });
+  await fs.mkdir(currentPcStage3MergedRunImageSplitDir, { recursive: true });
+  const rows = [];
+  const geometryRows = (geometryDiagnostics?.rows || []).filter(
+    (row) => row.stage === 3 && row.side === "self"
+  );
+  const byImage = new Map(analysis.map((item) => [item.fileName, item]));
+  let detectedRuns = 0;
+  let splitCrops = 0;
+  let candidateCount = 0;
+  const rejectedCandidateReasonCounts = new Map();
+  const increment = (map, key) => map.set(key, (map.get(key) || 0) + 1);
+
+  for (const geometryRow of geometryRows) {
+    const item = byImage.get(geometryRow.image);
+    if (!item) continue;
+    const image = await readImageSize(geometryRow.absolutePath);
+    const slotRects = (geometryRow.slotGeometry || []).map((slot, index) => ({
+      ...slotRectFromZone(slot, index),
+      slot: slot.slot || `member${index + 1}`,
+      slotIndex: Number(slot.slotIndex ?? index),
+    }));
+    if (slotRects.length !== 3) continue;
+    const outDir = path.join(
+      currentPcStage3MergedRunImageSplitDir,
+      safeArtifactName(`${geometryRow.image}-stage3-self`)
+    );
+    await fs.mkdir(outDir, { recursive: true });
+    const runs = [];
+    const addedCandidates = [];
+
+    for (const variant of geometryRow.variants || []) {
+      if (variant.zoneKind === "slot") continue;
+      for (const token of variant.tokens || []) {
+        if (!currentPcMergedRunTokenDetected(token)) continue;
+        const tokenRect = rectFromBbox(token.fullBbox);
+        if (!tokenRect) continue;
+        const intersectedSlots = slotRects
+          .map((slot) => {
+            const intersection = rectIntersection(tokenRect, slot);
+            const tokenOverlapPct =
+              tokenRect.area > 0 && intersection ? intersection.area / tokenRect.area : 0;
+            return { slot, intersection, tokenOverlapPct };
+          })
+          .filter(
+            (entry) =>
+              entry.intersection &&
+              entry.intersection.width >= 8 &&
+              entry.intersection.height >= 6 &&
+              entry.tokenOverlapPct >= 0.06
+          );
+        if (intersectedSlots.length < 2) continue;
+
+        detectedRuns += 1;
+        const runIndex = runs.length + 1;
+        const run = {
+          runIndex,
+          sourceVariant: variant.label,
+          sourceZoneKind: variant.zoneKind,
+          text: token.text || "",
+          numbers: token.numbers || [],
+          fullBbox: token.fullBbox || null,
+          slots: [],
+        };
+
+        for (const entry of intersectedSlots) {
+          const baseZone = zoneFromRect(entry.intersection);
+          const padX = Math.max(2, Math.round(baseZone.width * 0.04));
+          const padY = Math.max(2, Math.round(baseZone.height * 0.08));
+          const cropZone = padZone(baseZone, image, padX, padY);
+          const slotRow = {
+            slot: entry.slot.slot,
+            slotIndex: entry.slot.slotIndex,
+            intersection: zoneFromRect(entry.intersection),
+            tokenOverlapPct: Number(entry.tokenOverlapPct.toFixed(4)),
+            cropZone,
+            padding: { x: padX, y: padY },
+            variants: [],
+          };
+
+          for (const preprocess of currentPcMergedRunSplitPreprocessingVariants()) {
+            splitCrops += 1;
+            const label = `run${runIndex}-${entry.slot.slot}-${preprocess.label}`;
+            const crop = await saveCurrentPcZoneArtifacts(
+              geometryRow.absolutePath,
+              image,
+              outDir,
+              label,
+              cropZone,
+              { preset: preprocess.preset }
+            );
+            const ocr = await recognizeOcrZone(geometryRow.absolutePath, cropZone, {
+              preset: preprocess.preset || undefined,
+              pageSegMode: preprocess.pageSegMode,
+              charWhitelist: "0123456789,. ",
+            });
+            const values = currentPcCleanSplitCandidateValues(ocr.numbers || []);
+            const acceptedForSlot = values.length === 1;
+            let rejectedReason = null;
+            if (values.length === 0) rejectedReason = "no-clean-member-range-value";
+            else if (values.length > 1) rejectedReason = "multiple-member-range-values";
+            if (rejectedReason) increment(rejectedCandidateReasonCounts, rejectedReason);
+            const variantRow = {
+              label: preprocess.label,
+              crop,
+              text: ocr.text || "",
+              numbers: ocr.numbers || [],
+              cleanMemberCandidates: values,
+              acceptedForSlot,
+              rejectedReason,
+            };
+            if (acceptedForSlot) {
+              const value = values[0];
+              candidateCount += 1;
+              addedCandidates.push({
+                value,
+                slotIndex: entry.slot.slotIndex,
+                source: "stage3-self-merged-run-image-split",
+                variantLabel: label,
+                zoneKind: "image-split-slot-intersection",
+                token: String(value),
+                text: ocr.text || "",
+                zone: cropZone,
+                slotSpecific: true,
+                rowOrderBased: false,
+                sourceMergedRun: {
+                  text: token.text || "",
+                  numbers: token.numbers || [],
+                  fullBbox: token.fullBbox || null,
+                  sourceVariant: variant.label,
+                },
+                splitCrop: {
+                  intersection: zoneFromRect(entry.intersection),
+                  cropZone,
+                  padding: { x: padX, y: padY },
+                  preprocessing: preprocess.label,
+                  tokenOverlapPct: Number(entry.tokenOverlapPct.toFixed(4)),
+                },
+              });
+            }
+            slotRow.variants.push(variantRow);
+          }
+          run.slots.push(slotRow);
+        }
+        runs.push(run);
+      }
+    }
+
+    const dedupedCandidates = addedCandidates.filter(
+      (candidate, index, all) =>
+        all.findIndex(
+          (other) =>
+            other.value === candidate.value &&
+            other.slotIndex === candidate.slotIndex &&
+            JSON.stringify(other.zone || null) === JSON.stringify(candidate.zone || null)
+        ) === index
+    );
+    const expected = currentPcExpectedStageSide(item, 3, "self");
+    const selected = currentPcSelectedStageSideValues(item.stages?.stage3?.self);
+    const missingOrWrongExpectedMembers = (expected?.members || []).map((value, index) => ({
+      slot: `member${index + 1}`,
+      slotIndex: index,
+      expected: value,
+      selected: selected.selectedMembers[index] || 0,
+      exactSplitCandidates: dedupedCandidates.filter(
+        (candidate) => candidate.slotIndex === index && Number(candidate.value || 0) === Number(value || 0)
+      ),
+    }));
+    const exactMembersRecovered = missingOrWrongExpectedMembers.filter(
+      (entry) =>
+        Math.abs(Number(entry.selected || 0) - Number(entry.expected || 0)) > 1 &&
+        entry.exactSplitCandidates.length > 0
+    );
+    const artifact = {
+      image: geometryRow.image,
+      absolutePath: geometryRow.absolutePath,
+      stage: 3,
+      side: "self",
+      expectedMembers: expected?.members || [],
+      expectedBonus: expected?.bonus || 0,
+      expectedTotal: expected?.total || 0,
+      selectedMembers: selected.selectedMembers,
+      selectedBonus: selected.selectedBonus,
+      selectedTotal: selected.selectedTotal,
+      mergedRunsDetected: runs.length,
+      splitCandidateCount: dedupedCandidates.length,
+      exactMembersRecovered,
+      missingOrWrongExpectedMembers,
+      runs,
+      addedCandidates: dedupedCandidates,
+    };
+    const jsonPath = path.join(outDir, "merged-run-image-split.json");
+    await fs.writeFile(jsonPath, JSON.stringify(artifact, null, 2));
+    rows.push({
+      ...artifact,
+      artifact: path.relative(rootDir, jsonPath).replaceAll("\\", "/"),
+    });
+  }
+
+  const summaryPath = path.join(currentPcStage3MergedRunImageSplitDir, "summary.json");
+  const summary = {
+    rows,
+    stats: {
+      rowsEvaluated: rows.length,
+      rowsWithDetectedMergedRuns: rows.filter((row) => row.mergedRunsDetected > 0).length,
+      detectedRuns,
+      splitCrops,
+      candidateCount,
+      rejectedCandidateReasonCounts: Object.fromEntries(
+        [...rejectedCandidateReasonCounts.entries()].sort((a, b) => b[1] - a[1])
+      ),
+    },
+    outputDir: path.relative(rootDir, currentPcStage3MergedRunImageSplitDir).replaceAll("\\", "/"),
+    summaryPath: path.relative(rootDir, summaryPath).replaceAll("\\", "/"),
+  };
+  await fs.writeFile(summaryPath, JSON.stringify(summary, null, 2));
+  return summary;
+}
+
+function buildCurrentPcStage3SelfMergedRunImageSplitEvidenceMap(splitArtifacts = null) {
+  const map = new Map();
+  for (const row of splitArtifacts?.rows || []) {
+    const key = `${row.image}|${row.stage}|${row.side}`;
+    map.set(
+      key,
+      (row.addedCandidates || []).map((candidate) => ({
+        ...candidate,
+        source: candidate.source || "stage3-self-merged-run-image-split",
+      }))
+    );
+  }
+  return map;
+}
+
+function buildCurrentPcStage3SelfMergedRunImageSplitSimulation(analysis, splitArtifacts) {
+  const splitEvidenceMap = buildCurrentPcStage3SelfMergedRunImageSplitEvidenceMap(splitArtifacts);
+  const rows = [];
+  const accepted = [];
+  const falsePositiveRows = [];
+  const blockedRows = [];
+  const stageSimulations = [];
+  const candidateCorrectnessCounts = new Map();
+  const rejectedReasonBreakdown = new Map();
+  const overlap = {
+    existingStageWide: 0,
+    groupedRaw: 0,
+    stage3SevenDigit: 0,
+    crownBonus: 0,
+    exactMembersBonusTotal: 0,
+  };
+  let truePositives = 0;
+  let falsePositives = 0;
+  let falseNegatives = 0;
+  let blocked = 0;
+  let failingStages = 0;
+  let acceptedStageSideCorrections = 0;
+  let trueIncrementalTp = 0;
+  let stage3SelfIncrementalTp = 0;
+  let wrongSlotAssignments = 0;
+  let extraCandidateInsertions = 0;
+  const completeStage3SelfMemberEvidenceRows = [];
+  const increment = (map, key) => map.set(key, (map.get(key) || 0) + 1);
+
+  for (const item of analysis.filter((entry) => entry.expected)) {
+    for (const stage of [3]) {
+      const stageHasFailure = sides.some((side) => hasCurrentPcSideFailure(item, stage, side));
+      if (stageHasFailure) failingStages += 1;
+      const baseSimulation = buildCurrentPcStageWideSixMemberCandidateSolverStage(item, stage);
+      const simulation = buildCurrentPcStageWideVariantSimulationFromPools({
+        item,
+        stage,
+        baseSimulation,
+        variantEvidenceMap: splitEvidenceMap,
+        comparisonTolerance: 0,
+        policyName: "currentPcStage3SelfMergedRunImageSplitSimulation",
+      });
+      const splitCandidates = (simulation.variantEvidence?.addedCandidates || []).filter(
+        (candidate) => candidate.source === "stage3-self-merged-run-image-split"
+      );
+      for (const candidate of splitCandidates) {
+        const correctness = currentPcStage3SelfMergedRunImageSplitCandidateCorrectness(
+          item,
+          candidate
+        );
+        increment(candidateCorrectnessCounts, correctness);
+        if (correctness === "wrong-slot") wrongSlotAssignments += 1;
+        if (correctness === "extra-candidate") extraCandidateInsertions += 1;
+      }
+      const beforeMissingSelf = (baseSimulation.evidence?.expectedPresence?.missing || []).filter(
+        (missing) => String(missing).startsWith("self.")
+      );
+      const afterMissingSelf = (simulation.evidence?.expectedPresence?.missing || []).filter(
+        (missing) => String(missing).startsWith("self.")
+      );
+      if (
+        hasCurrentPcSideFailure(item, 3, "self") &&
+        beforeMissingSelf.length > 0 &&
+        afterMissingSelf.length === 0 &&
+        splitCandidates.length > 0
+      ) {
+        completeStage3SelfMemberEvidenceRows.push({
+          screenshot: item.fileName,
+          beforeMissingSelf,
+          splitCandidateCount: splitCandidates.length,
+        });
+      }
+      stageSimulations.push({ screenshot: item.fileName, stage, simulation });
+      const matchesExpected = currentPcStageWideStageMatchesExpected(
+        simulation.proposed,
+        item,
+        stage,
+        0
+      );
+      const targetEvidenceReady =
+        stageHasFailure &&
+        simulation.evidence?.expectedPresence?.present &&
+        (simulation.evidence?.expectedTotalEvidence?.self || []).length > 0 &&
+        (simulation.evidence?.expectedTotalEvidence?.enemy || []).length > 0;
+      let classification = "correctly-blocked-negative";
+      if (simulation.wouldApply && matchesExpected) {
+        truePositives += 1;
+        classification = "true-positive";
+      } else if (simulation.wouldApply && !matchesExpected) {
+        falsePositives += 1;
+        classification = "false-positive";
+      } else if (!simulation.wouldApply && targetEvidenceReady) {
+        falseNegatives += 1;
+        classification = "false-negative";
+      } else if (stageHasFailure) {
+        blocked += 1;
+        classification = "blocked";
+      }
+
+      if (classification === "true-positive") {
+        const changedSides = sides.filter((side) => simulation.sideWouldChange?.[side]);
+        acceptedStageSideCorrections += changedSides.length;
+        const existingStageWide = Boolean(baseSimulation.wouldApply);
+        if (!existingStageWide) trueIncrementalTp += 1;
+        if (!existingStageWide && simulation.sideWouldChange?.self) stage3SelfIncrementalTp += 1;
+        for (const side of sides) {
+          const sideAnalysis = item.stages?.stage3?.[side];
+          if (sideAnalysis?.currentPcGroupedRawTokenRecovery?.applied) overlap.groupedRaw += 1;
+          if (sideAnalysis?.currentPcStage3SevenDigitBonusDisplacementRecovery?.applied) {
+            overlap.stage3SevenDigit += 1;
+          }
+          if (sideAnalysis?.currentPcCrownBonusRuleRecovery?.applied) overlap.crownBonus += 1;
+          if (sideAnalysis?.currentPcExactMembersCrownBonusTotalRecovery?.applied) {
+            overlap.exactMembersBonusTotal += 1;
+          }
+        }
+        if (baseSimulation.wouldApply) overlap.existingStageWide += 1;
+        accepted.push({
+          screenshot: item.fileName,
+          stage,
+          selected: simulation.selected,
+          proposed: simulation.proposed,
+          changedMemberSlots: simulation.proposed?.changedMemberSlots || [],
+          splitCandidates,
+          splitCandidatesUsed: splitCandidates.filter((candidate) =>
+            (simulation.proposed?.changedMemberSlots || []).some(
+              (slot) =>
+                slot.side === candidate.side &&
+                Number(slot.slot || 0) === Number(candidate.slotIndex || 0) + 1 &&
+                Number(slot.to || 0) === Number(candidate.value || 0)
+            )
+          ),
+          rank1: simulation.proposed?.rank1 || null,
+          winningSide: simulation.proposed?.winningSide || null,
+          calculatedBonus: simulation.proposed?.calculatedBonus || 0,
+          selfTotalEvidence: simulation.proposed?.totalEvidence?.self || [],
+          enemyTotalEvidence: simulation.proposed?.totalEvidence?.enemy || [],
+          existingStageWide,
+          sideWouldChange: simulation.sideWouldChange || {},
+        });
+      }
+      if (classification === "false-positive") {
+        falsePositiveRows.push({
+          screenshot: item.fileName,
+          stage,
+          selected: simulation.selected,
+          proposed: simulation.proposed,
+          expected: {
+            self: currentPcExpectedStageSide(item, stage, "self"),
+            enemy: currentPcExpectedStageSide(item, stage, "enemy"),
+          },
+          splitCandidates,
+        });
+      }
+      if (classification === "blocked" || classification === "false-negative") {
+        for (const reason of simulation.rejectionReasons || ["other"]) increment(rejectedReasonBreakdown, reason);
+        blockedRows.push({
+          screenshot: item.fileName,
+          stage,
+          classification,
+          rejectionReasons: simulation.rejectionReasons || [],
+          expectedPresence: simulation.evidence?.expectedPresence || null,
+          splitCandidateCount: splitCandidates.length,
+          validInterpretationCount: simulation.evidence?.validInterpretationCount || 0,
+        });
+      }
+      if (stageHasFailure || simulation.wouldApply || splitCandidates.length > 0) {
+        rows.push({
+          screenshot: item.fileName,
+          stage,
+          classification,
+          wouldApply: simulation.wouldApply,
+          selected: simulation.selected,
+          proposed: simulation.proposed,
+          expected: {
+            self: currentPcExpectedStageSide(item, stage, "self"),
+            enemy: currentPcExpectedStageSide(item, stage, "enemy"),
+          },
+          sideWouldChange: simulation.sideWouldChange,
+          rejectionReasons: simulation.rejectionReasons || [],
+          splitCandidateCount: splitCandidates.length,
+          splitCandidates,
+          exactMatchesExpected: matchesExpected,
+          evidence: {
+            candidatePoolSizes: simulation.evidence?.candidatePoolSizes || null,
+            combinationCount: simulation.evidence?.combinationCount || 0,
+            expectedPresence: simulation.evidence?.expectedPresence || null,
+            validInterpretationCount: simulation.evidence?.validInterpretationCount || 0,
+          },
+        });
+      }
+    }
+  }
+
+  const focusRows = (splitArtifacts?.rows || []).filter((row) => row.mergedRunsDetected > 0);
+  const completeStage3SelfMemberEvidenceSet = new Set(
+    completeStage3SelfMemberEvidenceRows.map((row) => row.screenshot)
+  );
+  const exactMembersRecovered = focusRows.reduce(
+    (sum, row) => sum + (row.exactMembersRecovered || []).length,
+    0
+  );
+
+  return {
+    policyName: "currentPcStage3SelfMergedRunImageSplitSimulation",
+    command:
+      "node scripts/ocr-test-images.mjs --current-pc-baseline --current-pc-stage3-merged-run-slot-split-experiment",
+    truePositives,
+    falsePositives,
+    falseNegatives,
+    blocked,
+    failingStages,
+    acceptedStageSideCorrections,
+    trueIncrementalTp,
+    stage3SelfIncrementalTp,
+    wrongSlotAssignments,
+    extraCandidateInsertions,
+    exactMembersRecovered,
+    rowsGainingCompleteStage3SelfMemberEvidence:
+      completeStage3SelfMemberEvidenceRows.length,
+    completeStage3SelfMemberEvidenceRows,
+    focusRows: focusRows.map((row) => ({
+      screenshot: row.image,
+      mergedRunsDetected: row.mergedRunsDetected,
+      splitCandidateCount: row.splitCandidateCount,
+      exactMembersRecovered: row.exactMembersRecovered,
+      completeStage3SelfMemberEvidence: completeStage3SelfMemberEvidenceSet.has(row.image),
+      artifact: row.artifact,
+    })),
+    rows,
+    stageSimulations,
+    accepted,
+    falsePositiveRows,
+    blockedRows,
+    splitArtifactStats: splitArtifacts?.stats || {},
+    candidateCorrectnessCounts: Object.fromEntries(
+      [...candidateCorrectnessCounts.entries()].sort()
+    ),
+    rejectedReasonBreakdown: Object.fromEntries(
+      [...rejectedReasonBreakdown.entries()].sort((a, b) => b[1] - a[1])
+    ),
+    overlap,
+    recommendation:
+      trueIncrementalTp >= 2 && falsePositives === 0 && wrongSlotAssignments === 0
+        ? "runner/browser parity next"
+        : "defer or abandon merged-run image-space splitting for now",
+    note:
+      "Runner-only experiment: detected Stage3 self merged OCR run bboxes are intersected with deterministic member slot boxes, OCRed independently, and scored by the existing stage-wide solver. It does not change final OCR output.",
+  };
+}
+
+function formatCurrentPcMergedRunSplitCandidate(candidate = {}) {
+  const slot = `member${Number(candidate.slotIndex || 0) + 1}`;
+  const crop = candidate.splitCrop?.cropZone
+    ? `${candidate.splitCrop.cropZone.left},${candidate.splitCrop.cropZone.top},${candidate.splitCrop.cropZone.width},${candidate.splitCrop.cropZone.height}`
+    : "-";
+  return `${slot} ${formatNumber(candidate.value)} (${candidate.variantLabel || "-"} crop=${crop})`;
+}
+
+function buildCurrentPcStage3SelfMergedRunImageSplitReport(splitArtifacts, simulation) {
+  const generatedAt = new Date().toISOString();
+  const focusRows = simulation?.focusRows || [];
+  const accepted = simulation?.accepted || [];
+  const lines = [
+    "# Current-PC Stage3 Self Merged-Run Image-Split Experiment",
+    "",
+    `Generated: ${generatedAt}`,
+    "",
+    "## Purpose",
+    "",
+    "This is a runner-only experiment for current-PC Stage3 self OCR rows where Tesseract emits a merged numeric run across member slots. It splits the actual image region of the detected merged run by deterministic member slot boundaries and re-OCRs each slot intersection independently.",
+    "",
+    "No production OCR output is changed.",
+    "",
+    "## Command",
+    "",
+    "`node scripts/ocr-test-images.mjs --current-pc-baseline --current-pc-stage3-merged-run-slot-split-experiment`",
+    "",
+    "## Guards",
+    "",
+    "- current-PC baseline only",
+    "- Stage3 self only",
+    "- detected merged run must have an OCR bbox and overlap at least two deterministic member slot regions",
+    "- crop boundaries are derived only from the merged-run bbox and fixed member slot geometry",
+    "- expected fixtures are used only after OCR for scoring, never to choose crops or candidates",
+    "- candidate is admitted only into the slot whose intersection crop produced it",
+    "- exact observed member-range values only",
+    "- no near-match, no digit inference, no total-derived member, no filename logic, no screenshot logic",
+    "- the downstream stage-wide solver still requires exact self/enemy total evidence, unique global rank-1, `floor(max(all six members) * 0.20)`, both equations exact, and one unique interpretation",
+    "",
+    "## Summary",
+    "",
+    "| metric | count |",
+    "| --- | ---: |",
+    `| Stage3 self rows evaluated | ${splitArtifacts?.stats?.rowsEvaluated || 0} |`,
+    `| rows with detected merged runs | ${splitArtifacts?.stats?.rowsWithDetectedMergedRuns || 0} |`,
+    `| merged runs detected | ${splitArtifacts?.stats?.detectedRuns || 0} |`,
+    `| split crops OCRed | ${splitArtifacts?.stats?.splitCrops || 0} |`,
+    `| split candidates admitted | ${splitArtifacts?.stats?.candidateCount || 0} |`,
+    `| exact members newly recovered in focused rows | ${simulation?.exactMembersRecovered || 0} |`,
+    `| rows gaining complete Stage3 self member evidence | ${simulation?.rowsGainingCompleteStage3SelfMemberEvidence || 0} |`,
+    `| TP stages | ${simulation?.truePositives || 0} |`,
+    `| FP stages | ${simulation?.falsePositives || 0} |`,
+    `| FN stages | ${simulation?.falseNegatives || 0} |`,
+    `| blocked stages | ${simulation?.blocked || 0} |`,
+    `| true incremental TP beyond current production | ${simulation?.trueIncrementalTp || 0} |`,
+    `| Stage3 self incremental TP | ${simulation?.stage3SelfIncrementalTp || 0} |`,
+    `| wrong-slot assignments | ${simulation?.wrongSlotAssignments || 0} |`,
+    `| extra candidate insertions | ${simulation?.extraCandidateInsertions || 0} |`,
+    "",
+    "## Candidate Correctness",
+    "",
+    "| classification | count |",
+    "| --- | ---: |",
+  ];
+  const correctness = simulation?.candidateCorrectnessCounts || {};
+  for (const [name, count] of Object.entries(correctness)) {
+    lines.push(`| ${name} | ${count} |`);
+  }
+  if (Object.keys(correctness).length === 0) lines.push("| - | 0 |");
+
+  lines.push(
+    "",
+    "## Focus Rows With Detected Merged Runs",
+    "",
+    "| screenshot | detected runs | split candidates | exact recovered members | complete member evidence | artifact |",
+    "| --- | ---: | ---: | --- | --- | --- |"
+  );
+  for (const row of focusRows) {
+    const recovered = (row.exactMembersRecovered || [])
+      .map((entry) => `${entry.slot}=${formatNumber(entry.expected)}`)
+      .join("<br>") || "-";
+    lines.push(
+      `| ${row.screenshot} | ${row.mergedRunsDetected} | ${row.splitCandidateCount} | ${recovered} | ${row.completeStage3SelfMemberEvidence ? "yes" : "no"} | ${row.artifact || "-"} |`
+    );
+  }
+
+  lines.push(
+    "",
+    "## Accepted Rows",
+    "",
+    "| screenshot | stage | changed slots | split candidates used | totals | uniqueness |",
+    "| --- | ---: | --- | --- | --- | --- |"
+  );
+  if (accepted.length === 0) {
+    lines.push("| - | - | - | - | - | - |");
+  } else {
+    for (const row of accepted) {
+      const changed = (row.changedMemberSlots || [])
+        .map((slot) => `${slot.side}.member${slot.slot}: ${formatNumber(slot.from)} -> ${formatNumber(slot.to)}`)
+        .join("<br>") || "-";
+      const used = (row.splitCandidatesUsed || [])
+        .map(formatCurrentPcMergedRunSplitCandidate)
+        .join("<br>") || "-";
+      lines.push(
+        `| ${row.screenshot} | ${row.stage} | ${changed} | ${used} | self ${formatNumber(row.proposed?.self?.total || 0)} / enemy ${formatNumber(row.proposed?.enemy?.total || 0)} | exactly one complete six-member interpretation |`
+      );
+    }
+  }
+
+  lines.push(
+    "",
+    "## Blocked/Rejection Summary",
+    "",
+    "| reason | count |",
+    "| --- | ---: |"
+  );
+  const rejection = simulation?.rejectedReasonBreakdown || {};
+  for (const [reason, count] of Object.entries(rejection)) {
+    lines.push(`| ${reason} | ${count} |`);
+  }
+  if (Object.keys(rejection).length === 0) lines.push("| - | 0 |");
+
+  lines.push(
+    "",
+    "## Comparison To Existing Evidence",
+    "",
+    "- This experiment is stricter than string-level splitting: no numeric run is cut by character count or punctuation pattern.",
+    "- Compared with per-slot crop diagnostics, it focuses only on the image region actually occupied by a merged OCR bbox.",
+    "- Compared with bbox/geometry consensus, it asks whether re-OCRing the slot intersection can create clean slot-proven candidates for the existing stage-wide solver.",
+    "- Compared with the slot-proven Stage3 variant simulation and expected-blind geometry simulation, the downstream safety guard is unchanged: exact totals, crown-bonus rule, and one unique six-member interpretation are still required.",
+    "",
+    "## Recommendation",
+    "",
+    simulation?.recommendation === "runner/browser parity next"
+      ? "The experiment meets the minimum runner-only threshold. Recommended next step: add runner/browser-equivalent parity plumbing before any production discussion."
+      : "Defer or abandon merged-run image-space splitting for now. It does not yet provide at least two true incremental safe recoveries with zero wrong-slot assignments.",
+    "",
+    "Productionization is not recommended by this report.",
+    ""
+  );
+
+  return lines.join("\n");
 }
 
 async function writeCurrentPcStage3SlotGeometryDiagnosticsArtifacts(analysis = []) {
@@ -15633,6 +16351,9 @@ async function main() {
   const currentPcStage3GeometrySlotSolver = args.includes(
     "--current-pc-stage3-geometry-slot-solver"
   );
+  const currentPcStage3MergedRunSlotSplitExperiment =
+    args.includes("--current-pc-stage3-merged-run-slot-split-experiment") ||
+    args.includes("--current-pc-stage3-self-merged-run-slot-split-experiment");
   const currentPcStageWideVariantSolver = args.includes(
     "--current-pc-stage-wide-variant-solver"
   );
@@ -15668,6 +16389,8 @@ async function main() {
       value !== "--current-pc-stage3-slot-geometry-diagnostics" &&
       value !== "--current-pc-stage3-slot-geometry-from-baseline" &&
       value !== "--current-pc-stage3-geometry-slot-solver" &&
+      value !== "--current-pc-stage3-merged-run-slot-split-experiment" &&
+      value !== "--current-pc-stage3-self-merged-run-slot-split-experiment" &&
       value !== "--current-pc-stage-wide-variant-solver" &&
       value !== "--current-pc-stage-wide-slot-proven-variant-solver" &&
       value !== "--current-pc-slot-roi-diagnostics" &&
@@ -15738,6 +16461,75 @@ async function main() {
                   recommendation: artifacts.geometrySlotSimulation.recommendation,
                 }
               : null,
+          },
+        },
+        null,
+        2
+      )
+    );
+    return;
+  }
+  if (currentPcStage3MergedRunSlotSplitExperiment && !currentPcBaseline) {
+    const summaryPath = path.join(currentPcBaselineDir, "summary.json");
+    const analysis = JSON.parse(await fs.readFile(summaryPath, "utf8")).filter((item) => {
+      if (filters.length === 0) return true;
+      const base = String(item.fileName || "").toLowerCase();
+      return filters.some((filter) => base.includes(filter));
+    });
+    const geometrySummaryPath = path.join(currentPcStage3SlotGeometryDiagnosticsDir, "summary.json");
+    let geometryDiagnostics = null;
+    try {
+      geometryDiagnostics = {
+        rows: JSON.parse(await fs.readFile(geometrySummaryPath, "utf8")),
+        outputDir: path
+          .relative(rootDir, currentPcStage3SlotGeometryDiagnosticsDir)
+          .replaceAll("\\", "/"),
+        summaryPath: path.relative(rootDir, geometrySummaryPath).replaceAll("\\", "/"),
+      };
+    } catch {
+      geometryDiagnostics = await writeCurrentPcStage3SlotGeometryDiagnosticsArtifacts(
+        analysis.filter((item) => item.expected)
+      );
+    }
+    const splitArtifacts = await writeCurrentPcStage3SelfMergedRunImageSplitArtifacts(
+      analysis.filter((item) => item.expected),
+      geometryDiagnostics
+    );
+    const splitSimulation = buildCurrentPcStage3SelfMergedRunImageSplitSimulation(
+      analysis.filter((item) => item.expected),
+      splitArtifacts
+    );
+    await fs.writeFile(
+      path.join(currentPcBaselineDir, "stage3-self-merged-run-image-split-simulation.json"),
+      JSON.stringify(splitSimulation, null, 2)
+    );
+    await fs.writeFile(
+      currentPcStage3MergedRunImageSplitReportPath,
+      buildCurrentPcStage3SelfMergedRunImageSplitReport(splitArtifacts, splitSimulation)
+    );
+    await terminateAuditGeometryWorker();
+    console.log(
+      JSON.stringify(
+        {
+          currentPcStage3SelfMergedRunImageSplitExperiment: {
+            source: path.relative(rootDir, summaryPath).replaceAll("\\", "/"),
+            report: path
+              .relative(rootDir, currentPcStage3MergedRunImageSplitReportPath)
+              .replaceAll("\\", "/"),
+            outputDir: splitArtifacts.outputDir,
+            summary: splitArtifacts.summaryPath,
+            mergedRunsDetected: splitArtifacts.stats.detectedRuns,
+            exactMembersRecovered: splitSimulation.exactMembersRecovered,
+            rowsGainingCompleteStage3SelfMemberEvidence:
+              splitSimulation.rowsGainingCompleteStage3SelfMemberEvidence,
+            truePositives: splitSimulation.truePositives,
+            falsePositives: splitSimulation.falsePositives,
+            falseNegatives: splitSimulation.falseNegatives,
+            blocked: splitSimulation.blocked,
+            trueIncrementalTp: splitSimulation.trueIncrementalTp,
+            stage3SelfIncrementalTp: splitSimulation.stage3SelfIncrementalTp,
+            wrongSlotAssignments: splitSimulation.wrongSlotAssignments,
+            recommendation: splitSimulation.recommendation,
           },
         },
         null,
@@ -15857,7 +16649,9 @@ async function main() {
       : null;
   const currentPcStage3SlotGeometryDiagnosticsArtifacts =
     currentPcBaselineArtifacts &&
-    (currentPcStage3SlotGeometryDiagnostics || currentPcStage3GeometrySlotSolver)
+    (currentPcStage3SlotGeometryDiagnostics ||
+      currentPcStage3GeometrySlotSolver ||
+      currentPcStage3MergedRunSlotSplitExperiment)
       ? await writeCurrentPcStage3SlotGeometryDiagnosticsArtifacts(
           currentPcBaselineArtifacts.analysis.filter((item) => item.expected)
         )
@@ -15874,6 +16668,8 @@ async function main() {
   let exactMembersBonusTotalRecoverySimulation = null;
   let exactMembersBonusTotalRecoveryParity = null;
   let currentPcStage3GeometrySlotSimulation = null;
+  let currentPcStage3MergedRunImageSplitArtifacts = null;
+  let currentPcStage3MergedRunImageSplitSimulation = null;
   if (currentPcBaselineArtifacts) {
     await fs.writeFile(
       currentPcBaselineReportPath,
@@ -15908,6 +16704,18 @@ async function main() {
     if (currentPcStage3GeometrySlotSimulation) {
       currentPcStage3SlotGeometryDiagnosticsArtifacts.geometrySlotSimulation =
         currentPcStage3GeometrySlotSimulation;
+    }
+    if (currentPcStage3MergedRunSlotSplitExperiment && currentPcStage3SlotGeometryDiagnosticsArtifacts) {
+      currentPcStage3MergedRunImageSplitArtifacts =
+        await writeCurrentPcStage3SelfMergedRunImageSplitArtifacts(
+          expectedCurrentPcAnalysis,
+          currentPcStage3SlotGeometryDiagnosticsArtifacts
+        );
+      currentPcStage3MergedRunImageSplitSimulation =
+        buildCurrentPcStage3SelfMergedRunImageSplitSimulation(
+          expectedCurrentPcAnalysis,
+          currentPcStage3MergedRunImageSplitArtifacts
+        );
     }
     stageWideVariantSolverSimulation =
       (currentPcStageWideVariantSolver || currentPcStageWideSlotProvenVariantSolver) &&
@@ -16095,6 +16903,19 @@ async function main() {
         );
       }
     }
+    if (currentPcStage3MergedRunImageSplitSimulation) {
+      await fs.writeFile(
+        path.join(currentPcBaselineDir, "stage3-self-merged-run-image-split-simulation.json"),
+        JSON.stringify(currentPcStage3MergedRunImageSplitSimulation, null, 2)
+      );
+      await fs.writeFile(
+        currentPcStage3MergedRunImageSplitReportPath,
+        buildCurrentPcStage3SelfMergedRunImageSplitReport(
+          currentPcStage3MergedRunImageSplitArtifacts,
+          currentPcStage3MergedRunImageSplitSimulation
+        )
+      );
+    }
     if (currentPcSlotRoiDiagnosticsArtifacts) {
       await fs.writeFile(
         currentPcSlotRoiDiagnosticsReportPath,
@@ -16236,7 +17057,7 @@ async function main() {
                     summary: currentPcStage3MemberRowDiagnosticsArtifacts.summaryPath,
                   }
                 : null,
-                  stage3SlotGeometryDiagnostics: currentPcStage3SlotGeometryDiagnosticsArtifacts
+              stage3SlotGeometryDiagnostics: currentPcStage3SlotGeometryDiagnosticsArtifacts
                 ? {
                     report: path.relative(rootDir, currentPcStage3SlotGeometryReportPath).replaceAll("\\", "/"),
                     outputDir: currentPcStage3SlotGeometryDiagnosticsArtifacts.outputDir,
@@ -16254,6 +17075,37 @@ async function main() {
                       : null,
                   }
                 : null,
+              stage3SelfMergedRunImageSplitExperiment:
+                currentPcStage3MergedRunImageSplitSimulation
+                  ? {
+                      report: path
+                        .relative(rootDir, currentPcStage3MergedRunImageSplitReportPath)
+                        .replaceAll("\\", "/"),
+                      outputDir: currentPcStage3MergedRunImageSplitArtifacts?.outputDir || null,
+                      summary: currentPcStage3MergedRunImageSplitArtifacts?.summaryPath || null,
+                      simulation: path
+                        .relative(
+                          rootDir,
+                          path.join(
+                            currentPcBaselineDir,
+                            "stage3-self-merged-run-image-split-simulation.json"
+                          )
+                        )
+                        .replaceAll("\\", "/"),
+                      mergedRunsDetected:
+                        currentPcStage3MergedRunImageSplitArtifacts?.stats?.detectedRuns || 0,
+                      exactMembersRecovered:
+                        currentPcStage3MergedRunImageSplitSimulation.exactMembersRecovered,
+                      truePositives:
+                        currentPcStage3MergedRunImageSplitSimulation.truePositives,
+                      falsePositives:
+                        currentPcStage3MergedRunImageSplitSimulation.falsePositives,
+                      trueIncrementalTp:
+                        currentPcStage3MergedRunImageSplitSimulation.trueIncrementalTp,
+                      wrongSlotAssignments:
+                        currentPcStage3MergedRunImageSplitSimulation.wrongSlotAssignments,
+                    }
+                  : null,
               slotRoiDiagnostics: currentPcSlotRoiDiagnosticsArtifacts
                 ? {
                     report: path.relative(rootDir, currentPcSlotRoiDiagnosticsReportPath).replaceAll("\\", "/"),
