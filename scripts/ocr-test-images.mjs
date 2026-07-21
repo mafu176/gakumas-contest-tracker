@@ -140,6 +140,11 @@ const currentPcExactMembersBonusTotalRecoveryReportPath = path.join(
   "docs",
   "current-pc-exact-members-bonus-total-recovery-investigation.md"
 );
+const currentPcSideLocalIncompleteOppositeEvidenceReportPath = path.join(
+  rootDir,
+  "docs",
+  "current-pc-side-local-incomplete-opposite-evidence-investigation.md"
+);
 let currentPcBaselineScanSummary = null;
 const unsupportedNextScreenMessage =
   "Next screen is unsupported for OCR. Use normal result or high-score screen.";
@@ -11167,6 +11172,403 @@ function buildCurrentPcExactMembersCrownBonusTotalRecoverySimulation(analysis) {
   };
 }
 
+function currentPcExactEvidenceLocationsForValue(sideAnalysis = {}, value = 0) {
+  const locations = [];
+  const normalizedValue = Number(value || 0);
+  if (!normalizedValue) return locations;
+  if ((sideAnalysis.rawCandidates || []).some((candidate) => Number(candidate || 0) === normalizedValue)) {
+    locations.push("rawCandidates");
+  }
+  if (
+    (sideAnalysis.displayedTotalCandidates || []).some(
+      (candidate) => Number(candidate || 0) === normalizedValue
+    )
+  ) {
+    locations.push("displayedTotalCandidates");
+  }
+  if (
+    (sideAnalysis.bonusCandidates || []).some(
+      (candidate) => Number(candidate || 0) === normalizedValue
+    )
+  ) {
+    locations.push("bonusCandidates");
+  }
+  const sourceText = stringifyCurrentPcEvidenceText(sideAnalysis.candidateSourceSummary);
+  if (currentPcTextContainsValue(sourceText, normalizedValue)) {
+    locations.push("candidateSourceText");
+  }
+  return [...new Set(locations)];
+}
+
+function currentPcObservedEvidenceValues(sideAnalysis = {}) {
+  return uniqueNumbers([
+    ...(sideAnalysis.rawCandidates || []),
+    ...(sideAnalysis.displayedTotalCandidates || []),
+    ...(sideAnalysis.bonusCandidates || []),
+  ]).filter((value) => value > 0);
+}
+
+function currentPcExactTotalEvidenceLocationsForValue(sideAnalysis = {}, value = 0) {
+  const locations = [];
+  const normalizedValue = Number(value || 0);
+  if (!normalizedValue) return locations;
+  if (
+    (sideAnalysis.displayedTotalCandidates || []).some(
+      (candidate) => Number(candidate || 0) === normalizedValue
+    )
+  ) {
+    locations.push("displayedTotalCandidates");
+  }
+  const summary = sideAnalysis.candidateSourceSummary || {};
+  if (currentPcTextContainsValue(summary.totalDirect?.text || "", normalizedValue)) {
+    locations.push("totalDirectText");
+  }
+  (summary.totalTraces || []).forEach((trace, index) => {
+    if (currentPcTextContainsValue(trace?.text || "", normalizedValue)) {
+      locations.push(`totalTraceText${index + 1}`);
+    }
+  });
+  return [...new Set(locations)];
+}
+
+function currentPcSideLocalExactEvidenceStageSide(item, stage, side) {
+  const stageKey = `stage${stage}`;
+  const oppositeSide = side === "self" ? "enemy" : "self";
+  const sideAnalysis = item.stages?.[stageKey]?.[side] || {};
+  const oppositeAnalysis = item.stages?.[stageKey]?.[oppositeSide] || {};
+  const selected = currentPcFinalSelectedStageSide(item, stage, side);
+  const oppositeSelected = currentPcFinalSelectedStageSide(item, stage, oppositeSide);
+  const memberSum = selected.members.reduce((sum, value) => sum + Number(value || 0), 0);
+  const targetMax = Math.max(...selected.members);
+  const targetMaxCount = selected.members.filter((value) => value === targetMax).length;
+  const proposedWinningBonus = Math.floor(targetMax * 0.2);
+  const directBonusCandidates = uniqueNumbers(sideAnalysis.bonusCandidates || []);
+  const directBonusProposals = directBonusCandidates
+    .filter((bonus) => bonus > 0)
+    .map((bonus) => ({
+      proof: "direct-displayed-bonus",
+      bonus,
+      total: memberSum + bonus,
+    }));
+  const winnerByOppositeTotalProposal =
+    proposedWinningBonus > 0
+      ? {
+          proof: "target-winning-by-opposite-total-upper-bound",
+          bonus: proposedWinningBonus,
+          total: memberSum + proposedWinningBonus,
+        }
+      : null;
+  const losingProposal = {
+    proof: "target-losing-by-opposite-member-exceeds-target-max",
+    bonus: 0,
+    total: memberSum,
+  };
+  const proposals = [
+    ...directBonusProposals,
+    ...(winnerByOppositeTotalProposal ? [winnerByOppositeTotalProposal] : []),
+    losingProposal,
+  ];
+
+  const targetTotalEvidence = (value) =>
+    currentPcExactTotalEvidenceLocationsForValue(sideAnalysis, value);
+  const targetBonusEvidence = (value) =>
+    value === 0 ? ["zero-bonus-equation"] : currentPcExactEvidenceLocationsForValue(sideAnalysis, value);
+  const oppositeTotalEvidence = currentPcExactTotalEvidenceLocationsForValue(
+    oppositeAnalysis,
+    oppositeSelected.total
+  );
+  const oppositeObservedValues = currentPcObservedEvidenceValues(oppositeAnalysis);
+  const oppositeCompetingAboveTargetMax = oppositeObservedValues.filter(
+    (value) => value > targetMax
+  );
+  const oppositeTotalInternallyConsistent =
+    oppositeSelected.total >= oppositeSelected.members.reduce((sum, value) => sum + value, 0);
+  const oppositeMemberExceedsTargetMax = oppositeSelected.members.filter(
+    (value) => value > targetMax
+  );
+  const currentAlreadyResolved =
+    sideAnalysis.currentPcGroupedRawTokenRecovery?.applied ||
+    sideAnalysis.currentPcStage3SevenDigitBonusDisplacementRecovery?.applied ||
+    sideAnalysis.currentPcCrownBonusRuleRecovery?.applied ||
+    sideAnalysis.currentPcStageWideSixMemberCandidateSolverRecovery?.applied ||
+    sideAnalysis.currentPcExactMembersCrownBonusTotalRecovery?.applied;
+
+  const accepted = [];
+  const rejected = [];
+  for (const proposal of proposals) {
+    const proposalTargetTotalEvidence = targetTotalEvidence(proposal.total);
+    const proposalTargetBonusEvidence = targetBonusEvidence(proposal.bonus);
+    const rejectionReasons = [];
+    if (currentAlreadyResolved) rejectionReasons.push("already-resolved-by-production-recovery");
+    if (!proposalTargetTotalEvidence.length) rejectionReasons.push("missing-target-exact-total-evidence");
+    if (proposal.proof === "direct-displayed-bonus" && !proposalTargetBonusEvidence.includes("bonusCandidates")) {
+      rejectionReasons.push("missing-direct-bonus-candidate-evidence");
+    }
+    if (proposal.proof === "target-winning-by-opposite-total-upper-bound") {
+      if (targetMaxCount !== 1) rejectionReasons.push("target-rank1-not-unique");
+      if (!oppositeTotalEvidence.length) rejectionReasons.push("missing-opposite-exact-total-evidence");
+      if (!oppositeTotalInternallyConsistent) {
+        rejectionReasons.push("opposite-total-not-internally-consistent");
+      }
+      if (!(targetMax > oppositeSelected.total)) {
+        rejectionReasons.push("opposite-total-does-not-prove-target-rank1");
+      }
+      if (oppositeCompetingAboveTargetMax.length) {
+        rejectionReasons.push("opposite-observed-candidate-could-exceed-target-max");
+      }
+    }
+    if (proposal.proof === "target-losing-by-opposite-member-exceeds-target-max") {
+      if (proposal.total !== memberSum) rejectionReasons.push("losing-total-not-member-sum");
+      if (!oppositeMemberExceedsTargetMax.length) {
+        rejectionReasons.push("missing-opposite-member-above-target-max-evidence");
+      }
+    }
+    if (proposal.total === selected.total && proposal.bonus === selected.bonus) {
+      rejectionReasons.push("side-already-matches-proposal");
+    }
+    const row = {
+      ...proposal,
+      members: selected.members,
+      targetTotalEvidence: proposalTargetTotalEvidence,
+      targetBonusEvidence: proposalTargetBonusEvidence,
+      rejectionReasons,
+    };
+    if (rejectionReasons.length === 0) {
+      accepted.push(row);
+    } else {
+      rejected.push(row);
+    }
+  }
+
+  const uniqueAccepted = accepted.filter(
+    (proposal, index, list) =>
+      list.findIndex(
+        (entry) =>
+          entry.proof === proposal.proof &&
+          entry.bonus === proposal.bonus &&
+          entry.total === proposal.total
+      ) === index
+  );
+  const rejectionReasons = [];
+  if (uniqueAccepted.length === 0) {
+    rejectionReasons.push("no-side-local-proof");
+  } else if (uniqueAccepted.length > 1) {
+    rejectionReasons.push("competing-side-local-proofs");
+  }
+  const wouldApply = uniqueAccepted.length === 1 && rejectionReasons.length === 0;
+  const proposed = wouldApply
+    ? {
+        members: selected.members,
+        bonus: uniqueAccepted[0].bonus,
+        total: uniqueAccepted[0].total,
+      }
+    : null;
+
+  return {
+    name: "currentPcSideLocalExactEvidenceRecoverySimulation",
+    stage,
+    side,
+    wouldApply,
+    selected,
+    oppositeSelected,
+    proposed,
+    proof: wouldApply ? uniqueAccepted[0].proof : null,
+    acceptedProofs: uniqueAccepted,
+    rejectedProofs: rejected,
+    rejectionReasons,
+    evidence: {
+      targetMax,
+      targetMaxCount,
+      memberSum,
+      directBonusCandidates,
+      oppositeTotalEvidence,
+      oppositeTotalInternallyConsistent,
+      oppositeObservedValues,
+      oppositeCompetingAboveTargetMax,
+      oppositeMemberExceedsTargetMax,
+      currentCrownBonusRejectionReasons:
+        sideAnalysis?.currentPcCrownBonusRuleSimulation?.rejectionReasons ||
+        buildCurrentPcCrownBonusRuleStageSimulation(item, stage)?.rejectionReasons ||
+        [],
+      currentStageWideRejectionReasons:
+        item.stages?.[stageKey]?.debugArtifact?.currentPcStageWideSixMemberCandidateSolverSimulation
+          ?.rejectionReasons ||
+        sideAnalysis?.currentPcStageWideSixMemberCandidateSolverSimulation?.rejectionReasons ||
+        [],
+      currentExactMembersRejectionReasons:
+        sideAnalysis?.currentPcExactMembersCrownBonusTotalRecoverySimulation?.rejectionReasons || [],
+    },
+  };
+}
+
+function buildCurrentPcSideLocalExactEvidenceRecoverySimulation(analysis) {
+  const rows = [];
+  const accepted = [];
+  const rejectedTargets = [];
+  const blockedBreakdown = new Map();
+  const positionBreakdown = new Map();
+  let failingStageSideRows = 0;
+  let candidateRows = 0;
+  let truePositives = 0;
+  let falsePositives = 0;
+  let falseNegatives = 0;
+  let blocked = 0;
+
+  const increment = (map, key) => map.set(key, (map.get(key) || 0) + 1);
+  const rowPasses = (item, stage, side, override = null) => {
+    const expected = currentPcExpectedStageSide(item, stage, side);
+    const selected = override || currentPcFinalSelectedStageSide(item, stage, side);
+    return proposalMatchesExpectedWithTolerance(selected, expected, 0);
+  };
+  const imageWouldPassWithAcceptedRows = (item, acceptedRowsForImage) => {
+    for (const stage of stages) {
+      for (const side of sides) {
+        const override = acceptedRowsForImage.find(
+          (row) => row.stage === stage && row.side === side
+        )?.proposed;
+        if (!rowPasses(item, stage, side, override || null)) return false;
+      }
+    }
+    return true;
+  };
+
+  for (const item of analysis) {
+    if (!item.expected) continue;
+    const acceptedForImage = [];
+    for (const stage of stages) {
+      for (const side of sides) {
+        const expected = currentPcExpectedStageSide(item, stage, side);
+        if (!expected) continue;
+        const sideFailed = hasCurrentPcSideFailure(item, stage, side);
+        if (sideFailed) failingStageSideRows += 1;
+        const selected = currentPcFinalSelectedStageSide(item, stage, side);
+        const target =
+          sideFailed &&
+          arraysEqualWithinTolerance(selected.members || [], expected.members || [], 0) &&
+          (Number(selected.bonus || 0) !== Number(expected.bonus || 0) ||
+            Number(selected.total || 0) !== Number(expected.total || 0));
+        if (target) candidateRows += 1;
+        const simulation = currentPcSideLocalExactEvidenceStageSide(item, stage, side);
+        const matchesExpected = proposalMatchesExpectedWithTolerance(
+          simulation.proposed,
+          expected,
+          0
+        );
+        let classification = sideFailed ? "blocked" : "correctly-unchanged";
+        if (simulation.wouldApply && matchesExpected) {
+          truePositives += 1;
+          classification = "true-positive";
+          const row = {
+            screenshot: item.fileName,
+            stage,
+            side,
+            selected: simulation.selected,
+            expected,
+            oppositeSelected: simulation.oppositeSelected,
+            proposed: simulation.proposed,
+            proof: simulation.proof,
+            proofEvidence: simulation.acceptedProofs?.[0] || null,
+            evidence: simulation.evidence,
+          };
+          accepted.push(row);
+          acceptedForImage.push({ stage, side, proposed: simulation.proposed });
+          increment(positionBreakdown, `stage${stage}-${side}`);
+        } else if (simulation.wouldApply && !matchesExpected) {
+          falsePositives += 1;
+          classification = "false-positive";
+        } else if (target) {
+          falseNegatives += 1;
+          classification = "false-negative";
+          const rejectionReasons = [
+            ...simulation.rejectionReasons,
+            ...simulation.rejectedProofs.flatMap((proof) => proof.rejectionReasons || []),
+          ];
+          if (rejectionReasons.length === 0) rejectionReasons.push("no-side-local-proof");
+          for (const reason of [...new Set(rejectionReasons)]) increment(blockedBreakdown, reason);
+          rejectedTargets.push({
+            screenshot: item.fileName,
+            stage,
+            side,
+            selected: simulation.selected,
+            expected,
+            oppositeSelected: simulation.oppositeSelected,
+            proposed: simulation.proposed,
+            rejectionReasons: [...new Set(rejectionReasons)],
+            rejectedProofs: simulation.rejectedProofs,
+            evidence: simulation.evidence,
+          });
+        } else if (sideFailed) {
+          blocked += 1;
+        }
+
+        if (target || simulation.wouldApply) {
+          rows.push({
+            screenshot: item.fileName,
+            stage,
+            side,
+            classification,
+            target,
+            wouldApply: simulation.wouldApply,
+            selected: simulation.selected,
+            expected,
+            oppositeSelected: simulation.oppositeSelected,
+            proposed: simulation.proposed,
+            proof: simulation.proof,
+            rejectionReasons: simulation.rejectionReasons,
+            rejectedProofs: simulation.rejectedProofs,
+            evidence: simulation.evidence,
+            matchesExpected,
+          });
+        }
+      }
+    }
+    if (acceptedForImage.length > 0) {
+      const imageWouldPass = imageWouldPassWithAcceptedRows(item, acceptedForImage);
+      for (const acceptedRow of accepted) {
+        if (acceptedRow.screenshot !== item.fileName) continue;
+        acceptedRow.imageWouldPass = imageWouldPass;
+      }
+    }
+  }
+
+  const mapToRows = (map) =>
+    [...map.entries()]
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+
+  return {
+    name: "currentPcSideLocalExactEvidenceRecoverySimulation",
+    scope: {
+      runnerOnly: true,
+      finalOcrOutputChanged: false,
+      productionRecoveryAdded: false,
+      currentPcOnly: true,
+      memberChangesAllowed: false,
+      exactEqualityOnly: true,
+      nearMatchUsed: false,
+      withinOneToleranceUsed: false,
+      derivesMissingMembersFromTotals: false,
+    },
+    failingStageSideRows,
+    candidateRows,
+    truePositives,
+    falsePositives,
+    falseNegatives,
+    blocked,
+    trueIncrementalTp: truePositives,
+    potentialFullImageGain: accepted.filter((row) => row.imageWouldPass).length,
+    accepted,
+    rejectedTargets,
+    rows,
+    blockedBreakdown: mapToRows(blockedBreakdown),
+    positionBreakdown: mapToRows(positionBreakdown),
+    recommendation:
+      truePositives >= 2 && falsePositives === 0
+        ? "promising-runner-browser-parity-next"
+        : "defer-side-local-recovery",
+  };
+}
+
 function currentPcExactMembersEvidenceFingerprint(evidence = []) {
   return (evidence || [])
     .map((entry) => ({
@@ -11579,6 +11981,157 @@ function buildCurrentPcExactMembersBonusTotalRecoveryReport(simulation, parity =
     simulation.recommendation === "browser-ui-parity-next"
       ? "`applyCurrentPcExactMembersCrownBonusTotalRecovery(...)` is enabled for current-PC only using the same strict shared guard. Recommended next step: real-browser spot-check one or both TP rows and confirm the correction log includes `currentPcExactMembersCrownBonusTotalRecovery applied ...`."
       : "Disable production recovery or resolve parity/simulation regressions before relying on this guard.",
+    "",
+  ].join("\n");
+}
+
+function buildCurrentPcSideLocalIncompleteOppositeEvidenceReport(simulation) {
+  const generated = new Date().toISOString();
+  const formatMaybeZero = (value) =>
+    Number(value || 0) === 0 ? "0" : formatNumber(Number(value || 0));
+  const formatSide = (side) =>
+    side
+      ? `members ${formatDebugNumbers(side.members || [])}; bonus ${formatMaybeZero(
+          side.bonus
+        )}; total ${formatMaybeZero(side.total)}`
+      : "-";
+  const formatEvidence = (evidence = {}) =>
+    [
+      `targetMax=${formatNumber(evidence.targetMax || 0)}`,
+      `oppositeTotalEvidence=${evidence.oppositeTotalEvidence?.join(", ") || "none"}`,
+      `oppositeTotalInternallyConsistent=${
+        evidence.oppositeTotalInternallyConsistent ? "yes" : "no"
+      }`,
+      `oppositeObservedAboveTargetMax=${
+        formatDebugNumbers(evidence.oppositeCompetingAboveTargetMax || []) || "none"
+      }`,
+      `currentCrownRejection=${evidence.currentCrownBonusRejectionReasons?.join(", ") || "none"}`,
+      `stageWideRejection=${evidence.currentStageWideRejectionReasons?.join(", ") || "none"}`,
+      `exactMembersRejection=${evidence.currentExactMembersRejectionReasons?.join(", ") || "none"}`,
+    ].join("<br>");
+  const formatProofEvidence = (proofEvidence = null) =>
+    proofEvidence
+      ? [
+          `targetTotalEvidence=${proofEvidence.targetTotalEvidence?.join(", ") || "none"}`,
+          `targetBonusEvidence=${proofEvidence.targetBonusEvidence?.join(", ") || "none"}`,
+        ].join("<br>")
+      : "-";
+  const acceptedRows = simulation.accepted?.length
+    ? simulation.accepted
+        .map(
+          (row) =>
+            `| ${row.screenshot} | ${row.stage} | ${row.side} | ${row.proof} | ${formatSide(
+              row.selected
+            )} | ${formatSide(row.expected)} | ${formatSide(row.oppositeSelected)} | ${formatSide(
+              row.proposed
+            )} | ${formatProofEvidence(row.proofEvidence)}<br>${formatEvidence(row.evidence)} | ${row.imageWouldPass ? "yes" : "no"} |`
+        )
+        .join("\n")
+    : "| - | - | - | - | - | - | - | - | - | - |";
+  const rejectedRows = simulation.rejectedTargets?.length
+    ? simulation.rejectedTargets
+        .map(
+          (row) =>
+            `| ${row.screenshot} | ${row.stage} | ${row.side} | ${formatSide(
+              row.selected
+            )} | ${formatSide(row.expected)} | ${formatSide(row.oppositeSelected)} | ${
+              row.rejectionReasons?.join("<br>") || "-"
+            } | ${formatEvidence(row.evidence)} |`
+        )
+        .join("\n")
+    : "| - | - | - | - | - | - | - | - |";
+  const blockedRows = (simulation.blockedBreakdown || [])
+    .map((row) => `| ${row.name} | ${row.count} |`)
+    .join("\n");
+  const positionRows = (simulation.positionBreakdown || [])
+    .map((row) => `| ${row.name} | ${row.count} |`)
+    .join("\n");
+
+  return [
+    "# Current-PC Side-Local Incomplete Opposite Evidence Investigation",
+    "",
+    `Generated: ${generated}`,
+    "",
+    "## Scope",
+    "",
+    "- runner-only simulation added: yes",
+    "- final OCR output changed: no",
+    "- production recovery added: no",
+    "- smartphone OCR changed: no",
+    "- legacy desktop OCR changed: no",
+    "- filename/screenshot-specific logic: no",
+    "- hard-coded score values: no",
+    "- near-match, within-one, or inferred digit recovery: no",
+    "- member changes: not allowed",
+    "",
+    "## Question",
+    "",
+    "The existing exact-members crown-bonus total recovery still requires complete six-member evidence. This investigation checks whether a target side can be proven locally when the opposite side is incomplete.",
+    "",
+    "The key distinction is:",
+    "",
+    "- safe: opposite side incomplete, but the target side is independently provable",
+    "- unsafe: opposite side incomplete, and the target side merely seems plausible",
+    "",
+    "## Side-Local Proof Categories",
+    "",
+    "Accepted proof category in this run:",
+    "",
+    "- `target-winning-by-opposite-total-upper-bound`: target members are unchanged, target max is unique, exact target total evidence exists, the opposite selected total has exact OCR evidence and is internally consistent, and `targetMax > oppositeTotal`. Because all opposite raw member scores must be non-negative and no opposite member can exceed its displayed total, the opposite side cannot contain rank 1.",
+    "",
+    "Rejected/unused categories:",
+    "",
+    "- `direct-displayed-bonus`: remained unavailable because the exact bonus was not captured as a clean bonus candidate in the candidate rows.",
+    "- `target-losing-by-opposite-member-exceeds-target-max`: no accepted row needed this shape.",
+    "",
+    "## Summary",
+    "",
+    "| metric | count |",
+    "| --- | ---: |",
+    `| failing stage/side rows | ${simulation.failingStageSideRows} |`,
+    `| side-local candidate rows | ${simulation.candidateRows} |`,
+    `| TP | ${simulation.truePositives} |`,
+    `| FP | ${simulation.falsePositives} |`,
+    `| FN | ${simulation.falseNegatives} |`,
+    `| non-target blocked failing rows | ${simulation.blocked} |`,
+    `| true incremental TP beyond current production | ${simulation.trueIncrementalTp} |`,
+    `| potential full-image PASS gain | ${simulation.potentialFullImageGain} |`,
+    "",
+    "## Accepted Rows",
+    "",
+    "| screenshot | stage | side | proof | selected | expected | opposite selected | proposed | evidence | image would pass |",
+    "| --- | ---: | --- | --- | --- | --- | --- | --- | --- | --- |",
+    acceptedRows,
+    "",
+    "## Rejected Candidate Rows",
+    "",
+    "| screenshot | stage | side | selected | expected | opposite selected | rejection reasons | evidence |",
+    "| --- | ---: | --- | --- | --- | --- | --- | --- |",
+    rejectedRows,
+    "",
+    "## Blocked Breakdown",
+    "",
+    "| reason | rows |",
+    "| --- | ---: |",
+    blockedRows || "| - | 0 |",
+    "",
+    "## Position Breakdown",
+    "",
+    "| position | accepted rows |",
+    "| --- | ---: |",
+    positionRows || "| - | 0 |",
+    "",
+    "## Comparison With Stage3 Capture Work",
+    "",
+    "- This side-local direction recovers more incremental rows in simulation than the deferred single-TP Stage3 variant, geometry, or merged-run experiments.",
+    "- It does not repair missing members and does not improve member evidence quality.",
+    "- The FP risk is lower than noisy Stage3 member capture because the accepted proposal changes only bonus/total and requires exact target total evidence plus an upper-bound proof for the opposite side.",
+    "",
+    "## Recommendation",
+    "",
+    simulation.recommendation === "promising-runner-browser-parity-next"
+      ? "Promising enough for a dedicated runner/browser-equivalent parity task next. Do not productionize until the same side-local evidence is shared with the browser path and parity is exact."
+      : "Do not continue toward production yet; side-local proof did not show enough safe incremental value.",
     "",
   ].join("\n");
 }
@@ -16354,6 +16907,9 @@ async function main() {
   const currentPcStage3MergedRunSlotSplitExperiment =
     args.includes("--current-pc-stage3-merged-run-slot-split-experiment") ||
     args.includes("--current-pc-stage3-self-merged-run-slot-split-experiment");
+  const currentPcSideLocalExactEvidenceSolver = args.includes(
+    "--current-pc-side-local-exact-evidence-solver"
+  );
   const currentPcStageWideVariantSolver = args.includes(
     "--current-pc-stage-wide-variant-solver"
   );
@@ -16391,6 +16947,7 @@ async function main() {
       value !== "--current-pc-stage3-geometry-slot-solver" &&
       value !== "--current-pc-stage3-merged-run-slot-split-experiment" &&
       value !== "--current-pc-stage3-self-merged-run-slot-split-experiment" &&
+      value !== "--current-pc-side-local-exact-evidence-solver" &&
       value !== "--current-pc-stage-wide-variant-solver" &&
       value !== "--current-pc-stage-wide-slot-proven-variant-solver" &&
       value !== "--current-pc-slot-roi-diagnostics" &&
@@ -16667,6 +17224,7 @@ async function main() {
   let stageWideVariantParity = null;
   let exactMembersBonusTotalRecoverySimulation = null;
   let exactMembersBonusTotalRecoveryParity = null;
+  let sideLocalExactEvidenceRecoverySimulation = null;
   let currentPcStage3GeometrySlotSimulation = null;
   let currentPcStage3MergedRunImageSplitArtifacts = null;
   let currentPcStage3MergedRunImageSplitSimulation = null;
@@ -16694,6 +17252,9 @@ async function main() {
         expectedCurrentPcAnalysis,
         exactMembersBonusTotalRecoverySimulation
       );
+    sideLocalExactEvidenceRecoverySimulation = currentPcSideLocalExactEvidenceSolver
+      ? buildCurrentPcSideLocalExactEvidenceRecoverySimulation(expectedCurrentPcAnalysis)
+      : null;
     currentPcStage3GeometrySlotSimulation =
       currentPcStage3GeometrySlotSolver && currentPcStage3SlotGeometryDiagnosticsArtifacts
         ? buildCurrentPcStage3GeometrySlotEvidenceSimulation(
@@ -16838,6 +17399,18 @@ async function main() {
       path.join(currentPcBaselineDir, "exact-members-crown-bonus-total-recovery-parity.json"),
       JSON.stringify(exactMembersBonusTotalRecoveryParity, null, 2)
     );
+    if (sideLocalExactEvidenceRecoverySimulation) {
+      await fs.writeFile(
+        path.join(currentPcBaselineDir, "side-local-exact-evidence-recovery-simulation.json"),
+        JSON.stringify(sideLocalExactEvidenceRecoverySimulation, null, 2)
+      );
+      await fs.writeFile(
+        currentPcSideLocalIncompleteOppositeEvidenceReportPath,
+        buildCurrentPcSideLocalIncompleteOppositeEvidenceReport(
+          sideLocalExactEvidenceRecoverySimulation
+        )
+      );
+    }
     if (stageWideVariantSolverSimulation) {
       await fs.writeFile(
         currentPcStageWideVariantSolverReportPath,
@@ -17005,6 +17578,33 @@ async function main() {
                   )
                 )
                 .replaceAll("\\", "/"),
+              sideLocalExactEvidenceRecoverySimulation:
+                sideLocalExactEvidenceRecoverySimulation
+                  ? {
+                      report: path
+                        .relative(
+                          rootDir,
+                          currentPcSideLocalIncompleteOppositeEvidenceReportPath
+                        )
+                        .replaceAll("\\", "/"),
+                      simulation: path
+                        .relative(
+                          rootDir,
+                          path.join(
+                            currentPcBaselineDir,
+                            "side-local-exact-evidence-recovery-simulation.json"
+                          )
+                        )
+                        .replaceAll("\\", "/"),
+                      truePositives: sideLocalExactEvidenceRecoverySimulation.truePositives,
+                      falsePositives: sideLocalExactEvidenceRecoverySimulation.falsePositives,
+                      falseNegatives: sideLocalExactEvidenceRecoverySimulation.falseNegatives,
+                      blocked: sideLocalExactEvidenceRecoverySimulation.blocked,
+                      trueIncrementalTp:
+                        sideLocalExactEvidenceRecoverySimulation.trueIncrementalTp,
+                      recommendation: sideLocalExactEvidenceRecoverySimulation.recommendation,
+                    }
+                  : null,
               stageWideVariantSolver: stageWideVariantSolverSimulation
                 ? {
                     report: path.relative(rootDir, currentPcStageWideVariantSolverReportPath).replaceAll("\\", "/"),
