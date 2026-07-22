@@ -1428,5 +1428,15 @@ export const idolDb = [
     "plan": "ロジック",
     "rarity": "SSR",
     "image": "/idols/143.png"
+  },
+  {
+    "id": "花海_咲季_ガラクタロード",
+    "name": "ガラクタロード 花海咲季",
+    "short": "ガラクタロード咲季",
+    "character": "花海咲季",
+    "title": "ガラクタロード",
+    "plan": "アノマリー",
+    "rarity": "SSR",
+    "image": "/idols/144.png"
   }
 ];
