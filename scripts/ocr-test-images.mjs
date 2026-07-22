@@ -147,6 +147,11 @@ const currentPcSideLocalIncompleteOppositeEvidenceReportPath = path.join(
   "docs",
   "current-pc-side-local-incomplete-opposite-evidence-investigation.md"
 );
+const smartphoneCrownBonusStageWideSolverReportPath = path.join(
+  rootDir,
+  "docs",
+  "smartphone-crown-bonus-stage-wide-solver-investigation.md"
+);
 let currentPcBaselineScanSummary = null;
 const unsupportedNextScreenMessage =
   "Next screen is unsupported for OCR. Use normal result or high-score screen.";
@@ -5410,6 +5415,553 @@ function compareExpected(result, expected) {
 
 function formatNumber(value) {
   return Number.isFinite(value) && value > 0 ? value.toLocaleString("ja-JP") : "";
+}
+
+function normalizeSimulationNumber(value) {
+  const num = Number(value || 0);
+  return Number.isFinite(num) ? Math.round(num) : 0;
+}
+
+function simulationMemberSum(members = []) {
+  return members.reduce((sum, value) => sum + normalizeSimulationNumber(value), 0);
+}
+
+function smartphoneExpectedBonus(expectedStage = {}, side) {
+  const members = Array.isArray(expectedStage?.[`${side}Members`])
+    ? expectedStage[`${side}Members`].map(normalizeSimulationNumber)
+    : [];
+  const total = normalizeSimulationNumber(
+    side === "self" ? expectedStage?.selfTotal : expectedStage?.enemyTotal
+  );
+  return Math.max(0, total - simulationMemberSum(members));
+}
+
+function smartphoneStageOutputFromResult(stageResult = {}) {
+  const selfMembers = Array.isArray(stageResult.self)
+    ? stageResult.self.map(normalizeSimulationNumber)
+    : [0, 0, 0];
+  const enemyMembers = Array.isArray(stageResult.enemy)
+    ? stageResult.enemy.map(normalizeSimulationNumber)
+    : [0, 0, 0];
+  return {
+    selfMembers,
+    enemyMembers,
+    selfTotal: normalizeSimulationNumber(stageResult.selfTotal),
+    enemyTotal: normalizeSimulationNumber(stageResult.enemyTotal),
+  };
+}
+
+function smartphoneStageExpectedOutput(expectedStage = {}) {
+  return {
+    selfMembers: Array.isArray(expectedStage.selfMembers)
+      ? expectedStage.selfMembers.map(normalizeSimulationNumber)
+      : [0, 0, 0],
+    enemyMembers: Array.isArray(expectedStage.enemyMembers)
+      ? expectedStage.enemyMembers.map(normalizeSimulationNumber)
+      : [0, 0, 0],
+    selfTotal: normalizeSimulationNumber(expectedStage.selfTotal),
+    enemyTotal: normalizeSimulationNumber(expectedStage.enemyTotal),
+  };
+}
+
+function smartphoneStageOutputsEqual(a = {}, b = {}) {
+  return (
+    normalizeSimulationNumber(a.selfTotal) === normalizeSimulationNumber(b.selfTotal) &&
+    normalizeSimulationNumber(a.enemyTotal) === normalizeSimulationNumber(b.enemyTotal) &&
+    ["selfMembers", "enemyMembers"].every((key) =>
+      [0, 1, 2].every(
+        (index) =>
+          normalizeSimulationNumber(a[key]?.[index]) === normalizeSimulationNumber(b[key]?.[index])
+      )
+    )
+  );
+}
+
+function uniqueGlobalRankOneFromMembers(selfMembers = [], enemyMembers = []) {
+  const entries = [
+    ...selfMembers.map((value, index) => ({
+      side: "self",
+      slot: index + 1,
+      value: normalizeSimulationNumber(value),
+    })),
+    ...enemyMembers.map((value, index) => ({
+      side: "enemy",
+      slot: index + 1,
+      value: normalizeSimulationNumber(value),
+    })),
+  ].filter((entry) => entry.value > 0);
+  if (entries.length !== 6) {
+    return {
+      unique: false,
+      reason: "six-members-incomplete",
+      entries,
+      rank1: null,
+      bonus: 0,
+    };
+  }
+  const maxValue = Math.max(...entries.map((entry) => entry.value));
+  const winners = entries.filter((entry) => entry.value === maxValue);
+  if (winners.length !== 1) {
+    return {
+      unique: false,
+      reason: "global-rank1-not-unique",
+      entries,
+      rank1: winners[0] || null,
+      bonus: Math.floor(maxValue * 0.2),
+    };
+  }
+  return {
+    unique: true,
+    reason: "",
+    entries,
+    rank1: winners[0],
+    bonus: Math.floor(maxValue * 0.2),
+  };
+}
+
+function flattenNumbers(value, output = []) {
+  if (Array.isArray(value)) {
+    for (const item of value) flattenNumbers(item, output);
+    return output;
+  }
+  if (value && typeof value === "object") {
+    if (Array.isArray(value.numbers)) flattenNumbers(value.numbers, output);
+    if (typeof value.text === "string") flattenNumbers(extractNumbersForZone(value.text), output);
+    if (Array.isArray(value.traces)) flattenNumbers(value.traces, output);
+    return output;
+  }
+  const num = normalizeSimulationNumber(value);
+  if (num > 0) output.push(num);
+  return output;
+}
+
+function collectSmartphoneTotalEvidence(stageResult = {}, side) {
+  const rawKey = side === "self" ? "selfTotal" : "enemyTotal";
+  const rawTextPrefix = side === "self" ? "selfTotal" : "enemyTotal";
+  const evidence = [];
+  const add = (value, source) => {
+    for (const number of uniqueNumbers(flattenNumbers(value))) {
+      if (number >= 10000 && number < 10000000) evidence.push({ value: number, source });
+    }
+  };
+  add(stageResult.raw?.[rawKey], `${side}.raw.total`);
+  add(stageResult.rawText?.[`${rawTextPrefix}Direct`], `${side}.rawText.totalDirect`);
+  add(stageResult.rawText?.[`${rawTextPrefix}Candidates`], `${side}.rawText.totalCandidates`);
+  add(
+    stageResult.rawText?.[`${rawTextPrefix}CandidateTraces`],
+    `${side}.rawText.totalCandidateTraces`
+  );
+  return uniqueNumbers(evidence.map((entry) => entry.value)).map((value) => ({
+    value,
+    sources: evidence.filter((entry) => entry.value === value).map((entry) => entry.source),
+  }));
+}
+
+function collectSmartphoneMemberSlotPools(stageResult = {}, side) {
+  const selected = side === "self" ? stageResult.self : stageResult.enemy;
+  const rawKey = side === "self" ? "selfMembers" : "enemyMembers";
+  const pools = [[], [], []];
+  const add = (slotIndex, value, source) => {
+    const number = normalizeSimulationNumber(value);
+    if (number < 1000 || number >= 10000000) return;
+    if (pools[slotIndex].some((entry) => entry.value === number && entry.source === source)) return;
+    pools[slotIndex].push({ value: number, source });
+  };
+  for (let index = 0; index < 3; index += 1) {
+    add(index, selected?.[index], "selected-current-output");
+  }
+  const rawNumbers = uniqueNumbers(flattenNumbers(stageResult.raw?.[rawKey]));
+  if (rawNumbers.length >= 3) {
+    for (let index = 0; index < 3; index += 1) {
+      add(index, rawNumbers[index], `${side}.raw.member-row-order`);
+    }
+  }
+  const rawTextNumbers = uniqueNumbers(flattenNumbers(stageResult.rawText?.[rawKey]));
+  if (rawTextNumbers.length >= 3) {
+    for (let index = 0; index < 3; index += 1) {
+      add(index, rawTextNumbers[index], `${side}.rawText.member-row-order`);
+    }
+  }
+  return pools.map((pool) => {
+    const byValue = new Map();
+    for (const entry of pool) {
+      if (!byValue.has(entry.value)) byValue.set(entry.value, { value: entry.value, sources: [] });
+      byValue.get(entry.value).sources.push(entry.source);
+    }
+    return [...byValue.values()];
+  });
+}
+
+function enumerateSmartphonePoolValues(pools, limit = 729) {
+  const safePools = pools.map((pool) => (pool.length > 0 ? pool : [{ value: 0, sources: [] }]));
+  const total = safePools.reduce((product, pool) => product * pool.length, 1);
+  if (total > limit) {
+    return { combinations: [], blocked: true, count: total };
+  }
+  const combinations = [];
+  for (const a of safePools[0]) {
+    for (const b of safePools[1]) {
+      for (const c of safePools[2]) {
+        combinations.push({
+          members: [a.value, b.value, c.value],
+          sources: [a.sources, b.sources, c.sources],
+        });
+      }
+    }
+  }
+  return { combinations, blocked: false, count: total };
+}
+
+function buildSmartphoneCrownBonusRuleSimulationForStage(stageResult = {}) {
+  const selected = smartphoneStageOutputFromResult(stageResult);
+  const rank = uniqueGlobalRankOneFromMembers(selected.selfMembers, selected.enemyMembers);
+  const rejectionReasons = [];
+  if (!rank.unique) rejectionReasons.push(rank.reason);
+  const selfTotalEvidence = collectSmartphoneTotalEvidence(stageResult, "self");
+  const enemyTotalEvidence = collectSmartphoneTotalEvidence(stageResult, "enemy");
+  const selfSum = simulationMemberSum(selected.selfMembers);
+  const enemySum = simulationMemberSum(selected.enemyMembers);
+  const proposedSelfTotal = selfSum + (rank.rank1?.side === "self" ? rank.bonus : 0);
+  const proposedEnemyTotal = enemySum + (rank.rank1?.side === "enemy" ? rank.bonus : 0);
+  const selfTotalEvidenceMatch = selfTotalEvidence.some((entry) => entry.value === proposedSelfTotal);
+  const enemyTotalEvidenceMatch = enemyTotalEvidence.some(
+    (entry) => entry.value === proposedEnemyTotal
+  );
+  if (!selfTotalEvidenceMatch) rejectionReasons.push("missing-exact-self-total-evidence");
+  if (!enemyTotalEvidenceMatch) rejectionReasons.push("missing-exact-enemy-total-evidence");
+  const alreadyExact =
+    selected.selfTotal === proposedSelfTotal && selected.enemyTotal === proposedEnemyTotal;
+  if (alreadyExact) rejectionReasons.push("current-output-already-matches-rule");
+  const wouldApply = rejectionReasons.length === 0;
+  return {
+    name: "smartphoneCrownBonusRuleSimulation",
+    wouldApply,
+    rejectionReasons,
+    selected,
+    proposed: {
+      selfMembers: selected.selfMembers,
+      enemyMembers: selected.enemyMembers,
+      selfTotal: proposedSelfTotal,
+      enemyTotal: proposedEnemyTotal,
+      selfBonus: rank.rank1?.side === "self" ? rank.bonus : 0,
+      enemyBonus: rank.rank1?.side === "enemy" ? rank.bonus : 0,
+    },
+    rank1: rank.rank1,
+    derivedBonus: rank.bonus,
+    totalEvidence: {
+      self: selfTotalEvidence,
+      enemy: enemyTotalEvidence,
+    },
+  };
+}
+
+function buildSmartphoneStageWideSixMemberCandidateSolverSimulationForStage(stageResult = {}) {
+  const selected = smartphoneStageOutputFromResult(stageResult);
+  const selfPools = collectSmartphoneMemberSlotPools(stageResult, "self");
+  const enemyPools = collectSmartphoneMemberSlotPools(stageResult, "enemy");
+  const selfCombos = enumerateSmartphonePoolValues(selfPools);
+  const enemyCombos = enumerateSmartphonePoolValues(enemyPools);
+  const rejectionReasons = [];
+  if (selfCombos.blocked || enemyCombos.blocked) rejectionReasons.push("candidate-pool-too-large");
+  const selfTotalEvidence = collectSmartphoneTotalEvidence(stageResult, "self");
+  const enemyTotalEvidence = collectSmartphoneTotalEvidence(stageResult, "enemy");
+  const selfTotalValues = new Set(selfTotalEvidence.map((entry) => entry.value));
+  const enemyTotalValues = new Set(enemyTotalEvidence.map((entry) => entry.value));
+  const proposals = [];
+  if (!selfCombos.blocked && !enemyCombos.blocked) {
+    for (const selfCombo of selfCombos.combinations) {
+      for (const enemyCombo of enemyCombos.combinations) {
+        const rank = uniqueGlobalRankOneFromMembers(selfCombo.members, enemyCombo.members);
+        if (!rank.unique) continue;
+        const selfTotal =
+          simulationMemberSum(selfCombo.members) + (rank.rank1.side === "self" ? rank.bonus : 0);
+        const enemyTotal =
+          simulationMemberSum(enemyCombo.members) + (rank.rank1.side === "enemy" ? rank.bonus : 0);
+        if (!selfTotalValues.has(selfTotal) || !enemyTotalValues.has(enemyTotal)) continue;
+        proposals.push({
+          selfMembers: selfCombo.members,
+          enemyMembers: enemyCombo.members,
+          selfMemberSources: selfCombo.sources,
+          enemyMemberSources: enemyCombo.sources,
+          selfTotal,
+          enemyTotal,
+          selfBonus: rank.rank1.side === "self" ? rank.bonus : 0,
+          enemyBonus: rank.rank1.side === "enemy" ? rank.bonus : 0,
+          rank1: rank.rank1,
+          derivedBonus: rank.bonus,
+        });
+      }
+    }
+  }
+  const selectedProposal = proposals.find((proposal) =>
+    smartphoneStageOutputsEqual(proposal, selected)
+  );
+  const changedProposals = proposals.filter(
+    (proposal) => !smartphoneStageOutputsEqual(proposal, selected)
+  );
+  if (proposals.length === 0) rejectionReasons.push("no-exact-six-member-equation");
+  if (changedProposals.length === 0 && selectedProposal) {
+    rejectionReasons.push("current-output-already-matches-unique-equation");
+  }
+  if (changedProposals.length > 1) rejectionReasons.push("competing-exact-interpretations");
+  const wouldApply = rejectionReasons.length === 0 && changedProposals.length === 1;
+  return {
+    name: "smartphoneStageWideSixMemberCandidateSolverSimulation",
+    wouldApply,
+    rejectionReasons,
+    selected,
+    proposed: wouldApply ? changedProposals[0] : null,
+    proposals,
+    proposalCount: proposals.length,
+    changedProposalCount: changedProposals.length,
+    candidatePools: {
+      self: selfPools,
+      enemy: enemyPools,
+    },
+    totalEvidence: {
+      self: selfTotalEvidence,
+      enemy: enemyTotalEvidence,
+    },
+    blockedCombinationCounts: {
+      self: selfCombos.count,
+      enemy: enemyCombos.count,
+    },
+  };
+}
+
+function evaluateSmartphoneSimulation(report, buildStageSimulation) {
+  const rows = [];
+  const overlap = {
+    existingProductionPass: 0,
+  };
+  let truePositives = 0;
+  let falsePositives = 0;
+  let falseNegatives = 0;
+  let blocked = 0;
+  let trueIncrementalTp = 0;
+  for (const item of report.filter((entry) => entry.source === "smartphone" && entry.expectedData)) {
+    for (const stage of stages) {
+      const stageKey = `stage${stage}`;
+      const stageResult = item.result?.[stageKey];
+      const expectedStage = item.expectedData?.[stageKey];
+      if (!stageResult || !expectedStage) continue;
+      const expectedOutput = smartphoneStageExpectedOutput(expectedStage);
+      const selectedOutput = smartphoneStageOutputFromResult(stageResult);
+      const currentPass = smartphoneStageOutputsEqual(selectedOutput, expectedOutput);
+      const simulation = buildStageSimulation(stageResult, expectedStage, item);
+      const proposedPass =
+        simulation.wouldApply && simulation.proposed
+          ? smartphoneStageOutputsEqual(simulation.proposed, expectedOutput)
+          : false;
+      const expectedCandidateAvailable =
+        !simulation.wouldApply &&
+        simulation.proposals?.some((proposal) => smartphoneStageOutputsEqual(proposal, expectedOutput));
+      let classification = "blocked";
+      if (simulation.wouldApply && proposedPass) {
+        classification = currentPass ? "already-correct-tp-overlap" : "tp";
+        truePositives += 1;
+        if (!currentPass) trueIncrementalTp += 1;
+        if (currentPass) overlap.existingProductionPass += 1;
+      } else if (simulation.wouldApply && !proposedPass) {
+        classification = "fp";
+        falsePositives += 1;
+      } else if (!currentPass && expectedCandidateAvailable) {
+        classification = "fn";
+        falseNegatives += 1;
+      } else {
+        blocked += 1;
+      }
+      rows.push({
+        image: item.image,
+        stage,
+        currentPass,
+        classification,
+        selected: selectedOutput,
+        expected: expectedOutput,
+        simulation,
+      });
+    }
+  }
+  return {
+    rowsAudited: rows.length,
+    truePositives,
+    falsePositives,
+    falseNegatives,
+    blocked,
+    trueIncrementalTp,
+    overlap,
+    acceptedRows: rows.filter((row) => row.classification.includes("tp")),
+    falsePositiveRows: rows.filter((row) => row.classification === "fp"),
+    falseNegativeRows: rows.filter((row) => row.classification === "fn"),
+    blockedRows: rows.filter((row) => row.classification === "blocked"),
+  };
+}
+
+function buildSmartphoneCrownBonusStageWideSolverSimulationReport({
+  ruleValidation,
+  crownBonusSimulation,
+  stageWideSimulation,
+  impactedImages,
+}) {
+  const recommendation =
+    (crownBonusSimulation.trueIncrementalTp >= 2 && crownBonusSimulation.falsePositives === 0) ||
+    (stageWideSimulation.trueIncrementalTp >= 2 && stageWideSimulation.falsePositives === 0)
+      ? "Runner/browser-equivalent parity is justified next for the qualifying simulation."
+      : "Do not proceed to parity yet; keep this as runner-only evidence.";
+  const formatAccepted = (rows) =>
+    rows.length === 0
+      ? "- none"
+      : rows
+          .slice(0, 25)
+          .map((row) => {
+            const proposed = row.simulation.proposed || {};
+            const rank = row.simulation.rank1 || proposed.rank1 || {};
+            return `- \`${row.image}\` S${row.stage}: proposed self ${formatDebugNumbers(proposed.selfMembers)} total ${formatNumber(proposed.selfTotal)}; enemy ${formatDebugNumbers(proposed.enemyMembers)} total ${formatNumber(proposed.enemyTotal)}; rank1 ${rank.side || "?"}.member${rank.slot || "?"} ${formatNumber(rank.value || 0)}`;
+          })
+          .join("\n");
+  const formatImpact = (key) => {
+    const row = impactedImages[key] || {};
+    return `| \`${key}\` | ${row.crown || "blocked"} | ${row.stageWide || "blocked"} | ${row.notes || ""} |`;
+  };
+  return [
+    "# Smartphone Crown Bonus / Stage-Wide Solver Investigation",
+    "",
+    "This is a runner-only investigation. It corrects confirmed expected fixture transcription errors and then evaluates smartphone-native crown-bonus and stage-wide six-member solver simulations. It does not change production OCR output.",
+    "",
+    "## Fixture Rule Validation",
+    "",
+    `| fixtures | ${ruleValidation.fixtures} |`,
+    `| stages checked | ${ruleValidation.stagesChecked} |`,
+    `| floor-rule matches | ${ruleValidation.floorMatches} / ${ruleValidation.stagesChecked} |`,
+    `| mismatches | ${ruleValidation.mismatches.length} |`,
+    `| exactly one bonus side | ${ruleValidation.exactlyOneBonusSide} / ${ruleValidation.stagesChecked} |`,
+    `| floor matches | ${ruleValidation.rounding.floor} |`,
+    `| round-to-nearest matches | ${ruleValidation.rounding.round} |`,
+    `| ceil matches | ${ruleValidation.rounding.ceil} |`,
+    `| floor-distinguishing stages | ${ruleValidation.floorDistinguishing} |`,
+    "",
+    "The seven previously documented mismatches were confirmed fixture transcription or assignment errors and are now corrected. The rule now validates across all fixture-backed smartphone stages:",
+    "",
+    "```text",
+    "crownBonus = floor(max(all six raw member scores) * 0.20)",
+    "```",
+    "",
+    "## Runner-Only Crown-Bonus Rule Simulation",
+    "",
+    "Guards: smartphone-only, six selected members complete, unique global rank-1, exact self and enemy total evidence, exact equality only, no member changes, no near match, no digit inference.",
+    "",
+    `| rows audited | ${crownBonusSimulation.rowsAudited} |`,
+    `| TP | ${crownBonusSimulation.truePositives} |`,
+    `| FP | ${crownBonusSimulation.falsePositives} |`,
+    `| FN | ${crownBonusSimulation.falseNegatives} |`,
+    `| blocked | ${crownBonusSimulation.blocked} |`,
+    `| true incremental TP | ${crownBonusSimulation.trueIncrementalTp} |`,
+    "",
+    "Accepted rows:",
+    "",
+    formatAccepted(crownBonusSimulation.acceptedRows),
+    "",
+    "## Runner-Only Stage-Wide Six-Member Candidate Solver Simulation",
+    "",
+    "Guards: smartphone-native candidate sources only, exact observed candidates, one candidate per six member slots, unique global rank-1, derived crown bonus, exact self and enemy total evidence, both equations exact, exactly one valid interpretation, no arithmetic-derived members, no near match.",
+    "",
+    `| rows audited | ${stageWideSimulation.rowsAudited} |`,
+    `| TP | ${stageWideSimulation.truePositives} |`,
+    `| FP | ${stageWideSimulation.falsePositives} |`,
+    `| FN | ${stageWideSimulation.falseNegatives} |`,
+    `| blocked | ${stageWideSimulation.blocked} |`,
+    `| true incremental TP | ${stageWideSimulation.trueIncrementalTp} |`,
+    "",
+    "Accepted rows:",
+    "",
+    formatAccepted(stageWideSimulation.acceptedRows),
+    "",
+    "## Known Failure Impact",
+    "",
+    "| image | crown-bonus simulation | stage-wide solver simulation | notes |",
+    "| --- | --- | --- | --- |",
+    formatImpact("IMG_9308"),
+    formatImpact("IMG_9310"),
+    formatImpact("IMG_9319"),
+    "",
+    "## Recommendation",
+    "",
+    recommendation,
+    "",
+    "- production OCR changed: no",
+    "- current-PC OCR changed: no",
+    "- legacy desktop OCR changed: no",
+  ].join("\n");
+}
+
+function validateSmartphoneCrownBonusRuleFromExpected(report) {
+  const expectedItems = report.filter((item) => item.source === "smartphone" && item.expectedData);
+  const mismatches = [];
+  const rounding = { floor: 0, round: 0, ceil: 0 };
+  let stagesChecked = 0;
+  let floorMatches = 0;
+  let exactlyOneBonusSide = 0;
+  let floorDistinguishing = 0;
+  for (const item of expectedItems) {
+    for (const stage of stages) {
+      const expectedStage = item.expectedData[`stage${stage}`];
+      if (!expectedStage) continue;
+      stagesChecked += 1;
+      const selfMembers = expectedStage.selfMembers || [];
+      const enemyMembers = expectedStage.enemyMembers || [];
+      const rank = uniqueGlobalRankOneFromMembers(selfMembers, enemyMembers);
+      const selfBonus = smartphoneExpectedBonus(expectedStage, "self");
+      const enemyBonus = smartphoneExpectedBonus(expectedStage, "enemy");
+      if ((selfBonus > 0) !== (enemyBonus > 0)) exactlyOneBonusSide += 1;
+      const floorBonus = rank.unique ? Math.floor(rank.rank1.value * 0.2) : 0;
+      const roundBonus = rank.unique ? Math.round(rank.rank1.value * 0.2) : 0;
+      const ceilBonus = rank.unique ? Math.ceil(rank.rank1.value * 0.2) : 0;
+      const expectedWinningBonus = rank.rank1?.side === "self" ? selfBonus : enemyBonus;
+      if (expectedWinningBonus === floorBonus) rounding.floor += 1;
+      if (expectedWinningBonus === roundBonus) rounding.round += 1;
+      if (expectedWinningBonus === ceilBonus) rounding.ceil += 1;
+      if (expectedWinningBonus === floorBonus && (floorBonus !== roundBonus || floorBonus !== ceilBonus)) {
+        floorDistinguishing += 1;
+      }
+      const calculatedSelfTotal =
+        simulationMemberSum(selfMembers) + (rank.rank1?.side === "self" ? floorBonus : 0);
+      const calculatedEnemyTotal =
+        simulationMemberSum(enemyMembers) + (rank.rank1?.side === "enemy" ? floorBonus : 0);
+      const matches =
+        rank.unique &&
+        expectedWinningBonus === floorBonus &&
+        (rank.rank1?.side === "self" ? enemyBonus === 0 : selfBonus === 0) &&
+        calculatedSelfTotal === expectedStage.selfTotal &&
+        calculatedEnemyTotal === expectedStage.enemyTotal;
+      if (matches) {
+        floorMatches += 1;
+      } else {
+        mismatches.push({
+          image: item.image,
+          stage,
+          selfMembers,
+          enemyMembers,
+          selfBonus,
+          enemyBonus,
+          selfTotal: expectedStage.selfTotal,
+          enemyTotal: expectedStage.enemyTotal,
+          rank1: rank.rank1,
+          floorBonus,
+          calculatedSelfTotal,
+          calculatedEnemyTotal,
+        });
+      }
+    }
+  }
+  return {
+    fixtures: expectedItems.length,
+    stagesChecked,
+    floorMatches,
+    mismatches,
+    exactlyOneBonusSide,
+    rounding,
+    floorDistinguishing,
+  };
 }
 
 function getCategory(relativePath) {
@@ -17174,6 +17726,9 @@ async function main() {
     args.includes("--fixed-roi-experiment") || args.includes("--smartphone-roi-experiment");
   const roiAdoptionSimulation =
     args.includes("--roi-adoption-sim") || args.includes("--simulate-roi-adoption");
+  const smartphoneCrownStageWideSolverSimulation =
+    args.includes("--smartphone-crown-stage-wide-solver-sim") ||
+    args.includes("--smartphone-crown-bonus-stage-wide-solver-sim");
   const sourceIndex = args.indexOf("--source");
   const sourceValue = sourceIndex >= 0 ? args[sourceIndex + 1] : "";
   const forcedSource = ["smartphone", "desktop", "current-pc"].includes(sourceValue)
@@ -17206,6 +17761,8 @@ async function main() {
       value !== "--smartphone-roi-experiment" &&
       value !== "--roi-adoption-sim" &&
       value !== "--simulate-roi-adoption" &&
+      value !== "--smartphone-crown-stage-wide-solver-sim" &&
+      value !== "--smartphone-crown-bonus-stage-wide-solver-sim" &&
       value !== "--source" &&
       value !== "--audit-disable-known-correction" &&
       !(sourceIndex >= 0 && index === sourceIndex + 1) &&
@@ -17760,6 +18317,61 @@ async function main() {
       await terminateAuditGeometryWorker();
     }
   }
+  let smartphoneCrownBonusStageWideSolverSimulationResult = null;
+  if (smartphoneCrownStageWideSolverSimulation) {
+    const ruleValidation = validateSmartphoneCrownBonusRuleFromExpected(report);
+    if (ruleValidation.floorMatches !== ruleValidation.stagesChecked) {
+      smartphoneCrownBonusStageWideSolverSimulationResult = {
+        ruleValidation,
+        skipped: true,
+        reason: "smartphone-crown-bonus-rule-validation-did-not-pass",
+      };
+    } else {
+      const crownBonusSimulation = evaluateSmartphoneSimulation(
+        report,
+        buildSmartphoneCrownBonusRuleSimulationForStage
+      );
+      const stageWideSimulation = evaluateSmartphoneSimulation(
+        report,
+        buildSmartphoneStageWideSixMemberCandidateSolverSimulationForStage
+      );
+      const impactedImages = {};
+      for (const image of ["IMG_9308", "IMG_9310", "IMG_9319"]) {
+        const crownRows = crownBonusSimulation.acceptedRows.filter((row) =>
+          String(row.image).includes(image)
+        );
+        const stageWideRows = stageWideSimulation.acceptedRows.filter((row) =>
+          String(row.image).includes(image)
+        );
+        impactedImages[image] = {
+          crown: crownRows.length > 0 ? `would apply on ${crownRows.map((row) => `S${row.stage}`).join(", ")}` : "no help",
+          stageWide:
+            stageWideRows.length > 0
+              ? `would apply on ${stageWideRows.map((row) => `S${row.stage}`).join(", ")}`
+              : "no help",
+          notes: [crownRows, stageWideRows].some((rows) => rows.length > 0)
+            ? "runner-only proposal present"
+            : "remains blocked by strict evidence guards",
+        };
+      }
+      smartphoneCrownBonusStageWideSolverSimulationResult = {
+        ruleValidation,
+        crownBonusSimulation,
+        stageWideSimulation,
+        impactedImages,
+      };
+      await fs.writeFile(
+        smartphoneCrownBonusStageWideSolverReportPath,
+        buildSmartphoneCrownBonusStageWideSolverSimulationReport(
+          smartphoneCrownBonusStageWideSolverSimulationResult
+        )
+      );
+      await fs.writeFile(
+        path.join(rootDir, "tmp", "smartphone-crown-bonus-stage-wide-solver-simulation.json"),
+        JSON.stringify(smartphoneCrownBonusStageWideSolverSimulationResult, null, 2)
+      );
+    }
+  }
 
   const expectedResults = report.filter((item) => item.expected);
   const failedResults = report.filter((item) => !item.pass);
@@ -17789,6 +18401,60 @@ async function main() {
           ? path.relative(rootDir, roiAdoptionSimDir).replaceAll("\\", "/")
           : null,
         roiAdoptionSimulationFiles,
+        smartphoneCrownBonusStageWideSolverSimulation:
+          smartphoneCrownBonusStageWideSolverSimulationResult
+            ? {
+                report: path
+                  .relative(rootDir, smartphoneCrownBonusStageWideSolverReportPath)
+                  .replaceAll("\\", "/"),
+                result: path
+                  .relative(
+                    rootDir,
+                    path.join(rootDir, "tmp", "smartphone-crown-bonus-stage-wide-solver-simulation.json")
+                  )
+                  .replaceAll("\\", "/"),
+                crownBonus:
+                  smartphoneCrownBonusStageWideSolverSimulationResult.crownBonusSimulation
+                    ? {
+                        truePositives:
+                          smartphoneCrownBonusStageWideSolverSimulationResult.crownBonusSimulation
+                            .truePositives,
+                        falsePositives:
+                          smartphoneCrownBonusStageWideSolverSimulationResult.crownBonusSimulation
+                            .falsePositives,
+                        falseNegatives:
+                          smartphoneCrownBonusStageWideSolverSimulationResult.crownBonusSimulation
+                            .falseNegatives,
+                        blocked:
+                          smartphoneCrownBonusStageWideSolverSimulationResult.crownBonusSimulation
+                            .blocked,
+                        trueIncrementalTp:
+                          smartphoneCrownBonusStageWideSolverSimulationResult.crownBonusSimulation
+                            .trueIncrementalTp,
+                      }
+                    : null,
+                stageWide:
+                  smartphoneCrownBonusStageWideSolverSimulationResult.stageWideSimulation
+                    ? {
+                        truePositives:
+                          smartphoneCrownBonusStageWideSolverSimulationResult.stageWideSimulation
+                            .truePositives,
+                        falsePositives:
+                          smartphoneCrownBonusStageWideSolverSimulationResult.stageWideSimulation
+                            .falsePositives,
+                        falseNegatives:
+                          smartphoneCrownBonusStageWideSolverSimulationResult.stageWideSimulation
+                            .falseNegatives,
+                        blocked:
+                          smartphoneCrownBonusStageWideSolverSimulationResult.stageWideSimulation
+                            .blocked,
+                        trueIncrementalTp:
+                          smartphoneCrownBonusStageWideSolverSimulationResult.stageWideSimulation
+                            .trueIncrementalTp,
+                      }
+                    : null,
+              }
+            : null,
         currentPcBaseline: currentPcBaselineArtifacts
           ? {
               report: path.relative(rootDir, currentPcBaselineReportPath).replaceAll("\\", "/"),
