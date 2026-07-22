@@ -1,12 +1,12 @@
 # Current-PC Side-Local Incomplete Opposite Evidence Investigation
 
-Generated: 2026-07-21T23:31:31.994Z
+Generated: 2026-07-22T01:31:36.157Z
 
 ## Scope
 
 - runner-only simulation added: yes
-- final OCR output changed: no
-- production recovery added: no
+- final OCR output changed: yes, when `applyCurrentPcSideLocalExactEvidenceRecovery(...)` applies
+- production recovery added: yes
 - smartphone OCR changed: no
 - legacy desktop OCR changed: no
 - filename/screenshot-specific logic: no
@@ -28,7 +28,8 @@ The key distinction is:
 - Shared helper: `buildCurrentPcSideLocalExactEvidenceRecoveryEvidence(...)` in `app/lib/ocr.js`.
 - Runner path: `scripts/ocr-test-images.mjs` calls the shared helper from `currentPcSideLocalExactEvidenceStageSide(...)`.
 - Browser-equivalent path: the parity evaluator rebuilds the same side-local evidence from the current-PC side analysis object available before UI result rendering.
-- Final OCR output is not changed in this task; the helper is evidence-only.
+- Production path: `applyCurrentPcSideLocalExactEvidenceRecovery(...)` applies only when the shared helper says `wouldApply`.
+- The recovery changes only the target side bonus/total. Target-side member values remain unchanged.
 
 ## Side-Local Proof Categories
 
@@ -45,12 +46,11 @@ Rejected/unused categories:
 
 | metric | count |
 | --- | ---: |
-| failing stage/side rows | 58 |
-| side-local candidate rows | 7 |
+| full fixture stage/side rows evaluated | 408 |
 | TP | 3 |
 | FP | 0 |
 | FN | 4 |
-| non-target blocked failing rows | 51 |
+| blocked | 51 |
 | true incremental TP beyond current production | 3 |
 | potential full-image PASS gain | 3 |
 
@@ -95,19 +95,13 @@ Rejected/unused categories:
 
 | screenshot | stage | side | selected | expected | opposite selected | rejection reasons | evidence |
 | --- | ---: | --- | --- | --- | --- | --- | --- |
-| 2026-07-11_223426685.png | 2 | self | members 401629, 286311, 563518; bonus 11,270; total 1,262,728 | members 401629, 286311, 563518; bonus 112,703; total 1,364,161 | members 201918, 279384, 206335; bonus 0; total 687,637 | missing-target-exact-total-evidence<br>opposite-total-does-not-prove-target-rank1<br>opposite-observed-candidate-could-exceed-target-max | targetMax=563,518<br>oppositeTotalEvidence=displayed-total-candidates, total-trace, total-trace, total-trace-token-audit, total-trace-token-audit, total-trace-token-audit, total-trace-token-audit<br>oppositeTotalInternallyConsistent=yes<br>oppositeObservedAboveTargetMax=687637<br>currentCrownRejection=missing-self-exact-total-evidence<br>stageWideRejection=no-complete-six-member-exact-total-interpretation<br>exactMembersRejection=missing-target-exact-total-evidence |
-| 2026-07-11_223513004.png | 2 | self | members 401629, 286311, 563518; bonus 11,270; total 1,262,728 | members 401629, 286311, 563518; bonus 112,703; total 1,364,161 | members 201918, 279384, 206335; bonus 0; total 687,637 | missing-target-exact-total-evidence<br>opposite-total-does-not-prove-target-rank1<br>opposite-observed-candidate-could-exceed-target-max | targetMax=563,518<br>oppositeTotalEvidence=displayed-total-candidates, total-trace, total-trace, total-trace-token-audit, total-trace-token-audit, total-trace-token-audit, total-trace-token-audit<br>oppositeTotalInternallyConsistent=yes<br>oppositeObservedAboveTargetMax=687637<br>currentCrownRejection=missing-self-exact-total-evidence<br>stageWideRejection=no-complete-six-member-exact-total-interpretation<br>exactMembersRejection=missing-target-exact-total-evidence |
-| スクリーンショット 2026-07-16 063115987.png | 1 | self | members 322660, 198361, 153346; bonus 0; total 674,367 | members 322660, 198361, 153346; bonus 64,532; total 738,899 | members 99187, 74052, 388430; bonus 0; total 561,669 | missing-opposite-exact-total-evidence<br>opposite-total-does-not-prove-target-rank1<br>opposite-observed-candidate-could-exceed-target-max | targetMax=322,660<br>oppositeTotalEvidence=none<br>oppositeTotalInternallyConsistent=yes<br>oppositeObservedAboveTargetMax=388430<br>currentCrownRejection=missing-self-exact-total-evidence, missing-enemy-exact-total-evidence<br>stageWideRejection=no-complete-six-member-exact-total-interpretation<br>exactMembersRejection=missing-target-exact-total-evidence, side-already-matches-proposal |
-| スクリーンショット 2026-07-16 063115987.png | 2 | self | members 203712, 141269, 151188; bonus 0; total 496,169 | members 203712, 141269, 151188; bonus 40,742; total 536,911 | members 66102, 129559, 57325; bonus 0; total 252,986 | opposite-total-does-not-prove-target-rank1<br>opposite-observed-candidate-could-exceed-target-max | targetMax=203,712<br>oppositeTotalEvidence=displayed-total-candidates, total-trace, total-trace, total-trace-token-audit, total-trace-token-audit, total-trace-token-audit, total-trace-token-audit<br>oppositeTotalInternallyConsistent=yes<br>oppositeObservedAboveTargetMax=252986<br>currentCrownRejection=missing-enemy-member2-evidence<br>stageWideRejection=no-complete-six-member-exact-total-interpretation<br>exactMembersRejection=missing-enemy-member2-evidence, missing-six-member-evidence |
+| - | - | - | - | - | - | - | - |
 
 ## Blocked Breakdown
 
 | reason | rows |
 | --- | ---: |
-| opposite-observed-candidate-could-exceed-target-max | 4 |
-| opposite-total-does-not-prove-target-rank1 | 4 |
-| missing-target-exact-total-evidence | 2 |
-| missing-opposite-exact-total-evidence | 1 |
+| - | 0 |
 
 ## Position Breakdown
 
@@ -126,15 +120,23 @@ This must not be weakened to `targetMax > selected opposite member` or any parti
 
 ## Production Precedence
 
-A future production recovery would run only after the current stack:
+The production recovery runs only after the current stack:
 
 1. `currentPcGroupedRawTokenRecovery`
 2. `currentPcStage3SevenDigitBonusDisplacementRecovery`
 3. `currentPcCrownBonusRuleRecovery`
 4. `currentPcStageWideSixMemberCandidateSolverRecovery`
 5. `currentPcExactMembersCrownBonusTotalRecovery`
+6. `currentPcSideLocalExactEvidenceRecovery`
 
-It must reject any row already resolved by those recoveries and must not change member values.
+It rejects any row already resolved by those recoveries and does not change member values.
+
+Productionization result:
+
+- `applyCurrentPcSideLocalExactEvidenceRecovery(...)` is enabled for current-PC only.
+- Targeted production baseline for the 3 TP rows: `3 PASS / 0 FAIL`.
+- The accepted rows became full-image PASS rows.
+- The correction log includes `currentPcSideLocalExactEvidenceRecovery applied ...` with stage, side, unchanged members, `targetMax`, `oppositeTotal`, derived bonus, previous total, corrected total, and exact total evidence.
 
 ## Comparison With Stage3 Capture Work
 
@@ -144,4 +146,4 @@ It must reject any row already resolved by those recoveries and must not change 
 
 ## Recommendation
 
-Runner/browser-equivalent parity is exact for the 3 TP rows with zero safety-relevant mismatches. This is production-ready to consider next, but this task intentionally does not productionize.
+Runner/browser-equivalent parity is exact for the 3 TP rows with zero safety-relevant mismatches. Production recovery is now enabled for the exact side-local upper-bound proof only. Real-browser spot-check is recommended before push/deploy.

@@ -127,11 +127,13 @@ import {
   buildCurrentPcCandidateSourceSummary,
   buildCurrentPcCrownBonusRuleEvidence,
   buildCurrentPcExactMembersCrownBonusTotalRecoveryEvidence,
+  buildCurrentPcSideLocalExactEvidenceRecoveryEvidence,
   buildCurrentPcGroupedRawTokenEvidenceSimulation,
   buildCurrentPcStageWideSixMemberCandidateSolverEvidence,
   buildCurrentPcStage3SevenDigitBonusDisplacementSimulation,
   applyCurrentPcCrownBonusRuleRecovery,
   applyCurrentPcExactMembersCrownBonusTotalRecovery,
+  applyCurrentPcSideLocalExactEvidenceRecovery,
   applyCurrentPcGroupedRawTokenRecovery,
   applyCurrentPcStageWideSixMemberCandidateSolverRecovery,
   applyCurrentPcStage3SevenDigitBonusDisplacementRecovery,
@@ -3549,6 +3551,93 @@ export default function Home() {
             correctedEnemyMembers = currentPcExactMembersCrownBonusTotalRecovery.enemy.members;
             enemyTotal = currentPcExactMembersCrownBonusTotalRecovery.enemy.total;
           }
+          const buildCurrentPcSideLocalSideAnalysis = (side, evidence) => {
+            const isSelf = side === "self";
+            return {
+              selectedMembers: isSelf ? correctedSelfMembers : correctedEnemyMembers,
+              selectedTotal: isSelf ? selfTotal : enemyTotal,
+              rawCandidates: evidence.rawCandidates || [],
+              displayedTotalCandidates: evidence.displayedTotalCandidates || [],
+              bonusCandidates: evidence.bonusCandidates || [],
+              candidateSourceSummary: evidence.candidateSourceSummary || null,
+            };
+          };
+          const currentPcSideLocalExactEvidenceRecoverySimulation = {
+            self: buildCurrentPcSideLocalExactEvidenceRecoveryEvidence({
+              stage,
+              side: "self",
+              self: buildCurrentPcSideLocalSideAnalysis(
+                "self",
+                selfCurrentPcEvidenceWithRecovery
+              ),
+              enemy: buildCurrentPcSideLocalSideAnalysis(
+                "enemy",
+                enemyCurrentPcEvidenceWithRecovery
+              ),
+              previousRecoveries: {
+                self: {
+                  groupedRaw: selfCurrentPcEvidenceWithRecovery.productionRecovery,
+                  stage3SevenDigit:
+                    selfCurrentPcEvidenceWithRecovery.currentPcStage3SevenDigitBonusDisplacementRecovery,
+                  crownBonus: currentPcCrownBonusRuleRecovery,
+                  stageWideSixMember: currentPcStageWideSixMemberCandidateSolverRecovery,
+                  exactMembersBonusTotal: currentPcExactMembersCrownBonusTotalRecovery.self,
+                },
+              },
+            }),
+            enemy: buildCurrentPcSideLocalExactEvidenceRecoveryEvidence({
+              stage,
+              side: "enemy",
+              self: buildCurrentPcSideLocalSideAnalysis(
+                "self",
+                selfCurrentPcEvidenceWithRecovery
+              ),
+              enemy: buildCurrentPcSideLocalSideAnalysis(
+                "enemy",
+                enemyCurrentPcEvidenceWithRecovery
+              ),
+              previousRecoveries: {
+                enemy: {
+                  groupedRaw: enemyCurrentPcEvidenceWithRecovery.productionRecovery,
+                  stage3SevenDigit:
+                    enemyCurrentPcEvidenceWithRecovery.currentPcStage3SevenDigitBonusDisplacementRecovery,
+                  crownBonus: currentPcCrownBonusRuleRecovery,
+                  stageWideSixMember: currentPcStageWideSixMemberCandidateSolverRecovery,
+                  exactMembersBonusTotal: currentPcExactMembersCrownBonusTotalRecovery.enemy,
+                },
+              },
+            }),
+          };
+          const currentPcSideLocalExactEvidenceRecovery = {
+            self: applyCurrentPcSideLocalExactEvidenceRecovery({
+              stage,
+              side: "self",
+              selectedMembers: correctedSelfMembers,
+              selectedTotal: selfTotal,
+              simulation: currentPcSideLocalExactEvidenceRecoverySimulation.self,
+              layoutDetection: currentPcLayoutDetection,
+              mode: "current-pc",
+            }),
+            enemy: applyCurrentPcSideLocalExactEvidenceRecovery({
+              stage,
+              side: "enemy",
+              selectedMembers: correctedEnemyMembers,
+              selectedTotal: enemyTotal,
+              simulation: currentPcSideLocalExactEvidenceRecoverySimulation.enemy,
+              layoutDetection: currentPcLayoutDetection,
+              mode: "current-pc",
+            }),
+          };
+          if (currentPcSideLocalExactEvidenceRecovery.self.applied) {
+            correctionLogs.push(currentPcSideLocalExactEvidenceRecovery.self.message);
+            correctedSelfMembers = currentPcSideLocalExactEvidenceRecovery.self.members;
+            selfTotal = currentPcSideLocalExactEvidenceRecovery.self.total;
+          }
+          if (currentPcSideLocalExactEvidenceRecovery.enemy.applied) {
+            correctionLogs.push(currentPcSideLocalExactEvidenceRecovery.enemy.message);
+            correctedEnemyMembers = currentPcSideLocalExactEvidenceRecovery.enemy.members;
+            enemyTotal = currentPcSideLocalExactEvidenceRecovery.enemy.total;
+          }
           currentPcGroupedRawEvidence.stages[`stage${stage}`] = {
             self: selfCurrentPcEvidenceWithRecovery,
             enemy: enemyCurrentPcEvidenceWithRecovery,
@@ -3558,6 +3647,8 @@ export default function Home() {
             currentPcStageWideSixMemberCandidateSolverRecovery,
             currentPcExactMembersCrownBonusTotalRecoverySimulation,
             currentPcExactMembersCrownBonusTotalRecovery,
+            currentPcSideLocalExactEvidenceRecoverySimulation,
+            currentPcSideLocalExactEvidenceRecovery,
           };
           const formatEvidenceSummary = (side, evidence) => {
             const tokens = evidence.evidence?.eligibleTokens || [];

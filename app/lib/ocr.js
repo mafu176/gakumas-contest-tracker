@@ -2462,6 +2462,113 @@ export function applyCurrentPcExactMembersCrownBonusTotalRecovery({
   };
 }
 
+export function applyCurrentPcSideLocalExactEvidenceRecovery({
+  stage = 0,
+  side = "",
+  selectedMembers = [],
+  selectedTotal = 0,
+  simulation = null,
+  layoutDetection = null,
+  mode = "",
+}) {
+  const currentPcLayout =
+    mode === "current-pc" ||
+    layoutDetection?.detected ||
+    layoutDetection?.layoutFamily === "current-pc-2026-07-result" ||
+    layoutDetection?.family === "current-pc-2026-07-result";
+  const currentMembers = normalizeCurrentPcRecoveryMembers(selectedMembers);
+  const proposedMembers = normalizeCurrentPcRecoveryMembers(simulation?.proposed?.members || []);
+  const proposedBonus = Number(simulation?.proposed?.bonus || 0);
+  const proposedTotal = Number(simulation?.proposed?.total || 0);
+  const selectedBonus = Number(simulation?.selected?.bonus || 0);
+  const targetMax = Number(simulation?.evidence?.targetMax || 0);
+  const oppositeTotal = Number(simulation?.oppositeSelected?.total || 0);
+  const calculatedBonus = Number(simulation?.evidence?.calculatedBonus || 0);
+  const targetTotalEvidence = simulation?.evidence?.targetTotalEvidence || [];
+  const oppositeTotalEvidence = simulation?.evidence?.oppositeTotalEvidence || [];
+  const rejectionReasons = [];
+
+  if (!currentPcLayout) rejectionReasons.push("not-current-pc-layout");
+  if (!simulation?.wouldApply) rejectionReasons.push("simulation-would-not-apply");
+  if (simulation?.rejectionReasons?.length) {
+    rejectionReasons.push(...simulation.rejectionReasons);
+  }
+  if (!["self", "enemy"].includes(side) || simulation?.side !== side) {
+    rejectionReasons.push("target-side-mismatch");
+  }
+  if (!arraysEqualWithinTolerance(currentMembers, proposedMembers, 0)) {
+    rejectionReasons.push("proposal-would-change-members");
+  }
+  if (proposedMembers.filter((value) => value > 0).length !== 3) {
+    rejectionReasons.push("proposal-does-not-have-three-members");
+  }
+  if (targetMax <= 0 || simulation?.evidence?.targetMaxCount !== 1) {
+    rejectionReasons.push("target-rank1-not-unique");
+  }
+  if (calculatedBonus <= 0 || proposedBonus !== calculatedBonus) {
+    rejectionReasons.push("target-bonus-does-not-match-derived-crown-bonus");
+  }
+  if (!Array.isArray(targetTotalEvidence) || targetTotalEvidence.length === 0) {
+    rejectionReasons.push("missing-target-exact-total-evidence");
+  }
+  if (!Array.isArray(oppositeTotalEvidence) || oppositeTotalEvidence.length === 0) {
+    rejectionReasons.push("missing-opposite-exact-total-evidence");
+  }
+  if (simulation?.evidence?.oppositeTotalInternallyConsistent !== true) {
+    rejectionReasons.push("opposite-total-not-internally-consistent");
+  }
+  if (!(targetMax > oppositeTotal) || simulation?.evidence?.targetWinsByOppositeTotalUpperBound !== true) {
+    rejectionReasons.push("opposite-total-does-not-prove-target-rank1");
+  }
+  if ((simulation?.evidence?.oppositeCompetingAboveTargetMax || []).length > 0) {
+    rejectionReasons.push("opposite-observed-candidate-could-exceed-target-max");
+  }
+  if (!simulation?.evidence?.targetEquationExact) {
+    rejectionReasons.push("proposal-equation-not-exact");
+  }
+  if (
+    simulation?.evidence?.uniqueInterpretation !== true ||
+    simulation?.evidence?.noCompetingInterpretation !== true
+  ) {
+    rejectionReasons.push("not-unique-side-local-exact-evidence-interpretation");
+  }
+  if (
+    Number(selectedTotal || 0) === proposedTotal &&
+    Number(selectedBonus || 0) === proposedBonus
+  ) {
+    rejectionReasons.push("selected-side-already-matches-proposal");
+  }
+
+  const uniqueRejectionReasons = [...new Set(rejectionReasons)];
+  const totalEvidenceSummary = targetTotalEvidence
+    .slice(0, 4)
+    .map((item) => `${item.source || "unknown"}:${item.value}`)
+    .join(";");
+  const oppositeEvidenceSummary = oppositeTotalEvidence
+    .slice(0, 4)
+    .map((item) => `${item.source || "unknown"}:${item.value}`)
+    .join(";");
+
+  return {
+    applied: uniqueRejectionReasons.length === 0,
+    stage,
+    side,
+    members: proposedMembers,
+    bonus: proposedBonus,
+    total: proposedTotal,
+    previousTotal: Number(selectedTotal || 0),
+    previousBonus: selectedBonus,
+    targetMax,
+    oppositeTotal,
+    calculatedBonus,
+    proof: simulation?.proof || null,
+    totalEvidence: targetTotalEvidence,
+    oppositeTotalEvidence,
+    reason: uniqueRejectionReasons.join(",") || "applied",
+    message: `currentPcSideLocalExactEvidenceRecovery applied stage=${stage} side=${side} members=${proposedMembers.join(",")} targetMax=${targetMax} oppositeTotal=${oppositeTotal} proof=targetMax>oppositeTotal derivedBonus=${calculatedBonus} previousTotal=${Number(selectedTotal || 0)} correctedTotal=${proposedTotal} bonus=${proposedBonus} targetTotalEvidence=${totalEvidenceSummary || "exact"} oppositeTotalEvidence=${oppositeEvidenceSummary || "exact"}`,
+  };
+}
+
 function currentPcStageWideMemberRange(value) {
   const number = Number(value || 0);
   return Number.isFinite(number) && number >= 10000 && number < 2000000;

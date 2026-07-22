@@ -17,6 +17,7 @@ import {
   applyCurrentPcGroupedRawTokenRecovery,
   applyCurrentPcCrownBonusRuleRecovery,
   applyCurrentPcExactMembersCrownBonusTotalRecovery,
+  applyCurrentPcSideLocalExactEvidenceRecovery,
   applyCurrentPcStageWideSixMemberCandidateSolverRecovery,
   applyCurrentPcStage3SevenDigitBonusDisplacementRecovery,
   buildCurrentPcCrownBonusRuleEvidence as sharedBuildCurrentPcCrownBonusRuleEvidence,
@@ -4579,6 +4580,8 @@ async function runOcrForImage(imagePath, options = {}) {
     let currentPcStageWideSixMemberCandidateSolverRecovery = null;
     let currentPcExactMembersCrownBonusTotalRecoverySimulation = null;
     let currentPcExactMembersCrownBonusTotalRecovery = null;
+    let currentPcSideLocalExactEvidenceRecoverySimulation = null;
+    let currentPcSideLocalExactEvidenceRecovery = null;
     if (ocrSource === "current-pc") {
       const buildCurrentPcRecoverySideArtifact = (side) => {
         const isSelf = side === "self";
@@ -4941,6 +4944,88 @@ async function runOcrForImage(imagePath, options = {}) {
         applyCurrentPcExactMembersCrownBonusTotalRecoveryToSide("self");
       currentPcExactMembersCrownBonusTotalRecovery.enemy =
         applyCurrentPcExactMembersCrownBonusTotalRecoveryToSide("enemy");
+
+      const buildCurrentPcSideLocalSideAnalysis = (side) => {
+        const isSelf = side === "self";
+        const sideAnalysis = currentPcPreRecoveryAnalysisBySide[side] || {};
+        return {
+          selectedMembers: isSelf ? self : enemy,
+          selectedTotal: isSelf ? selfTotal : enemyTotal,
+          rawCandidates: sideAnalysis.rawCandidates || [],
+          displayedTotalCandidates: sideAnalysis.displayedTotalCandidates || [],
+          bonusCandidates: sideAnalysis.bonusCandidates || [],
+          candidateSourceSummary: sideAnalysis.candidateSourceSummary || null,
+        };
+      };
+      currentPcSideLocalExactEvidenceRecoverySimulation = {
+        self: sharedBuildCurrentPcSideLocalExactEvidenceRecoveryEvidence({
+          stage,
+          side: "self",
+          self: buildCurrentPcSideLocalSideAnalysis("self"),
+          enemy: buildCurrentPcSideLocalSideAnalysis("enemy"),
+          previousRecoveries: {
+            self: {
+              groupedRaw: currentPcProductionRecoveryBySide.self,
+              stage3SevenDigit: currentPcStage3SevenDigitBonusDisplacementRecoveryBySide.self,
+              crownBonus: currentPcCrownBonusRuleRecovery,
+              stageWideSixMember: currentPcStageWideSixMemberCandidateSolverRecovery,
+              exactMembersBonusTotal: currentPcExactMembersCrownBonusTotalRecovery.self,
+            },
+          },
+        }),
+        enemy: sharedBuildCurrentPcSideLocalExactEvidenceRecoveryEvidence({
+          stage,
+          side: "enemy",
+          self: buildCurrentPcSideLocalSideAnalysis("self"),
+          enemy: buildCurrentPcSideLocalSideAnalysis("enemy"),
+          previousRecoveries: {
+            enemy: {
+              groupedRaw: currentPcProductionRecoveryBySide.enemy,
+              stage3SevenDigit: currentPcStage3SevenDigitBonusDisplacementRecoveryBySide.enemy,
+              crownBonus: currentPcCrownBonusRuleRecovery,
+              stageWideSixMember: currentPcStageWideSixMemberCandidateSolverRecovery,
+              exactMembersBonusTotal: currentPcExactMembersCrownBonusTotalRecovery.enemy,
+            },
+          },
+        }),
+      };
+      currentPcSideLocalExactEvidenceRecovery = {};
+      const applyCurrentPcSideLocalExactEvidenceRecoveryToSide = (side) => {
+        const isSelf = side === "self";
+        const recovery = applyCurrentPcSideLocalExactEvidenceRecovery({
+          stage,
+          side,
+          selectedMembers: isSelf ? self : enemy,
+          selectedTotal: isSelf ? selfTotal : enemyTotal,
+          simulation: currentPcSideLocalExactEvidenceRecoverySimulation[side],
+          layoutDetection,
+          mode: ocrSource,
+        });
+        if (!recovery.applied) return recovery;
+        knownCorrectionDeltas.push({
+          pass: "currentPcSideLocalExactEvidenceRecovery applied",
+          before: cloneStageState({ self, enemy, selfTotal, enemyTotal }),
+          after: cloneStageState({
+            self: isSelf ? recovery.members : self,
+            enemy: isSelf ? enemy : recovery.members,
+            selfTotal: isSelf ? recovery.total : selfTotal,
+            enemyTotal: isSelf ? enemyTotal : recovery.total,
+          }),
+          message: recovery.message,
+        });
+        if (isSelf) {
+          self = recovery.members;
+          selfTotal = recovery.total;
+        } else {
+          enemy = recovery.members;
+          enemyTotal = recovery.total;
+        }
+        return recovery;
+      };
+      currentPcSideLocalExactEvidenceRecovery.self =
+        applyCurrentPcSideLocalExactEvidenceRecoveryToSide("self");
+      currentPcSideLocalExactEvidenceRecovery.enemy =
+        applyCurrentPcSideLocalExactEvidenceRecoveryToSide("enemy");
     }
 
     const stageResult = {
@@ -5081,6 +5166,10 @@ async function runOcrForImage(imagePath, options = {}) {
             currentPcExactMembersCrownBonusTotalRecoverySimulation?.[side] || null,
           currentPcExactMembersCrownBonusTotalRecovery:
             currentPcExactMembersCrownBonusTotalRecovery?.[side] || null,
+          currentPcSideLocalExactEvidenceRecoverySimulation:
+            currentPcSideLocalExactEvidenceRecoverySimulation?.[side] || null,
+          currentPcSideLocalExactEvidenceRecovery:
+            currentPcSideLocalExactEvidenceRecovery?.[side] || null,
           sparseTotalAsMemberSimulation,
           stage3SelfSevenDigitDisplacementSimulation,
           stage3EnemySevenDigitRecoverySimulation:
@@ -5104,6 +5193,8 @@ async function runOcrForImage(imagePath, options = {}) {
         currentPcStageWideSixMemberCandidateSolverRecovery,
         currentPcExactMembersCrownBonusTotalRecoverySimulation,
         currentPcExactMembersCrownBonusTotalRecovery,
+        currentPcSideLocalExactEvidenceRecoverySimulation,
+        currentPcSideLocalExactEvidenceRecovery,
         self: buildSideArtifact("self"),
         enemy: buildSideArtifact("enemy"),
       };
@@ -7168,6 +7259,10 @@ function buildCurrentPcSideAnalysis(stageResult, side, options = {}) {
       sideArtifact?.currentPcExactMembersCrownBonusTotalRecoverySimulation || null,
     currentPcExactMembersCrownBonusTotalRecovery:
       sideArtifact?.currentPcExactMembersCrownBonusTotalRecovery || null,
+    currentPcSideLocalExactEvidenceRecoverySimulation:
+      sideArtifact?.currentPcSideLocalExactEvidenceRecoverySimulation || null,
+    currentPcSideLocalExactEvidenceRecovery:
+      sideArtifact?.currentPcSideLocalExactEvidenceRecovery || null,
   };
 }
 
@@ -11176,24 +11271,26 @@ function buildCurrentPcExactMembersCrownBonusTotalRecoverySimulation(analysis) {
 function currentPcSideLocalExactEvidenceStageSide(item, stage, side) {
   const stageKey = `stage${stage}`;
   const sideAnalysis = item.stages?.[stageKey]?.[side] || {};
-  const simulation = sharedBuildCurrentPcSideLocalExactEvidenceRecoveryEvidence({
-    stage,
-    side,
-    self: currentPcExactMembersSharedSideAnalysis(item, stage, "self"),
-    enemy: currentPcExactMembersSharedSideAnalysis(item, stage, "enemy"),
-    previousRecoveries: {
-      [side]: {
-        groupedRaw: sideAnalysis?.currentPcGroupedRawTokenRecovery || null,
-        stage3SevenDigit:
-          sideAnalysis?.currentPcStage3SevenDigitBonusDisplacementRecovery || null,
-        crownBonus: sideAnalysis?.currentPcCrownBonusRuleRecovery || null,
-        stageWideSixMember:
-          sideAnalysis?.currentPcStageWideSixMemberCandidateSolverRecovery || null,
-        exactMembersBonusTotal:
-          sideAnalysis?.currentPcExactMembersCrownBonusTotalRecovery || null,
+  const simulation =
+    sideAnalysis?.currentPcSideLocalExactEvidenceRecoverySimulation ||
+    sharedBuildCurrentPcSideLocalExactEvidenceRecoveryEvidence({
+      stage,
+      side,
+      self: currentPcExactMembersSharedSideAnalysis(item, stage, "self"),
+      enemy: currentPcExactMembersSharedSideAnalysis(item, stage, "enemy"),
+      previousRecoveries: {
+        [side]: {
+          groupedRaw: sideAnalysis?.currentPcGroupedRawTokenRecovery || null,
+          stage3SevenDigit:
+            sideAnalysis?.currentPcStage3SevenDigitBonusDisplacementRecovery || null,
+          crownBonus: sideAnalysis?.currentPcCrownBonusRuleRecovery || null,
+          stageWideSixMember:
+            sideAnalysis?.currentPcStageWideSixMemberCandidateSolverRecovery || null,
+          exactMembersBonusTotal:
+            sideAnalysis?.currentPcExactMembersCrownBonusTotalRecovery || null,
+        },
       },
-    },
-  });
+    });
   return {
     ...simulation,
     evidence: {
@@ -11503,6 +11600,9 @@ function buildCurrentPcBrowserEquivalentSideLocalExactEvidenceRecoveryStageSide(
 ) {
   const stageKey = `stage${stage}`;
   const sideAnalysis = item.stages?.[stageKey]?.[side];
+  if (sideAnalysis?.currentPcSideLocalExactEvidenceRecoverySimulation) {
+    return sideAnalysis.currentPcSideLocalExactEvidenceRecoverySimulation;
+  }
   return sharedBuildCurrentPcSideLocalExactEvidenceRecoveryEvidence({
     stage,
     side,
