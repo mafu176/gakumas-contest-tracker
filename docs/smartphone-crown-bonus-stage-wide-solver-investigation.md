@@ -1,32 +1,10 @@
 # Smartphone Crown Bonus / Stage-Wide Solver Investigation
 
-This is a runner-only investigation. It corrects confirmed smartphone expected-fixture transcription errors and adds smartphone-native crown-bonus and stage-wide six-member solver simulations behind an explicit runner flag. It does not change production OCR output.
-
-## Corrected Fixture Errors
-
-The 7 mismatch stages from `docs/smartphone-crown-bonus-rule-mismatch-investigation.md` were all confirmed as expected-fixture transcription or assignment errors from the source screenshots. Only those fields were changed:
-
-| fixture | stage | correction |
-| --- | --- | --- |
-| `IMG_9163.json` | S1 self | total `653835` -> `653833` |
-| `IMG_9165.json` | S2 enemy | total `300166` -> `332234` |
-| `IMG_9250.json` | S1 enemy | total `1086665` -> `1086663` |
-| `IMG_9264.json` | S2 self | members `[638016, 755237, 0]` -> `[638016, 1009315, 755237]` |
-| `IMG_9281.json` | S3 enemy | total `1011905` -> `1011903` |
-| `IMG_9315.json` | S2 self | member3 `162915` -> `162515` |
-| `IMG_9319.json` | S2 self | member1 `208530` -> `208330` |
+This is a runner-only investigation. It corrects confirmed expected fixture transcription errors and then evaluates smartphone-native crown-bonus and stage-wide six-member solver simulations. It does not change production OCR output.
 
 ## Fixture Rule Validation
 
-After those corrections, the smartphone expected fixture set validates against the crown-bonus rule:
-
-```text
-crownBonus = floor(max(all six raw member scores) * 0.20)
-```
-
-| metric | count |
-| --- | ---: |
-| smartphone expected fixtures | 89 |
+| fixtures | 89 |
 | stages checked | 267 |
 | floor-rule matches | 267 / 267 |
 | mismatches | 0 |
@@ -36,105 +14,90 @@ crownBonus = floor(max(all six raw member scores) * 0.20)
 | ceil matches | 48 |
 | floor-distinguishing stages | 219 |
 
-Conclusion: the fixture-backed smartphone samples now support the same `floor(max * 0.20)` crown-bonus rule as current-PC. There are no known genuine game-rule exceptions in the 89-fixture smartphone set.
-
-## Runner-Only Simulations Added
-
-`scripts/ocr-test-images.mjs` now supports:
-
-```bash
-node scripts/ocr-test-images.mjs IMG_9308 IMG_9310 IMG_9319 IMG_9311 IMG_9321 IMG_9329 --smartphone-crown-stage-wide-solver-sim
-```
-
-The flag writes the normal runner reports plus:
+The seven previously documented mismatches were confirmed fixture transcription or assignment errors and are now corrected. The rule now validates across all fixture-backed smartphone stages:
 
 ```text
-tmp/smartphone-crown-bonus-stage-wide-solver-simulation.json
-docs/smartphone-crown-bonus-stage-wide-solver-investigation.md
+crownBonus = floor(max(all six raw member scores) * 0.20)
 ```
 
-### `smartphoneCrownBonusRuleSimulation`
+## Artifact Reuse
 
-Strict guards:
-
-- smartphone-only runner analysis
-- six currently selected members complete
-- unique global rank-1
-- `crownBonus = floor(globalMax * 0.20)`
-- exact self total evidence
-- exact enemy total evidence
-- exact equality only
-- no member changes
-- no near-match or within-one tolerance
-- no digit inference
-- no missing-member invention
-
-### `smartphoneStageWideSixMemberCandidateSolverSimulation`
-
-Strict guards:
-
-- smartphone-native candidate sources only
-- selected members plus normal-path raw member-row candidates
-- exact observed candidates only
-- one candidate per six member slots
-- unique global rank-1
-- derived crown bonus
-- exact self total evidence
-- exact enemy total evidence
-- both equations exact
-- exactly one changed six-member interpretation
-- no arithmetic-derived members
-- no near-match or within-one tolerance
-
-The stage-wide solver intentionally does not import current-PC ROI, grouped/raw token, or current-PC recovery evidence.
-
-## Targeted OCR Evaluation
-
-Full OCR evaluation across all 89 smartphone fixtures was attempted with the new simulation flag but did not complete inside a 2-hour runner window. Because the script writes the aggregate report only at completion, no all-89 simulation counts were produced in this run.
-
-The required known-failure and PASS-control set was run successfully:
+The simulations can now be scored from cached smartphone OCR artifacts without rerunning OCR:
 
 ```bash
-node scripts/ocr-test-images.mjs IMG_9308 IMG_9310 IMG_9319 IMG_9311 IMG_9321 IMG_9329 --smartphone-crown-stage-wide-solver-sim
+node scripts/ocr-test-images.mjs --smartphone-crown-stage-wide-solver-from-baseline
 ```
 
-Targeted result:
+| evaluation source | smartphone baseline cache |
+| cache summary | tmp/smartphone-ocr-baseline-cache/summary.json |
 
-| set | result |
-| --- | --- |
-| images | 6 |
-| expected | 6 |
-| failed | 3 |
-| `IMG_9311` | PASS |
-| `IMG_9321` | PASS |
-| `IMG_9329` | PASS |
-| `IMG_9308` | known failure remains |
-| `IMG_9310` | known failure remains |
-| `IMG_9319` | known failure remains |
+## Runner-Only Crown-Bonus Rule Simulation
 
-Targeted simulation counts:
+Guards: smartphone-only, six selected members complete, unique global rank-1, exact self and enemy total evidence, exact equality only, no member changes, no near match, no digit inference.
 
-| simulation | stages audited | TP | FP | FN | blocked | true incremental TP |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `smartphoneCrownBonusRuleSimulation` | 18 | 0 | 0 | 0 | 18 | 0 |
-| `smartphoneStageWideSixMemberCandidateSolverSimulation` | 18 | 0 | 0 | 0 | 18 | 0 |
+| rows audited | 267 |
+| TP | 2 |
+| FP | 0 |
+| FN | 0 |
+| blocked | 265 |
+| true incremental TP | 2 |
+
+Accepted rows:
+
+- `user-reports/unreviewed/IMG_9250.png` S1: proposed self 82360, 124137, 177424 total 383,921; enemy 105866, 516222, 361331 total 1,086,663; rank1 enemy.member2 516,222
+- `user-reports/unreviewed/IMG_9312.png` S1: proposed self 662516, 324269, 116851 total 1,236,139; enemy 384933, 341392, 84205 total 810,530; rank1 self.member1 662,516
+
+## Runner-Only Stage-Wide Six-Member Candidate Solver Simulation
+
+Guards: smartphone-native candidate sources only, exact observed candidates, one candidate per six member slots, unique global rank-1, derived crown bonus, exact self and enemy total evidence, both equations exact, exactly one valid interpretation, no arithmetic-derived members, no near match.
+
+| rows audited | 267 |
+| TP | 7 |
+| FP | 0 |
+| FN | 0 |
+| blocked | 260 |
+| true incremental TP | 7 |
+
+Accepted rows:
+
+- `user-reports/passed/IMG_8944.png` S3: proposed self 136696, 76641, 551128 total 874,690; enemy 92426, 102511, 40117 total 235,054; rank1 self.member3 551,128
+- `user-reports/passed/IMG_9070.png` S3: proposed self 75991, 457212, 701071 total 1,374,488; enemy 69001, 65419, 44589 total 179,009; rank1 self.member3 701,071
+- `user-reports/unreviewed/IMG_8950.png` S3: proposed self 180512, 63387, 550993 total 905,090; enemy 87580, 148478, 46127 total 282,185; rank1 self.member3 550,993
+- `user-reports/unreviewed/IMG_9250.png` S1: proposed self 82360, 124137, 177424 total 383,921; enemy 105866, 516222, 361331 total 1,086,663; rank1 enemy.member2 516,222
+- `user-reports/unreviewed/IMG_9312.png` S1: proposed self 662516, 324269, 116851 total 1,236,139; enemy 384933, 341392, 84205 total 810,530; rank1 self.member1 662,516
+- `user-reports/unreviewed/IMG_9322.png` S3: proposed self 806192, 482823, 405555 total 1,694,570; enemy 367211, 756949, 1377038 total 2,776,605; rank1 enemy.member3 1,377,038
+- `user-reports/unreviewed/IMG_9334.png` S3: proposed self 1117179, 622324, 498570 total 2,238,073; enemy 957950, 1304323, 841305 total 3,364,442; rank1 enemy.member2 1,304,323
+
+## Overlap
+
+| crown accepted stages | 2 |
+| stage-wide accepted stages | 7 |
+| overlap | 2 |
+| crown-only | 0 |
+| stage-wide-only | 5 |
+
+## Position Breakdown
+
+| position | crown accepted | crown blocked | stage-wide accepted | stage-wide blocked |
+| --- | ---: | ---: | ---: | ---: |
+| S1 self | 1 | 3 | 1 | 3 |
+| S1 enemy | 1 | 1 | 1 | 1 |
+| S2 self | 0 | 7 | 0 | 7 |
+| S2 enemy | 0 | 4 | 0 | 4 |
+| S3 self | 0 | 16 | 4 | 12 |
+| S3 enemy | 0 | 5 | 1 | 4 |
 
 ## Known Failure Impact
 
-| image | crown-bonus simulation | stage-wide solver simulation | reason |
+| image | crown-bonus simulation | stage-wide solver simulation | notes |
 | --- | --- | --- | --- |
-| `IMG_9308` | no help | no help | strict evidence still cannot accept the near 7-digit candidate |
-| `IMG_9310` | no help | no help | Stage3 sparse total-as-member/member displacement remains outside these guards |
-| `IMG_9319` | no help | no help | remaining S2 enemy mismatch is not solved by exact crown/stage-wide evidence |
+| `IMG_9308` | no help | no help | remains blocked by strict evidence guards |
+| `IMG_9310` | no help | no help | remains blocked by strict evidence guards |
+| `IMG_9319` | no help | no help | remains blocked by strict evidence guards |
 
 ## Recommendation
 
-The fixture rule itself is now confirmed `267 / 267`, so smartphone crown-bonus reasoning is valid as a game rule.
-
-Productionization is not recommended from this task. The runner-only simulations exist, but the full 89-fixture OCR evaluation did not complete in this run, and the targeted known-failure set produced `0` true incremental TP. The next safe step is either:
-
-1. run the new simulation flag in a longer OCR job or in smaller committed-summary batches until all 89 fixtures are measured, or
-2. continue smartphone-native evidence-capture work for the known failures before considering parity.
+Runner/browser-equivalent parity is justified next for the qualifying simulation.
 
 - production OCR changed: no
 - current-PC OCR changed: no

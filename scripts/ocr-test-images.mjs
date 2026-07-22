@@ -48,6 +48,7 @@ const nextDebugPath = path.join(rootDir, "docs", "next-debug.md");
 const debugArtifactsDir = path.join(rootDir, "tmp", "ocr-debug-artifacts");
 const fixedRoiExperimentDir = path.join(rootDir, "tmp", "ocr-roi-experiment");
 const roiAdoptionSimDir = path.join(rootDir, "tmp", "ocr-roi-adoption-sim");
+const smartphoneBaselineCacheDir = path.join(rootDir, "tmp", "smartphone-ocr-baseline-cache");
 const currentPcBonusDiagnosticsDir = path.join(rootDir, "tmp", "current-pc-bonus-ocr-diagnostics");
 const currentPcStage3MemberRowDiagnosticsDir = path.join(
   rootDir,
@@ -298,6 +299,80 @@ async function writeDebugArtifacts(report) {
   written.push(path.relative(rootDir, summaryPath).replaceAll("\\", "/"));
 
   return written;
+}
+
+function smartphoneBaselineCacheFileName(image) {
+  return `${safeArtifactName(image)}.json`;
+}
+
+function smartphoneFixtureCacheKey(itemOrImage) {
+  const image = typeof itemOrImage === "string" ? itemOrImage : itemOrImage?.image;
+  const match = String(image || "").match(/IMG_\d+/i);
+  return match ? match[0].toUpperCase() : String(image || "").replaceAll("\\", "/").toLowerCase();
+}
+
+async function writeSmartphoneBaselineCacheItem(item) {
+  if (item.source !== "smartphone" || !item.expectedData || !item.result) return null;
+  await fs.mkdir(smartphoneBaselineCacheDir, { recursive: true });
+  const cachePath = path.join(smartphoneBaselineCacheDir, smartphoneBaselineCacheFileName(item.image));
+  const artifact = {
+    image: item.image,
+    category: item.category,
+    source: item.source,
+    expected: item.expected,
+    pass: item.pass,
+    failures: item.failures,
+    elapsedMs: item.elapsedMs,
+    expectedData: item.expectedData,
+    disabledKnownCorrections: item.disabledKnownCorrections,
+    absolutePath: item.absolutePath,
+    result: item.result,
+  };
+  await fs.writeFile(cachePath, JSON.stringify(artifact, null, 2));
+  return path.relative(rootDir, cachePath).replaceAll("\\", "/");
+}
+
+async function readSmartphoneBaselineCache(filters = []) {
+  const files = await fs.readdir(smartphoneBaselineCacheDir).catch(() => []);
+  const byImage = new Map();
+  const maybeAdd = async (item) => {
+    if (item.source !== "smartphone" || !item.expectedData || !item.result) return;
+    const imageKey = String(item.image || "").replaceAll("\\", "/").toLowerCase();
+    if (filters.length > 0 && !filters.some((filter) => imageKey.includes(filter))) return;
+    const fixtureKey = smartphoneFixtureCacheKey(item);
+    if (!byImage.has(fixtureKey) || !String(item.image || "").includes("fewer-members/")) {
+      byImage.set(fixtureKey, item);
+    }
+    await writeSmartphoneBaselineCacheItem(item);
+  };
+  for (const file of files.filter((name) => name.endsWith(".json") && name !== "summary.json")) {
+    const cachePath = path.join(smartphoneBaselineCacheDir, file);
+    const item = JSON.parse(await fs.readFile(cachePath, "utf8"));
+    await maybeAdd(item);
+  }
+  const latestReport = JSON.parse(await fs.readFile(reportPath, "utf8").catch(() => "[]"));
+  for (const item of Array.isArray(latestReport) ? latestReport : []) {
+    await maybeAdd(item);
+  }
+  const items = [...byImage.values()];
+  items.sort((a, b) => String(a.image).localeCompare(String(b.image), undefined, { numeric: true }));
+  return items;
+}
+
+async function writeSmartphoneBaselineCacheSummary(items) {
+  await fs.mkdir(smartphoneBaselineCacheDir, { recursive: true });
+  const summaryPath = path.join(smartphoneBaselineCacheDir, "summary.json");
+  const summary = items.map((item) => ({
+    image: item.image,
+    expected: item.expected,
+    pass: item.pass,
+    failures: item.failures?.length || 0,
+    cache: path
+      .relative(rootDir, path.join(smartphoneBaselineCacheDir, smartphoneBaselineCacheFileName(item.image)))
+      .replaceAll("\\", "/"),
+  }));
+  await fs.writeFile(summaryPath, JSON.stringify(summary, null, 2));
+  return path.relative(rootDir, summaryPath).replaceAll("\\", "/");
 }
 
 function normalizeRoiZone(zone) {
@@ -5477,7 +5552,8 @@ function smartphoneStageOutputsEqual(a = {}, b = {}) {
   );
 }
 
-function uniqueGlobalRankOneFromMembers(selfMembers = [], enemyMembers = []) {
+function uniqueGlobalRankOneFromMembers(selfMembers = [], enemyMembers = [], options = {}) {
+  const requireComplete = options.requireComplete !== false;
   const entries = [
     ...selfMembers.map((value, index) => ({
       side: "self",
@@ -5490,7 +5566,7 @@ function uniqueGlobalRankOneFromMembers(selfMembers = [], enemyMembers = []) {
       value: normalizeSimulationNumber(value),
     })),
   ].filter((entry) => entry.value > 0);
-  if (entries.length !== 6) {
+  if (requireComplete && entries.length !== 6) {
     return {
       unique: false,
       reason: "six-members-incomplete",
@@ -5794,6 +5870,129 @@ function evaluateSmartphoneSimulation(report, buildStageSimulation) {
     falsePositiveRows: rows.filter((row) => row.classification === "fp"),
     falseNegativeRows: rows.filter((row) => row.classification === "fn"),
     blockedRows: rows.filter((row) => row.classification === "blocked"),
+    positionBreakdown: summarizeSmartphoneSimulationPositions(rows),
+  };
+}
+
+async function buildAndWriteSmartphoneCrownStageWideSolverSimulation({
+  report,
+  source,
+  cacheSummary,
+}) {
+  const ruleValidation = validateSmartphoneCrownBonusRuleFromExpected(report);
+  if (ruleValidation.floorMatches !== ruleValidation.stagesChecked) {
+    return {
+      ruleValidation,
+      skipped: true,
+      reason: "smartphone-crown-bonus-rule-validation-did-not-pass",
+    };
+  }
+  const crownBonusSimulation = evaluateSmartphoneSimulation(
+    report,
+    buildSmartphoneCrownBonusRuleSimulationForStage
+  );
+  const stageWideSimulation = evaluateSmartphoneSimulation(
+    report,
+    buildSmartphoneStageWideSixMemberCandidateSolverSimulationForStage
+  );
+  const impactedImages = {};
+  for (const image of ["IMG_9308", "IMG_9310", "IMG_9319"]) {
+    const crownRows = crownBonusSimulation.acceptedRows.filter((row) =>
+      String(row.image).includes(image)
+    );
+    const stageWideRows = stageWideSimulation.acceptedRows.filter((row) =>
+      String(row.image).includes(image)
+    );
+    impactedImages[image] = {
+      crown:
+        crownRows.length > 0
+          ? `would apply on ${crownRows.map((row) => `S${row.stage}`).join(", ")}`
+          : "no help",
+      stageWide:
+        stageWideRows.length > 0
+          ? `would apply on ${stageWideRows.map((row) => `S${row.stage}`).join(", ")}`
+          : "no help",
+      notes: [crownRows, stageWideRows].some((rows) => rows.length > 0)
+        ? "runner-only proposal present"
+        : "remains blocked by strict evidence guards",
+    };
+  }
+  const result = {
+    ruleValidation,
+    crownBonusSimulation,
+    stageWideSimulation,
+    impactedImages,
+    source,
+    cacheSummary,
+    overlap: buildSmartphoneSimulationOverlap(crownBonusSimulation, stageWideSimulation),
+  };
+  await fs.writeFile(
+    smartphoneCrownBonusStageWideSolverReportPath,
+    buildSmartphoneCrownBonusStageWideSolverSimulationReport(result)
+  );
+  await fs.mkdir(path.join(rootDir, "tmp"), { recursive: true });
+  await fs.writeFile(
+    path.join(rootDir, "tmp", "smartphone-crown-bonus-stage-wide-solver-simulation.json"),
+    JSON.stringify(result, null, 2)
+  );
+  return result;
+}
+
+function summarizeSmartphoneSimulationPositions(rows = []) {
+  const summary = {};
+  for (const stage of stages) {
+    for (const side of sides) {
+      summary[`S${stage} ${side}`] = {
+        accepted: 0,
+        fp: 0,
+        fn: 0,
+        blocked: 0,
+      };
+    }
+  }
+  for (const row of rows) {
+    for (const side of sides) {
+      const expected = {
+        selfMembers: side === "self" ? row.expected.selfMembers : row.selected.selfMembers,
+        enemyMembers: side === "enemy" ? row.expected.enemyMembers : row.selected.enemyMembers,
+        selfTotal: side === "self" ? row.expected.selfTotal : row.selected.selfTotal,
+        enemyTotal: side === "enemy" ? row.expected.enemyTotal : row.selected.enemyTotal,
+      };
+      const selected = row.selected;
+      const key = `S${row.stage} ${side}`;
+      const sidePass = smartphoneStageOutputsEqual(selected, expected);
+      const proposedSidePass =
+        row.simulation?.wouldApply &&
+        row.simulation?.proposed &&
+        smartphoneStageOutputsEqual(row.simulation.proposed, expected);
+      if (row.classification.includes("tp") && proposedSidePass && !sidePass) {
+        summary[key].accepted += 1;
+      } else if (row.classification === "fp") {
+        summary[key].fp += 1;
+      } else if (row.classification === "fn") {
+        summary[key].fn += 1;
+      } else if (!sidePass) {
+        summary[key].blocked += 1;
+      }
+    }
+  }
+  return summary;
+}
+
+function buildSmartphoneSimulationOverlap(crownBonusSimulation, stageWideSimulation) {
+  const crownAccepted = new Set(
+    crownBonusSimulation.acceptedRows.map((row) => `${row.image}::S${row.stage}`)
+  );
+  const stageWideAccepted = new Set(
+    stageWideSimulation.acceptedRows.map((row) => `${row.image}::S${row.stage}`)
+  );
+  const overlap = [...crownAccepted].filter((key) => stageWideAccepted.has(key));
+  return {
+    crownAccepted: crownAccepted.size,
+    stageWideAccepted: stageWideAccepted.size,
+    overlap: overlap.length,
+    crownOnly: crownAccepted.size - overlap.length,
+    stageWideOnly: stageWideAccepted.size - overlap.length,
   };
 }
 
@@ -5802,6 +6001,9 @@ function buildSmartphoneCrownBonusStageWideSolverSimulationReport({
   crownBonusSimulation,
   stageWideSimulation,
   impactedImages,
+  source,
+  cacheSummary,
+  overlap,
 }) {
   const recommendation =
     (crownBonusSimulation.trueIncrementalTp >= 2 && crownBonusSimulation.falsePositives === 0) ||
@@ -5846,6 +6048,17 @@ function buildSmartphoneCrownBonusStageWideSolverSimulationReport({
     "crownBonus = floor(max(all six raw member scores) * 0.20)",
     "```",
     "",
+    "## Artifact Reuse",
+    "",
+    "The simulations can now be scored from cached smartphone OCR artifacts without rerunning OCR:",
+    "",
+    "```bash",
+    "node scripts/ocr-test-images.mjs --smartphone-crown-stage-wide-solver-from-baseline",
+    "```",
+    "",
+    `| evaluation source | ${source || "fresh OCR run"} |`,
+    `| cache summary | ${cacheSummary || "-"} |`,
+    "",
     "## Runner-Only Crown-Bonus Rule Simulation",
     "",
     "Guards: smartphone-only, six selected members complete, unique global rank-1, exact self and enemy total evidence, exact equality only, no member changes, no near match, no digit inference.",
@@ -5875,6 +6088,24 @@ function buildSmartphoneCrownBonusStageWideSolverSimulationReport({
     "Accepted rows:",
     "",
     formatAccepted(stageWideSimulation.acceptedRows),
+    "",
+    "## Overlap",
+    "",
+    `| crown accepted stages | ${overlap?.crownAccepted || 0} |`,
+    `| stage-wide accepted stages | ${overlap?.stageWideAccepted || 0} |`,
+    `| overlap | ${overlap?.overlap || 0} |`,
+    `| crown-only | ${overlap?.crownOnly || 0} |`,
+    `| stage-wide-only | ${overlap?.stageWideOnly || 0} |`,
+    "",
+    "## Position Breakdown",
+    "",
+    "| position | crown accepted | crown blocked | stage-wide accepted | stage-wide blocked |",
+    "| --- | ---: | ---: | ---: | ---: |",
+    ...Object.keys(crownBonusSimulation.positionBreakdown || {}).map((position) => {
+      const crown = crownBonusSimulation.positionBreakdown[position] || {};
+      const stageWide = stageWideSimulation.positionBreakdown?.[position] || {};
+      return `| ${position} | ${crown.accepted || 0} | ${crown.blocked || 0} | ${stageWide.accepted || 0} | ${stageWide.blocked || 0} |`;
+    }),
     "",
     "## Known Failure Impact",
     "",
@@ -5909,7 +6140,9 @@ function validateSmartphoneCrownBonusRuleFromExpected(report) {
       stagesChecked += 1;
       const selfMembers = expectedStage.selfMembers || [];
       const enemyMembers = expectedStage.enemyMembers || [];
-      const rank = uniqueGlobalRankOneFromMembers(selfMembers, enemyMembers);
+      const rank = uniqueGlobalRankOneFromMembers(selfMembers, enemyMembers, {
+        requireComplete: false,
+      });
       const selfBonus = smartphoneExpectedBonus(expectedStage, "self");
       const enemyBonus = smartphoneExpectedBonus(expectedStage, "enemy");
       if ((selfBonus > 0) !== (enemyBonus > 0)) exactlyOneBonusSide += 1;
@@ -17729,6 +17962,9 @@ async function main() {
   const smartphoneCrownStageWideSolverSimulation =
     args.includes("--smartphone-crown-stage-wide-solver-sim") ||
     args.includes("--smartphone-crown-bonus-stage-wide-solver-sim");
+  const smartphoneCrownStageWideSolverFromBaseline =
+    args.includes("--smartphone-crown-stage-wide-solver-from-baseline") ||
+    args.includes("--smartphone-crown-bonus-stage-wide-solver-from-baseline");
   const sourceIndex = args.indexOf("--source");
   const sourceValue = sourceIndex >= 0 ? args[sourceIndex + 1] : "";
   const forcedSource = ["smartphone", "desktop", "current-pc"].includes(sourceValue)
@@ -17763,6 +17999,8 @@ async function main() {
       value !== "--simulate-roi-adoption" &&
       value !== "--smartphone-crown-stage-wide-solver-sim" &&
       value !== "--smartphone-crown-bonus-stage-wide-solver-sim" &&
+      value !== "--smartphone-crown-stage-wide-solver-from-baseline" &&
+      value !== "--smartphone-crown-bonus-stage-wide-solver-from-baseline" &&
       value !== "--source" &&
       value !== "--audit-disable-known-correction" &&
       !(sourceIndex >= 0 && index === sourceIndex + 1) &&
@@ -17774,6 +18012,55 @@ async function main() {
         .replace(/^\.?\/*test-images\//i, "")
         .toLowerCase()
     );
+  if (smartphoneCrownStageWideSolverFromBaseline) {
+    const cachedReport = await readSmartphoneBaselineCache(filters);
+    const cacheSummary = await writeSmartphoneBaselineCacheSummary(cachedReport);
+    const simulation = await buildAndWriteSmartphoneCrownStageWideSolverSimulation({
+      report: cachedReport,
+      source: "smartphone baseline cache",
+      cacheSummary,
+    });
+    console.log(
+      JSON.stringify(
+        {
+          images: cachedReport.length,
+          expected: cachedReport.filter((item) => item.expected).length,
+          source: "smartphone-baseline-cache",
+          cacheSummary,
+          report: path
+            .relative(rootDir, smartphoneCrownBonusStageWideSolverReportPath)
+            .replaceAll("\\", "/"),
+          result: path
+            .relative(
+              rootDir,
+              path.join(rootDir, "tmp", "smartphone-crown-bonus-stage-wide-solver-simulation.json")
+            )
+            .replaceAll("\\", "/"),
+          crownBonus: simulation.crownBonusSimulation
+            ? {
+                truePositives: simulation.crownBonusSimulation.truePositives,
+                falsePositives: simulation.crownBonusSimulation.falsePositives,
+                falseNegatives: simulation.crownBonusSimulation.falseNegatives,
+                blocked: simulation.crownBonusSimulation.blocked,
+                trueIncrementalTp: simulation.crownBonusSimulation.trueIncrementalTp,
+              }
+            : null,
+          stageWide: simulation.stageWideSimulation
+            ? {
+                truePositives: simulation.stageWideSimulation.truePositives,
+                falsePositives: simulation.stageWideSimulation.falsePositives,
+                falseNegatives: simulation.stageWideSimulation.falseNegatives,
+                blocked: simulation.stageWideSimulation.blocked,
+                trueIncrementalTp: simulation.stageWideSimulation.trueIncrementalTp,
+              }
+            : null,
+        },
+        null,
+        2
+      )
+    );
+    return;
+  }
   if (currentPcStage3SlotGeometryFromBaseline) {
     const summaryPath = path.join(currentPcBaselineDir, "summary.json");
     const analysis = JSON.parse(await fs.readFile(summaryPath, "utf8")).filter((item) => {
@@ -17971,6 +18258,9 @@ async function main() {
       absolutePath: imagePath,
       result,
     });
+    if (smartphoneCrownStageWideSolverSimulation && source === "smartphone") {
+      await writeSmartphoneBaselineCacheItem(report[report.length - 1]);
+    }
   }
 
   await fs.mkdir(path.dirname(reportPath), { recursive: true });
@@ -18319,58 +18609,15 @@ async function main() {
   }
   let smartphoneCrownBonusStageWideSolverSimulationResult = null;
   if (smartphoneCrownStageWideSolverSimulation) {
-    const ruleValidation = validateSmartphoneCrownBonusRuleFromExpected(report);
-    if (ruleValidation.floorMatches !== ruleValidation.stagesChecked) {
-      smartphoneCrownBonusStageWideSolverSimulationResult = {
-        ruleValidation,
-        skipped: true,
-        reason: "smartphone-crown-bonus-rule-validation-did-not-pass",
-      };
-    } else {
-      const crownBonusSimulation = evaluateSmartphoneSimulation(
+    const cacheSummary = await writeSmartphoneBaselineCacheSummary(
+      report.filter((item) => item.source === "smartphone" && item.expectedData)
+    );
+    smartphoneCrownBonusStageWideSolverSimulationResult =
+      await buildAndWriteSmartphoneCrownStageWideSolverSimulation({
         report,
-        buildSmartphoneCrownBonusRuleSimulationForStage
-      );
-      const stageWideSimulation = evaluateSmartphoneSimulation(
-        report,
-        buildSmartphoneStageWideSixMemberCandidateSolverSimulationForStage
-      );
-      const impactedImages = {};
-      for (const image of ["IMG_9308", "IMG_9310", "IMG_9319"]) {
-        const crownRows = crownBonusSimulation.acceptedRows.filter((row) =>
-          String(row.image).includes(image)
-        );
-        const stageWideRows = stageWideSimulation.acceptedRows.filter((row) =>
-          String(row.image).includes(image)
-        );
-        impactedImages[image] = {
-          crown: crownRows.length > 0 ? `would apply on ${crownRows.map((row) => `S${row.stage}`).join(", ")}` : "no help",
-          stageWide:
-            stageWideRows.length > 0
-              ? `would apply on ${stageWideRows.map((row) => `S${row.stage}`).join(", ")}`
-              : "no help",
-          notes: [crownRows, stageWideRows].some((rows) => rows.length > 0)
-            ? "runner-only proposal present"
-            : "remains blocked by strict evidence guards",
-        };
-      }
-      smartphoneCrownBonusStageWideSolverSimulationResult = {
-        ruleValidation,
-        crownBonusSimulation,
-        stageWideSimulation,
-        impactedImages,
-      };
-      await fs.writeFile(
-        smartphoneCrownBonusStageWideSolverReportPath,
-        buildSmartphoneCrownBonusStageWideSolverSimulationReport(
-          smartphoneCrownBonusStageWideSolverSimulationResult
-        )
-      );
-      await fs.writeFile(
-        path.join(rootDir, "tmp", "smartphone-crown-bonus-stage-wide-solver-simulation.json"),
-        JSON.stringify(smartphoneCrownBonusStageWideSolverSimulationResult, null, 2)
-      );
-    }
+        source: "fresh OCR run",
+        cacheSummary,
+      });
   }
 
   const expectedResults = report.filter((item) => item.expected);
