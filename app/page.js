@@ -124,6 +124,8 @@ import {
   applySmartphoneRowZoneSevenDigitRecovery,
   applySmartphoneStage3SelfSevenDigitDisplacementRecovery,
   applySmartphoneStage3EnemySevenDigitRecovery,
+  buildSmartphoneCrownBonusRuleEvidence,
+  buildSmartphoneStageWideSixMemberCandidateSolverEvidence,
   buildCurrentPcCandidateSourceSummary,
   buildCurrentPcCrownBonusRuleEvidence,
   buildCurrentPcExactMembersCrownBonusTotalRecoveryEvidence,
@@ -2044,6 +2046,13 @@ export default function Home() {
             stages: {},
           }
         : null;
+      const smartphoneCrownStageWideEvidence =
+        activeOcrMode === "smartphone"
+          ? {
+              mode: "smartphone",
+              stages: {},
+            }
+          : null;
 
       for (const stage of stages) {
         setOcrStatus(
@@ -3808,6 +3817,42 @@ export default function Home() {
           ...enemyMemberNumbers,
           ...enemyCrownCandidates,
         ];
+        if (smartphoneCrownStageWideEvidence) {
+          const smartphoneStageEvidenceInput = {
+            stage,
+            self: correctedSelfMembers,
+            enemy: correctedEnemyMembers,
+            selfTotal,
+            enemyTotal,
+            raw: {
+              selfTotal: selfTotalReferences,
+              enemyTotal: enemyTotalReferences,
+              selfMembers: selfMemberNumbers,
+              enemyMembers: enemyMemberNumbers,
+            },
+            rawText: {
+              selfTotalDirect: selfTotalResult.text,
+              selfTotalCandidates: selfTotalCandidateResult.text,
+              selfTotalCandidateTraces: selfTotalCandidateResult.traces,
+              enemyTotalDirect: enemyTotalResult.text,
+              enemyTotalCandidates: enemyTotalCandidateResult.text,
+              enemyTotalCandidateTraces: enemyTotalCandidateResult.traces,
+              selfMembers: selfMemberResult.text,
+              enemyMembers: enemyMemberResult.text,
+            },
+          };
+          smartphoneCrownStageWideEvidence.stages[`stage${stage}`] = {
+            crownBonusRuleSimulation: buildSmartphoneCrownBonusRuleEvidence({
+              stage,
+              stageResult: smartphoneStageEvidenceInput,
+            }),
+            stageWideSixMemberCandidateSolverSimulation:
+              buildSmartphoneStageWideSixMemberCandidateSolverEvidence({
+                stage,
+                stageResult: smartphoneStageEvidenceInput,
+              }),
+          };
+        }
 
         stageScores[stage] = {
           self: correctedSelfMembers.map((n) => n?.toLocaleString() || ""),
@@ -3843,6 +3888,7 @@ export default function Home() {
         rawNumbers: [],
         stages: correctedStageScores,
         currentPcGroupedRawEvidence,
+        smartphoneCrownStageWideEvidence,
       });
       setOcrProgress(100);
       setOcrStatus("OCR完了");

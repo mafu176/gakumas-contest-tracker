@@ -23,6 +23,8 @@ import {
   buildCurrentPcCrownBonusRuleEvidence as sharedBuildCurrentPcCrownBonusRuleEvidence,
   buildCurrentPcExactMembersCrownBonusTotalRecoveryEvidence as sharedBuildCurrentPcExactMembersCrownBonusTotalRecoveryEvidence,
   buildCurrentPcSideLocalExactEvidenceRecoveryEvidence as sharedBuildCurrentPcSideLocalExactEvidenceRecoveryEvidence,
+  buildSmartphoneCrownBonusRuleEvidence as sharedBuildSmartphoneCrownBonusRuleEvidence,
+  buildSmartphoneStageWideSixMemberCandidateSolverEvidence as sharedBuildSmartphoneStageWideSixMemberCandidateSolverEvidence,
   buildCurrentPcCandidateSourceSummary as sharedBuildCurrentPcCandidateSourceSummary,
   buildCurrentPcGroupedRawTokenEvidenceSimulation as sharedBuildCurrentPcGroupedRawTokenEvidenceSimulation,
   buildCurrentPcStageWideSixMemberCandidateSolverEvidence as sharedBuildCurrentPcStageWideSixMemberCandidateSolverEvidence,
@@ -5689,120 +5691,14 @@ function enumerateSmartphonePoolValues(pools, limit = 729) {
 }
 
 function buildSmartphoneCrownBonusRuleSimulationForStage(stageResult = {}) {
-  const selected = smartphoneStageOutputFromResult(stageResult);
-  const rank = uniqueGlobalRankOneFromMembers(selected.selfMembers, selected.enemyMembers);
-  const rejectionReasons = [];
-  if (!rank.unique) rejectionReasons.push(rank.reason);
-  const selfTotalEvidence = collectSmartphoneTotalEvidence(stageResult, "self");
-  const enemyTotalEvidence = collectSmartphoneTotalEvidence(stageResult, "enemy");
-  const selfSum = simulationMemberSum(selected.selfMembers);
-  const enemySum = simulationMemberSum(selected.enemyMembers);
-  const proposedSelfTotal = selfSum + (rank.rank1?.side === "self" ? rank.bonus : 0);
-  const proposedEnemyTotal = enemySum + (rank.rank1?.side === "enemy" ? rank.bonus : 0);
-  const selfTotalEvidenceMatch = selfTotalEvidence.some((entry) => entry.value === proposedSelfTotal);
-  const enemyTotalEvidenceMatch = enemyTotalEvidence.some(
-    (entry) => entry.value === proposedEnemyTotal
-  );
-  if (!selfTotalEvidenceMatch) rejectionReasons.push("missing-exact-self-total-evidence");
-  if (!enemyTotalEvidenceMatch) rejectionReasons.push("missing-exact-enemy-total-evidence");
-  const alreadyExact =
-    selected.selfTotal === proposedSelfTotal && selected.enemyTotal === proposedEnemyTotal;
-  if (alreadyExact) rejectionReasons.push("current-output-already-matches-rule");
-  const wouldApply = rejectionReasons.length === 0;
-  return {
-    name: "smartphoneCrownBonusRuleSimulation",
-    wouldApply,
-    rejectionReasons,
-    selected,
-    proposed: {
-      selfMembers: selected.selfMembers,
-      enemyMembers: selected.enemyMembers,
-      selfTotal: proposedSelfTotal,
-      enemyTotal: proposedEnemyTotal,
-      selfBonus: rank.rank1?.side === "self" ? rank.bonus : 0,
-      enemyBonus: rank.rank1?.side === "enemy" ? rank.bonus : 0,
-    },
-    rank1: rank.rank1,
-    derivedBonus: rank.bonus,
-    totalEvidence: {
-      self: selfTotalEvidence,
-      enemy: enemyTotalEvidence,
-    },
-  };
+  return sharedBuildSmartphoneCrownBonusRuleEvidence({ stage: stageResult.stage || 0, stageResult });
 }
 
 function buildSmartphoneStageWideSixMemberCandidateSolverSimulationForStage(stageResult = {}) {
-  const selected = smartphoneStageOutputFromResult(stageResult);
-  const selfPools = collectSmartphoneMemberSlotPools(stageResult, "self");
-  const enemyPools = collectSmartphoneMemberSlotPools(stageResult, "enemy");
-  const selfCombos = enumerateSmartphonePoolValues(selfPools);
-  const enemyCombos = enumerateSmartphonePoolValues(enemyPools);
-  const rejectionReasons = [];
-  if (selfCombos.blocked || enemyCombos.blocked) rejectionReasons.push("candidate-pool-too-large");
-  const selfTotalEvidence = collectSmartphoneTotalEvidence(stageResult, "self");
-  const enemyTotalEvidence = collectSmartphoneTotalEvidence(stageResult, "enemy");
-  const selfTotalValues = new Set(selfTotalEvidence.map((entry) => entry.value));
-  const enemyTotalValues = new Set(enemyTotalEvidence.map((entry) => entry.value));
-  const proposals = [];
-  if (!selfCombos.blocked && !enemyCombos.blocked) {
-    for (const selfCombo of selfCombos.combinations) {
-      for (const enemyCombo of enemyCombos.combinations) {
-        const rank = uniqueGlobalRankOneFromMembers(selfCombo.members, enemyCombo.members);
-        if (!rank.unique) continue;
-        const selfTotal =
-          simulationMemberSum(selfCombo.members) + (rank.rank1.side === "self" ? rank.bonus : 0);
-        const enemyTotal =
-          simulationMemberSum(enemyCombo.members) + (rank.rank1.side === "enemy" ? rank.bonus : 0);
-        if (!selfTotalValues.has(selfTotal) || !enemyTotalValues.has(enemyTotal)) continue;
-        proposals.push({
-          selfMembers: selfCombo.members,
-          enemyMembers: enemyCombo.members,
-          selfMemberSources: selfCombo.sources,
-          enemyMemberSources: enemyCombo.sources,
-          selfTotal,
-          enemyTotal,
-          selfBonus: rank.rank1.side === "self" ? rank.bonus : 0,
-          enemyBonus: rank.rank1.side === "enemy" ? rank.bonus : 0,
-          rank1: rank.rank1,
-          derivedBonus: rank.bonus,
-        });
-      }
-    }
-  }
-  const selectedProposal = proposals.find((proposal) =>
-    smartphoneStageOutputsEqual(proposal, selected)
-  );
-  const changedProposals = proposals.filter(
-    (proposal) => !smartphoneStageOutputsEqual(proposal, selected)
-  );
-  if (proposals.length === 0) rejectionReasons.push("no-exact-six-member-equation");
-  if (changedProposals.length === 0 && selectedProposal) {
-    rejectionReasons.push("current-output-already-matches-unique-equation");
-  }
-  if (changedProposals.length > 1) rejectionReasons.push("competing-exact-interpretations");
-  const wouldApply = rejectionReasons.length === 0 && changedProposals.length === 1;
-  return {
-    name: "smartphoneStageWideSixMemberCandidateSolverSimulation",
-    wouldApply,
-    rejectionReasons,
-    selected,
-    proposed: wouldApply ? changedProposals[0] : null,
-    proposals,
-    proposalCount: proposals.length,
-    changedProposalCount: changedProposals.length,
-    candidatePools: {
-      self: selfPools,
-      enemy: enemyPools,
-    },
-    totalEvidence: {
-      self: selfTotalEvidence,
-      enemy: enemyTotalEvidence,
-    },
-    blockedCombinationCounts: {
-      self: selfCombos.count,
-      enemy: enemyCombos.count,
-    },
-  };
+  return sharedBuildSmartphoneStageWideSixMemberCandidateSolverEvidence({
+    stage: stageResult.stage || 0,
+    stageResult,
+  });
 }
 
 function evaluateSmartphoneSimulation(report, buildStageSimulation) {
@@ -5925,6 +5821,7 @@ async function buildAndWriteSmartphoneCrownStageWideSolverSimulation({
     source,
     cacheSummary,
     overlap: buildSmartphoneSimulationOverlap(crownBonusSimulation, stageWideSimulation),
+    parity: compareSmartphoneCrownStageWideParity(report),
   };
   await fs.writeFile(
     smartphoneCrownBonusStageWideSolverReportPath,
@@ -5996,6 +5893,349 @@ function buildSmartphoneSimulationOverlap(crownBonusSimulation, stageWideSimulat
   };
 }
 
+function buildSmartphoneBrowserEquivalentStageResult(stageResult = {}, stage = 0) {
+  return {
+    stage,
+    self: [...(stageResult.self || [])].map(normalizeSimulationNumber),
+    enemy: [...(stageResult.enemy || [])].map(normalizeSimulationNumber),
+    selfTotal: normalizeSimulationNumber(stageResult.selfTotal),
+    enemyTotal: normalizeSimulationNumber(stageResult.enemyTotal),
+    raw: {
+      selfTotal: [...(stageResult.raw?.selfTotal || [])].map(normalizeSimulationNumber),
+      enemyTotal: [...(stageResult.raw?.enemyTotal || [])].map(normalizeSimulationNumber),
+      selfMembers: [...(stageResult.raw?.selfMembers || [])].map(normalizeSimulationNumber),
+      enemyMembers: [...(stageResult.raw?.enemyMembers || [])].map(normalizeSimulationNumber),
+    },
+    rawText: {
+      selfTotalDirect: stageResult.rawText?.selfTotalDirect || "",
+      selfTotalCandidates: stageResult.rawText?.selfTotalCandidates || "",
+      selfTotalCandidateTraces: stageResult.rawText?.selfTotalCandidateTraces || [],
+      enemyTotalDirect: stageResult.rawText?.enemyTotalDirect || "",
+      enemyTotalCandidates: stageResult.rawText?.enemyTotalCandidates || "",
+      enemyTotalCandidateTraces: stageResult.rawText?.enemyTotalCandidateTraces || [],
+      selfMembers: stageResult.rawText?.selfMembers || "",
+      enemyMembers: stageResult.rawText?.enemyMembers || "",
+    },
+  };
+}
+
+function sortPrimitiveArray(values = []) {
+  return [...values].map((value) => JSON.stringify(value)).sort();
+}
+
+function smartphoneEvidenceValuesFingerprint(evidence = []) {
+  return (evidence || [])
+    .map((entry) => ({
+      value: normalizeSimulationNumber(entry.value),
+      sources: [...(entry.sources || [])].sort(),
+    }))
+    .sort((a, b) => a.value - b.value || a.sources.join(",").localeCompare(b.sources.join(",")));
+}
+
+function smartphoneCandidatePoolsFingerprint(pools = [[], [], []]) {
+  return (pools || [[], [], []]).map((pool) =>
+    (pool || [])
+      .map((candidate) => ({
+        value: normalizeSimulationNumber(candidate.value),
+        sources: sortPrimitiveArray(candidate.sources || []),
+      }))
+      .sort((a, b) => a.value - b.value || a.sources.join(",").localeCompare(b.sources.join(",")))
+  );
+}
+
+function smartphoneProposalFingerprint(proposal = null) {
+  if (!proposal) return null;
+  return {
+    selfMembers: [...(proposal.selfMembers || [])].map(normalizeSimulationNumber),
+    enemyMembers: [...(proposal.enemyMembers || [])].map(normalizeSimulationNumber),
+    selfTotal: normalizeSimulationNumber(proposal.selfTotal),
+    enemyTotal: normalizeSimulationNumber(proposal.enemyTotal),
+    selfBonus: normalizeSimulationNumber(proposal.selfBonus),
+    enemyBonus: normalizeSimulationNumber(proposal.enemyBonus),
+    rank1: proposal.rank1
+      ? {
+          side: proposal.rank1.side || "",
+          slot: normalizeSimulationNumber(proposal.rank1.slot),
+          value: normalizeSimulationNumber(proposal.rank1.value),
+        }
+      : null,
+    winningSide: proposal.winningSide || proposal.rank1?.side || "",
+    derivedBonus: normalizeSimulationNumber(proposal.derivedBonus),
+  };
+}
+
+function smartphoneCrownSimulationFingerprint(sim = null) {
+  return {
+    wouldApply: Boolean(sim?.wouldApply),
+    rejectionReasons: [...(sim?.rejectionReasons || [])].sort(),
+    selected: sim?.selected || null,
+    proposed: smartphoneProposalFingerprint(sim?.proposed || null),
+    rank1: sim?.rank1
+      ? {
+          side: sim.rank1.side || "",
+          slot: normalizeSimulationNumber(sim.rank1.slot),
+          value: normalizeSimulationNumber(sim.rank1.value),
+        }
+      : null,
+    winningSide: sim?.winningSide || sim?.rank1?.side || "",
+    derivedBonus: normalizeSimulationNumber(sim?.derivedBonus),
+    totalEvidence: {
+      self: smartphoneEvidenceValuesFingerprint(sim?.totalEvidence?.self || []),
+      enemy: smartphoneEvidenceValuesFingerprint(sim?.totalEvidence?.enemy || []),
+    },
+  };
+}
+
+function smartphoneStageWideSimulationFingerprint(sim = null) {
+  return {
+    wouldApply: Boolean(sim?.wouldApply),
+    rejectionReasons: [...(sim?.rejectionReasons || [])].sort(),
+    selected: sim?.selected || null,
+    proposed: smartphoneProposalFingerprint(sim?.proposed || null),
+    proposalCount: normalizeSimulationNumber(sim?.proposalCount),
+    changedProposalCount: normalizeSimulationNumber(sim?.changedProposalCount),
+    candidatePools: {
+      self: smartphoneCandidatePoolsFingerprint(sim?.candidatePools?.self || []),
+      enemy: smartphoneCandidatePoolsFingerprint(sim?.candidatePools?.enemy || []),
+    },
+    totalEvidence: {
+      self: smartphoneEvidenceValuesFingerprint(sim?.totalEvidence?.self || []),
+      enemy: smartphoneEvidenceValuesFingerprint(sim?.totalEvidence?.enemy || []),
+    },
+    blockedCombinationCounts: {
+      self: normalizeSimulationNumber(sim?.blockedCombinationCounts?.self),
+      enemy: normalizeSimulationNumber(sim?.blockedCombinationCounts?.enemy),
+    },
+  };
+}
+
+function compareSmartphoneFingerprints(runner, browser, fields) {
+  return fields.filter(
+    (field) => JSON.stringify(runner?.[field] ?? null) !== JSON.stringify(browser?.[field] ?? null)
+  );
+}
+
+function compareSmartphoneCrownStageWideParity(report) {
+  const crownRows = [];
+  const stageWideRows = [];
+  const summary = {
+    stagesCompared: 0,
+    crown: {
+      runnerWouldApply: 0,
+      browserWouldApply: 0,
+      wouldApplyDisagreements: 0,
+      selectedMemberDisagreements: 0,
+      rank1Disagreements: 0,
+      derivedBonusDisagreements: 0,
+      proposedTotalDisagreements: 0,
+      totalEvidenceMismatches: 0,
+      missingRequiredBrowserEvidence: 0,
+      missingRequiredRunnerEvidence: 0,
+      safetyRelevantMismatches: 0,
+      tpParityExact: 0,
+    },
+    stageWide: {
+      runnerWouldApply: 0,
+      browserWouldApply: 0,
+      wouldApplyDisagreements: 0,
+      candidatePoolMismatches: 0,
+      candidateProvenanceMismatches: 0,
+      validInterpretationMismatches: 0,
+      proposedSixMemberDisagreements: 0,
+      proposedBonusDisagreements: 0,
+      proposedTotalDisagreements: 0,
+      totalEvidenceMismatches: 0,
+      missingRequiredBrowserEvidence: 0,
+      missingRequiredRunnerEvidence: 0,
+      safetyRelevantMismatches: 0,
+      tpParityExact: 0,
+    },
+  };
+
+  for (const item of report.filter((entry) => entry.source === "smartphone" && entry.expectedData)) {
+    for (const stage of stages) {
+      const stageKey = `stage${stage}`;
+      const stageResult = item.result?.[stageKey];
+      if (!stageResult) continue;
+      summary.stagesCompared += 1;
+      const runnerStageResult = { ...stageResult, stage };
+      const browserStageResult = buildSmartphoneBrowserEquivalentStageResult(stageResult, stage);
+
+      const runnerCrown = buildSmartphoneCrownBonusRuleSimulationForStage(runnerStageResult);
+      const browserCrown = sharedBuildSmartphoneCrownBonusRuleEvidence({
+        stage,
+        stageResult: browserStageResult,
+      });
+      const runnerCrownFp = smartphoneCrownSimulationFingerprint(runnerCrown);
+      const browserCrownFp = smartphoneCrownSimulationFingerprint(browserCrown);
+      const crownSafetyFields = compareSmartphoneFingerprints(runnerCrownFp, browserCrownFp, [
+        "wouldApply",
+        "selected",
+        "rank1",
+        "winningSide",
+        "derivedBonus",
+        "proposed",
+        "totalEvidence",
+      ]);
+      if (runnerCrown.wouldApply) summary.crown.runnerWouldApply += 1;
+      if (browserCrown.wouldApply) summary.crown.browserWouldApply += 1;
+      if (runnerCrownFp.wouldApply !== browserCrownFp.wouldApply) {
+        summary.crown.wouldApplyDisagreements += 1;
+      }
+      if (JSON.stringify(runnerCrownFp.selected) !== JSON.stringify(browserCrownFp.selected)) {
+        summary.crown.selectedMemberDisagreements += 1;
+      }
+      if (JSON.stringify(runnerCrownFp.rank1) !== JSON.stringify(browserCrownFp.rank1)) {
+        summary.crown.rank1Disagreements += 1;
+      }
+      if (runnerCrownFp.derivedBonus !== browserCrownFp.derivedBonus) {
+        summary.crown.derivedBonusDisagreements += 1;
+      }
+      if (
+        normalizeSimulationNumber(runnerCrownFp.proposed?.selfTotal) !==
+          normalizeSimulationNumber(browserCrownFp.proposed?.selfTotal) ||
+        normalizeSimulationNumber(runnerCrownFp.proposed?.enemyTotal) !==
+          normalizeSimulationNumber(browserCrownFp.proposed?.enemyTotal)
+      ) {
+        summary.crown.proposedTotalDisagreements += 1;
+      }
+      if (
+        JSON.stringify(runnerCrownFp.totalEvidence) !==
+        JSON.stringify(browserCrownFp.totalEvidence)
+      ) {
+        summary.crown.totalEvidenceMismatches += 1;
+      }
+      if (runnerCrown.wouldApply && !browserCrown.wouldApply) {
+        summary.crown.missingRequiredBrowserEvidence += 1;
+      }
+      if (!runnerCrown.wouldApply && browserCrown.wouldApply) {
+        summary.crown.missingRequiredRunnerEvidence += 1;
+      }
+      if (crownSafetyFields.length > 0) summary.crown.safetyRelevantMismatches += 1;
+      const crownExpected = smartphoneStageExpectedOutput(item.expectedData?.[stageKey] || {});
+      const crownMatchesExpected =
+        runnerCrown.wouldApply &&
+        browserCrown.wouldApply &&
+        smartphoneStageOutputsEqual(runnerCrown.proposed, crownExpected) &&
+        JSON.stringify(runnerCrownFp) === JSON.stringify(browserCrownFp);
+      if (crownMatchesExpected) summary.crown.tpParityExact += 1;
+      crownRows.push({
+        image: item.image,
+        stage,
+        runnerWouldApply: runnerCrown.wouldApply,
+        browserWouldApply: browserCrown.wouldApply,
+        mismatchFields: crownSafetyFields,
+        runnerProposed: runnerCrown.proposed,
+        browserProposed: browserCrown.proposed,
+      });
+
+      const runnerStageWide =
+        buildSmartphoneStageWideSixMemberCandidateSolverSimulationForStage(runnerStageResult);
+      const browserStageWide = sharedBuildSmartphoneStageWideSixMemberCandidateSolverEvidence({
+        stage,
+        stageResult: browserStageResult,
+      });
+      const runnerStageWideFp = smartphoneStageWideSimulationFingerprint(runnerStageWide);
+      const browserStageWideFp = smartphoneStageWideSimulationFingerprint(browserStageWide);
+      const stageWideSafetyFields = compareSmartphoneFingerprints(
+        runnerStageWideFp,
+        browserStageWideFp,
+        [
+          "wouldApply",
+          "selected",
+          "proposed",
+          "proposalCount",
+          "changedProposalCount",
+          "candidatePools",
+          "totalEvidence",
+        ]
+      );
+      if (runnerStageWide.wouldApply) summary.stageWide.runnerWouldApply += 1;
+      if (browserStageWide.wouldApply) summary.stageWide.browserWouldApply += 1;
+      if (runnerStageWideFp.wouldApply !== browserStageWideFp.wouldApply) {
+        summary.stageWide.wouldApplyDisagreements += 1;
+      }
+      if (
+        JSON.stringify(runnerStageWideFp.candidatePools) !==
+        JSON.stringify(browserStageWideFp.candidatePools)
+      ) {
+        summary.stageWide.candidatePoolMismatches += 1;
+        summary.stageWide.candidateProvenanceMismatches += 1;
+      }
+      if (
+        runnerStageWideFp.proposalCount !== browserStageWideFp.proposalCount ||
+        runnerStageWideFp.changedProposalCount !== browserStageWideFp.changedProposalCount
+      ) {
+        summary.stageWide.validInterpretationMismatches += 1;
+      }
+      if (
+        JSON.stringify({
+          self: runnerStageWideFp.proposed?.selfMembers || null,
+          enemy: runnerStageWideFp.proposed?.enemyMembers || null,
+        }) !==
+        JSON.stringify({
+          self: browserStageWideFp.proposed?.selfMembers || null,
+          enemy: browserStageWideFp.proposed?.enemyMembers || null,
+        })
+      ) {
+        summary.stageWide.proposedSixMemberDisagreements += 1;
+      }
+      if (
+        normalizeSimulationNumber(runnerStageWideFp.proposed?.selfBonus) !==
+          normalizeSimulationNumber(browserStageWideFp.proposed?.selfBonus) ||
+        normalizeSimulationNumber(runnerStageWideFp.proposed?.enemyBonus) !==
+          normalizeSimulationNumber(browserStageWideFp.proposed?.enemyBonus)
+      ) {
+        summary.stageWide.proposedBonusDisagreements += 1;
+      }
+      if (
+        normalizeSimulationNumber(runnerStageWideFp.proposed?.selfTotal) !==
+          normalizeSimulationNumber(browserStageWideFp.proposed?.selfTotal) ||
+        normalizeSimulationNumber(runnerStageWideFp.proposed?.enemyTotal) !==
+          normalizeSimulationNumber(browserStageWideFp.proposed?.enemyTotal)
+      ) {
+        summary.stageWide.proposedTotalDisagreements += 1;
+      }
+      if (
+        JSON.stringify(runnerStageWideFp.totalEvidence) !==
+        JSON.stringify(browserStageWideFp.totalEvidence)
+      ) {
+        summary.stageWide.totalEvidenceMismatches += 1;
+      }
+      if (runnerStageWide.wouldApply && !browserStageWide.wouldApply) {
+        summary.stageWide.missingRequiredBrowserEvidence += 1;
+      }
+      if (!runnerStageWide.wouldApply && browserStageWide.wouldApply) {
+        summary.stageWide.missingRequiredRunnerEvidence += 1;
+      }
+      if (stageWideSafetyFields.length > 0) {
+        summary.stageWide.safetyRelevantMismatches += 1;
+      }
+      const stageWideMatchesExpected =
+        runnerStageWide.wouldApply &&
+        browserStageWide.wouldApply &&
+        smartphoneStageOutputsEqual(runnerStageWide.proposed, crownExpected) &&
+        JSON.stringify(runnerStageWideFp) === JSON.stringify(browserStageWideFp);
+      if (stageWideMatchesExpected) summary.stageWide.tpParityExact += 1;
+      stageWideRows.push({
+        image: item.image,
+        stage,
+        runnerWouldApply: runnerStageWide.wouldApply,
+        browserWouldApply: browserStageWide.wouldApply,
+        mismatchFields: stageWideSafetyFields,
+        runnerProposed: runnerStageWide.proposed,
+        browserProposed: browserStageWide.proposed,
+      });
+    }
+  }
+
+  return {
+    ...summary,
+    crownRows,
+    stageWideRows,
+  };
+}
+
 function buildSmartphoneCrownBonusStageWideSolverSimulationReport({
   ruleValidation,
   crownBonusSimulation,
@@ -6004,6 +6244,7 @@ function buildSmartphoneCrownBonusStageWideSolverSimulationReport({
   source,
   cacheSummary,
   overlap,
+  parity,
 }) {
   const recommendation =
     (crownBonusSimulation.trueIncrementalTp >= 2 && crownBonusSimulation.falsePositives === 0) ||
@@ -6028,7 +6269,7 @@ function buildSmartphoneCrownBonusStageWideSolverSimulationReport({
   return [
     "# Smartphone Crown Bonus / Stage-Wide Solver Investigation",
     "",
-    "This is a runner-only investigation. It corrects confirmed expected fixture transcription errors and then evaluates smartphone-native crown-bonus and stage-wide six-member solver simulations. It does not change production OCR output.",
+    "This is a runner/browser-equivalent evidence investigation. It uses the already-corrected smartphone expected fixtures and evaluates smartphone-native crown-bonus and stage-wide six-member solver simulations. It does not change final OCR output.",
     "",
     "## Fixture Rule Validation",
     "",
@@ -6058,6 +6299,21 @@ function buildSmartphoneCrownBonusStageWideSolverSimulationReport({
     "",
     `| evaluation source | ${source || "fresh OCR run"} |`,
     `| cache summary | ${cacheSummary || "-"} |`,
+    "",
+    "## Shared Evidence Schema",
+    "",
+    "Both runner and browser-equivalent paths now call shared helpers from `app/lib/ocr.js`:",
+    "",
+    "- `buildSmartphoneCrownBonusRuleEvidence(...)`",
+    "- `buildSmartphoneStageWideSixMemberCandidateSolverEvidence(...)`",
+    "",
+    "The shared evidence preserves final selected members/totals, raw member rows, raw total candidates, total candidate traces, candidate source/provenance, unique global rank-1, derived crown bonus, proposed totals, rejection reasons, and `wouldApply`.",
+    "",
+    "## Evidence Flow",
+    "",
+    "- Runner flow: load cached smartphone OCR baseline artifacts, rebuild shared evidence from final selected stage results plus raw/rawText candidate evidence, and score against expected fixtures.",
+    "- Browser/UI flow: after existing smartphone recoveries and before OCR result state is rendered, build the same evidence-only objects from the UI's final selected values and existing OCR candidate text. These objects are stored as diagnostics on `parsedOcrScores.smartphoneCrownStageWideEvidence`; they do not alter `stageScores`.",
+    "- Browser-equivalent parity: normalize the cached runner artifact into the same shape used by the UI evidence path, then fingerprint shared helper output across all fixture-backed stages.",
     "",
     "## Runner-Only Crown-Bonus Rule Simulation",
     "",
@@ -6114,6 +6370,59 @@ function buildSmartphoneCrownBonusStageWideSolverSimulationReport({
     formatImpact("IMG_9308"),
     formatImpact("IMG_9310"),
     formatImpact("IMG_9319"),
+    "",
+    "## Runner / Browser-Equivalent Parity",
+    "",
+    "The browser-equivalent path uses the same final selected smartphone stage values and existing raw/rawText candidate evidence that the UI has before rendering OCR results. This is evidence-only plumbing; it does not apply a recovery.",
+    "",
+    "| metric | crown-bonus | stage-wide solver |",
+    "| --- | ---: | ---: |",
+    `| stages compared | ${parity?.stagesCompared || 0} | ${parity?.stagesCompared || 0} |`,
+    `| runner wouldApply | ${parity?.crown?.runnerWouldApply || 0} | ${parity?.stageWide?.runnerWouldApply || 0} |`,
+    `| browser-equivalent wouldApply | ${parity?.crown?.browserWouldApply || 0} | ${parity?.stageWide?.browserWouldApply || 0} |`,
+    `| wouldApply disagreements | ${parity?.crown?.wouldApplyDisagreements || 0} | ${parity?.stageWide?.wouldApplyDisagreements || 0} |`,
+    `| TP parity exact | ${parity?.crown?.tpParityExact || 0} / ${crownBonusSimulation.truePositives} | ${parity?.stageWide?.tpParityExact || 0} / ${stageWideSimulation.truePositives} |`,
+    `| proposed recovery disagreements | ${parity?.crown?.proposedTotalDisagreements || 0} | ${
+      (parity?.stageWide?.proposedSixMemberDisagreements || 0) +
+      (parity?.stageWide?.proposedBonusDisagreements || 0) +
+      (parity?.stageWide?.proposedTotalDisagreements || 0)
+    } |`,
+    `| total evidence mismatches | ${parity?.crown?.totalEvidenceMismatches || 0} | ${parity?.stageWide?.totalEvidenceMismatches || 0} |`,
+    `| candidate pool/provenance mismatches | - | ${parity?.stageWide?.candidatePoolMismatches || 0} |`,
+    `| valid interpretation mismatches | - | ${parity?.stageWide?.validInterpretationMismatches || 0} |`,
+    `| missing browser evidence | ${parity?.crown?.missingRequiredBrowserEvidence || 0} | ${parity?.stageWide?.missingRequiredBrowserEvidence || 0} |`,
+    `| missing runner evidence | ${parity?.crown?.missingRequiredRunnerEvidence || 0} | ${parity?.stageWide?.missingRequiredRunnerEvidence || 0} |`,
+    `| safety-relevant mismatches | ${parity?.crown?.safetyRelevantMismatches || 0} | ${parity?.stageWide?.safetyRelevantMismatches || 0} |`,
+    "",
+    "### Accepted TP Parity",
+    "",
+    "| simulation | image | stage | runner/browser proposed result |",
+    "| --- | --- | ---: | --- |",
+    ...[
+      ...crownBonusSimulation.acceptedRows.map((row) => ({
+        name: "crown-bonus",
+        row,
+      })),
+      ...stageWideSimulation.acceptedRows.map((row) => ({
+        name: "stage-wide",
+        row,
+      })),
+    ].map(({ name, row }) => {
+      const proposed = row.simulation.proposed || {};
+      const selfBonus = formatNumber(proposed.selfBonus || 0) || "0";
+      const enemyBonus = formatNumber(proposed.enemyBonus || 0) || "0";
+      return `| ${name} | \`${row.image}\` | ${row.stage} | self ${formatDebugNumbers(proposed.selfMembers)} +${selfBonus} = ${formatNumber(proposed.selfTotal)}; enemy ${formatDebugNumbers(proposed.enemyMembers)} +${enemyBonus} = ${formatNumber(proposed.enemyTotal)} |`;
+    }),
+    "",
+    "## Future Production Precedence",
+    "",
+    "If productionized later, the safest conceptual order is:",
+    "",
+    "1. existing smartphone production recoveries",
+    "2. smartphone crown-bonus rule recovery",
+    "3. smartphone stage-wide six-member solver",
+    "",
+    "The future recoveries should reject already-correct rows and must not broaden member candidate eligibility beyond this parity-proven evidence.",
     "",
     "## Recommendation",
     "",
@@ -18052,6 +18361,13 @@ async function main() {
                 falseNegatives: simulation.stageWideSimulation.falseNegatives,
                 blocked: simulation.stageWideSimulation.blocked,
                 trueIncrementalTp: simulation.stageWideSimulation.trueIncrementalTp,
+              }
+            : null,
+          parity: simulation.parity
+            ? {
+                stagesCompared: simulation.parity.stagesCompared,
+                crown: simulation.parity.crown,
+                stageWide: simulation.parity.stageWide,
               }
             : null,
         },
