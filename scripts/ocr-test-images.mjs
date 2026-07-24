@@ -14,6 +14,8 @@ import {
   applySmartphoneRowZoneSevenDigitRecovery,
   applySmartphoneStage3SelfSevenDigitDisplacementRecovery,
   applySmartphoneStage3EnemySevenDigitRecovery,
+  applySmartphoneCrownBonusRuleRecovery,
+  applySmartphoneStageWideSixMemberCandidateSolverRecovery,
   applyCurrentPcGroupedRawTokenRecovery,
   applyCurrentPcCrownBonusRuleRecovery,
   applyCurrentPcExactMembersCrownBonusTotalRecovery,
@@ -4653,6 +4655,93 @@ async function runOcrForImage(imagePath, options = {}) {
       enemyTotal = lateStage3EnemySevenDigitRecovery.total;
     }
 
+    let smartphoneCrownBonusRuleSimulation = null;
+    let smartphoneCrownBonusRuleRecovery = null;
+    let smartphoneStageWideSixMemberCandidateSolverSimulation = null;
+    let smartphoneStageWideSixMemberCandidateSolverRecovery = null;
+    if (ocrSource === "smartphone") {
+      const buildSmartphoneStageEvidenceInput = () => ({
+        stage,
+        self,
+        enemy,
+        selfTotal,
+        enemyTotal,
+        raw: {
+          selfTotal: selfTotalResult.numbers,
+          selfMembers: selfMemberResult.numbers,
+          enemyTotal: enemyTotalResult.numbers,
+          enemyMembers: enemyMemberResult.numbers,
+        },
+        rawText: {
+          selfTotalDirect: selfTotalResult.text,
+          selfTotalCandidates: selfTotalCandidateResult.text,
+          selfTotalCandidateTraces: selfTotalCandidateResult.traces,
+          selfMembers: selfMemberResult.text,
+          enemyTotalDirect: enemyTotalResult.text,
+          enemyTotalCandidates: enemyTotalCandidateResult.text,
+          enemyTotalCandidateTraces: enemyTotalCandidateResult.traces,
+          enemyMembers: enemyMemberResult.text,
+        },
+      });
+      smartphoneCrownBonusRuleSimulation = sharedBuildSmartphoneCrownBonusRuleEvidence({
+        stage,
+        stageResult: buildSmartphoneStageEvidenceInput(),
+      });
+      smartphoneCrownBonusRuleRecovery = applySmartphoneCrownBonusRuleRecovery({
+        stage,
+        simulation: smartphoneCrownBonusRuleSimulation,
+        mode: ocrSource,
+      });
+      if (smartphoneCrownBonusRuleRecovery.applied) {
+        knownCorrectionDeltas.push({
+          pass: "smartphoneCrownBonusRuleRecovery applied",
+          before: cloneStageState({ self, enemy, selfTotal, enemyTotal }),
+          after: cloneStageState({
+            self: smartphoneCrownBonusRuleRecovery.self.members,
+            enemy: smartphoneCrownBonusRuleRecovery.enemy.members,
+            selfTotal: smartphoneCrownBonusRuleRecovery.self.total,
+            enemyTotal: smartphoneCrownBonusRuleRecovery.enemy.total,
+          }),
+          message: smartphoneCrownBonusRuleRecovery.message,
+        });
+        self = smartphoneCrownBonusRuleRecovery.self.members;
+        enemy = smartphoneCrownBonusRuleRecovery.enemy.members;
+        selfTotal = smartphoneCrownBonusRuleRecovery.self.total;
+        enemyTotal = smartphoneCrownBonusRuleRecovery.enemy.total;
+      }
+      smartphoneStageWideSixMemberCandidateSolverSimulation =
+        sharedBuildSmartphoneStageWideSixMemberCandidateSolverEvidence({
+          stage,
+          stageResult: buildSmartphoneStageEvidenceInput(),
+        });
+      smartphoneStageWideSixMemberCandidateSolverRecovery =
+        applySmartphoneStageWideSixMemberCandidateSolverRecovery({
+          stage,
+          simulation: smartphoneStageWideSixMemberCandidateSolverSimulation,
+          mode: ocrSource,
+          previousRecoveries: {
+            crownBonus: smartphoneCrownBonusRuleRecovery,
+          },
+        });
+      if (smartphoneStageWideSixMemberCandidateSolverRecovery.applied) {
+        knownCorrectionDeltas.push({
+          pass: "smartphoneStageWideSixMemberCandidateSolverRecovery applied",
+          before: cloneStageState({ self, enemy, selfTotal, enemyTotal }),
+          after: cloneStageState({
+            self: smartphoneStageWideSixMemberCandidateSolverRecovery.self.members,
+            enemy: smartphoneStageWideSixMemberCandidateSolverRecovery.enemy.members,
+            selfTotal: smartphoneStageWideSixMemberCandidateSolverRecovery.self.total,
+            enemyTotal: smartphoneStageWideSixMemberCandidateSolverRecovery.enemy.total,
+          }),
+          message: smartphoneStageWideSixMemberCandidateSolverRecovery.message,
+        });
+        self = smartphoneStageWideSixMemberCandidateSolverRecovery.self.members;
+        enemy = smartphoneStageWideSixMemberCandidateSolverRecovery.enemy.members;
+        selfTotal = smartphoneStageWideSixMemberCandidateSolverRecovery.self.total;
+        enemyTotal = smartphoneStageWideSixMemberCandidateSolverRecovery.enemy.total;
+      }
+    }
+
     let currentPcPreRecoveryAnalysisBySide = null;
     let currentPcProductionRecoveryBySide = null;
     let currentPcStage3SevenDigitBonusDisplacementRecoveryBySide = null;
@@ -5132,6 +5221,14 @@ async function runOcrForImage(imagePath, options = {}) {
         enemyMembers: enemyMemberResult.text,
       },
     };
+    if (ocrSource === "smartphone") {
+      stageResult.smartphoneCrownBonusRuleSimulation = smartphoneCrownBonusRuleSimulation;
+      stageResult.smartphoneCrownBonusRuleRecovery = smartphoneCrownBonusRuleRecovery;
+      stageResult.smartphoneStageWideSixMemberCandidateSolverSimulation =
+        smartphoneStageWideSixMemberCandidateSolverSimulation;
+      stageResult.smartphoneStageWideSixMemberCandidateSolverRecovery =
+        smartphoneStageWideSixMemberCandidateSolverRecovery;
+    }
 
     if (options.debugArtifacts && (ocrSource === "smartphone" || ocrSource === "current-pc")) {
       const buildSideArtifact = (side) => {
@@ -5822,6 +5919,7 @@ async function buildAndWriteSmartphoneCrownStageWideSolverSimulation({
     cacheSummary,
     overlap: buildSmartphoneSimulationOverlap(crownBonusSimulation, stageWideSimulation),
     parity: compareSmartphoneCrownStageWideParity(report),
+    productionImpact: buildSmartphoneProductionSolverImpact(report),
   };
   await fs.writeFile(
     smartphoneCrownBonusStageWideSolverReportPath,
@@ -5890,6 +5988,169 @@ function buildSmartphoneSimulationOverlap(crownBonusSimulation, stageWideSimulat
     overlap: overlap.length,
     crownOnly: crownAccepted.size - overlap.length,
     stageWideOnly: stageWideAccepted.size - overlap.length,
+  };
+}
+
+function cloneSmartphoneStageResult(stageResult = {}) {
+  return JSON.parse(JSON.stringify(stageResult || {}));
+}
+
+function applySmartphoneProductionSolverRecoveriesToStage(stageResult = {}, stage = 0) {
+  const next = cloneSmartphoneStageResult(stageResult);
+  next.stage = stage;
+  const before = smartphoneStageOutputFromResult(next);
+  const crownSimulation = sharedBuildSmartphoneCrownBonusRuleEvidence({
+    stage,
+    stageResult: next,
+  });
+  const crownRecovery = applySmartphoneCrownBonusRuleRecovery({
+    stage,
+    simulation: crownSimulation,
+    mode: "smartphone",
+  });
+  if (crownRecovery.applied) {
+    next.self = crownRecovery.self.members;
+    next.enemy = crownRecovery.enemy.members;
+    next.selfTotal = crownRecovery.self.total;
+    next.enemyTotal = crownRecovery.enemy.total;
+  }
+  const stageWideSimulation = sharedBuildSmartphoneStageWideSixMemberCandidateSolverEvidence({
+    stage,
+    stageResult: next,
+  });
+  const stageWideRecovery = applySmartphoneStageWideSixMemberCandidateSolverRecovery({
+    stage,
+    simulation: stageWideSimulation,
+    mode: "smartphone",
+    previousRecoveries: {
+      crownBonus: crownRecovery,
+    },
+  });
+  if (stageWideRecovery.applied) {
+    next.self = stageWideRecovery.self.members;
+    next.enemy = stageWideRecovery.enemy.members;
+    next.selfTotal = stageWideRecovery.self.total;
+    next.enemyTotal = stageWideRecovery.enemy.total;
+  }
+  return {
+    stageResult: next,
+    before,
+    after: smartphoneStageOutputFromResult(next),
+    crownSimulation,
+    crownRecovery,
+    stageWideSimulation,
+    stageWideRecovery,
+  };
+}
+
+function smartphoneStageSidePass(output = {}, expected = {}, side = "self") {
+  const memberKey = side === "self" ? "selfMembers" : "enemyMembers";
+  const totalKey = side === "self" ? "selfTotal" : "enemyTotal";
+  return (
+    normalizeSimulationNumber(output[totalKey]) === normalizeSimulationNumber(expected[totalKey]) &&
+    [0, 1, 2].every(
+      (index) =>
+        normalizeSimulationNumber(output[memberKey]?.[index]) ===
+        normalizeSimulationNumber(expected[memberKey]?.[index])
+    )
+  );
+}
+
+function buildSmartphoneAccuracyFromStageOutputs(items = [], stageOutputBuilder) {
+  let imagesPass = 0;
+  let imagesFail = 0;
+  let stagesPass = 0;
+  let stagesFail = 0;
+  let stageSidesPass = 0;
+  let stageSidesFail = 0;
+  for (const item of items.filter((entry) => entry.source === "smartphone" && entry.expectedData)) {
+    let imagePass = true;
+    for (const stage of stages) {
+      const stageKey = `stage${stage}`;
+      const expected = smartphoneStageExpectedOutput(item.expectedData?.[stageKey] || {});
+      const output = stageOutputBuilder(item, stage);
+      const selfPass = smartphoneStageSidePass(output, expected, "self");
+      const enemyPass = smartphoneStageSidePass(output, expected, "enemy");
+      if (selfPass) stageSidesPass += 1;
+      else stageSidesFail += 1;
+      if (enemyPass) stageSidesPass += 1;
+      else stageSidesFail += 1;
+      if (selfPass && enemyPass) stagesPass += 1;
+      else {
+        stagesFail += 1;
+        imagePass = false;
+      }
+    }
+    if (imagePass) imagesPass += 1;
+    else imagesFail += 1;
+  }
+  return {
+    imagesPass,
+    imagesFail,
+    stagesPass,
+    stagesFail,
+    stageSidesPass,
+    stageSidesFail,
+  };
+}
+
+function buildSmartphoneProductionSolverImpact(report = []) {
+  const items = report.filter((entry) => entry.source === "smartphone" && entry.expectedData);
+  const afterStageOutputs = new Map();
+  const changes = [];
+  let crownRecoveriesApplied = 0;
+  let stageWideRecoveriesApplied = 0;
+  const uniqueRecoveredStageKeys = new Set();
+  const unexpectedChangedStages = [];
+
+  for (const item of items) {
+    for (const stage of stages) {
+      const stageKey = `stage${stage}`;
+      const stageResult = item.result?.[stageKey];
+      if (!stageResult) continue;
+      const expected = smartphoneStageExpectedOutput(item.expectedData?.[stageKey] || {});
+      const applied = applySmartphoneProductionSolverRecoveriesToStage(stageResult, stage);
+      const key = `${item.image}::S${stage}`;
+      afterStageOutputs.set(key, applied.after);
+      const beforePass = smartphoneStageOutputsEqual(applied.before, expected);
+      const afterPass = smartphoneStageOutputsEqual(applied.after, expected);
+      const changed = !smartphoneStageOutputsEqual(applied.before, applied.after);
+      if (applied.crownRecovery.applied) crownRecoveriesApplied += 1;
+      if (applied.stageWideRecovery.applied) stageWideRecoveriesApplied += 1;
+      if (changed) {
+        uniqueRecoveredStageKeys.add(key);
+        changes.push({
+          image: item.image,
+          stage,
+          beforePass,
+          afterPass,
+          before: applied.before,
+          after: applied.after,
+          crownApplied: Boolean(applied.crownRecovery.applied),
+          stageWideApplied: Boolean(applied.stageWideRecovery.applied),
+        });
+        if (!afterPass) unexpectedChangedStages.push({ image: item.image, stage, before: applied.before, after: applied.after });
+      }
+    }
+  }
+
+  const beforeAccuracy = buildSmartphoneAccuracyFromStageOutputs(items, (item, stage) =>
+    smartphoneStageOutputFromResult(item.result?.[`stage${stage}`] || {})
+  );
+  const afterAccuracy = buildSmartphoneAccuracyFromStageOutputs(items, (item, stage) => {
+    const key = `${item.image}::S${stage}`;
+    return afterStageOutputs.get(key) || smartphoneStageOutputFromResult(item.result?.[`stage${stage}`] || {});
+  });
+
+  return {
+    beforeAccuracy,
+    afterAccuracy,
+    crownRecoveriesApplied,
+    stageWideRecoveriesApplied,
+    uniqueRecoveredStages: uniqueRecoveredStageKeys.size,
+    allPriorTpStagesRecovered: uniqueRecoveredStageKeys.size >= 7,
+    unexpectedChangedStages,
+    changes,
   };
 }
 
@@ -6245,11 +6506,12 @@ function buildSmartphoneCrownBonusStageWideSolverSimulationReport({
   cacheSummary,
   overlap,
   parity,
+  productionImpact,
 }) {
   const recommendation =
     (crownBonusSimulation.trueIncrementalTp >= 2 && crownBonusSimulation.falsePositives === 0) ||
     (stageWideSimulation.trueIncrementalTp >= 2 && stageWideSimulation.falsePositives === 0)
-      ? "Runner/browser-equivalent parity is justified next for the qualifying simulation."
+      ? "Production recovery is enabled for the strict parity-proven cases only."
       : "Do not proceed to parity yet; keep this as runner-only evidence.";
   const formatAccepted = (rows) =>
     rows.length === 0
@@ -6269,7 +6531,7 @@ function buildSmartphoneCrownBonusStageWideSolverSimulationReport({
   return [
     "# Smartphone Crown Bonus / Stage-Wide Solver Investigation",
     "",
-    "This is a runner/browser-equivalent evidence investigation. It uses the already-corrected smartphone expected fixtures and evaluates smartphone-native crown-bonus and stage-wide six-member solver simulations. It does not change final OCR output.",
+    "This report tracks the smartphone-native crown-bonus and stage-wide six-member solver work. The simulations and runner/browser-equivalent parity checks remain the safety record, and the strict parity-proven recoveries are now enabled in production OCR.",
     "",
     "## Fixture Rule Validation",
     "",
@@ -6414,23 +6676,40 @@ function buildSmartphoneCrownBonusStageWideSolverSimulationReport({
       return `| ${name} | \`${row.image}\` | ${row.stage} | self ${formatDebugNumbers(proposed.selfMembers)} +${selfBonus} = ${formatNumber(proposed.selfTotal)}; enemy ${formatDebugNumbers(proposed.enemyMembers)} +${enemyBonus} = ${formatNumber(proposed.enemyTotal)} |`;
     }),
     "",
-    "## Future Production Precedence",
+    "## Production Precedence",
     "",
-    "If productionized later, the safest conceptual order is:",
+    "The production order is:",
     "",
     "1. existing smartphone production recoveries",
     "2. smartphone crown-bonus rule recovery",
-    "3. smartphone stage-wide six-member solver",
+    "3. smartphone stage-wide six-member solver, only when crown-bonus recovery did not already apply",
     "",
-    "The future recoveries should reject already-correct rows and must not broaden member candidate eligibility beyond this parity-proven evidence.",
+    "The recoveries reject already-correct rows and do not broaden member candidate eligibility beyond this parity-proven evidence.",
+    "",
+    "## Production Recovery Impact",
+    "",
+    "This cached-baseline impact applies the productionized helpers to the existing 89-image smartphone baseline artifacts without rerunning OCR.",
+    "",
+    "| level | before PASS | before FAIL | after PASS | after FAIL |",
+    "| --- | ---: | ---: | ---: | ---: |",
+    `| image | ${productionImpact?.beforeAccuracy?.imagesPass || 0} | ${productionImpact?.beforeAccuracy?.imagesFail || 0} | ${productionImpact?.afterAccuracy?.imagesPass || 0} | ${productionImpact?.afterAccuracy?.imagesFail || 0} |`,
+    `| stage | ${productionImpact?.beforeAccuracy?.stagesPass || 0} | ${productionImpact?.beforeAccuracy?.stagesFail || 0} | ${productionImpact?.afterAccuracy?.stagesPass || 0} | ${productionImpact?.afterAccuracy?.stagesFail || 0} |`,
+    `| stage/side | ${productionImpact?.beforeAccuracy?.stageSidesPass || 0} | ${productionImpact?.beforeAccuracy?.stageSidesFail || 0} | ${productionImpact?.afterAccuracy?.stageSidesPass || 0} | ${productionImpact?.afterAccuracy?.stageSidesFail || 0} |`,
+    "",
+    `| smartphoneCrownBonusRuleRecovery applied stages | ${productionImpact?.crownRecoveriesApplied || 0} |`,
+    `| smartphoneStageWideSixMemberCandidateSolverRecovery applied stages | ${productionImpact?.stageWideRecoveriesApplied || 0} |`,
+    `| unique recovered stages | ${productionImpact?.uniqueRecoveredStages || 0} |`,
+    `| unexpected changed stages | ${productionImpact?.unexpectedChangedStages?.length || 0} |`,
     "",
     "## Recommendation",
     "",
     recommendation,
     "",
-    "- production OCR changed: no",
+    "- production OCR changed: yes, only when the strict shared smartphone helpers apply",
     "- current-PC OCR changed: no",
     "- legacy desktop OCR changed: no",
+    "- no new smartphone OCR candidate sources were added",
+    "- no near-match, within-one, missing-digit, filename-specific, or hard-coded recovery was added",
   ].join("\n");
 }
 
@@ -18368,6 +18647,18 @@ async function main() {
                 stagesCompared: simulation.parity.stagesCompared,
                 crown: simulation.parity.crown,
                 stageWide: simulation.parity.stageWide,
+              }
+            : null,
+          productionImpact: simulation.productionImpact
+            ? {
+                beforeAccuracy: simulation.productionImpact.beforeAccuracy,
+                afterAccuracy: simulation.productionImpact.afterAccuracy,
+                crownRecoveriesApplied: simulation.productionImpact.crownRecoveriesApplied,
+                stageWideRecoveriesApplied:
+                  simulation.productionImpact.stageWideRecoveriesApplied,
+                uniqueRecoveredStages: simulation.productionImpact.uniqueRecoveredStages,
+                unexpectedChangedStages:
+                  simulation.productionImpact.unexpectedChangedStages.length,
               }
             : null,
         },

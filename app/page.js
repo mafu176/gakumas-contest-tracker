@@ -126,6 +126,8 @@ import {
   applySmartphoneStage3EnemySevenDigitRecovery,
   buildSmartphoneCrownBonusRuleEvidence,
   buildSmartphoneStageWideSixMemberCandidateSolverEvidence,
+  applySmartphoneCrownBonusRuleRecovery,
+  applySmartphoneStageWideSixMemberCandidateSolverRecovery,
   buildCurrentPcCandidateSourceSummary,
   buildCurrentPcCrownBonusRuleEvidence,
   buildCurrentPcExactMembersCrownBonusTotalRecoveryEvidence,
@@ -3818,7 +3820,7 @@ export default function Home() {
           ...enemyCrownCandidates,
         ];
         if (smartphoneCrownStageWideEvidence) {
-          const smartphoneStageEvidenceInput = {
+          const buildSmartphoneStageEvidenceInput = () => ({
             stage,
             self: correctedSelfMembers,
             enemy: correctedEnemyMembers,
@@ -3840,17 +3842,51 @@ export default function Home() {
               selfMembers: selfMemberResult.text,
               enemyMembers: enemyMemberResult.text,
             },
-          };
-          smartphoneCrownStageWideEvidence.stages[`stage${stage}`] = {
-            crownBonusRuleSimulation: buildSmartphoneCrownBonusRuleEvidence({
+          });
+          const smartphoneCrownBonusRuleSimulation = buildSmartphoneCrownBonusRuleEvidence({
+            stage,
+            stageResult: buildSmartphoneStageEvidenceInput(),
+          });
+          const smartphoneCrownBonusRuleRecovery = applySmartphoneCrownBonusRuleRecovery({
+            stage,
+            simulation: smartphoneCrownBonusRuleSimulation,
+            mode: activeOcrMode,
+          });
+          if (smartphoneCrownBonusRuleRecovery.applied) {
+            correctionLogs.push(smartphoneCrownBonusRuleRecovery.message);
+            correctedSelfMembers = smartphoneCrownBonusRuleRecovery.self.members;
+            correctedEnemyMembers = smartphoneCrownBonusRuleRecovery.enemy.members;
+            selfTotal = smartphoneCrownBonusRuleRecovery.self.total;
+            enemyTotal = smartphoneCrownBonusRuleRecovery.enemy.total;
+          }
+          const smartphoneStageWideSixMemberCandidateSolverSimulation =
+            buildSmartphoneStageWideSixMemberCandidateSolverEvidence({
               stage,
-              stageResult: smartphoneStageEvidenceInput,
-            }),
+              stageResult: buildSmartphoneStageEvidenceInput(),
+            });
+          const smartphoneStageWideSixMemberCandidateSolverRecovery =
+            applySmartphoneStageWideSixMemberCandidateSolverRecovery({
+              stage,
+              simulation: smartphoneStageWideSixMemberCandidateSolverSimulation,
+              mode: activeOcrMode,
+              previousRecoveries: {
+                crownBonus: smartphoneCrownBonusRuleRecovery,
+              },
+            });
+          if (smartphoneStageWideSixMemberCandidateSolverRecovery.applied) {
+            correctionLogs.push(smartphoneStageWideSixMemberCandidateSolverRecovery.message);
+            correctedSelfMembers = smartphoneStageWideSixMemberCandidateSolverRecovery.self.members;
+            correctedEnemyMembers = smartphoneStageWideSixMemberCandidateSolverRecovery.enemy.members;
+            selfTotal = smartphoneStageWideSixMemberCandidateSolverRecovery.self.total;
+            enemyTotal = smartphoneStageWideSixMemberCandidateSolverRecovery.enemy.total;
+          }
+          smartphoneCrownStageWideEvidence.stages[`stage${stage}`] = {
+            crownBonusRuleSimulation: smartphoneCrownBonusRuleSimulation,
+            crownBonusRuleRecovery: smartphoneCrownBonusRuleRecovery,
             stageWideSixMemberCandidateSolverSimulation:
-              buildSmartphoneStageWideSixMemberCandidateSolverEvidence({
-                stage,
-                stageResult: smartphoneStageEvidenceInput,
-              }),
+              smartphoneStageWideSixMemberCandidateSolverSimulation,
+            stageWideSixMemberCandidateSolverRecovery:
+              smartphoneStageWideSixMemberCandidateSolverRecovery,
           };
         }
 

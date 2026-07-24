@@ -1,6 +1,6 @@
 # Smartphone Crown Bonus / Stage-Wide Solver Investigation
 
-This is a runner/browser-equivalent evidence investigation. It uses the already-corrected smartphone expected fixtures and evaluates smartphone-native crown-bonus and stage-wide six-member solver simulations. It does not change final OCR output.
+This report tracks the smartphone-native crown-bonus and stage-wide six-member solver work. The simulations and runner/browser-equivalent parity checks remain the safety record, and the strict parity-proven recoveries are now enabled in production OCR.
 
 ## Fixture Rule Validation
 
@@ -143,20 +143,37 @@ The browser-equivalent path uses the same final selected smartphone stage values
 | stage-wide | `user-reports/unreviewed/IMG_9322.png` | 3 | self 806192, 482823, 405555 +0 = 1,694,570; enemy 367211, 756949, 1377038 +275,407 = 2,776,605 |
 | stage-wide | `user-reports/unreviewed/IMG_9334.png` | 3 | self 1117179, 622324, 498570 +0 = 2,238,073; enemy 957950, 1304323, 841305 +260,864 = 3,364,442 |
 
-## Future Production Precedence
+## Production Precedence
 
-If productionized later, the safest conceptual order is:
+The production order is:
 
 1. existing smartphone production recoveries
 2. smartphone crown-bonus rule recovery
-3. smartphone stage-wide six-member solver
+3. smartphone stage-wide six-member solver, only when crown-bonus recovery did not already apply
 
-The future recoveries should reject already-correct rows and must not broaden member candidate eligibility beyond this parity-proven evidence.
+The recoveries reject already-correct rows and do not broaden member candidate eligibility beyond this parity-proven evidence.
+
+## Production Recovery Impact
+
+This cached-baseline impact applies the productionized helpers to the existing 89-image smartphone baseline artifacts without rerunning OCR.
+
+| level | before PASS | before FAIL | after PASS | after FAIL |
+| --- | ---: | ---: | ---: | ---: |
+| image | 56 | 33 | 62 | 27 |
+| stage | 230 | 37 | 237 | 30 |
+| stage/side | 496 | 38 | 503 | 31 |
+
+| smartphoneCrownBonusRuleRecovery applied stages | 2 |
+| smartphoneStageWideSixMemberCandidateSolverRecovery applied stages | 5 |
+| unique recovered stages | 7 |
+| unexpected changed stages | 0 |
 
 ## Recommendation
 
-Runner/browser-equivalent parity is justified next for the qualifying simulation.
+Production recovery is enabled for the strict parity-proven cases only.
 
-- production OCR changed: no
+- production OCR changed: yes, only when the strict shared smartphone helpers apply
 - current-PC OCR changed: no
 - legacy desktop OCR changed: no
+- no new smartphone OCR candidate sources were added
+- no near-match, within-one, missing-digit, filename-specific, or hard-coded recovery was added

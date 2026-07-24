@@ -2394,6 +2394,126 @@ export function buildSmartphoneStageWideSixMemberCandidateSolverEvidence({
   };
 }
 
+function smartphoneTotalEvidenceSummary(evidence = []) {
+  return (evidence || [])
+    .slice(0, 4)
+    .map((entry) => `${entry.value}:${(entry.sources || []).join("+") || "unknown"}`)
+    .join(",");
+}
+
+function smartphoneChangedMemberSlots(previous = {}, proposed = {}) {
+  const changed = [];
+  for (const side of ["self", "enemy"]) {
+    const previousMembers = side === "self" ? previous.selfMembers || [] : previous.enemyMembers || [];
+    const proposedMembers = side === "self" ? proposed.selfMembers || [] : proposed.enemyMembers || [];
+    for (let index = 0; index < 3; index += 1) {
+      if (normalizeSmartphoneSimulationNumber(previousMembers[index]) !== normalizeSmartphoneSimulationNumber(proposedMembers[index])) {
+        changed.push({
+          side,
+          slot: index + 1,
+          from: normalizeSmartphoneSimulationNumber(previousMembers[index]),
+          to: normalizeSmartphoneSimulationNumber(proposedMembers[index]),
+        });
+      }
+    }
+  }
+  return changed;
+}
+
+function smartphoneChangedMemberSourceSummary(simulation = {}, changedSlots = []) {
+  const proposal = simulation.proposed || {};
+  return changedSlots
+    .map((slot) => {
+      const sources =
+        slot.side === "self"
+          ? proposal.selfMemberSources?.[slot.slot - 1] || []
+          : proposal.enemyMemberSources?.[slot.slot - 1] || [];
+      return `${slot.side}.member${slot.slot}:${slot.from}->${slot.to}[${
+        sources.flat().join("+") || "unknown"
+      }]`;
+    })
+    .join(";");
+}
+
+export function applySmartphoneCrownBonusRuleRecovery({
+  stage = 0,
+  simulation = null,
+  mode = "smartphone",
+} = {}) {
+  if (normalizeOcrMode(mode) !== "smartphone" || !simulation?.wouldApply || !simulation?.proposed) {
+    return { applied: false };
+  }
+  const proposal = simulation.proposed;
+  const rank1 = simulation.rank1 || proposal.rank1 || null;
+  const previous = simulation.selected || {};
+  return {
+    applied: true,
+    self: {
+      members: proposal.selfMembers || previous.selfMembers || [],
+      bonus: Number(proposal.selfBonus || 0),
+      total: Number(proposal.selfTotal || 0),
+    },
+    enemy: {
+      members: proposal.enemyMembers || previous.enemyMembers || [],
+      bonus: Number(proposal.enemyBonus || 0),
+      total: Number(proposal.enemyTotal || 0),
+    },
+    message:
+      `smartphoneCrownBonusRuleRecovery applied stage=${stage} ` +
+      `previousSelf=${(previous.selfMembers || []).join(",")} total=${previous.selfTotal || 0} ` +
+      `previousEnemy=${(previous.enemyMembers || []).join(",")} total=${previous.enemyTotal || 0} ` +
+      `proposedSelf=${(proposal.selfMembers || []).join(",")}+${proposal.selfBonus || 0}=${proposal.selfTotal || 0} ` +
+      `proposedEnemy=${(proposal.enemyMembers || []).join(",")}+${proposal.enemyBonus || 0}=${proposal.enemyTotal || 0} ` +
+      `rank1=${rank1?.side || "unknown"}.member${rank1?.slot || "?"}:${rank1?.value || 0} ` +
+      `winningSide=${rank1?.side || "unknown"} derivedBonus=${simulation.derivedBonus || proposal.derivedBonus || 0} ` +
+      `totalEvidence=self[${smartphoneTotalEvidenceSummary(simulation.totalEvidence?.self) || "exact"}] ` +
+      `enemy[${smartphoneTotalEvidenceSummary(simulation.totalEvidence?.enemy) || "exact"}]`,
+  };
+}
+
+export function applySmartphoneStageWideSixMemberCandidateSolverRecovery({
+  stage = 0,
+  simulation = null,
+  mode = "smartphone",
+  previousRecoveries = {},
+} = {}) {
+  if (normalizeOcrMode(mode) !== "smartphone" || !simulation?.wouldApply || !simulation?.proposed) {
+    return { applied: false };
+  }
+  if (previousRecoveries?.crownBonus?.applied) {
+    return { applied: false, rejectionReasons: ["previous-smartphone-crown-bonus-recovery-applied"] };
+  }
+  const proposal = simulation.proposed;
+  const previous = simulation.selected || {};
+  const changedSlots = smartphoneChangedMemberSlots(previous, proposal);
+  const rank1 = proposal.rank1 || null;
+  return {
+    applied: true,
+    self: {
+      members: proposal.selfMembers || [],
+      bonus: Number(proposal.selfBonus || 0),
+      total: Number(proposal.selfTotal || 0),
+    },
+    enemy: {
+      members: proposal.enemyMembers || [],
+      bonus: Number(proposal.enemyBonus || 0),
+      total: Number(proposal.enemyTotal || 0),
+    },
+    changedSlots,
+    message:
+      `smartphoneStageWideSixMemberCandidateSolverRecovery applied stage=${stage} ` +
+      `previousSelf=${(previous.selfMembers || []).join(",")} total=${previous.selfTotal || 0} ` +
+      `previousEnemy=${(previous.enemyMembers || []).join(",")} total=${previous.enemyTotal || 0} ` +
+      `proposedSelf=${(proposal.selfMembers || []).join(",")}+${proposal.selfBonus || 0}=${proposal.selfTotal || 0} ` +
+      `proposedEnemy=${(proposal.enemyMembers || []).join(",")}+${proposal.enemyBonus || 0}=${proposal.enemyTotal || 0} ` +
+      `changed=${smartphoneChangedMemberSourceSummary(simulation, changedSlots) || "none"} ` +
+      `rank1=${rank1?.side || "unknown"}.member${rank1?.slot || "?"}:${rank1?.value || 0} ` +
+      `winningSide=${rank1?.side || "unknown"} derivedBonus=${proposal.derivedBonus || 0} ` +
+      `totalEvidence=self[${smartphoneTotalEvidenceSummary(simulation.totalEvidence?.self) || "exact"}] ` +
+      `enemy[${smartphoneTotalEvidenceSummary(simulation.totalEvidence?.enemy) || "exact"}]`,
+  };
+}
+
 export function buildCurrentPcExactMembersCrownBonusTotalRecoveryEvidence({
   stage = 0,
   side = "self",
