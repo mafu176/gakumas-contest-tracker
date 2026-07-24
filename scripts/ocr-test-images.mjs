@@ -53,6 +53,16 @@ const debugArtifactsDir = path.join(rootDir, "tmp", "ocr-debug-artifacts");
 const fixedRoiExperimentDir = path.join(rootDir, "tmp", "ocr-roi-experiment");
 const roiAdoptionSimDir = path.join(rootDir, "tmp", "ocr-roi-adoption-sim");
 const smartphoneBaselineCacheDir = path.join(rootDir, "tmp", "smartphone-ocr-baseline-cache");
+const smartphoneTotalCaptureDiagnosticsDir = path.join(
+  rootDir,
+  "tmp",
+  "smartphone-total-capture-diagnostics"
+);
+const smartphoneTotalCaptureDiagnosticsReportPath = path.join(
+  rootDir,
+  "docs",
+  "smartphone-total-capture-diagnostics.md"
+);
 const currentPcBonusDiagnosticsDir = path.join(rootDir, "tmp", "current-pc-bonus-ocr-diagnostics");
 const currentPcStage3MemberRowDiagnosticsDir = path.join(
   rootDir,
@@ -6152,6 +6162,537 @@ function buildSmartphoneProductionSolverImpact(report = []) {
     unexpectedChangedStages,
     changes,
   };
+}
+
+function smartphoneStageSideOutput(stageOutput = {}, side = "self") {
+  return {
+    members:
+      side === "self"
+        ? (stageOutput.selfMembers || []).map(normalizeSimulationNumber)
+        : (stageOutput.enemyMembers || []).map(normalizeSimulationNumber),
+    total: normalizeSimulationNumber(side === "self" ? stageOutput.selfTotal : stageOutput.enemyTotal),
+  };
+}
+
+function smartphoneStageSideExpected(expectedStage = {}, side = "self") {
+  const output = smartphoneStageExpectedOutput(expectedStage);
+  return {
+    members:
+      side === "self"
+        ? output.selfMembers.map(normalizeSimulationNumber)
+        : output.enemyMembers.map(normalizeSimulationNumber),
+    total: normalizeSimulationNumber(side === "self" ? output.selfTotal : output.enemyTotal),
+    bonus: smartphoneExpectedBonus(expectedStage, side),
+  };
+}
+
+function smartphoneStageSideOutputPass(actual = {}, expected = {}) {
+  return (
+    normalizeSimulationNumber(actual.total) === normalizeSimulationNumber(expected.total) &&
+    [0, 1, 2].every(
+      (index) =>
+        normalizeSimulationNumber(actual.members?.[index]) ===
+        normalizeSimulationNumber(expected.members?.[index])
+    )
+  );
+}
+
+function smartphoneTotalCaptureCropVariants(baseZone = {}) {
+  const z = normalizeRoiZone(baseZone);
+  const dx = Math.max(6, Math.round(z.width * 0.08));
+  const dy = Math.max(3, Math.round(z.height * 0.12));
+  return [
+    { name: "baseline", zone: z },
+    { name: "wider-left", zone: { ...z, left: z.left - dx, width: z.width + dx } },
+    { name: "wider-right", zone: { ...z, width: z.width + dx } },
+    { name: "wider-both", zone: { ...z, left: z.left - dx, width: z.width + dx * 2 } },
+    { name: "shift-up", zone: { ...z, top: z.top - dy } },
+    { name: "shift-down", zone: { ...z, top: z.top + dy } },
+    { name: "taller", zone: { ...z, top: z.top - dy, height: z.height + dy * 2 } },
+    {
+      name: "left-overlap",
+      zone: { ...z, left: z.left - Math.round(dx * 1.8), width: z.width + Math.round(dx * 1.8) },
+    },
+    {
+      name: "right-overlap",
+      zone: { ...z, width: z.width + Math.round(dx * 1.8) },
+    },
+  ];
+}
+
+function smartphoneTotalCapturePreprocessVariants() {
+  return [
+    { name: "current-default-psm6", type: "existing", pageSegMode: "6" },
+    { name: "current-default-psm7", type: "existing", pageSegMode: "7" },
+    { name: "next-threshold-psm7", type: "existing", preset: "next-screen-threshold", pageSegMode: "7" },
+    {
+      name: "blur-reduction-psm7",
+      type: "existing",
+      preset: "next-screen-blur-reduction",
+      pageSegMode: "7",
+    },
+    { name: "crown-bonus-psm7", type: "existing", preset: "crown-bonus", pageSegMode: "7" },
+    { name: "score-slot-psm7", type: "existing", preset: "score-slot", pageSegMode: "7" },
+    { name: "grayscale-upscale-psm7", type: "grayscale-upscale", pageSegMode: "7" },
+    { name: "fixed-threshold-150-psm7", type: "threshold", threshold: 150, pageSegMode: "7" },
+    {
+      name: "fixed-threshold-190-inverted-psm7",
+      type: "threshold",
+      threshold: 190,
+      invert: true,
+      pageSegMode: "7",
+    },
+  ];
+}
+
+async function createSmartphoneTotalDiagnosticBuffer(imagePath, zone, variant = {}) {
+  if (!variant.type || variant.type === "existing") {
+    return createPreprocessedStageBuffer(imagePath, zone, {
+      preset: variant.preset,
+      pageSegMode: variant.pageSegMode,
+    });
+  }
+  if (variant.type === "grayscale-upscale") {
+    return sharp(imagePath)
+      .extract(zone)
+      .resize(zone.width * 5, zone.height * 5, { kernel: "lanczos3" })
+      .grayscale()
+      .normalize()
+      .png()
+      .toBuffer();
+  }
+  if (variant.type === "threshold") {
+    let pipeline = sharp(imagePath)
+      .extract(zone)
+      .resize(zone.width * 5, zone.height * 5, { kernel: "nearest" })
+      .grayscale()
+      .threshold(variant.threshold || 170);
+    if (variant.invert) pipeline = pipeline.negate();
+    return pipeline.png().toBuffer();
+  }
+  return createPreprocessedStageBuffer(imagePath, zone, {
+    preset: variant.preset,
+    pageSegMode: variant.pageSegMode,
+  });
+}
+
+async function recognizeSmartphoneTotalDiagnosticVariant(imagePath, zone, preprocess) {
+  const image = await createSmartphoneTotalDiagnosticBuffer(imagePath, zone, preprocess);
+  const result = await Tesseract.recognize(image, "eng", {
+    tessedit_char_whitelist: "0123456789,.",
+    tessedit_pageseg_mode: preprocess.pageSegMode || "7",
+    preserve_interword_spaces: "1",
+  });
+  const text = result.data.text || "";
+  const digitRuns = [...text.matchAll(/\d[\d,.\s]{2,}\d/g)].map((match) =>
+    match[0].replace(/\s+/g, " ").trim()
+  );
+  return {
+    text,
+    numbers: extractNumbersForZone(text),
+    digitRuns,
+  };
+}
+
+function smartphoneTotalCaptureRowKey(row = {}) {
+  return `${row.image}::S${row.stage}::${row.side}`;
+}
+
+function buildSmartphoneMissingTotalRowsFromCache(items = []) {
+  const rows = [];
+  for (const item of items.filter((entry) => entry.source === "smartphone" && entry.expectedData)) {
+    for (const stage of stages) {
+      const stageKey = `stage${stage}`;
+      const originalStageResult = item.result?.[stageKey];
+      const expectedStage = item.expectedData?.[stageKey];
+      if (!originalStageResult || !expectedStage) continue;
+      const recovered = applySmartphoneProductionSolverRecoveriesToStage(originalStageResult, stage);
+      const output = recovered.after;
+      for (const side of sides) {
+        const expected = smartphoneStageSideExpected(expectedStage, side);
+        const actual = smartphoneStageSideOutput(output, side);
+        if (smartphoneStageSideOutputPass(actual, expected)) continue;
+        const existingTotalEvidence = collectSmartphoneTotalEvidence(originalStageResult, side);
+        const exactTotalPresent = valueInList(
+          expected.total,
+          existingTotalEvidence.map((entry) => entry.value)
+        );
+        if (exactTotalPresent) continue;
+        rows.push({
+          image: item.image,
+          absolutePath: item.absolutePath,
+          stage,
+          side,
+          expected,
+          actual,
+          existingTotalEvidence,
+          productionRecoveries: {
+            crownApplied: Boolean(recovered.crownRecovery?.applied),
+            stageWideApplied: Boolean(recovered.stageWideRecovery?.applied),
+          },
+        });
+      }
+    }
+  }
+  return rows;
+}
+
+function smartphoneTotalCaptureBaseZone(image = {}, stage = 1, side = "self") {
+  const fixed = getFixedOcrZones(image, stage, "smartphone");
+  return side === "self" ? fixed.selfTotal : fixed.enemyTotal;
+}
+
+function buildSmartphoneTotalCaptureAugmentedSolverImpact(items = [], rows = [], variantSet = []) {
+  const rowsByKey = new Map(rows.map((row) => [smartphoneTotalCaptureRowKey(row), row]));
+  const augmentedItems = items.map((item) => JSON.parse(JSON.stringify(item)));
+  let exactTotalEvidenceAddedRows = 0;
+  const addedRows = [];
+  for (const item of augmentedItems) {
+    for (const stage of stages) {
+      const stageResult = item.result?.[`stage${stage}`];
+      if (!stageResult) continue;
+      for (const side of sides) {
+        const key = `${item.image}::S${stage}::${side}`;
+        const row = rowsByKey.get(key);
+        if (!row) continue;
+        const exactVariants = (row.variantResults || []).filter(
+          (variant) =>
+            variant.exactExpectedTotal &&
+            variantSet.some(
+              (entry) => entry.crop === variant.cropVariant && entry.preprocess === variant.preprocessVariant
+            )
+        );
+        if (exactVariants.length === 0) continue;
+        exactTotalEvidenceAddedRows += 1;
+        addedRows.push(key);
+        const rawKey = side === "self" ? "selfTotalCandidateTraces" : "enemyTotalCandidateTraces";
+        stageResult.rawText = stageResult.rawText || {};
+        stageResult.rawText[rawKey] = Array.isArray(stageResult.rawText[rawKey])
+          ? stageResult.rawText[rawKey]
+          : [];
+        stageResult.rawText[rawKey].push({
+          source: "smartphone-total-capture-diagnostics",
+          numbers: [row.expected.total],
+          text: exactVariants[0].rawText,
+        });
+      }
+    }
+  }
+  return {
+    exactTotalEvidenceAddedRows,
+    addedRows,
+    productionImpact: buildSmartphoneProductionSolverImpact(augmentedItems),
+  };
+}
+
+function summarizeSmartphoneTotalCaptureVariants(rows = []) {
+  const byVariant = new Map();
+  for (const row of rows) {
+    for (const result of row.variantResults || []) {
+      const key = `${result.cropVariant} + ${result.preprocessVariant}`;
+      if (!byVariant.has(key)) {
+        byVariant.set(key, {
+          crop: result.cropVariant,
+          preprocess: result.preprocessVariant,
+          rowsWithExactTotal: 0,
+          rowsWithCompetingCandidates: 0,
+          rowsWithMalformedText: 0,
+          examples: [],
+        });
+      }
+      const entry = byVariant.get(key);
+      if (result.exactExpectedTotal) {
+        entry.rowsWithExactTotal += 1;
+        if (entry.examples.length < 5) entry.examples.push(smartphoneTotalCaptureRowKey(row));
+      }
+      if (result.competingCandidates?.length) entry.rowsWithCompetingCandidates += 1;
+      if (result.malformedText) entry.rowsWithMalformedText += 1;
+    }
+  }
+  const variants = [...byVariant.values()].sort(
+    (a, b) =>
+      b.rowsWithExactTotal - a.rowsWithExactTotal ||
+      a.rowsWithCompetingCandidates - b.rowsWithCompetingCandidates ||
+      a.rowsWithMalformedText - b.rowsWithMalformedText
+  );
+  const bestSingleVariant = variants.find((variant) => variant.rowsWithExactTotal > 0) || null;
+  const bestFixedVariantSet = [];
+  const covered = new Set();
+  for (const variant of variants) {
+    const newlyCovered = new Set();
+    for (const row of rows) {
+      const rowKey = smartphoneTotalCaptureRowKey(row);
+      if (covered.has(rowKey)) continue;
+      const hasExact = (row.variantResults || []).some(
+        (result) =>
+          result.exactExpectedTotal &&
+          result.cropVariant === variant.crop &&
+          result.preprocessVariant === variant.preprocess
+      );
+      if (hasExact) newlyCovered.add(rowKey);
+    }
+    if (newlyCovered.size === 0) continue;
+    bestFixedVariantSet.push({
+      crop: variant.crop,
+      preprocess: variant.preprocess,
+      newlyCoveredRows: newlyCovered.size,
+      cumulativeRows: covered.size + newlyCovered.size,
+    });
+    for (const rowKey of newlyCovered) covered.add(rowKey);
+    if (covered.size === rows.length || bestFixedVariantSet.length >= 4) break;
+  }
+  return {
+    variants,
+    bestSingleVariant,
+    bestFixedVariantSet,
+    exactTotalRowsExposed: rows.filter((row) =>
+      (row.variantResults || []).some((result) => result.exactExpectedTotal)
+    ).length,
+    rowsNeverExposed: rows
+      .filter((row) => !(row.variantResults || []).some((result) => result.exactExpectedTotal))
+      .map((row) => smartphoneTotalCaptureRowKey(row)),
+  };
+}
+
+function formatMarkdownNumberList(values = []) {
+  return values.length ? values.map((value) => `\`${value}\``).join(", ") : "-";
+}
+
+function buildSmartphoneTotalCaptureDiagnosticsReport(summary = {}) {
+  const lines = [
+    "# Smartphone Total Capture Diagnostics",
+    "",
+    `Generated: ${new Date().toISOString()}`,
+    "",
+    "## Scope",
+    "",
+    "Runner-only diagnostics for smartphone rows where the current production output still fails and the exact expected displayed total is absent from existing total evidence. The first focus is Stage3 total crop capture quality.",
+    "",
+    "This report does not change production OCR output, member selection, or recovery eligibility.",
+    "",
+    "## Summary",
+    "",
+    `- Baseline source: ${summary.source || "smartphone baseline cache"}`,
+    `- Missing-total rows evaluated: ${summary.rowsEvaluated}`,
+    `- Stage3 rows evaluated: ${summary.stage3RowsEvaluated}`,
+    `- Rows where an exact expected total was newly exposed by a diagnostic variant: ${summary.variantSummary?.exactTotalRowsExposed || 0}`,
+    `- Diagnostic false-positive rows with exact expected total plus competing total candidates: ${summary.diagnosticFalsePositiveRows || 0}`,
+    "",
+    "## Best Variants",
+    "",
+  ];
+  if (summary.variantSummary?.bestSingleVariant) {
+    const best = summary.variantSummary.bestSingleVariant;
+    lines.push(
+      `- Best single variant: \`${best.crop}\` + \`${best.preprocess}\``,
+      `- Rows exposed by best single variant: ${best.rowsWithExactTotal}`,
+      `- Rows with competing candidates for best single variant: ${best.rowsWithCompetingCandidates}`,
+      ""
+    );
+  } else {
+    lines.push("- Best single variant: none", "");
+  }
+  lines.push("Best fixed variant set:");
+  if (summary.variantSummary?.bestFixedVariantSet?.length) {
+    for (const item of summary.variantSummary.bestFixedVariantSet) {
+      lines.push(
+        `- \`${item.crop}\` + \`${item.preprocess}\`: +${item.newlyCoveredRows} rows, cumulative ${item.cumulativeRows}`
+      );
+    }
+  } else {
+    lines.push("- none");
+  }
+  lines.push(
+    "",
+    "## Hypothetical Solver Impact",
+    "",
+    "This is a diagnostic-only estimate of what would happen if exact displayed-total evidence from the best fixed variant set were appended to total evidence and the existing smartphone crown/stage-wide simulations were re-scored. It is not production adoption.",
+    "",
+    `- Exact total evidence added rows: ${summary.augmentedSolverImpact?.exactTotalEvidenceAddedRows || 0}`,
+    `- Cached original image accuracy before existing production solver replay: ${summary.augmentedSolverImpact?.productionImpact?.beforeAccuracy?.imagesPass ?? "-"} / ${(summary.augmentedSolverImpact?.productionImpact?.beforeAccuracy?.imagesPass || 0) + (summary.augmentedSolverImpact?.productionImpact?.beforeAccuracy?.imagesFail || 0) || "-"}`,
+    `- Image accuracy after existing production solver replay plus diagnostic total evidence: ${summary.augmentedSolverImpact?.productionImpact?.afterAccuracy?.imagesPass ?? "-"} / ${(summary.augmentedSolverImpact?.productionImpact?.afterAccuracy?.imagesPass || 0) + (summary.augmentedSolverImpact?.productionImpact?.afterAccuracy?.imagesFail || 0) || "-"}`,
+    `- Unique recovered stages after augmented evidence: ${summary.augmentedSolverImpact?.productionImpact?.uniqueRecoveredStages ?? "-"}`,
+    "",
+    "## Known Sample Impact",
+    ""
+  );
+  for (const [image, impact] of Object.entries(summary.knownSampleImpact || {})) {
+    lines.push(
+      `- ${image}: ${impact.rowsWithNewExactTotal} rows with new exact total evidence; ${impact.notes}`
+    );
+  }
+  lines.push("", "## Per-Row Results", "");
+  for (const row of summary.rows || []) {
+    lines.push(
+      `### ${row.image} S${row.stage} ${row.side}`,
+      "",
+      `- Expected members: ${formatMarkdownNumberList(row.expected.members)}`,
+      `- Expected bonus: \`${row.expected.bonus}\``,
+      `- Expected total: \`${row.expected.total}\``,
+      `- Current members: ${formatMarkdownNumberList(row.actual.members)}`,
+      `- Current total: \`${row.actual.total}\``,
+      `- Existing total evidence: ${formatMarkdownNumberList(row.existingTotalEvidence.map((entry) => entry.value))}`,
+      `- Exact total exposed by variants: ${row.exactTotalVariants.length}`,
+      `- Best exact variants: ${
+        row.exactTotalVariants.length
+          ? row.exactTotalVariants
+              .slice(0, 5)
+              .map((entry) => `\`${entry.cropVariant}\`+\`${entry.preprocessVariant}\``)
+              .join(", ")
+          : "none"
+      }`,
+      `- Competing exact/near diagnostic candidates: ${row.competingVariantCount}`,
+      ""
+    );
+  }
+  lines.push(
+    "## Recommendation",
+    "",
+    summary.recommendation ||
+      "Use these diagnostics to decide whether a future runner/browser parity task is warranted. Do not productionize from diagnostic total evidence alone.",
+    ""
+  );
+  return lines.join("\n");
+}
+
+async function writeSmartphoneTotalCaptureDiagnostics(items = []) {
+  const missingRows = buildSmartphoneMissingTotalRowsFromCache(items).filter((row) => row.stage === 3);
+  await fs.rm(smartphoneTotalCaptureDiagnosticsDir, { recursive: true, force: true });
+  await fs.mkdir(smartphoneTotalCaptureDiagnosticsDir, { recursive: true });
+  const cropVariants = smartphoneTotalCaptureCropVariants({ left: 0, top: 0, width: 1, height: 1 });
+  const preprocessVariants = smartphoneTotalCapturePreprocessVariants();
+  const imageByName = new Map(items.map((item) => [item.image, item]));
+  const rows = [];
+  for (const row of missingRows) {
+    const item = imageByName.get(row.image);
+    const imagePath = row.absolutePath || item?.absolutePath;
+    if (!imagePath) continue;
+    const metadata = await sharp(imagePath).metadata();
+    const image = { width: metadata.width, height: metadata.height };
+    const baseZone = smartphoneTotalCaptureBaseZone(image, row.stage, row.side);
+    const rowDir = path.join(
+      smartphoneTotalCaptureDiagnosticsDir,
+      safeArtifactName(`${smartphoneFixtureCacheKey(row.image)}-S${row.stage}-${row.side}`)
+    );
+    await fs.mkdir(rowDir, { recursive: true });
+    const variantResults = [];
+    for (const cropVariant of smartphoneTotalCaptureCropVariants(baseZone)) {
+      const zone = clampZoneToImage(cropVariant.zone, image);
+      const artifact = await saveCurrentPcZoneArtifacts(
+        imagePath,
+        image,
+        rowDir,
+        `${cropVariant.name}-crop`,
+        zone,
+        { binarized: false }
+      );
+      for (const preprocessVariant of preprocessVariants) {
+        const started = Date.now();
+        const ocr = await recognizeSmartphoneTotalDiagnosticVariant(imagePath, zone, preprocessVariant);
+        const numbers = uniqueNumbers(ocr.numbers || []);
+        const competingCandidates = numbers.filter(
+          (value) => value !== row.expected.total && value >= 10000
+        );
+        variantResults.push({
+          cropVariant: cropVariant.name,
+          preprocessVariant: preprocessVariant.name,
+          zone,
+          crop: artifact.crop,
+          rawText: ocr.text,
+          numbers,
+          digitRuns: ocr.digitRuns,
+          exactExpectedTotal: valueInList(row.expected.total, numbers),
+          competingCandidates,
+          malformedText: /[A-Za-z$￥¥]/.test(ocr.text || ""),
+          elapsedMs: Date.now() - started,
+        });
+      }
+    }
+    const rowArtifact = {
+      ...row,
+      baseZone: normalizeRoiZone(baseZone),
+      variantResults,
+      exactTotalVariants: variantResults.filter((result) => result.exactExpectedTotal),
+      competingVariantCount: variantResults.filter((result) => result.competingCandidates.length > 0)
+        .length,
+      artifactDir: path.relative(rootDir, rowDir).replaceAll("\\", "/"),
+    };
+    await fs.writeFile(path.join(rowDir, "diagnostics.json"), JSON.stringify(rowArtifact, null, 2));
+    rows.push(rowArtifact);
+  }
+  const variantSummary = summarizeSmartphoneTotalCaptureVariants(rows);
+  const augmentedSolverImpact = buildSmartphoneTotalCaptureAugmentedSolverImpact(
+    items,
+    rows,
+    variantSummary.bestFixedVariantSet || []
+  );
+  const knownSampleImpact = {};
+  for (const image of ["IMG_9308", "IMG_9310", "IMG_9319"]) {
+    const matchingRows = rows.filter((row) => String(row.image).includes(image));
+    knownSampleImpact[image] = {
+      rowsWithNewExactTotal: matchingRows.filter((row) => row.exactTotalVariants.length > 0).length,
+      notes: matchingRows.length
+        ? matchingRows
+            .map((row) =>
+              row.exactTotalVariants.length
+                ? `S${row.stage} ${row.side} exact total exposed`
+                : `S${row.stage} ${row.side} still missing exact total`
+            )
+            .join("; ")
+        : "not in missing-total Stage3 diagnostic set",
+    };
+  }
+  const summary = {
+    source: "smartphone baseline cache",
+    outputDir: path.relative(rootDir, smartphoneTotalCaptureDiagnosticsDir).replaceAll("\\", "/"),
+    rowsEvaluated: rows.length,
+    stage3RowsEvaluated: rows.filter((row) => row.stage === 3).length,
+    diagnosticFalsePositiveRows: rows.filter(
+      (row) =>
+        row.exactTotalVariants.length > 0 &&
+        row.variantResults.some((variant) => variant.competingCandidates.length > 0)
+    ).length,
+    variantsTested: cropVariants.length * preprocessVariants.length,
+    cropVariants: cropVariants.map((entry) => entry.name),
+    preprocessVariants: preprocessVariants.map((entry) => entry.name),
+    variantSummary,
+    augmentedSolverImpact,
+    knownSampleImpact,
+    rows: rows.map((row) => ({
+      image: row.image,
+      stage: row.stage,
+      side: row.side,
+      expected: row.expected,
+      actual: row.actual,
+      existingTotalEvidence: row.existingTotalEvidence,
+      exactTotalVariants: row.exactTotalVariants.map((entry) => ({
+        cropVariant: entry.cropVariant,
+        preprocessVariant: entry.preprocessVariant,
+        numbers: entry.numbers,
+        crop: entry.crop,
+      })),
+      competingVariantCount: row.competingVariantCount,
+      artifactDir: row.artifactDir,
+    })),
+    recommendation:
+      variantSummary.exactTotalRowsExposed >= 2 && summaryDiagnosticFalsePositiveFree(rows)
+        ? "Exact displayed-total capture improved for multiple rows with no competing diagnostic totals in those rows. A focused runner/browser parity task may be justified before any production use."
+        : "The tested Stage3 total crop variants did not expose enough exact displayed-total evidence for recovery work. Productionization and parity are not recommended from this diagnostic result.",
+  };
+  await fs.writeFile(
+    path.join(smartphoneTotalCaptureDiagnosticsDir, "summary.json"),
+    JSON.stringify(summary, null, 2)
+  );
+  await fs.writeFile(smartphoneTotalCaptureDiagnosticsReportPath, buildSmartphoneTotalCaptureDiagnosticsReport(summary));
+  return summary;
+}
+
+function summaryDiagnosticFalsePositiveFree(rows = []) {
+  return rows.every(
+    (row) =>
+      row.exactTotalVariants.length === 0 ||
+      !row.variantResults.some((variant) => variant.exactExpectedTotal && variant.competingCandidates.length > 0)
+  );
 }
 
 function buildSmartphoneBrowserEquivalentStageResult(stageResult = {}, stage = 0) {
@@ -18553,6 +19094,9 @@ async function main() {
   const smartphoneCrownStageWideSolverFromBaseline =
     args.includes("--smartphone-crown-stage-wide-solver-from-baseline") ||
     args.includes("--smartphone-crown-bonus-stage-wide-solver-from-baseline");
+  const smartphoneTotalCaptureDiagnostics = args.includes(
+    "--smartphone-total-capture-diagnostics"
+  );
   const sourceIndex = args.indexOf("--source");
   const sourceValue = sourceIndex >= 0 ? args[sourceIndex + 1] : "";
   const forcedSource = ["smartphone", "desktop", "current-pc"].includes(sourceValue)
@@ -18589,6 +19133,7 @@ async function main() {
       value !== "--smartphone-crown-bonus-stage-wide-solver-sim" &&
       value !== "--smartphone-crown-stage-wide-solver-from-baseline" &&
       value !== "--smartphone-crown-bonus-stage-wide-solver-from-baseline" &&
+      value !== "--smartphone-total-capture-diagnostics" &&
       value !== "--source" &&
       value !== "--audit-disable-known-correction" &&
       !(sourceIndex >= 0 && index === sourceIndex + 1) &&
@@ -18600,6 +19145,52 @@ async function main() {
         .replace(/^\.?\/*test-images\//i, "")
         .toLowerCase()
     );
+  if (smartphoneTotalCaptureDiagnostics) {
+    const cachedReport = await readSmartphoneBaselineCache(filters);
+    await writeSmartphoneBaselineCacheSummary(cachedReport);
+    const diagnostics = await writeSmartphoneTotalCaptureDiagnostics(cachedReport);
+    await terminateAuditGeometryWorker();
+    console.log(
+      JSON.stringify(
+        {
+          smartphoneTotalCaptureDiagnostics: {
+            images: cachedReport.length,
+            rowsEvaluated: diagnostics.rowsEvaluated,
+            stage3RowsEvaluated: diagnostics.stage3RowsEvaluated,
+            exactTotalRowsExposed: diagnostics.variantSummary.exactTotalRowsExposed,
+            bestSingleVariant: diagnostics.variantSummary.bestSingleVariant
+              ? {
+                  crop: diagnostics.variantSummary.bestSingleVariant.crop,
+                  preprocess: diagnostics.variantSummary.bestSingleVariant.preprocess,
+                  rowsWithExactTotal:
+                    diagnostics.variantSummary.bestSingleVariant.rowsWithExactTotal,
+                  rowsWithCompetingCandidates:
+                    diagnostics.variantSummary.bestSingleVariant.rowsWithCompetingCandidates,
+                }
+              : null,
+            bestFixedVariantSet: diagnostics.variantSummary.bestFixedVariantSet,
+            diagnosticFalsePositiveRows: diagnostics.diagnosticFalsePositiveRows,
+            augmentedSolverImpact: {
+              exactTotalEvidenceAddedRows:
+                diagnostics.augmentedSolverImpact.exactTotalEvidenceAddedRows,
+              uniqueRecoveredStages:
+                diagnostics.augmentedSolverImpact.productionImpact.uniqueRecoveredStages,
+              afterAccuracy:
+                diagnostics.augmentedSolverImpact.productionImpact.afterAccuracy,
+            },
+            knownSampleImpact: diagnostics.knownSampleImpact,
+            outputDir: diagnostics.outputDir,
+            report: path
+              .relative(rootDir, smartphoneTotalCaptureDiagnosticsReportPath)
+              .replaceAll("\\", "/"),
+          },
+        },
+        null,
+        2
+      )
+    );
+    return;
+  }
   if (smartphoneCrownStageWideSolverFromBaseline) {
     const cachedReport = await readSmartphoneBaselineCache(filters);
     const cacheSummary = await writeSmartphoneBaselineCacheSummary(cachedReport);
