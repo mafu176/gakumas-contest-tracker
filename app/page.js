@@ -125,6 +125,7 @@ import {
   applySmartphoneStage3SelfSevenDigitDisplacementRecovery,
   applySmartphoneStage3EnemySevenDigitRecovery,
   buildSmartphoneCrownBonusRuleEvidence,
+  buildSmartphoneExactSlotSelectionEvidence,
   buildSmartphoneStageWideSixMemberCandidateSolverEvidence,
   applySmartphoneCrownBonusRuleRecovery,
   applySmartphoneStageWideSixMemberCandidateSolverRecovery,
@@ -3887,6 +3888,20 @@ export default function Home() {
               smartphoneStageWideSixMemberCandidateSolverSimulation,
             stageWideSixMemberCandidateSolverRecovery:
               smartphoneStageWideSixMemberCandidateSolverRecovery,
+            exactSlotSelectionEvidence: {
+              self: buildSmartphoneExactSlotSelectionEvidence({
+                stage,
+                side: "self",
+                stageResult: buildSmartphoneStageEvidenceInput(),
+                stageWideEvidence: smartphoneStageWideSixMemberCandidateSolverSimulation,
+              }),
+              enemy: buildSmartphoneExactSlotSelectionEvidence({
+                stage,
+                side: "enemy",
+                stageResult: buildSmartphoneStageEvidenceInput(),
+                stageWideEvidence: smartphoneStageWideSixMemberCandidateSolverSimulation,
+              }),
+            },
           };
         }
 

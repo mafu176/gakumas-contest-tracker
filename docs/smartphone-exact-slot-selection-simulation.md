@@ -1,18 +1,21 @@
 # Smartphone Exact-Slot Selection Simulation
 
-Generated: 2026-07-25T00:47:13.361Z
+Generated: 2026-07-25T01:57:20.637Z
 
 ## Scope
 
-Runner-only simulation for smartphone exact-slot member / bonus / total selection. It uses cached all-fixture smartphone OCR evidence and reapplies current production smartphone recoveries in memory before evaluating only the remaining failing stage/side rows.
+Runner/browser-equivalent evidence audit for smartphone exact-slot member / bonus / total selection. It uses cached all-fixture smartphone OCR evidence and reapplies current production smartphone recoveries in memory before evaluating only the remaining failing stage/side rows.
 
-It does not change production OCR output, does not add browser/UI plumbing, does not use current-PC evidence, and does not use expected values to build proposals. Expected fixtures are used only after proposal construction for diagnostic scoring.
+It does not change production OCR output, does not use current-PC evidence, and does not use expected values to build proposals. Expected fixtures are used only after proposal construction for diagnostic scoring.
 
 ## Evidence Schema
 
+- Shared helper: `buildSmartphoneExactSlotSelectionEvidence(...)` in `app/lib/ocr.js`.
 - Member evidence: slot-specific smartphone candidate pools from the shared smartphone stage-wide evidence helper. Candidates keep value, slot index, rank, and source tags such as selected output or raw member-row order.
 - Total evidence: exact target-side displayed-total candidates from existing smartphone total evidence.
 - Bonus evidence: either direct observed numeric bonus evidence from smartphone-native observed OCR numbers, or strict zero-bonus proof from complete slot-proven six-member evidence and the confirmed crown-bonus rule.
+- Browser/UI evidence-only flow: after current smartphone production recoveries and before result rendering, the UI builds the same evidence for both sides and stores it under `parsedOcrScores.smartphoneCrownStageWideEvidence.stages[stage].exactSlotSelectionEvidence`.
+- Browser-equivalent parity flow: cached runner artifacts are normalized into the same stage-result shape and passed through the same shared helper across all fixture-backed stage/sides.
 
 ## Guards
 
@@ -106,6 +109,42 @@ It does not change production OCR output, does not add browser/UI plumbing, does
 - IMG_9321: no remaining failing row after current production output
 - IMG_9329: no remaining failing row after current production output
 
+## Runner / Browser-Equivalent Parity
+
+The parity check compares the shared evaluator across all 534 smartphone stage/side rows after current production smartphone recoveries are replayed in memory. It does not apply the exact-slot proposal to final OCR output.
+
+| metric | count |
+| --- | ---: |
+| stage/sides compared | 534 |
+| runner wouldApply | 3 |
+| browser-equivalent wouldApply | 3 |
+| TP parity exact | 3 / 3 |
+| wouldApply disagreements | 0 |
+| proposed member disagreements | 0 |
+| proposed bonus disagreements | 0 |
+| proposed total disagreements | 0 |
+| proposed recovery disagreements | 0 |
+| member candidate-pool mismatches | 0 |
+| slot provenance mismatches | 0 |
+| total evidence mismatches | 0 |
+| bonus evidence mismatches | 0 |
+| zero-bonus proof mismatches | 0 |
+| uniqueness mismatches | 0 |
+| rejection-reason mismatches | 0 |
+| missing required browser evidence | 0 |
+| missing required runner evidence | 0 |
+| safety-relevant mismatches | 0 |
+
+### TP Parity Cases
+
+| image | stage | side | runner apply | browser-equivalent apply | proposed members / bonus / total | parity |
+| --- | ---: | --- | --- | --- | --- | --- |
+| `user-reports/unreviewed/IMG_8951.png` | 3 | enemy | yes | yes | 18,338 / 52,841 / 72,101 + 0 = 143,280 | exact |
+| `user-reports/unreviewed/IMG_9264.png` | 2 | self | yes | yes | 638,016 / 1,009,315 / 755,237 + 0 = 2,402,568 | exact |
+| `user-reports/unreviewed/IMG_9310.png` | 3 | enemy | yes | yes | 113,556 / 58,192 / 54,710 + 0 = 226,458 | exact |
+
+No runner/browser-equivalent mismatches were found.
+
 ## Overlap With Existing Recoveries
 
 The simulation is scored only after current smartphone production recoveries are replayed in memory. Rows that are already correct after existing production recovery are counted as already correct, not TP. Therefore all TP rows are true incremental proposals beyond current production output.
@@ -114,4 +153,4 @@ Existing production recoveries considered before this simulation include smartph
 
 ## Recommendation
 
-Runner/browser-equivalent parity is justified next. Do not productionize before parity proves the same slot, total, and bonus evidence is available in the UI path.
+Runner/browser-equivalent parity is exact for the 3 TP rows with zero safety-relevant mismatches. Productionization can be considered next, but this task intentionally does not change final OCR output.

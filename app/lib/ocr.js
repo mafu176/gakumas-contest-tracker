@@ -2394,6 +2394,255 @@ export function buildSmartphoneStageWideSixMemberCandidateSolverEvidence({
   };
 }
 
+function flattenSmartphoneExactSlotSelectionNumbers(value, output = []) {
+  if (Array.isArray(value)) {
+    for (const item of value) flattenSmartphoneExactSlotSelectionNumbers(item, output);
+    return output;
+  }
+  if (value && typeof value === "object") {
+    if (Array.isArray(value.numbers)) {
+      flattenSmartphoneExactSlotSelectionNumbers(value.numbers, output);
+    }
+    if (typeof value.text === "string") {
+      flattenSmartphoneExactSlotSelectionNumbers(extractNumbersForZone(value.text), output);
+    }
+    if (Array.isArray(value.traces)) {
+      flattenSmartphoneExactSlotSelectionNumbers(value.traces, output);
+    }
+    for (const [key, nested] of Object.entries(value)) {
+      if (key === "text" || key === "numbers" || key === "traces") continue;
+      flattenSmartphoneExactSlotSelectionNumbers(nested, output);
+    }
+    return output;
+  }
+  const number = normalizeSmartphoneSimulationNumber(value);
+  if (number > 0) output.push(number);
+  return output;
+}
+
+function collectSmartphoneExactSlotObservedNumbers(stageResult = {}) {
+  return uniqueNumbers(
+    flattenSmartphoneExactSlotSelectionNumbers({
+      raw: stageResult.raw,
+      rawText: stageResult.rawText,
+    })
+  );
+}
+
+function uniqueSmartphoneExactSlotStrings(values = []) {
+  return [...new Set(values.filter(Boolean).map((value) => String(value)))];
+}
+
+function smartphoneExactSlotCandidatePool(stageWideEvidence = {}, side = "self", slotIndex = 0) {
+  return (stageWideEvidence.candidatePools?.[side]?.[slotIndex] || [])
+    .map((candidate, index) => ({
+      value: normalizeSmartphoneSimulationNumber(candidate.value),
+      rank: index + 1,
+      sources: candidate.sources || [],
+    }))
+    .filter((candidate) => candidate.value > 0);
+}
+
+function enumerateSmartphoneExactSlotCandidateValues(pools = []) {
+  const values = pools.map((pool) => uniqueNumbers(pool.map((candidate) => candidate.value)));
+  if (values.some((pool) => pool.length === 0)) return [];
+  const output = [];
+  for (const first of values[0]) {
+    for (const second of values[1]) {
+      for (const third of values[2]) {
+        output.push([first, second, third]);
+      }
+    }
+  }
+  return output;
+}
+
+function smartphoneExactSlotCandidateSourcesForMembers(pools = [], members = []) {
+  return members.map((member, index) =>
+    pools[index]
+      .filter((candidate) => candidate.value === normalizeSmartphoneSimulationNumber(member))
+      .map((candidate) => ({
+        rank: candidate.rank,
+        sources: candidate.sources,
+      }))
+  );
+}
+
+function smartphoneExactSlotTotalEvidence(stageWideEvidence = {}, side = "self") {
+  return (stageWideEvidence.totalEvidence?.[side] || [])
+    .map((entry) => ({
+      value: normalizeSmartphoneSimulationNumber(entry.value),
+      sources: entry.sources || [],
+    }))
+    .filter((entry) => entry.value > 0);
+}
+
+function smartphoneExactSlotChangedMemberCount(currentMembers = [], proposedMembers = []) {
+  return [0, 1, 2].filter(
+    (index) =>
+      normalizeSmartphoneSimulationNumber(currentMembers[index]) !==
+      normalizeSmartphoneSimulationNumber(proposedMembers[index])
+  ).length;
+}
+
+export function buildSmartphoneExactSlotSelectionEvidence({
+  stage = 0,
+  side = "self",
+  stageResult = {},
+  stageWideEvidence = null,
+} = {}) {
+  const selected = smartphoneSimulationStageOutputFromResult(stageResult);
+  const stageWide =
+    stageWideEvidence ||
+    buildSmartphoneStageWideSixMemberCandidateSolverEvidence({
+      stage,
+      stageResult,
+    });
+  const oppositeSide = side === "self" ? "enemy" : "self";
+  const currentMembers = side === "self" ? selected.selfMembers || [] : selected.enemyMembers || [];
+  const oppositeMembers =
+    oppositeSide === "self" ? selected.selfMembers || [] : selected.enemyMembers || [];
+  const currentTotal = side === "self" ? selected.selfTotal : selected.enemyTotal;
+  const targetPools = [0, 1, 2].map((index) =>
+    smartphoneExactSlotCandidatePool(stageWide, side, index)
+  );
+  const oppositePools = [0, 1, 2].map((index) =>
+    smartphoneExactSlotCandidatePool(stageWide, oppositeSide, index)
+  );
+  const targetMemberCombos = enumerateSmartphoneExactSlotCandidateValues(targetPools);
+  const targetTotals = smartphoneExactSlotTotalEvidence(stageWide, side);
+  const observedNumbers = collectSmartphoneExactSlotObservedNumbers(stageResult);
+  const proposals = [];
+  const rejectedProposalReasons = [];
+
+  for (const members of targetMemberCombos) {
+    const memberSum = smartphoneSimulationMemberSum(members);
+    for (const totalEvidence of targetTotals) {
+      const bonus = totalEvidence.value - memberSum;
+      if (bonus < 0) {
+        rejectedProposalReasons.push("arithmetic-negative-bonus");
+        continue;
+      }
+      const changedMemberCount = smartphoneExactSlotChangedMemberCount(currentMembers, members);
+      let bonusProof = null;
+      if (bonus === 0) {
+        const oppositeComplete =
+          oppositeMembers.length === 3 &&
+          oppositeMembers.every((value, index) =>
+            oppositePools[index].some(
+              (candidate) => candidate.value === normalizeSmartphoneSimulationNumber(value)
+            )
+          );
+        if (!oppositeComplete) {
+          rejectedProposalReasons.push("zero-bonus-proof-opposite-members-not-slot-proven");
+          continue;
+        }
+        const rank = smartphoneSimulationUniqueGlobalRankOne(
+          side === "self" ? members : oppositeMembers,
+          side === "enemy" ? members : oppositeMembers
+        );
+        if (!rank.unique || rank.rank1.side !== oppositeSide) {
+          rejectedProposalReasons.push("zero-bonus-proof-unavailable");
+          continue;
+        }
+        bonusProof = {
+          type: "zero-bonus-proof",
+          rank1: rank.rank1,
+          winningSide: oppositeSide,
+          derivedBonus: rank.bonus,
+          note: "target side cannot receive crown bonus because opposite side has unique global rank 1",
+        };
+      } else {
+        if (!observedNumbers.includes(bonus)) {
+          rejectedProposalReasons.push("direct-bonus-evidence-absent");
+          continue;
+        }
+        const bonusConflictsWithMemberSlot = [...targetPools, ...oppositePools].some((pool) =>
+          pool.some((candidate) => candidate.value === bonus)
+        );
+        if (changedMemberCount > 0 && bonusConflictsWithMemberSlot) {
+          rejectedProposalReasons.push("direct-bonus-conflicts-with-member-slot-candidate");
+          continue;
+        }
+        if (changedMemberCount > 1) {
+          rejectedProposalReasons.push("direct-bonus-multi-slot-reorder-unsafe");
+          continue;
+        }
+        bonusProof = {
+          type: "direct-observed-bonus",
+          bonus,
+          sources: ["smartphone-native-observed-number-pool"],
+        };
+      }
+      proposals.push({
+        side,
+        stage,
+        members,
+        total: totalEvidence.value,
+        bonus,
+        previousMembers: currentMembers,
+        previousTotal: currentTotal,
+        changedMemberCount,
+        memberSources: smartphoneExactSlotCandidateSourcesForMembers(targetPools, members),
+        totalEvidence,
+        bonusProof,
+      });
+    }
+  }
+
+  const changedProposals = proposals.filter(
+    (proposal) =>
+      proposal.total !== currentTotal ||
+      proposal.members.some(
+        (member, index) =>
+          normalizeSmartphoneSimulationNumber(member) !==
+          normalizeSmartphoneSimulationNumber(currentMembers[index])
+      )
+  );
+  const rejectionReasons = [];
+  if (!["self", "enemy"].includes(side)) rejectionReasons.push("invalid-target-side");
+  if (targetPools.some((pool) => pool.length === 0)) {
+    rejectionReasons.push("member-slot-lacks-exact-observed-candidate");
+  }
+  if (targetTotals.length === 0) rejectionReasons.push("exact-total-absent");
+  if (proposals.length === 0) {
+    rejectionReasons.push(
+      rejectedProposalReasons.includes("direct-bonus-multi-slot-reorder-unsafe")
+        ? "direct-bonus-multi-slot-reorder-unsafe"
+        : "no-valid-member-bonus-total-proposal"
+    );
+  }
+  if (changedProposals.length > 1) rejectionReasons.push("multiple-valid-proposals");
+  if (changedProposals.length === 0 && proposals.length > 0) {
+    rejectionReasons.push("already-correct-or-no-change");
+  }
+  const wouldApply = rejectionReasons.length === 0 && changedProposals.length === 1;
+  return {
+    name: "smartphoneExactSlotMembersBonusTotalSelectionSimulation",
+    stage,
+    side,
+    wouldApply,
+    rejectionReasons,
+    rejectedProposalReasons: uniqueSmartphoneExactSlotStrings(rejectedProposalReasons),
+    selected: {
+      members: currentMembers,
+      total: currentTotal,
+      oppositeMembers,
+    },
+    candidatePools: targetPools,
+    oppositeCandidatePools: oppositePools,
+    totalEvidence: targetTotals,
+    observedBonusCandidates: observedNumbers,
+    proposalCount: proposals.length,
+    changedProposalCount: changedProposals.length,
+    proposals,
+    proposed: wouldApply ? changedProposals[0] : null,
+    stageWideEvidence: stageWide,
+    note:
+      "Smartphone evidence-only exact-slot member / bonus / total selection simulation. It does not change OCR output.",
+  };
+}
+
 function smartphoneTotalEvidenceSummary(evidence = []) {
   return (evidence || [])
     .slice(0, 4)
