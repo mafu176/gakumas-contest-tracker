@@ -167,6 +167,11 @@ const smartphoneCrownBonusStageWideSolverReportPath = path.join(
   "docs",
   "smartphone-crown-bonus-stage-wide-solver-investigation.md"
 );
+const smartphoneExactSlotSelectionSimulationReportPath = path.join(
+  rootDir,
+  "docs",
+  "smartphone-exact-slot-selection-simulation.md"
+);
 let currentPcBaselineScanSummary = null;
 const unsupportedNextScreenMessage =
   "Next screen is unsupported for OCR. Use normal result or high-score screen.";
@@ -6693,6 +6698,519 @@ function summaryDiagnosticFalsePositiveFree(rows = []) {
       row.exactTotalVariants.length === 0 ||
       !row.variantResults.some((variant) => variant.exactExpectedTotal && variant.competingCandidates.length > 0)
   );
+}
+
+function smartphoneExactSlotFlattenNumbers(value, output = []) {
+  if (Array.isArray(value)) {
+    for (const item of value) smartphoneExactSlotFlattenNumbers(item, output);
+    return output;
+  }
+  if (value && typeof value === "object") {
+    if (Array.isArray(value.numbers)) smartphoneExactSlotFlattenNumbers(value.numbers, output);
+    if (Array.isArray(value.traces)) smartphoneExactSlotFlattenNumbers(value.traces, output);
+    for (const [key, nested] of Object.entries(value)) {
+      if (key === "text" || key === "numbers" || key === "traces") continue;
+      smartphoneExactSlotFlattenNumbers(nested, output);
+    }
+    return output;
+  }
+  const number = normalizeSimulationNumber(value);
+  if (number > 0) output.push(number);
+  return output;
+}
+
+function collectSmartphoneExactSlotObservedNumbers(stageResult = {}) {
+  return uniqueNumbers(
+    smartphoneExactSlotFlattenNumbers({
+      raw: stageResult.raw,
+      rawText: stageResult.rawText,
+    })
+  );
+}
+
+function uniqueStrings(values = []) {
+  return [...new Set(values.filter(Boolean).map((value) => String(value)))];
+}
+
+function smartphoneExactSlotCandidatePool(stageWideSimulation = {}, side = "self", slotIndex = 0) {
+  return (stageWideSimulation.candidatePools?.[side]?.[slotIndex] || [])
+    .map((candidate, index) => ({
+      value: normalizeSimulationNumber(candidate.value),
+      rank: index + 1,
+      sources: candidate.sources || [],
+    }))
+    .filter((candidate) => candidate.value > 0);
+}
+
+function enumerateSmartphoneExactSlotCandidateValues(pools = []) {
+  const values = pools.map((pool) => uniqueNumbers(pool.map((candidate) => candidate.value)));
+  if (values.some((pool) => pool.length === 0)) return [];
+  const output = [];
+  for (const first of values[0]) {
+    for (const second of values[1]) {
+      for (const third of values[2]) {
+        output.push([first, second, third]);
+      }
+    }
+  }
+  return output;
+}
+
+function smartphoneExactSlotCandidateSourcesForMembers(pools = [], members = []) {
+  return members.map((member, index) =>
+    pools[index]
+      .filter((candidate) => candidate.value === normalizeSimulationNumber(member))
+      .map((candidate) => ({
+        rank: candidate.rank,
+        sources: candidate.sources,
+      }))
+  );
+}
+
+function smartphoneExactSlotTotalEvidence(stageWideSimulation = {}, side = "self") {
+  return (stageWideSimulation.totalEvidence?.[side] || [])
+    .map((entry) => ({
+      value: normalizeSimulationNumber(entry.value),
+      sources: entry.sources || [],
+    }))
+    .filter((entry) => entry.value > 0);
+}
+
+function smartphoneExactSlotUniqueRank(selfMembers = [], enemyMembers = []) {
+  const rank = uniqueGlobalRankOneFromMembers(selfMembers, enemyMembers);
+  return rank.unique ? rank : null;
+}
+
+function smartphoneExactSlotChangedMemberCount(currentMembers = [], proposedMembers = []) {
+  return [0, 1, 2].filter(
+    (index) =>
+      normalizeSimulationNumber(currentMembers[index]) !==
+      normalizeSimulationNumber(proposedMembers[index])
+  ).length;
+}
+
+function buildSmartphoneExactSlotMembersBonusTotalSelectionSimulationForSide({
+  stage = 0,
+  side = "self",
+  stageResult = {},
+} = {}) {
+  const selected = smartphoneStageOutputFromResult(stageResult);
+  const stageWideSimulation = buildSmartphoneStageWideSixMemberCandidateSolverSimulationForStage(
+    stageResult
+  );
+  const oppositeSide = side === "self" ? "enemy" : "self";
+  const currentMembers =
+    side === "self" ? selected.selfMembers || [] : selected.enemyMembers || [];
+  const oppositeMembers =
+    oppositeSide === "self" ? selected.selfMembers || [] : selected.enemyMembers || [];
+  const currentTotal = side === "self" ? selected.selfTotal : selected.enemyTotal;
+  const targetPools = [0, 1, 2].map((index) =>
+    smartphoneExactSlotCandidatePool(stageWideSimulation, side, index)
+  );
+  const oppositePools = [0, 1, 2].map((index) =>
+    smartphoneExactSlotCandidatePool(stageWideSimulation, oppositeSide, index)
+  );
+  const targetMemberCombos = enumerateSmartphoneExactSlotCandidateValues(targetPools);
+  const targetTotals = smartphoneExactSlotTotalEvidence(stageWideSimulation, side);
+  const observedNumbers = collectSmartphoneExactSlotObservedNumbers(stageResult);
+  const proposals = [];
+  const rejectedProposalReasons = [];
+
+  for (const members of targetMemberCombos) {
+    const memberSum = simulationMemberSum(members);
+    for (const totalEvidence of targetTotals) {
+      const bonus = totalEvidence.value - memberSum;
+      if (bonus < 0) {
+        rejectedProposalReasons.push("arithmetic-negative-bonus");
+        continue;
+      }
+      const changedMemberCount = smartphoneExactSlotChangedMemberCount(currentMembers, members);
+      let bonusProof = null;
+      if (bonus === 0) {
+        const oppositeComplete =
+          oppositeMembers.length === 3 &&
+          oppositeMembers.every((value, index) =>
+            oppositePools[index].some(
+              (candidate) => candidate.value === normalizeSimulationNumber(value)
+            )
+          );
+        if (!oppositeComplete) {
+          rejectedProposalReasons.push("zero-bonus-proof-opposite-members-not-slot-proven");
+          continue;
+        }
+        const rank = smartphoneExactSlotUniqueRank(
+          side === "self" ? members : oppositeMembers,
+          side === "enemy" ? members : oppositeMembers
+        );
+        if (!rank || rank.rank1.side !== oppositeSide) {
+          rejectedProposalReasons.push("zero-bonus-proof-unavailable");
+          continue;
+        }
+        bonusProof = {
+          type: "zero-bonus-proof",
+          rank1: rank.rank1,
+          winningSide: oppositeSide,
+          derivedBonus: rank.bonus,
+          note: "target side cannot receive crown bonus because opposite side has unique global rank 1",
+        };
+      } else {
+        if (!valueInList(bonus, observedNumbers)) {
+          rejectedProposalReasons.push("direct-bonus-evidence-absent");
+          continue;
+        }
+        const bonusConflictsWithMemberSlot = [...targetPools, ...oppositePools].some((pool) =>
+          pool.some((candidate) => candidate.value === bonus)
+        );
+        if (changedMemberCount > 0 && bonusConflictsWithMemberSlot) {
+          rejectedProposalReasons.push("direct-bonus-conflicts-with-member-slot-candidate");
+          continue;
+        }
+        if (changedMemberCount > 1) {
+          rejectedProposalReasons.push("direct-bonus-multi-slot-reorder-unsafe");
+          continue;
+        }
+        bonusProof = {
+          type: "direct-observed-bonus",
+          bonus,
+          sources: ["smartphone-native-observed-number-pool"],
+        };
+      }
+      proposals.push({
+        side,
+        stage,
+        members,
+        total: totalEvidence.value,
+        bonus,
+        previousMembers: currentMembers,
+        previousTotal: currentTotal,
+        changedMemberCount,
+        memberSources: smartphoneExactSlotCandidateSourcesForMembers(targetPools, members),
+        totalEvidence,
+        bonusProof,
+      });
+    }
+  }
+
+  const changedProposals = proposals.filter(
+    (proposal) =>
+      proposal.total !== currentTotal ||
+      proposal.members.some(
+        (member, index) => normalizeSimulationNumber(member) !== normalizeSimulationNumber(currentMembers[index])
+      )
+  );
+  const rejectionReasons = [];
+  if (targetPools.some((pool) => pool.length === 0)) {
+    rejectionReasons.push("member-slot-lacks-exact-observed-candidate");
+  }
+  if (targetTotals.length === 0) rejectionReasons.push("exact-total-absent");
+  if (proposals.length === 0) {
+    rejectionReasons.push(
+      rejectedProposalReasons.includes("direct-bonus-multi-slot-reorder-unsafe")
+        ? "direct-bonus-multi-slot-reorder-unsafe"
+        : "no-valid-member-bonus-total-proposal"
+    );
+  }
+  if (changedProposals.length > 1) rejectionReasons.push("multiple-valid-proposals");
+  if (changedProposals.length === 0 && proposals.length > 0) {
+    rejectionReasons.push("already-correct-or-no-change");
+  }
+  const wouldApply = rejectionReasons.length === 0 && changedProposals.length === 1;
+  return {
+    name: "smartphoneExactSlotMembersBonusTotalSelectionSimulation",
+    stage,
+    side,
+    wouldApply,
+    rejectionReasons,
+    rejectedProposalReasons: uniqueStrings(rejectedProposalReasons),
+    selected: {
+      members: currentMembers,
+      total: currentTotal,
+    },
+    candidatePools: targetPools,
+    totalEvidence: targetTotals,
+    proposalCount: proposals.length,
+    changedProposalCount: changedProposals.length,
+    proposals,
+    proposed: wouldApply ? changedProposals[0] : null,
+    note:
+      "Runner-only exact-slot member / bonus / total selection simulation. It does not change OCR output.",
+  };
+}
+
+function evaluateSmartphoneExactSlotSelectionSimulation(items = []) {
+  const rows = [];
+  const positionBreakdown = {};
+  const blockReasons = {};
+  const impactedImages = {};
+  let truePositives = 0;
+  let falsePositives = 0;
+  let falseNegatives = 0;
+  let blocked = 0;
+  let alreadyCorrect = 0;
+  let wouldApplyCount = 0;
+
+  for (const stage of stages) {
+    for (const side of sides) {
+      positionBreakdown[`S${stage} ${side}`] = {
+        truePositives: 0,
+        falsePositives: 0,
+        falseNegatives: 0,
+        blocked: 0,
+        alreadyCorrect: 0,
+        dominantBlockReason: "",
+        blockReasons: {},
+      };
+    }
+  }
+
+  for (const item of items.filter((entry) => entry.source === "smartphone" && entry.expectedData)) {
+    for (const stage of stages) {
+      const stageKey = `stage${stage}`;
+      const originalStageResult = item.result?.[stageKey];
+      const expectedStage = item.expectedData?.[stageKey];
+      if (!originalStageResult || !expectedStage) continue;
+      const production = applySmartphoneProductionSolverRecoveriesToStage(originalStageResult, stage);
+      const output = production.after;
+      for (const side of sides) {
+        const expected = smartphoneStageSideExpected(expectedStage, side);
+        const actual = smartphoneStageSideOutput(output, side);
+        const positionKey = `S${stage} ${side}`;
+        if (smartphoneStageSideOutputPass(actual, expected)) {
+          alreadyCorrect += 1;
+          positionBreakdown[positionKey].alreadyCorrect += 1;
+          continue;
+        }
+        const simulation = buildSmartphoneExactSlotMembersBonusTotalSelectionSimulationForSide({
+          stage,
+          side,
+          stageResult: production.stageResult,
+        });
+        const expectedProposal = (simulation.proposals || []).find(
+          (proposal) =>
+            proposal.total === expected.total &&
+            [0, 1, 2].every((index) => proposal.members[index] === expected.members[index])
+        );
+        let classification = "blocked";
+        if (simulation.wouldApply) {
+          wouldApplyCount += 1;
+          const proposal = simulation.proposed;
+          const proposedMatches =
+            proposal.total === expected.total &&
+            [0, 1, 2].every((index) => proposal.members[index] === expected.members[index]);
+          if (proposedMatches) {
+            truePositives += 1;
+            positionBreakdown[positionKey].truePositives += 1;
+            classification = "tp";
+          } else {
+            falsePositives += 1;
+            positionBreakdown[positionKey].falsePositives += 1;
+            classification = "fp";
+          }
+        } else if (expectedProposal) {
+          falseNegatives += 1;
+          positionBreakdown[positionKey].falseNegatives += 1;
+          classification = "fn";
+        } else {
+          blocked += 1;
+          positionBreakdown[positionKey].blocked += 1;
+        }
+        const primaryReason = simulation.rejectionReasons[0] || "would-apply";
+        blockReasons[primaryReason] = (blockReasons[primaryReason] || 0) + 1;
+        positionBreakdown[positionKey].blockReasons[primaryReason] =
+          (positionBreakdown[positionKey].blockReasons[primaryReason] || 0) + 1;
+        rows.push({
+          image: item.image,
+          stage,
+          side,
+          expected,
+          actual,
+          classification,
+          productionApplied: {
+            crownBonus: Boolean(production.crownRecovery.applied),
+            stageWide: Boolean(production.stageWideRecovery.applied),
+          },
+          simulation,
+        });
+      }
+    }
+  }
+
+  for (const breakdown of Object.values(positionBreakdown)) {
+    const sorted = Object.entries(breakdown.blockReasons).sort((a, b) => b[1] - a[1]);
+    breakdown.dominantBlockReason = sorted[0]?.[0] || "";
+  }
+
+  for (const image of ["IMG_9308", "IMG_9310", "IMG_9319", "IMG_9311", "IMG_9321", "IMG_9329"]) {
+    const matchingRows = rows.filter((row) => String(row.image).includes(image));
+    impactedImages[image] = {
+      rows: matchingRows.map((row) => ({
+        stage: row.stage,
+        side: row.side,
+        classification: row.classification,
+        wouldApply: row.simulation.wouldApply,
+        rejectionReasons: row.simulation.rejectionReasons,
+      })),
+      note:
+        matchingRows.length === 0
+          ? "no remaining failing row after current production output"
+          : matchingRows
+              .map((row) =>
+                row.simulation.wouldApply
+                  ? `S${row.stage} ${row.side} would apply`
+                  : `S${row.stage} ${row.side} blocked: ${row.simulation.rejectionReasons.join(", ")}`
+              )
+              .join("; "),
+    };
+  }
+
+  return {
+    rowsAudited: items.length * 3 * 2,
+    remainingFailureRows: rows.length,
+    truePositives,
+    falsePositives,
+    falseNegatives,
+    blocked,
+    alreadyCorrect,
+    wouldApplyCount,
+    trueIncrementalTp: truePositives,
+    blockReasons,
+    positionBreakdown,
+    wouldApplyRows: rows.filter((row) => row.simulation.wouldApply),
+    falsePositiveRows: rows.filter((row) => row.classification === "fp"),
+    falseNegativeRows: rows.filter((row) => row.classification === "fn"),
+    blockedRows: rows.filter((row) => row.classification === "blocked"),
+    impactedImages,
+    recommendation:
+      truePositives >= 3 && falsePositives === 0
+        ? "Runner/browser-equivalent parity is justified next. Do not productionize before parity proves the same slot, total, and bonus evidence is available in the UI path."
+        : "Defer parity/productionization. The simulation did not meet the TP>=3 and FP=0 safety target.",
+  };
+}
+
+function formatSmartphoneExactSlotSources(memberSources = []) {
+  return memberSources
+    .map((slotSources, index) => {
+      const flat = slotSources
+        .flatMap((entry) => entry.sources || [])
+        .filter(Boolean);
+      return `member${index + 1}: ${flat.length ? [...new Set(flat)].join("+") : "unknown"}`;
+    })
+    .join("; ");
+}
+
+function formatSmartphoneExactSlotNumber(value) {
+  const number = normalizeSimulationNumber(value);
+  return Number.isFinite(number) ? number.toLocaleString("ja-JP") : "";
+}
+
+function buildSmartphoneExactSlotSelectionSimulationReport(result = {}) {
+  const lines = [
+    "# Smartphone Exact-Slot Selection Simulation",
+    "",
+    `Generated: ${new Date().toISOString()}`,
+    "",
+    "## Scope",
+    "",
+    "Runner-only simulation for smartphone exact-slot member / bonus / total selection. It uses cached all-fixture smartphone OCR evidence and reapplies current production smartphone recoveries in memory before evaluating only the remaining failing stage/side rows.",
+    "",
+    "It does not change production OCR output, does not add browser/UI plumbing, does not use current-PC evidence, and does not use expected values to build proposals. Expected fixtures are used only after proposal construction for diagnostic scoring.",
+    "",
+    "## Evidence Schema",
+    "",
+    "- Member evidence: slot-specific smartphone candidate pools from the shared smartphone stage-wide evidence helper. Candidates keep value, slot index, rank, and source tags such as selected output or raw member-row order.",
+    "- Total evidence: exact target-side displayed-total candidates from existing smartphone total evidence.",
+    "- Bonus evidence: either direct observed numeric bonus evidence from smartphone-native observed OCR numbers, or strict zero-bonus proof from complete slot-proven six-member evidence and the confirmed crown-bonus rule.",
+    "",
+    "## Guards",
+    "",
+    "- Target side only; the opposite side is not modified.",
+    "- All three target members must come from their own slot candidate pools.",
+    "- Exact displayed total must already be observed.",
+    "- Direct bonus must be observed and satisfy exact arithmetic.",
+    "- Zero bonus is allowed only when all six members are complete/slot-proven and the opposite side has the unique global rank-1 member.",
+    "- Direct-bonus proposals that reorder multiple member slots are blocked as unsafe, because exact total+bonus can still fit the wrong slot order.",
+    "- Exactly one changed proposal may pass all guards.",
+    "- No near-match, within-one, digit inference, or arithmetic-derived member values.",
+    "",
+    "## Results",
+    "",
+    "| metric | count |",
+    "| --- | ---: |",
+    `| stage/sides audited | ${result.rowsAudited} |`,
+    `| already correct after current production | ${result.alreadyCorrect} |`,
+    `| remaining failing stage/sides evaluated | ${result.remainingFailureRows} |`,
+    `| wouldApply | ${result.wouldApplyCount} |`,
+    `| TP | ${result.truePositives} |`,
+    `| FP | ${result.falsePositives} |`,
+    `| FN | ${result.falseNegatives} |`,
+    `| blocked | ${result.blocked} |`,
+    `| true incremental TP beyond current production | ${result.trueIncrementalTp} |`,
+    "",
+    "## Block Reasons",
+    "",
+    "| reason | rows |",
+    "| --- | ---: |",
+  ];
+  for (const [reason, count] of Object.entries(result.blockReasons || {}).sort((a, b) => b[1] - a[1])) {
+    lines.push(`| ${reason} | ${count} |`);
+  }
+  lines.push("", "## Position Breakdown", "", "| position | TP | FP | FN | blocked | already correct | dominant block reason |", "| --- | ---: | ---: | ---: | ---: | ---: | --- |");
+  for (const key of ["S1 self", "S1 enemy", "S2 self", "S2 enemy", "S3 self", "S3 enemy"]) {
+    const entry = result.positionBreakdown?.[key] || {};
+    lines.push(
+      `| ${key} | ${entry.truePositives || 0} | ${entry.falsePositives || 0} | ${entry.falseNegatives || 0} | ${entry.blocked || 0} | ${entry.alreadyCorrect || 0} | ${entry.dominantBlockReason || "-"} |`
+    );
+  }
+  lines.push("", "## Complete WouldApply Audit", "");
+  if ((result.wouldApplyRows || []).length === 0) {
+    lines.push("No wouldApply rows.", "");
+  } else {
+    for (const row of result.wouldApplyRows) {
+      const proposal = row.simulation.proposed || {};
+      lines.push(
+        `### ${row.image} S${row.stage} ${row.side}`,
+        "",
+        `- Classification: ${row.classification.toUpperCase()}`,
+        `- Previous members/total: ${row.actual.members.map(formatSmartphoneExactSlotNumber).join(" / ")} / ${formatSmartphoneExactSlotNumber(row.actual.total)}`,
+        `- Proposed members/bonus/total: ${(proposal.members || []).map(formatSmartphoneExactSlotNumber).join(" / ")} + ${formatSmartphoneExactSlotNumber(proposal.bonus)} = ${formatSmartphoneExactSlotNumber(proposal.total)}`,
+        `- Expected members/bonus/total: ${row.expected.members.map(formatSmartphoneExactSlotNumber).join(" / ")} + ${formatSmartphoneExactSlotNumber(row.expected.bonus)} = ${formatSmartphoneExactSlotNumber(row.expected.total)}`,
+        `- Per-slot provenance: ${formatSmartphoneExactSlotSources(proposal.memberSources || [])}`,
+        `- Total provenance: ${(proposal.totalEvidence?.sources || []).join("+") || "unknown"}`,
+        `- Bonus proof: ${proposal.bonusProof?.type || "unknown"}${proposal.bonusProof?.rank1 ? `, rank1=${proposal.bonusProof.rank1.side} member${proposal.bonusProof.rank1.slot} ${formatSmartphoneExactSlotNumber(proposal.bonusProof.rank1.value)}` : ""}`,
+        `- Competing proposals considered: ${row.simulation.changedProposalCount - 1}`,
+        "- Uniqueness: exactly one changed proposal passed all guards.",
+        ""
+      );
+    }
+  }
+  if ((result.falsePositiveRows || []).length > 0) {
+    lines.push("## False Positives", "");
+    for (const row of result.falsePositiveRows) {
+      const proposal = row.simulation.proposed || {};
+      lines.push(
+        `- ${row.image} S${row.stage} ${row.side}: proposed ${(proposal.members || []).join("/")} total ${proposal.total}, expected ${row.expected.members.join("/")} total ${row.expected.total}`
+      );
+    }
+    lines.push("");
+  }
+  lines.push("## Known Sample Impact", "");
+  for (const [image, impact] of Object.entries(result.impactedImages || {})) {
+    lines.push(`- ${image}: ${impact.note}`);
+  }
+  lines.push(
+    "",
+    "## Overlap With Existing Recoveries",
+    "",
+    "The simulation is scored only after current smartphone production recoveries are replayed in memory. Rows that are already correct after existing production recovery are counted as already correct, not TP. Therefore all TP rows are true incremental proposals beyond current production output.",
+    "",
+    "Existing production recoveries considered before this simulation include smartphone crown-bonus recovery and smartphone stage-wide six-member solver recovery, along with earlier smartphone postprocess recoveries already reflected in cached output.",
+    "",
+    "## Recommendation",
+    "",
+    result.recommendation || "",
+    ""
+  );
+  return lines.join("\n");
 }
 
 function buildSmartphoneBrowserEquivalentStageResult(stageResult = {}, stage = 0) {
@@ -19097,6 +19615,9 @@ async function main() {
   const smartphoneTotalCaptureDiagnostics = args.includes(
     "--smartphone-total-capture-diagnostics"
   );
+  const smartphoneExactSlotSelectionSimulation = args.includes(
+    "--smartphone-exact-slot-selection-sim"
+  );
   const sourceIndex = args.indexOf("--source");
   const sourceValue = sourceIndex >= 0 ? args[sourceIndex + 1] : "";
   const forcedSource = ["smartphone", "desktop", "current-pc"].includes(sourceValue)
@@ -19134,6 +19655,7 @@ async function main() {
       value !== "--smartphone-crown-stage-wide-solver-from-baseline" &&
       value !== "--smartphone-crown-bonus-stage-wide-solver-from-baseline" &&
       value !== "--smartphone-total-capture-diagnostics" &&
+      value !== "--smartphone-exact-slot-selection-sim" &&
       value !== "--source" &&
       value !== "--audit-disable-known-correction" &&
       !(sourceIndex >= 0 && index === sourceIndex + 1) &&
@@ -19145,6 +19667,46 @@ async function main() {
         .replace(/^\.?\/*test-images\//i, "")
         .toLowerCase()
     );
+  if (smartphoneExactSlotSelectionSimulation) {
+    const cachedReport = await readSmartphoneBaselineCache(filters);
+    await writeSmartphoneBaselineCacheSummary(cachedReport);
+    const simulation = evaluateSmartphoneExactSlotSelectionSimulation(cachedReport);
+    await fs.writeFile(
+      smartphoneExactSlotSelectionSimulationReportPath,
+      buildSmartphoneExactSlotSelectionSimulationReport(simulation)
+    );
+    await fs.mkdir(path.join(rootDir, "tmp"), { recursive: true });
+    const resultPath = path.join(rootDir, "tmp", "smartphone-exact-slot-selection-simulation.json");
+    await fs.writeFile(resultPath, JSON.stringify(simulation, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          smartphoneExactSlotMembersBonusTotalSelectionSimulation: {
+            images: cachedReport.length,
+            rowsAudited: simulation.rowsAudited,
+            remainingFailureRows: simulation.remainingFailureRows,
+            truePositives: simulation.truePositives,
+            falsePositives: simulation.falsePositives,
+            falseNegatives: simulation.falseNegatives,
+            blocked: simulation.blocked,
+            alreadyCorrect: simulation.alreadyCorrect,
+            wouldApplyCount: simulation.wouldApplyCount,
+            trueIncrementalTp: simulation.trueIncrementalTp,
+            blockReasons: simulation.blockReasons,
+            impactedImages: simulation.impactedImages,
+            recommendation: simulation.recommendation,
+            report: path
+              .relative(rootDir, smartphoneExactSlotSelectionSimulationReportPath)
+              .replaceAll("\\", "/"),
+            result: path.relative(rootDir, resultPath).replaceAll("\\", "/"),
+          },
+        },
+        null,
+        2
+      )
+    );
+    return;
+  }
   if (smartphoneTotalCaptureDiagnostics) {
     const cachedReport = await readSmartphoneBaselineCache(filters);
     await writeSmartphoneBaselineCacheSummary(cachedReport);
