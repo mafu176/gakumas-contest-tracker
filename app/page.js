@@ -101,6 +101,15 @@ function toIpadArithmeticNumber(value) {
   return Number.isFinite(normalized) ? normalized : 0;
 }
 
+const IPAD_TIER_C_EXACTLY_ONE_ARITHMETIC_RECOVERY_ENABLED = true;
+const IPAD_TIER_C_EXACTLY_ONE_ARITHMETIC_RECOVERY_ID =
+  "ipad-tier-c-exactly-one-arithmetic";
+
+function formatIpadArithmeticScore(value) {
+  const numeric = toIpadArithmeticNumber(value);
+  return numeric > 0 ? numeric.toLocaleString() : "";
+}
+
 function getDisplayedIpadArithmeticSide(stageScores, stage, side) {
   const stageScore = stageScores?.[stage] || {};
   return {
@@ -110,19 +119,220 @@ function getDisplayedIpadArithmeticSide(stageScores, stage, side) {
   };
 }
 
+function getIpadArithmeticSideFromStageScores(stageScores, stage, side, bonus = 0) {
+  const displayed = getDisplayedIpadArithmeticSide(stageScores, stage, side);
+  return {
+    ...displayed,
+    bonus: toIpadArithmeticNumber(bonus),
+  };
+}
+
+function isProductionIpadArithmeticLayout(diagnostics) {
+  const detection = diagnostics?.detection || {};
+  return (
+    Boolean(diagnostics) &&
+    detection.detected === true &&
+    detection.deviceMode === "ipad" &&
+    detection.orientation === "portrait" &&
+    detection.family === "ipad-result-diagnostic-unverified"
+  );
+}
+
+function classifyIpadTierCBlockReason(tierC = {}) {
+  const reason = tierC.blockReason || "";
+  if (reason.startsWith("missing-candidate:")) return "blockedIncomplete";
+  if (reason.startsWith("truncated-pool:")) return "blockedTruncated";
+  if (reason === "duplicate-tuple-provenance-conflict") return "blockedMultiple";
+  if (reason === "multiple-arithmetic-valid-tuples") return "blockedMultiple";
+  if (reason === "no-arithmetic-valid-tuple") return "blockedZeroTuples";
+  if (reason === "enumeration-safety-cap") return "blockedMultiple";
+  if (reason.startsWith("non-ipad-mode:")) return "blockedIncomplete";
+  return "blockedOther";
+}
+
+function buildIpadTierCProductionCounters() {
+  return {
+    evaluated: 0,
+    eligible: 0,
+    blockedIncomplete: 0,
+    blockedTruncated: 0,
+    blockedZeroTuples: 0,
+    blockedMultiple: 0,
+    blockedAlreadyIdentical: 0,
+    blockedOther: 0,
+    applied: 0,
+    arithmeticAssertionFailures: 0,
+  };
+}
+
+function buildIpadArithmeticPrimaryStageScores(diagnostics) {
+  const stageScores = {
+    1: { self: ["", "", ""], enemy: ["", "", ""], selfTotal: "", enemyTotal: "" },
+    2: { self: ["", "", ""], enemy: ["", "", ""], selfTotal: "", enemyTotal: "" },
+    3: { self: ["", "", ""], enemy: ["", "", ""], selfTotal: "", enemyTotal: "" },
+  };
+  for (const stage of stages) {
+    const stageKey = `stage${stage}`;
+    for (const side of ["self", "enemy"]) {
+      const currentPrimary = diagnostics?.stages?.[stageKey]?.[side]?.currentPrimary || {};
+      const members = Array.isArray(currentPrimary.members)
+        ? currentPrimary.members.slice(0, 3)
+        : [];
+      while (members.length < 3) members.push(0);
+      stageScores[stage][side] = members.map(formatIpadArithmeticScore);
+      stageScores[stage][side === "self" ? "selfTotal" : "enemyTotal"] =
+        formatIpadArithmeticScore(currentPrimary.total);
+    }
+  }
+  return stageScores;
+}
+
+function assertIpadArithmeticProposal(proposal = {}) {
+  const members = Array.isArray(proposal.members)
+    ? proposal.members.slice(0, 3).map(toIpadArithmeticNumber)
+    : [];
+  while (members.length < 3) members.push(0);
+  const bonus = toIpadArithmeticNumber(proposal.bonus);
+  const total = toIpadArithmeticNumber(proposal.total);
+  return members.every((value) => value > 0) && members.reduce((sum, value) => sum + value, 0) + bonus === total;
+}
+
+function buildIpadTierCProductionApplication({
+  stage,
+  side,
+  stageScores,
+  sideDiagnostics,
+}) {
+  const tierC = sideDiagnostics?.tierC || {};
+  const proposal = tierC.proposal || null;
+  const selectedTuple = tierC.selectedTuple || null;
+  const oldValues = sideDiagnostics?.currentPrimary
+    ? {
+        members: (sideDiagnostics.currentPrimary.members || [])
+          .slice(0, 3)
+          .map(toIpadArithmeticNumber),
+        bonus: toIpadArithmeticNumber(sideDiagnostics.currentPrimary.bonus),
+        total: toIpadArithmeticNumber(sideDiagnostics.currentPrimary.total),
+      }
+    : getIpadArithmeticSideFromStageScores(
+        stageScores,
+        stage,
+        side,
+        sideDiagnostics?.currentPrimary?.bonus
+      );
+  return {
+    recoveryId: IPAD_TIER_C_EXACTLY_ONE_ARITHMETIC_RECOVERY_ID,
+    stage,
+    side,
+    oldValues,
+    displayedBefore: getIpadArithmeticSideFromStageScores(
+      stageScores,
+      stage,
+      side,
+      sideDiagnostics?.currentPrimary?.bonus
+    ),
+    newValues: proposal
+      ? {
+          members: proposal.members || [],
+          bonus: toIpadArithmeticNumber(proposal.bonus),
+          total: toIpadArithmeticNumber(proposal.total),
+        }
+      : null,
+    changedFields: tierC.changedFields || [],
+    provenance: {
+      origins: selectedTuple?.origins || {},
+      profileIds: selectedTuple?.profileIds || {},
+    },
+    validTupleCount: Number(tierC.validTupleCount || 0),
+    candidateCompleteness: tierC.candidateCompleteness || {},
+    defaultZeroUsage: selectedTuple?.origins?.bonus === "schema-default-bonus-zero",
+    equation: proposal?.equation || selectedTuple?.equation || "",
+  };
+}
+
+function applyIpadTierCExactlyOneArithmeticRecovery(stageScores, diagnostics) {
+  const productionRecovery = {
+    recoveryId: IPAD_TIER_C_EXACTLY_ONE_ARITHMETIC_RECOVERY_ID,
+    enabled: IPAD_TIER_C_EXACTLY_ONE_ARITHMETIC_RECOVERY_ENABLED,
+    deviceMode: diagnostics?.detection?.deviceMode || "unknown",
+    appliedCases: [],
+    counters: buildIpadTierCProductionCounters(),
+    blockReason: "",
+  };
+
+  if (!IPAD_TIER_C_EXACTLY_ONE_ARITHMETIC_RECOVERY_ENABLED) {
+    productionRecovery.blockReason = "feature-disabled";
+    return { stageScores, productionRecovery };
+  }
+  if (!isProductionIpadArithmeticLayout(diagnostics)) {
+    productionRecovery.blockReason = "not-positive-ipad-layout";
+    return { stageScores, productionRecovery };
+  }
+
+  const nextStageScores = JSON.parse(JSON.stringify(stageScores || {}));
+  for (const stage of stages) {
+    const stageKey = `stage${stage}`;
+    for (const side of ["self", "enemy"]) {
+      const sideDiagnostics = diagnostics?.stages?.[stageKey]?.[side] || {};
+      const tierC = sideDiagnostics.tierC || {};
+      productionRecovery.counters.evaluated += 1;
+      if (tierC.eligible) productionRecovery.counters.eligible += 1;
+      if (!tierC.proposal) {
+        productionRecovery.counters[classifyIpadTierCBlockReason(tierC)] += 1;
+        continue;
+      }
+      if (!tierC.wouldApply) {
+        productionRecovery.counters.blockedAlreadyIdentical += 1;
+        continue;
+      }
+      if (!assertIpadArithmeticProposal(tierC.proposal)) {
+        productionRecovery.counters.arithmeticAssertionFailures += 1;
+        continue;
+      }
+
+      const application = buildIpadTierCProductionApplication({
+        stage,
+        side,
+        stageScores: nextStageScores,
+        sideDiagnostics,
+      });
+      nextStageScores[stage] ||= {};
+      nextStageScores[stage][side] = tierC.proposal.members.map(formatIpadArithmeticScore);
+      nextStageScores[stage][side === "self" ? "selfTotal" : "enemyTotal"] =
+        formatIpadArithmeticScore(tierC.proposal.total);
+      productionRecovery.appliedCases.push(application);
+      productionRecovery.counters.applied += 1;
+    }
+  }
+
+  return { stageScores: nextStageScores, productionRecovery };
+}
+
 function buildIpadArithmeticProposalApplicationAudit(diagnostics, stageScores) {
   if (!diagnostics) return null;
   return {
-    diagnosticsOnly: true,
-    proposalAppliedByThisPath: false,
+    diagnosticsOnly: false,
+    proposalAppliedByThisPath: Boolean(
+      diagnostics.productionRecovery?.appliedCases?.length
+    ),
     comparedAcceptedCases: (diagnostics.acceptedCases || []).length,
     acceptedCases: (diagnostics.acceptedCases || []).map((entry) => {
-      const displayed = getDisplayedIpadArithmeticSide(stageScores, entry.stage, entry.side);
+      const applied = (diagnostics.productionRecovery?.appliedCases || []).find(
+        (application) =>
+          application.stage === entry.stage && application.side === entry.side
+      );
+      const displayed = getIpadArithmeticSideFromStageScores(
+        stageScores,
+        entry.stage,
+        entry.side,
+        applied?.newValues?.bonus || 0
+      );
       return {
         stage: entry.stage,
         side: entry.side,
         currentPrimary: entry.currentPrimary,
         proposal: entry.proposal,
+        productionApplication: applied || null,
         displayed,
         displayedMatchesProposal:
           JSON.stringify(displayed) === JSON.stringify(entry.proposal || {}),
@@ -2348,11 +2558,18 @@ export default function Home() {
       });
 
       const ipadArithmeticDebug = isIpadArithmeticDebugEnabled();
-      const ipadArithmeticDebugData = ipadArithmeticDebug
+      const ipadLayoutDetection = detectIpadOcrLayout(image);
+      const shouldBuildIpadArithmeticEvidence =
+        ipadArithmeticDebug ||
+        (IPAD_TIER_C_EXACTLY_ONE_ARITHMETIC_RECOVERY_ENABLED &&
+          ipadLayoutDetection.detected === true &&
+          ipadLayoutDetection.deviceMode === "ipad" &&
+          ipadLayoutDetection.orientation === "portrait");
+      const ipadArithmeticEvidenceData = shouldBuildIpadArithmeticEvidence
         ? await buildIpadArithmeticBrowserDiagnostics({
             image,
             imageName: screenshotName || screenshotFile.name || "",
-            filter: getIpadArithmeticDebugFilter(),
+            filter: ipadArithmeticDebug ? getIpadArithmeticDebugFilter() : {},
           })
         : null;
 
@@ -2384,6 +2601,62 @@ export default function Home() {
               stages: {},
             }
           : null;
+
+      if (isProductionIpadArithmeticLayout(ipadArithmeticEvidenceData)) {
+        const ipadPrimaryStageScores =
+          buildIpadArithmeticPrimaryStageScores(ipadArithmeticEvidenceData);
+        const ipadTierCProductionResult =
+          applyIpadTierCExactlyOneArithmeticRecovery(
+            ipadPrimaryStageScores,
+            ipadArithmeticEvidenceData
+          );
+        const correctedStageScores = applyKnownOcrSetCorrections(
+          ipadTierCProductionResult.stageScores
+        );
+        const finalIpadArithmeticDiagnostics = {
+          ...ipadArithmeticEvidenceData,
+          note:
+            "Browser-native iPad arithmetic evidence. Tier C proposals are applied only by the narrow production iPad recovery when strict guards pass.",
+          productionOutputChanged:
+            ipadTierCProductionResult.productionRecovery.appliedCases.length > 0,
+          productionRecovery: ipadTierCProductionResult.productionRecovery,
+          displayedOcrStages: correctedStageScores,
+          proposalApplicationAudit: buildIpadArithmeticProposalApplicationAudit(
+            {
+              ...ipadArithmeticEvidenceData,
+              productionRecovery: ipadTierCProductionResult.productionRecovery,
+            },
+            correctedStageScores
+          ),
+        };
+        if (ipadArithmeticDebug && typeof window !== "undefined") {
+          window.__IPAD_ARITHMETIC_DIAGNOSTICS__ = finalIpadArithmeticDiagnostics;
+        }
+        URL.revokeObjectURL(imageUrl);
+        const ipadTierCProductionLogs =
+          ipadTierCProductionResult.productionRecovery.appliedCases.map(
+            (application) =>
+              `${IPAD_TIER_C_EXACTLY_ONE_ARITHMETIC_RECOVERY_ID} applied stage=${application.stage} side=${application.side} old=${application.oldValues.members.join(",")}+${application.oldValues.bonus}=${application.oldValues.total} new=${application.newValues.members.join(",")}+${application.newValues.bonus}=${application.newValues.total} validTupleCount=${application.validTupleCount} equation=${application.equation}`
+          );
+        setOcrText(
+          [
+            `[OCR_PARSER_VERSION] ${OCR_PARSER_VERSION}`,
+            "[iPad OCR] browser-native primary path",
+            ...ipadTierCProductionLogs,
+          ].join("\n\n")
+        );
+        setParsedOcrScores({
+          rawNumbers: [],
+          stages: correctedStageScores,
+          currentPcGroupedRawEvidence: null,
+          smartphoneCrownStageWideEvidence: null,
+          ipadArithmeticDiagnostics: finalIpadArithmeticDiagnostics,
+        });
+        setIpadArithmeticDiagnostics(ipadArithmeticDebug ? finalIpadArithmeticDiagnostics : null);
+        setOcrProgress(100);
+        setOcrStatus("OCR完了");
+        return;
+      }
 
       for (const stage of stages) {
         setOcrStatus(
@@ -4280,13 +4553,27 @@ export default function Home() {
 
       URL.revokeObjectURL(imageUrl);
 
-      const correctedStageScores = applyKnownOcrSetCorrections(stageScores);
-      const finalIpadArithmeticDiagnostics = ipadArithmeticDebugData
+      const ipadTierCProductionResult = applyIpadTierCExactlyOneArithmeticRecovery(
+        stageScores,
+        ipadArithmeticEvidenceData
+      );
+      const correctedStageScores = applyKnownOcrSetCorrections(
+        ipadTierCProductionResult.stageScores
+      );
+      const finalIpadArithmeticDiagnostics = ipadArithmeticEvidenceData
         ? {
-            ...ipadArithmeticDebugData,
+            ...ipadArithmeticEvidenceData,
+            note:
+              "Browser-native iPad arithmetic evidence. Tier C proposals are applied only by the narrow production iPad recovery when strict guards pass.",
+            productionOutputChanged:
+              ipadTierCProductionResult.productionRecovery.appliedCases.length > 0,
+            productionRecovery: ipadTierCProductionResult.productionRecovery,
             displayedOcrStages: correctedStageScores,
             proposalApplicationAudit: buildIpadArithmeticProposalApplicationAudit(
-              ipadArithmeticDebugData,
+              {
+                ...ipadArithmeticEvidenceData,
+                productionRecovery: ipadTierCProductionResult.productionRecovery,
+              },
               correctedStageScores
             ),
           }
@@ -4294,7 +4581,18 @@ export default function Home() {
       if (ipadArithmeticDebug && typeof window !== "undefined") {
         window.__IPAD_ARITHMETIC_DIAGNOSTICS__ = finalIpadArithmeticDiagnostics;
       }
-      setOcrText([`[OCR_PARSER_VERSION] ${OCR_PARSER_VERSION}`, ...stageTexts].join("\n\n"));
+      const ipadTierCProductionLogs =
+        ipadTierCProductionResult.productionRecovery.appliedCases.map(
+          (application) =>
+            `${IPAD_TIER_C_EXACTLY_ONE_ARITHMETIC_RECOVERY_ID} applied stage=${application.stage} side=${application.side} old=${application.oldValues.members.join(",")}+${application.oldValues.bonus}=${application.oldValues.total} new=${application.newValues.members.join(",")}+${application.newValues.bonus}=${application.newValues.total} validTupleCount=${application.validTupleCount} equation=${application.equation}`
+        );
+      setOcrText(
+        [
+          `[OCR_PARSER_VERSION] ${OCR_PARSER_VERSION}`,
+          ...stageTexts,
+          ...ipadTierCProductionLogs,
+        ].join("\n\n")
+      );
       setParsedOcrScores({
         rawNumbers: [],
         stages: correctedStageScores,
@@ -4302,7 +4600,7 @@ export default function Home() {
         smartphoneCrownStageWideEvidence,
         ipadArithmeticDiagnostics: finalIpadArithmeticDiagnostics,
       });
-      setIpadArithmeticDiagnostics(finalIpadArithmeticDiagnostics);
+      setIpadArithmeticDiagnostics(ipadArithmeticDebug ? finalIpadArithmeticDiagnostics : null);
       setOcrProgress(100);
       setOcrStatus("OCR完了");
     } catch (error) {
