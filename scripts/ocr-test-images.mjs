@@ -178,6 +178,7 @@ const smartphoneExactSlotSelectionSimulationReportPath = path.join(
   "smartphone-exact-slot-selection-simulation.md"
 );
 const ipadOcrDiagnosticsDir = path.join(rootDir, "tmp", "ipad-ocr-diagnostics");
+const ipadRoiInvestigationDir = path.join(rootDir, "tmp", "ipad-roi-investigation");
 const ipadDatasetInventoryReportPath = path.join(
   rootDir,
   "docs",
@@ -192,6 +193,11 @@ const ipadInitialOcrBaselineReportPath = path.join(
   rootDir,
   "docs",
   "ipad-initial-ocr-baseline.md"
+);
+const ipadRoiGeometryInvestigationReportPath = path.join(
+  rootDir,
+  "docs",
+  "ipad-roi-geometry-investigation.md"
 );
 const ipadOcrBaselineDir = path.join(rootDir, "tmp", "ipad-ocr-baseline");
 let currentPcBaselineScanSummary = null;
@@ -4704,44 +4710,209 @@ function parseIpadOcrNumbers(text = "") {
 }
 
 function buildIpadBaselineLayout(image) {
-  const diagnostic = buildIpadDiagnosticLayout(image);
-  return diagnostic.stageSideZones;
+  return buildIpadCorrectedRoiTemplate(image).stageSideZones;
 }
 
-async function recognizeIpadBaselineSide(imagePath, image, stage, side, zone, outDir) {
+function buildIpadCorrectedRoiTemplate(image) {
+  const sideColumns = {
+    self: {
+      side: { left: 0.115, width: 0.37 },
+      total: { left: 0.16, width: 0.33 },
+      members: [
+        { left: 0.145, width: 0.12 },
+        { left: 0.255, width: 0.13 },
+        { left: 0.365, width: 0.13 },
+      ],
+      bonus: { left: 0.105, width: 0.38 },
+    },
+    enemy: {
+      side: { left: 0.515, width: 0.37 },
+      total: { left: 0.58, width: 0.33 },
+      members: [
+        { left: 0.535, width: 0.12 },
+        { left: 0.645, width: 0.13 },
+        { left: 0.755, width: 0.13 },
+      ],
+      bonus: { left: 0.505, width: 0.38 },
+    },
+  };
+  const rows = [
+    { stage: 1, rowTop: 0.095, totalTop: 0.112, memberTop: 0.149, bonusTop: 0.166 },
+    { stage: 2, rowTop: 0.334, totalTop: 0.351, memberTop: 0.388, bonusTop: 0.405 },
+    { stage: 3, rowTop: 0.576, totalTop: 0.593, memberTop: 0.631, bonusTop: 0.648 },
+  ];
+  const box = (definition) => ipadDiagnosticPercentBox(image, definition);
+  const stageRows = rows.map((row) => ({
+    stage: row.stage,
+    normalized: { left: 0.09, top: row.rowTop, width: 0.82, height: 0.165 },
+    zone: box({ left: 0.09, top: row.rowTop, width: 0.82, height: 0.165 }),
+  }));
+  const stageSideZones = rows.flatMap((row) =>
+    Object.entries(sideColumns).map(([side, column]) => ({
+      stage: row.stage,
+      side,
+      normalized: {
+        left: column.side.left,
+        top: row.rowTop,
+        width: column.side.width,
+        height: 0.165,
+      },
+      zone: box({
+        left: column.side.left,
+        top: row.rowTop,
+        width: column.side.width,
+        height: 0.165,
+      }),
+    }))
+  );
+  const fields = rows.flatMap((row) =>
+    Object.entries(sideColumns).flatMap(([side, column]) => {
+      const base = [
+        {
+          stage: row.stage,
+          side,
+          field: "total",
+          slot: 0,
+          normalized: {
+            left: column.total.left,
+            top: row.totalTop,
+            width: column.total.width,
+            height: 0.035,
+          },
+        },
+        {
+          stage: row.stage,
+          side,
+          field: "bonus",
+          slot: 0,
+          normalized: {
+            left: column.bonus.left,
+            top: row.bonusTop,
+            width: column.bonus.width,
+            height: 0.034,
+          },
+        },
+      ];
+      const members = column.members.map((member, index) => ({
+        stage: row.stage,
+        side,
+        field: "member",
+        slot: index + 1,
+        normalized: {
+          left: member.left,
+          top: row.memberTop,
+          width: member.width,
+          height: 0.028,
+        },
+      }));
+      return [...base, ...members].map((field) => ({
+        ...field,
+        zone: box(field.normalized),
+      }));
+    })
+  );
+
+  return {
+    version: "ipad-shared-portrait-v2",
+    confidence: "manually-calibrated-diagnostic",
+    note:
+      "Shared normalized iPad portrait score-table template, calibrated against the 18 manually verified fixtures. Diagnostic-only.",
+    stageRows,
+    stageSideZones,
+    fields,
+  };
+}
+
+async function getIpadOcrWorker() {
+  const worker = await createWorker("eng");
+  await worker.setParameters({
+    tessedit_char_whitelist: "0123456789,+.＋",
+    tessedit_pageseg_mode: "7",
+    preserve_interword_spaces: "1",
+  });
+  return worker;
+}
+
+async function recognizeIpadFieldZone(worker, imagePath, image, field, outDir) {
   const artifact = await saveIpadDiagnosticCrop(
     imagePath,
     image,
     outDir,
-    `stage${stage}-${side}`,
-    zone
+    `stage${field.stage}-${field.side}-${field.field}${field.slot || ""}`,
+    field.zone
   );
-  const ocr = await recognizeIpadDiagnosticZone(imagePath, zone);
-  const mergedText = ocr.map((entry) => entry.rawText || "").join("\n");
-  const parsed = parseIpadOcrNumbers(mergedText);
-  const plusCandidate = parsed.find((candidate) => candidate.plusLike);
-  const bonus = plusCandidate?.value || 0;
-  const values = parsed.map((candidate) => candidate.value);
-  const total = values[0] || 0;
-  const members = values
-    .filter((value, index) => index !== 0 && value !== bonus)
-    .slice(0, 3);
-  while (members.length < 3) members.push(0);
+  const buffer = await createPreprocessedStageBuffer(imagePath, field.zone, {
+    pageSegMode: "7",
+    charWhitelist: "0123456789,+.＋",
+  });
+  const result = await worker.recognize(buffer);
+  const rawText = result.data.text || "";
+  const parsedCandidates = parseIpadOcrNumbers(rawText);
+  const values = parsedCandidates.map((candidate) => candidate.value);
+  const selected =
+    field.field === "bonus"
+      ? parsedCandidates.find((candidate) => candidate.plusLike)?.value || values[0] || 0
+      : values[0] || 0;
 
   return {
-    stage,
-    side,
-    zone,
+    ...field,
     artifact,
-    ocr,
-    rawText: mergedText,
-    parsedCandidates: parsed,
-    selected: {
-      members,
-      bonus,
-      total,
-    },
+    rawText,
+    parsedCandidates,
+    selected,
   };
+}
+
+async function summarizeIpadCropQuality(imagePath, field, rawText, parsedCandidates) {
+  const { data, info } = await sharp(imagePath)
+    .extract(field.zone)
+    .greyscale()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  let foreground = 0;
+  let borderForeground = 0;
+  const threshold = 190;
+  for (let y = 0; y < info.height; y += 1) {
+    for (let x = 0; x < info.width; x += 1) {
+      const value = data[y * info.width + x];
+      const isForeground = value >= threshold;
+      if (!isForeground) continue;
+      foreground += 1;
+      if (x <= 1 || y <= 1 || x >= info.width - 2 || y >= info.height - 2) {
+        borderForeground += 1;
+      }
+    }
+  }
+  const totalPixels = info.width * info.height;
+  const foregroundRatio = Number((foreground / totalPixels).toFixed(4));
+  return {
+    cropWidth: field.zone.width,
+    cropHeight: field.zone.height,
+    foregroundPixelRatio: foregroundRatio,
+    connectedComponentCount: null,
+    touchesBorder: borderForeground > 0,
+    likelyEmpty:
+      foregroundRatio < 0.006 &&
+      String(rawText || "").trim().length === 0 &&
+      parsedCandidates.length === 0,
+    rawText,
+  };
+}
+
+function getExpectedIpadField(expectedStage, side, field, slot = 0) {
+  if (field === "total") return side === "self" ? expectedStage.selfTotal : expectedStage.enemyTotal;
+  if (field === "bonus") return side === "self" ? expectedStage.selfBonus : expectedStage.enemyBonus;
+  const members = side === "self" ? expectedStage.selfMembers : expectedStage.enemyMembers;
+  return members[slot - 1] || 0;
+}
+
+function classifyIpadFieldCrop(fieldResult, expectedValue) {
+  const candidates = fieldResult.parsedCandidates.map((candidate) => candidate.value);
+  if (fieldResult.selected === expectedValue) return "correct region";
+  if (candidates.includes(expectedValue)) return "correct value present but unselected";
+  if (fieldResult.quality?.likelyEmpty) return "number absent from crop";
+  if (!candidates.length) return "numeric OCR absent";
+  return "OCR mismatch";
 }
 
 function compareIpadSide(selected, expectedStage, side) {
@@ -4800,6 +4971,11 @@ async function runIpadOcrBaseline() {
   const { rows, incomplete } = await collectIpadExpectedFixtures();
   await fs.rm(ipadOcrBaselineDir, { recursive: true, force: true });
   await fs.mkdir(ipadOcrBaselineDir, { recursive: true });
+  const overlaysDir = path.join(ipadRoiInvestigationDir, "overlays");
+  const contactSheetsDir = path.join(ipadRoiInvestigationDir, "contact-sheets");
+  await fs.rm(ipadRoiInvestigationDir, { recursive: true, force: true });
+  await fs.mkdir(overlaysDir, { recursive: true });
+  await fs.mkdir(contactSheetsDir, { recursive: true });
 
   const counters = {
     images: rows.length,
@@ -4817,61 +4993,147 @@ async function runIpadOcrBaseline() {
       bonus: { pass: 0, total: 0 },
       total: { pass: 0, total: 0 },
     },
+    cropCategories: {},
+    clusters: {},
+    ocrFieldCounts: {
+      fields: 0,
+      nonEmptyText: 0,
+      numericCandidate: 0,
+      exactMembers: 0,
+      exactBonus: 0,
+      exactTotal: 0,
+    },
   };
   const imageResults = [];
+  const contactSheetRows = [];
+  const worker = await getIpadOcrWorker();
 
-  for (const row of rows) {
-    const image = await readImageSize(row.imagePath);
-    const detection = detectIpadOcrLayout(image);
-    const outDir = path.join(ipadOcrBaselineDir, safeArtifactName(row.filename));
-    await fs.mkdir(outDir, { recursive: true });
-    const zones = buildIpadBaselineLayout(image);
-    const stageResults = {};
-    let imagePass = true;
+  try {
+    for (const row of rows) {
+      const image = await readImageSize(row.imagePath);
+      const detection = detectIpadOcrLayout(image);
+      const clusterKey = `${row.clusterId || "unknown"} ${image.width}x${image.height}`;
+      counters.clusters[clusterKey] ||= {
+        images: 0,
+        imagePass: 0,
+        stages: 0,
+        stagePass: 0,
+        stageSides: 0,
+        stageSidePass: 0,
+        fields: {
+          member: { pass: 0, total: 0 },
+          bonus: { pass: 0, total: 0 },
+          total: { pass: 0, total: 0 },
+        },
+      };
+      counters.clusters[clusterKey].images += 1;
+      counters.clusters[clusterKey].stages += stages.length;
+      const outDir = path.join(ipadOcrBaselineDir, safeArtifactName(row.filename));
+      await fs.mkdir(outDir, { recursive: true });
+      const template = buildIpadCorrectedRoiTemplate(image);
+      await writeIpadRoiOverlay(row.imagePath, image, template, path.join(overlaysDir, `${safeArtifactName(row.filename)}.png`));
+      const stageResults = {};
+      let imagePass = true;
 
-    for (const stage of stages) {
-      const stageKey = `stage${stage}`;
-      stageResults[stageKey] = {};
-      let stagePass = true;
-      for (const side of sides) {
-        const zone = zones.find((candidate) => candidate.stage === stage && candidate.side === side);
-        const recognized = await recognizeIpadBaselineSide(
-          row.imagePath,
-          image,
-          stage,
-          side,
-          zone.zone,
-          outDir
-        );
-        const comparison = compareIpadSide(recognized.selected, row.expected[stageKey], side);
-        updateIpadBaselineCounters(counters, stage, side, comparison);
-        stageResults[stageKey][side] = {
-          ...recognized,
-          comparison,
-        };
-        if (!comparison.pass) stagePass = false;
+      for (const stage of stages) {
+        const stageKey = `stage${stage}`;
+        stageResults[stageKey] = {};
+        let stagePass = true;
+        for (const side of sides) {
+          const fieldsForSide = template.fields.filter(
+            (field) => field.stage === stage && field.side === side
+          );
+          const fieldResults = [];
+          const selected = {
+            members: [0, 0, 0],
+            bonus: 0,
+            total: 0,
+          };
+          for (const field of fieldsForSide) {
+            const recognized = await recognizeIpadFieldZone(worker, row.imagePath, image, field, outDir);
+            const expectedValue = getExpectedIpadField(row.expected[stageKey], side, field.field, field.slot);
+            const quality = await summarizeIpadCropQuality(
+              row.imagePath,
+              field,
+              recognized.rawText,
+              recognized.parsedCandidates
+            );
+            const category = classifyIpadFieldCrop({ ...recognized, quality }, expectedValue);
+            counters.cropCategories[category] ||= 0;
+            counters.cropCategories[category] += 1;
+            counters.ocrFieldCounts.fields += 1;
+            if (String(recognized.rawText || "").trim()) counters.ocrFieldCounts.nonEmptyText += 1;
+            if (recognized.parsedCandidates.length) counters.ocrFieldCounts.numericCandidate += 1;
+            if (recognized.selected === expectedValue) {
+              if (field.field === "member") counters.ocrFieldCounts.exactMembers += 1;
+              if (field.field === "bonus") counters.ocrFieldCounts.exactBonus += 1;
+              if (field.field === "total") counters.ocrFieldCounts.exactTotal += 1;
+            }
+            counters.clusters[clusterKey].fields[field.field === "member" ? "member" : field.field].total += 1;
+            counters.clusters[clusterKey].fields[field.field === "member" ? "member" : field.field].pass +=
+              recognized.selected === expectedValue ? 1 : 0;
+            fieldResults.push({
+              ...recognized,
+              expectedValue,
+              quality,
+              cropClassification: category,
+            });
+            contactSheetRows.push({
+              clusterKey,
+              label: `${path.parse(row.filename).name} S${stage} ${side} ${field.field}${field.slot || ""}`,
+              cropPath: path.resolve(rootDir, recognized.artifact.crop),
+            });
+            if (field.field === "total") selected.total = recognized.selected;
+            else if (field.field === "bonus") selected.bonus = recognized.selected;
+            else selected.members[field.slot - 1] = recognized.selected;
+          }
+
+          const comparison = compareIpadSide(selected, row.expected[stageKey], side);
+          updateIpadBaselineCounters(counters, stage, side, comparison);
+          counters.clusters[clusterKey].stageSides += 1;
+          counters.clusters[clusterKey].stageSidePass += comparison.pass ? 1 : 0;
+          stageResults[stageKey][side] = {
+            selected,
+            fields: fieldResults,
+            comparison,
+          };
+          if (!comparison.pass) stagePass = false;
+        }
+        stageResults[stageKey].pass = stagePass;
+        if (stagePass) {
+          counters.stagePass += 1;
+          counters.clusters[clusterKey].stagePass += 1;
+        }
+        if (!stagePass) imagePass = false;
       }
-      stageResults[stageKey].pass = stagePass;
-      if (stagePass) counters.stagePass += 1;
-      if (!stagePass) imagePass = false;
-    }
 
-    if (imagePass) counters.imagePass += 1;
-    const imageResult = {
-      image: row.filename,
-      expectedFixture: row.fixtureName,
-      metadata: image,
-      detectedOcrMode: detection.detected ? "ipad" : "unsupported-or-not-ipad",
-      pass: imagePass,
-      stages: stageResults,
-    };
-    const resultPath = path.join(outDir, "baseline.json");
-    await fs.writeFile(resultPath, JSON.stringify(imageResult, null, 2));
-    imageResults.push({
-      ...imageResult,
-      artifact: path.relative(rootDir, resultPath).replaceAll("\\", "/"),
-    });
+      if (imagePass) {
+        counters.imagePass += 1;
+        counters.clusters[clusterKey].imagePass += 1;
+      }
+      const imageResult = {
+        image: row.filename,
+        expectedFixture: row.fixtureName,
+        clusterId: row.clusterId,
+        metadata: image,
+        detectedOcrMode: detection.detected ? "ipad" : "unsupported-or-not-ipad",
+        roiTemplate: template.version,
+        pass: imagePass,
+        overlay: path.relative(rootDir, path.join(overlaysDir, `${safeArtifactName(row.filename)}.png`)).replaceAll("\\", "/"),
+        stages: stageResults,
+      };
+      const resultPath = path.join(outDir, "baseline.json");
+      await fs.writeFile(resultPath, JSON.stringify(imageResult, null, 2));
+      imageResults.push({
+        ...imageResult,
+        artifact: path.relative(rootDir, resultPath).replaceAll("\\", "/"),
+      });
+    }
+  } finally {
+    await worker.terminate();
   }
+
+  const contactSheets = await writeIpadRoiContactSheets(contactSheetRows, contactSheetsDir);
 
   const summary = {
     command: "node scripts/ocr-test-images.mjs --ipad-ocr-baseline",
@@ -4903,10 +5165,50 @@ async function runIpadOcrBaseline() {
         { ...value, accuracy: percentage(value.pass, value.total) },
       ])
     ),
+    cropCategories: counters.cropCategories,
+    ocrFieldCounts: counters.ocrFieldCounts,
+    clusters: Object.fromEntries(
+      Object.entries(counters.clusters).map(([key, cluster]) => [
+        key,
+        {
+          images: {
+            pass: cluster.imagePass,
+            fail: cluster.images - cluster.imagePass,
+            total: cluster.images,
+            accuracy: percentage(cluster.imagePass, cluster.images),
+          },
+          stages: {
+            pass: cluster.stagePass,
+            fail: cluster.stages - cluster.stagePass,
+            total: cluster.stages,
+            accuracy: percentage(cluster.stagePass, cluster.stages),
+          },
+          stageSides: {
+            pass: cluster.stageSidePass,
+            fail: cluster.stageSides - cluster.stageSidePass,
+            total: cluster.stageSides,
+            accuracy: percentage(cluster.stageSidePass, cluster.stageSides),
+          },
+          fields: Object.fromEntries(
+            Object.entries(cluster.fields).map(([field, value]) => [
+              field,
+              { ...value, accuracy: percentage(value.pass, value.total) },
+            ])
+          ),
+        },
+      ])
+    ),
+    roiInvestigationArtifacts: {
+      overlaysDir: path.relative(rootDir, overlaysDir).replaceAll("\\", "/"),
+      contactSheetsDir: path.relative(rootDir, contactSheetsDir).replaceAll("\\", "/"),
+      contactSheets,
+    },
     imagesDetail: imageResults.map((image) => ({
       image: image.image,
+      clusterId: image.clusterId,
       pass: image.pass,
       artifact: image.artifact,
+      overlay: image.overlay,
       failingRows: stages.flatMap((stage) =>
         sides
           .filter((side) => !image.stages[`stage${stage}`][side].comparison.pass)
@@ -4919,11 +5221,92 @@ async function runIpadOcrBaseline() {
 
   await fs.writeFile(path.join(ipadOcrBaselineDir, "summary.json"), JSON.stringify(summary, null, 2));
   await fs.writeFile(ipadInitialOcrBaselineReportPath, buildIpadInitialOcrBaselineReport(summary));
+  await fs.writeFile(ipadRoiGeometryInvestigationReportPath, buildIpadRoiGeometryInvestigationReport(summary));
   return summary;
 }
 
 function ratioText(pass, total) {
   return `${pass} / ${total} (${percentage(pass, total)}%)`;
+}
+
+async function writeIpadRoiOverlay(imagePath, image, template, outPath) {
+  const rects = [
+    ...template.stageRows.map((row) => svgRect(row.zone, "#22c55e", `S${row.stage} row`)),
+    ...template.stageSideZones.map((zone) =>
+      svgRect(zone.zone, zone.side === "self" ? "#38bdf8" : "#f97316", `S${zone.stage} ${zone.side}`)
+    ),
+    ...template.fields.map((field) => {
+      const color =
+        field.field === "total" ? "#facc15" : field.field === "bonus" ? "#a78bfa" : "#ffffff";
+      const label =
+        field.field === "member"
+          ? `S${field.stage} ${field.side} M${field.slot}`
+          : `S${field.stage} ${field.side} ${field.field}`;
+      return svgRect(field.zone, color, label);
+    }),
+  ].join("\n");
+  const overlaySvg = Buffer.from(
+    `<svg width="${image.width}" height="${image.height}" xmlns="http://www.w3.org/2000/svg">${rects}</svg>`
+  );
+  await fs.mkdir(path.dirname(outPath), { recursive: true });
+  await sharp(imagePath).composite([{ input: overlaySvg, left: 0, top: 0 }]).png().toFile(outPath);
+  return path.relative(rootDir, outPath).replaceAll("\\", "/");
+}
+
+async function writeIpadRoiContactSheets(rows, outDir) {
+  const groups = rows.reduce((map, row) => {
+    map[row.clusterKey] ||= [];
+    map[row.clusterKey].push(row);
+    return map;
+  }, {});
+  const sheets = [];
+  await fs.mkdir(outDir, { recursive: true });
+
+  for (const [clusterKey, clusterRows] of Object.entries(groups)) {
+    const thumbWidth = 180;
+    const thumbHeight = 72;
+    const labelHeight = 28;
+    const columns = 4;
+    const gap = 10;
+    const rowsCount = Math.ceil(clusterRows.length / columns);
+    const width = columns * thumbWidth + (columns + 1) * gap;
+    const height = rowsCount * (thumbHeight + labelHeight) + (rowsCount + 1) * gap;
+    const composites = [];
+
+    for (let index = 0; index < clusterRows.length; index += 1) {
+      const row = clusterRows[index];
+      const left = gap + (index % columns) * (thumbWidth + gap);
+      const top = gap + Math.floor(index / columns) * (thumbHeight + labelHeight + gap);
+      const input = await sharp(row.cropPath)
+        .resize(thumbWidth, thumbHeight, { fit: "contain", background: "#111827" })
+        .png()
+        .toBuffer();
+      const label = Buffer.from(
+        `<svg width="${thumbWidth}" height="${labelHeight}" xmlns="http://www.w3.org/2000/svg">
+          <rect width="100%" height="100%" fill="#111827"/>
+          <text x="4" y="18" fill="#f9fafb" font-size="12" font-family="Arial">${row.label}</text>
+        </svg>`
+      );
+      composites.push({ input, left, top });
+      composites.push({ input: label, left, top: top + thumbHeight });
+    }
+
+    const outPath = path.join(outDir, `${safeArtifactName(clusterKey)}.png`);
+    await sharp({
+      create: {
+        width,
+        height,
+        channels: 3,
+        background: "#0b1020",
+      },
+    })
+      .composite(composites)
+      .png()
+      .toFile(outPath);
+    sheets.push(path.relative(rootDir, outPath).replaceAll("\\", "/"));
+  }
+
+  return sheets;
 }
 
 function buildIpadInitialOcrBaselineReport(summary) {
@@ -4937,8 +5320,9 @@ function buildIpadInitialOcrBaselineReport(summary) {
     `- image-level PASS: ${ratioText(summary.images.pass, summary.images.total)}`,
     `- stage-level PASS: ${ratioText(summary.stages.pass, summary.stages.total)}`,
     `- stage/side-level PASS: ${ratioText(summary.stageSides.pass, summary.stageSides.total)}`,
+    `- ROI template: \`ipad-shared-portrait-v2\``,
     "",
-    "This is a diagnostic-only baseline for the new iPad fixture lane. It uses estimated iPad stage/side crops, writes artifacts under `tmp/ipad-ocr-baseline/`, and does not change production OCR output.",
+    "This is a diagnostic-only baseline for the new iPad fixture lane. It uses isolated iPad field crops, writes artifacts under `tmp/ipad-ocr-baseline/`, and does not change production OCR output.",
     "",
     "## Field Accuracy",
     "",
@@ -4949,6 +5333,19 @@ function buildIpadInitialOcrBaselineReport(summary) {
   for (const [field, value] of Object.entries(summary.fields)) {
     lines.push(`| ${field} | ${value.pass} | ${value.total} | ${value.accuracy}% |`);
   }
+
+  lines.push(
+    "",
+    "## OCR Field Evidence Rates",
+    "",
+    `- fields checked: ${summary.ocrFieldCounts.fields}`,
+    `- non-empty OCR text: ${ratioText(summary.ocrFieldCounts.nonEmptyText, summary.ocrFieldCounts.fields)}`,
+    `- numeric candidate present: ${ratioText(summary.ocrFieldCounts.numericCandidate, summary.ocrFieldCounts.fields)}`,
+    `- exact member fields: ${summary.ocrFieldCounts.exactMembers}`,
+    `- exact bonus fields: ${summary.ocrFieldCounts.exactBonus}`,
+    `- exact total fields: ${summary.ocrFieldCounts.exactTotal}`,
+    ""
+  );
 
   lines.push(
     "",
@@ -4983,11 +5380,106 @@ function buildIpadInitialOcrBaselineReport(summary) {
 
   lines.push(
     "",
+    "## Per-Cluster Accuracy",
+    "",
+    "| cluster | image | stage | stage/side | member fields | bonus fields | total fields |",
+    "| --- | --- | --- | --- | --- | --- | --- |"
+  );
+  for (const [cluster, data] of Object.entries(summary.clusters || {})) {
+    lines.push(
+      `| ${cluster} | ${ratioText(data.images.pass, data.images.total)} | ${ratioText(data.stages.pass, data.stages.total)} | ${ratioText(data.stageSides.pass, data.stageSides.total)} | ${ratioText(data.fields.member.pass, data.fields.member.total)} | ${ratioText(data.fields.bonus.pass, data.fields.bonus.total)} | ${ratioText(data.fields.total.pass, data.fields.total.total)} |`
+    );
+  }
+
+  lines.push(
+    "",
     "## Initial Interpretation",
     "",
     "- The baseline establishes a repeatable PASS/FAIL harness for iPad fixtures, not a production OCR claim.",
-    "- The broad diagnostic crops are expected to fail frequently because iPad-specific ROI calibration and preprocessing are still unproven.",
-    "- The next useful iPad step is to inspect the generated crop artifacts and choose one geometry family for runner-only ROI calibration.",
+    "- The corrected field geometry makes Stage1 partially readable, but Stage2/Stage3 still need preprocessing work.",
+    "- The next useful iPad step is a runner-only preprocessing experiment over these isolated field crops.",
+    ""
+  );
+
+  return `${lines.join("\n")}\n`;
+}
+
+function buildIpadRoiGeometryInvestigationReport(summary) {
+  const lines = [
+    "# iPad ROI Geometry Investigation",
+    "",
+    "## Summary",
+    "",
+    "- investigation type: diagnostic-only iPad ROI geometry and crop quality",
+    "- production OCR behavior changed: no",
+    "- smartphone/current-PC/legacy desktop OCR behavior changed: no",
+    "- initial broad-crop baseline before this correction: 0 / 18 images, 0 / 54 stages, 0 / 108 stage/sides",
+    `- corrected ROI baseline images: ${ratioText(summary.images.pass, summary.images.total)}`,
+    `- corrected ROI baseline stages: ${ratioText(summary.stages.pass, summary.stages.total)}`,
+    `- corrected ROI baseline stage/sides: ${ratioText(summary.stageSides.pass, summary.stageSides.total)}`,
+    "",
+    "## Root Cause",
+    "",
+    "The original diagnostic iPad baseline used broad stage/side rows whose vertical starts were too low for the visible score table. Total and member text frequently sat above or at the edge of the crop, so the OCR pass mostly saw card art, buttons, or partial score text rather than isolated numeric fields.",
+    "",
+    "## Original Geometry",
+    "",
+    "- Stage rows were estimated at normalized tops `0.14`, `0.40`, and `0.66` with height `0.20`.",
+    "- Self/enemy columns were estimated as broad side crops: self `left=0.08 width=0.40`, enemy `left=0.52 width=0.40`.",
+    "- The first baseline did not split total, individual member slots, and bonus fields.",
+    "- OCR used Tesseract.js `eng` with the existing score preprocessing, mostly page segmentation modes 6/7.",
+    "",
+    "## Corrected Diagnostic Geometry",
+    "",
+    "- Template: `ipad-shared-portrait-v2`.",
+    "- Stage total tops: `0.112`, `0.351`, `0.593`.",
+    "- Stage member tops: `0.149`, `0.388`, `0.631`.",
+    "- Stage bonus tops: `0.166`, `0.405`, `0.648`.",
+    "- Self total/member/bonus fields are separated from enemy fields; each member slot now has a distinct field crop.",
+    "- The same normalized template is used for both portrait clusters because the 1668x2420 and 1640x2360 screenshots align by normalized score-table coordinates.",
+    "",
+    "## Visual Artifacts",
+    "",
+    `- overlays: \`${summary.roiInvestigationArtifacts.overlaysDir}\``,
+    `- contact sheets: \`${summary.roiInvestigationArtifacts.contactSheetsDir}\``,
+    ...summary.roiInvestigationArtifacts.contactSheets.map((sheet) => `- contact sheet: \`${sheet}\``),
+    "",
+    "## Crop Classification Counts",
+    "",
+    "Initial broad-crop visual classification: all 108 stage/side crops were vertically late for score-table extraction, and all 108 had no member/bonus/total field split. The corrected template below is field-level; these counts classify OCR evidence from the corrected field crops.",
+    "",
+    "| category | count |",
+    "| --- | ---: |",
+  ];
+
+  for (const [category, count] of Object.entries(summary.cropCategories || {}).sort()) {
+    lines.push(`| ${category} | ${count} |`);
+  }
+
+  lines.push(
+    "",
+    "## Per-Cluster Results",
+    "",
+    "| cluster | images | stages | stage/sides | member fields | bonus fields | total fields |",
+    "| --- | --- | --- | --- | --- | --- | --- |"
+  );
+  for (const [cluster, data] of Object.entries(summary.clusters || {})) {
+    lines.push(
+      `| ${cluster} | ${ratioText(data.images.pass, data.images.total)} | ${ratioText(data.stages.pass, data.stages.total)} | ${ratioText(data.stageSides.pass, data.stageSides.total)} | ${ratioText(data.fields.member.pass, data.fields.member.total)} | ${ratioText(data.fields.bonus.pass, data.fields.bonus.total)} | ${ratioText(data.fields.total.pass, data.fields.total.total)} |`
+    );
+  }
+
+  lines.push(
+    "",
+    "## Remaining Error Categories",
+    "",
+    "- Exact OCR is still weak even after fields are better isolated, especially on white member and total text over patterned backgrounds.",
+    "- Bonus accuracy is comparatively high because most non-winning sides have true zero bonus and blank bonus crops.",
+    "- The dominant next issue is OCR preprocessing/recognition quality for isolated white numeric fields, not arithmetic recovery.",
+    "",
+    "## Recommended Next Experiment",
+    "",
+    "Run a runner-only iPad preprocessing experiment on the isolated field crops. Start with total/member fields only, compare threshold/contrast/upscale variants by exact field accuracy, and keep all arithmetic/crown/solver recoveries disabled until iPad evidence parity exists.",
     ""
   );
 
