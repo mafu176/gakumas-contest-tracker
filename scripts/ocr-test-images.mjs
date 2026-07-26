@@ -209,6 +209,11 @@ const ipadCandidateSelectionInvestigationReportPath = path.join(
   "docs",
   "ipad-candidate-selection-investigation.md"
 );
+const ipadArithmeticSideSelectionInvestigationReportPath = path.join(
+  rootDir,
+  "docs",
+  "ipad-arithmetic-side-selection-investigation.md"
+);
 const ipadOcrBaselineDir = path.join(rootDir, "tmp", "ipad-ocr-baseline");
 const ipadPreprocessingInvestigationDir = path.join(
   rootDir,
@@ -219,6 +224,11 @@ const ipadCandidateSelectionInvestigationDir = path.join(
   rootDir,
   "tmp",
   "ipad-candidate-selection"
+);
+const ipadArithmeticSideSelectionInvestigationDir = path.join(
+  rootDir,
+  "tmp",
+  "ipad-arithmetic-side-selection"
 );
 let currentPcBaselineScanSummary = null;
 const unsupportedNextScreenMessage =
@@ -6501,15 +6511,14 @@ function buildIpadFieldCandidatePool({ row, field, profileResults, profiles, cro
     }
   }
 
-  const candidates = [...candidatesByValue.values()]
-    .sort((a, b) => {
+  const sortedCandidates = [...candidatesByValue.values()].sort((a, b) => {
       if (a.sourceRank !== b.sourceRank) return a.sourceRank - b.sourceRank;
       if (b.confidenceSignals.independentAgreement !== a.confidenceSignals.independentAgreement) {
         return b.confidenceSignals.independentAgreement - a.confidenceSignals.independentAgreement;
       }
       return a.value - b.value;
-    })
-    .slice(0, 6);
+    });
+  const candidates = sortedCandidates.slice(0, 6);
 
   return {
     key: ipadFieldKey({
@@ -6529,6 +6538,9 @@ function buildIpadFieldCandidatePool({ row, field, profileResults, profiles, cro
     zone: field.zone,
     cropQuality,
     candidates,
+    candidateCap: 6,
+    rawDistinctCandidateCount: sortedCandidates.length,
+    truncated: sortedCandidates.length > candidates.length,
     profileResults,
   };
 }
@@ -7204,6 +7216,704 @@ function buildIpadArithmeticCombinationAudit({ rows, poolsByKey }) {
     ...counters,
     details,
   };
+}
+
+function serializeIpadCandidate(candidate, origin = "observed") {
+  if (!candidate) {
+    return {
+      value: 0,
+      origin,
+      profileIds: [],
+      sourceRank: 999,
+      rawText: "",
+      normalizedText: "",
+      confidenceSignals: {},
+    };
+  }
+  return {
+    value: Number(candidate.value || 0),
+    origin,
+    profileIds: candidate.profileIds || [],
+    sourceRank: candidate.sourceRank,
+    rawText: candidate.rawText,
+    normalizedText: candidate.normalizedText,
+    confidenceSignals: candidate.confidenceSignals || {},
+    contributions: (candidate.contributions || []).map((contribution) => ({
+      profileId: contribution.profileId,
+      candidateIndex: contribution.candidateIndex,
+      rawCandidate: contribution.rawCandidate,
+      normalizedText: contribution.normalizedText,
+      ocrConfidence: contribution.ocrConfidence,
+      plusLike: contribution.plusLike,
+    })),
+  };
+}
+
+function getIpadSideCandidateSets({ poolsByKey, filename, stage, side, tier }) {
+  const fields = [
+    { field: "member", slot: 1, label: "member1" },
+    { field: "member", slot: 2, label: "member2" },
+    { field: "member", slot: 3, label: "member3" },
+    { field: "bonus", slot: 0, label: "bonus" },
+    { field: "total", slot: 0, label: "total" },
+  ];
+  const sets = {};
+  const fieldDiagnostics = {};
+  for (const field of fields) {
+    const key = ipadFieldKey({ filename, stage, side, field: field.field, slot: field.slot });
+    const pool = poolsByKey.get(key);
+    const observed = (pool?.candidates || []).map((candidate) =>
+      serializeIpadCandidate(candidate, candidate.value === 0 ? "explicit-zero" : "observed")
+    );
+    let candidates = observed;
+    if (tier === "tier-a") {
+      candidates = observed.filter((candidate) => candidate.value !== 0);
+    } else if (tier === "tier-b") {
+      candidates = observed;
+    } else if (tier === "tier-c") {
+      candidates = observed;
+      if (field.field === "bonus" && !observed.length) {
+        candidates = [
+          {
+            value: 0,
+            origin: "schema-default-bonus-zero",
+            profileIds: [],
+            sourceRank: 999,
+            rawText: "",
+            normalizedText: "0",
+            confidenceSignals: {},
+            contributions: [],
+          },
+        ];
+      }
+    }
+    sets[field.label] = candidates;
+    fieldDiagnostics[field.label] = {
+      key,
+      poolSize: pool?.candidates?.length || 0,
+      candidateCap: pool?.candidateCap || 6,
+      rawDistinctCandidateCount: pool?.rawDistinctCandidateCount || pool?.candidates?.length || 0,
+      truncated: Boolean(pool?.truncated),
+      observedValues: observed.map((candidate) => candidate.value),
+      values: candidates.map((candidate) => candidate.value),
+      origins: candidates.map((candidate) => candidate.origin),
+    };
+  }
+  return { sets, fieldDiagnostics };
+}
+
+function tupleKey(values) {
+  return values.join("|");
+}
+
+function summarizeIpadTuple(tuple) {
+  return {
+    members: tuple.values.slice(0, 3),
+    bonus: tuple.values[3],
+    total: tuple.values[4],
+    equation: `${tuple.values[0]} + ${tuple.values[1]} + ${tuple.values[2]} + ${tuple.values[3]} = ${tuple.values[4]}`,
+    origins: {
+      member1: tuple.components.member1.origin,
+      member2: tuple.components.member2.origin,
+      member3: tuple.components.member3.origin,
+      bonus: tuple.components.bonus.origin,
+      total: tuple.components.total.origin,
+    },
+    profileIds: {
+      member1: tuple.components.member1.profileIds,
+      member2: tuple.components.member2.profileIds,
+      member3: tuple.components.member3.profileIds,
+      bonus: tuple.components.bonus.profileIds,
+      total: tuple.components.total.profileIds,
+    },
+  };
+}
+
+function enumerateIpadArithmeticTuples({ sets, safetyCap = 10000 }) {
+  const labels = ["member1", "member2", "member3", "bonus", "total"];
+  const pools = labels.map((label) => sets[label] || []);
+  if (pools.some((pool) => pool.length === 0)) {
+    return { tuples: [], validTuples: [], exceededCap: false, duplicateTupleConflicts: [] };
+  }
+  const totalCombinations = pools.reduce((count, pool) => count * pool.length, 1);
+  if (totalCombinations > safetyCap) {
+    return { tuples: [], validTuples: [], exceededCap: true, totalCombinations, duplicateTupleConflicts: [] };
+  }
+  const allTuples = [];
+  const validByKey = new Map();
+  const duplicateTupleConflicts = [];
+  for (const member1 of pools[0]) {
+    for (const member2 of pools[1]) {
+      for (const member3 of pools[2]) {
+        for (const bonus of pools[3]) {
+          for (const total of pools[4]) {
+            const components = { member1, member2, member3, bonus, total };
+            const values = labels.map((label) => Number(components[label].value || 0));
+            const tuple = { values, components };
+            allTuples.push(tuple);
+            if (values[0] + values[1] + values[2] + values[3] !== values[4]) continue;
+            const key = tupleKey(values);
+            if (validByKey.has(key)) {
+              duplicateTupleConflicts.push({
+                values,
+                first: summarizeIpadTuple(validByKey.get(key)),
+                duplicate: summarizeIpadTuple(tuple),
+              });
+              continue;
+            }
+            validByKey.set(key, tuple);
+          }
+        }
+      }
+    }
+  }
+  return {
+    tuples: allTuples,
+    validTuples: [...validByKey.values()],
+    exceededCap: false,
+    totalCombinations,
+    duplicateTupleConflicts,
+  };
+}
+
+function getIpadCurrentPrimarySide({ selections, filename, stage, side }) {
+  return {
+    members: [1, 2, 3].map((slot) =>
+      Number(selections[ipadFieldKey({ filename, stage, side, field: "member", slot })]?.value || 0)
+    ),
+    bonus: Number(selections[ipadFieldKey({ filename, stage, side, field: "bonus" })]?.value || 0),
+    total: Number(selections[ipadFieldKey({ filename, stage, side, field: "total" })]?.value || 0),
+  };
+}
+
+function putIpadSideSelection({ selections, filename, stage, side, proposal }) {
+  const next = { ...selections };
+  for (const slot of [1, 2, 3]) {
+    next[ipadFieldKey({ filename, stage, side, field: "member", slot })] = {
+      value: proposal.members[slot - 1],
+      candidate: proposal.components[`member${slot}`],
+      exactArithmeticSideSelection: true,
+    };
+  }
+  next[ipadFieldKey({ filename, stage, side, field: "bonus" })] = {
+    value: proposal.bonus,
+    candidate: proposal.components.bonus,
+    exactArithmeticSideSelection: true,
+  };
+  next[ipadFieldKey({ filename, stage, side, field: "total" })] = {
+    value: proposal.total,
+    candidate: proposal.components.total,
+    exactArithmeticSideSelection: true,
+  };
+  return next;
+}
+
+function classifyIpadChangedProposal({ proposal, expectedStage, side, validTuples }) {
+  const expectedMembers = side === "self" ? expectedStage.selfMembers : expectedStage.enemyMembers;
+  const expectedBonus = side === "self" ? expectedStage.selfBonus : expectedStage.enemyBonus;
+  const expectedTotal = side === "self" ? expectedStage.selfTotal : expectedStage.enemyTotal;
+  const expectedValues = [...expectedMembers, expectedBonus, expectedTotal];
+  const proposedValues = [...proposal.members, proposal.bonus, proposal.total];
+  const correctFields = proposedValues.filter((value, index) => value === expectedValues[index]).length;
+  const expectedTuplePresent = validTuples.some((tuple) => tupleKey(tuple.values) === tupleKey(expectedValues));
+  const expectedTupleCount = validTuples.filter((tuple) => tupleKey(tuple.values) === tupleKey(expectedValues)).length;
+  if (correctFields === 5) return "all-five-fields-correct";
+  if (!expectedTuplePresent) return "expected-tuple-absent-from-pool";
+  if (expectedTupleCount !== 1 || validTuples.length !== 1) return "expected-tuple-present-but-not-unique";
+  if (correctFields > 0) return "partially-improves-or-regresses-fields";
+  return "arithmetic-valid-but-wrong-tuple";
+}
+
+function evaluateIpadArithmeticTier({ rows, poolsByKey, primarySelections, tier }) {
+  const stats = {
+    tier,
+    stageSides: rows.length * stages.length * sides.length,
+    eligible: 0,
+    exactlyOneProposals: 0,
+    identicalProposals: 0,
+    changedProposals: 0,
+    truePositives: 0,
+    falsePositives: 0,
+    unchangedFailures: 0,
+    newlyPassingStageSides: 0,
+    previouslyPassingStageSidesLost: 0,
+    netStageSideGain: 0,
+    fieldLevelGains: 0,
+    fieldLevelRegressions: 0,
+    blockReasons: {},
+    byCluster: {},
+  };
+  const proposals = [];
+  const blocked = [];
+  const tupleRecords = [];
+  const validTupleRecords = [];
+  const regressions = [];
+  let nextSelections = { ...primarySelections };
+  const incrementBlock = (reason) => {
+    stats.blockReasons[reason] = (stats.blockReasons[reason] || 0) + 1;
+  };
+
+  for (const row of rows) {
+    for (const stage of stages) {
+      for (const side of sides) {
+        const { sets, fieldDiagnostics } = getIpadSideCandidateSets({
+          poolsByKey,
+          filename: row.filename,
+          stage,
+          side,
+          tier,
+        });
+        const current = getIpadCurrentPrimarySide({
+          selections: primarySelections,
+          filename: row.filename,
+          stage,
+          side,
+        });
+        const expectedStage = row.expected[`stage${stage}`];
+        const currentComparison = compareIpadSide(current, expectedStage, side);
+        const requiredLabels = ["member1", "member2", "member3", "bonus", "total"];
+        const emptyLabels = requiredLabels.filter((label) => !sets[label]?.length);
+        const truncatedLabels = Object.entries(fieldDiagnostics)
+          .filter(([, diagnostics]) => diagnostics.truncated)
+          .map(([label]) => label);
+        let blockReason = "";
+        let enumeration = {
+          tuples: [],
+          validTuples: [],
+          exceededCap: false,
+          duplicateTupleConflicts: [],
+        };
+        if (emptyLabels.length) {
+          blockReason = `missing-candidate:${emptyLabels.join(",")}`;
+        } else if (truncatedLabels.length) {
+          blockReason = `truncated-pool:${truncatedLabels.join(",")}`;
+        } else {
+          enumeration = enumerateIpadArithmeticTuples({ sets });
+          if (enumeration.exceededCap) {
+            blockReason = "enumeration-safety-cap";
+          } else if (enumeration.duplicateTupleConflicts.length) {
+            blockReason = "duplicate-tuple-provenance-conflict";
+          } else if (enumeration.validTuples.length === 0) {
+            blockReason = "no-arithmetic-valid-tuple";
+          } else if (enumeration.validTuples.length > 1) {
+            blockReason = "multiple-arithmetic-valid-tuples";
+          }
+        }
+
+        const commonRecord = {
+          image: row.filename,
+          clusterId: row.clusterId || "unknown",
+          stage,
+          side,
+          tier,
+          current,
+          currentSatisfiesArithmetic:
+            current.members.reduce((sum, value) => sum + value, 0) + current.bonus === current.total,
+          expected: {
+            members: side === "self" ? expectedStage.selfMembers : expectedStage.enemyMembers,
+            bonus: side === "self" ? expectedStage.selfBonus : expectedStage.enemyBonus,
+            total: side === "self" ? expectedStage.selfTotal : expectedStage.enemyTotal,
+          },
+          fieldDiagnostics,
+          totalCombinationCount: enumeration.totalCombinations || 0,
+        };
+        tupleRecords.push({
+          ...commonRecord,
+          tupleCount: enumeration.tuples.length,
+          sampleTuples: enumeration.tuples.slice(0, 10).map(summarizeIpadTuple),
+        });
+        validTupleRecords.push({
+          ...commonRecord,
+          validTupleCount: enumeration.validTuples.length,
+          validTuples: enumeration.validTuples.map(summarizeIpadTuple),
+        });
+
+        if (blockReason) {
+          incrementBlock(blockReason);
+          stats.unchangedFailures += currentComparison.pass ? 0 : 1;
+          blocked.push({ ...commonRecord, blockReason });
+          continue;
+        }
+
+        stats.eligible += 1;
+        stats.exactlyOneProposals += 1;
+        const tuple = enumeration.validTuples[0];
+        const proposal = {
+          members: tuple.values.slice(0, 3),
+          bonus: tuple.values[3],
+          total: tuple.values[4],
+          components: tuple.components,
+          provenanceTier: tier,
+          equation: `${tuple.values[0]} + ${tuple.values[1]} + ${tuple.values[2]} + ${tuple.values[3]} = ${tuple.values[4]}`,
+        };
+        const proposalValues = [...proposal.members, proposal.bonus, proposal.total];
+        const currentValues = [...current.members, current.bonus, current.total];
+        const changedFields = ["member1", "member2", "member3", "bonus", "total"].filter(
+          (_, index) => proposalValues[index] !== currentValues[index]
+        );
+        const proposedSide = {
+          members: proposal.members,
+          bonus: proposal.bonus,
+          total: proposal.total,
+        };
+        const proposalComparison = compareIpadSide(proposedSide, expectedStage, side);
+        const expectedValues = [
+          ...(side === "self" ? expectedStage.selfMembers : expectedStage.enemyMembers),
+          side === "self" ? expectedStage.selfBonus : expectedStage.enemyBonus,
+          side === "self" ? expectedStage.selfTotal : expectedStage.enemyTotal,
+        ];
+        const beforeFieldCorrect = currentValues.map((value, index) => value === expectedValues[index]);
+        const afterFieldCorrect = proposalValues.map((value, index) => value === expectedValues[index]);
+        const fieldGains = afterFieldCorrect.filter((correct, index) => correct && !beforeFieldCorrect[index]).length;
+        const fieldLosses = beforeFieldCorrect.filter((correct, index) => correct && !afterFieldCorrect[index]).length;
+        const proposalRecord = {
+          ...commonRecord,
+          proposal: summarizeIpadTuple(tuple),
+          changedFields,
+          currentPass: currentComparison.pass,
+          proposalPass: proposalComparison.pass,
+          expectedEvaluation: proposalComparison,
+          classification: classifyIpadChangedProposal({
+            proposal,
+            expectedStage,
+            side,
+            validTuples: enumeration.validTuples,
+          }),
+          fieldGains,
+          fieldLosses,
+        };
+        proposals.push(proposalRecord);
+        stats.identicalProposals += changedFields.length === 0 ? 1 : 0;
+        stats.changedProposals += changedFields.length ? 1 : 0;
+        stats.truePositives += !currentComparison.pass && proposalComparison.pass ? 1 : 0;
+        stats.falsePositives += currentComparison.pass && !proposalComparison.pass ? 1 : 0;
+        stats.newlyPassingStageSides += !currentComparison.pass && proposalComparison.pass ? 1 : 0;
+        stats.previouslyPassingStageSidesLost += currentComparison.pass && !proposalComparison.pass ? 1 : 0;
+        stats.fieldLevelGains += fieldGains;
+        stats.fieldLevelRegressions += fieldLosses;
+        stats.byCluster[row.clusterId || "unknown"] ||= {
+          eligible: 0,
+          changedProposals: 0,
+          truePositives: 0,
+          falsePositives: 0,
+        };
+        stats.byCluster[row.clusterId || "unknown"].eligible += 1;
+        stats.byCluster[row.clusterId || "unknown"].changedProposals += changedFields.length ? 1 : 0;
+        stats.byCluster[row.clusterId || "unknown"].truePositives +=
+          !currentComparison.pass && proposalComparison.pass ? 1 : 0;
+        stats.byCluster[row.clusterId || "unknown"].falsePositives +=
+          currentComparison.pass && !proposalComparison.pass ? 1 : 0;
+        if (currentComparison.pass && !proposalComparison.pass) regressions.push(proposalRecord);
+        if (changedFields.length) {
+          nextSelections = putIpadSideSelection({
+            selections: nextSelections,
+            filename: row.filename,
+            stage,
+            side,
+            proposal,
+          });
+        }
+      }
+    }
+  }
+  stats.netStageSideGain = stats.newlyPassingStageSides - stats.previouslyPassingStageSidesLost;
+  const aggregate = buildIpadAggregateAccuracy({ rows, selections: nextSelections });
+  return {
+    tier,
+    stats,
+    aggregate,
+    proposals,
+    blocked,
+    tupleRecords,
+    validTupleRecords,
+    regressions,
+  };
+}
+
+function selectIpadArithmeticSideSelectionTier(resultsByTier) {
+  return Object.values(resultsByTier)
+    .map((result) => ({
+      tier: result.tier,
+      stats: result.stats,
+      aggregate: result.aggregate,
+    }))
+    .sort((a, b) => {
+      if (a.stats.falsePositives !== b.stats.falsePositives) return a.stats.falsePositives - b.stats.falsePositives;
+      if (a.stats.previouslyPassingStageSidesLost !== b.stats.previouslyPassingStageSidesLost) {
+        return a.stats.previouslyPassingStageSidesLost - b.stats.previouslyPassingStageSidesLost;
+      }
+      if (b.stats.netStageSideGain !== a.stats.netStageSideGain) return b.stats.netStageSideGain - a.stats.netStageSideGain;
+      const strictRank = { "tier-a": 0, "tier-b": 1, "tier-c": 2 };
+      return strictRank[a.tier] - strictRank[b.tier];
+    })[0];
+}
+
+async function runIpadArithmeticSideSelectionSimulation() {
+  const { rows, poolsByKey } = await collectIpadBoundedCandidatePools();
+  await fs.rm(ipadArithmeticSideSelectionInvestigationDir, { recursive: true, force: true });
+  await fs.mkdir(ipadArithmeticSideSelectionInvestigationDir, { recursive: true });
+  const strategies = getIpadCandidateSelectionStrategies();
+  const { selectionsByStrategy } = buildIpadStrategySelections({
+    rows,
+    poolsByKey,
+    strategies,
+    digitSchema: buildIpadDigitLengthSchema(rows),
+  });
+  const primarySelections = selectionsByStrategy["current-primary"].selections;
+  const primaryAggregate = buildIpadAggregateAccuracy({ rows, selections: primarySelections });
+  const tiers = ["tier-a", "tier-b", "tier-c"];
+  const resultsByTier = Object.fromEntries(
+    tiers.map((tier) => [
+      tier,
+      evaluateIpadArithmeticTier({
+        rows,
+        poolsByKey,
+        primarySelections,
+        tier,
+      }),
+    ])
+  );
+  const selectedTier = selectIpadArithmeticSideSelectionTier(resultsByTier);
+  const previousAudit = buildIpadArithmeticCombinationAudit({ rows, poolsByKey });
+  const summary = {
+    command: "node scripts/ocr-test-images.mjs --ipad-arithmetic-side-selection-simulation",
+    outputDir: path.relative(rootDir, ipadArithmeticSideSelectionInvestigationDir).replaceAll("\\", "/"),
+    isolation: {
+      roiGeometry: "ipad-shared-portrait-v2",
+      roiGeometryChanged: false,
+      preprocessingChanged: false,
+      productionOutputChanged: false,
+      appUiOutputChanged: false,
+      smartphoneBehaviorChanged: false,
+      currentPcBehaviorChanged: false,
+      legacyDesktopBehaviorChanged: false,
+      ipadProductionEnabled: false,
+      crownLogicAdded: false,
+      crossSideSolvingAdded: false,
+      stageWideSolvingAdded: false,
+    },
+    zeroSemantics: {
+      observed: "A numeric value parsed from OCR text in the bounded field crop.",
+      explicitZero:
+        "An observed OCR numeric candidate whose value is 0. It is kept separate from defaulted zeros in reporting.",
+      schemaDefaultBonusZero:
+        "A diagnostic-only bonus value of 0 inserted only for Tier C when the bounded bonus pool has no observed candidates.",
+      missingFallback:
+        "No candidate is created for missing member or total fields. Missing fallback is never selectable.",
+    },
+    tupleEnumeration: {
+      safetyCap: 10000,
+      candidateCapPerField: 6,
+      tupleFields: ["member1", "member2", "member3", "bonus", "total"],
+      equation: "member1 + member2 + member3 + bonus === total",
+      expectedValuesUsedDuringSelection: false,
+    },
+    tierDefinitions: {
+      "tier-a": "Observed non-zero OCR numeric candidates only. No default or zero fallback is permitted.",
+      "tier-b": "Observed OCR numeric candidates, including explicit observed zero candidates.",
+      "tier-c":
+        "Observed OCR numeric candidates plus schema-default bonus zero only when the bonus pool is empty. Members and total never use defaults.",
+    },
+    primaryAggregate,
+    previousArithmeticAudit: {
+      stageSides: previousAudit.stageSides,
+      atLeastOneArithmeticCombination: previousAudit.atLeastOneArithmeticCombination,
+      exactlyOneArithmeticCombination: previousAudit.exactlyOneArithmeticCombination,
+      multipleArithmeticCombinations: previousAudit.multipleArithmeticCombinations,
+      noArithmeticCombination: previousAudit.noArithmeticCombination,
+    },
+    selectedTier,
+    tierSummaries: Object.fromEntries(
+      Object.entries(resultsByTier).map(([tier, result]) => [
+        tier,
+        {
+          stats: result.stats,
+          aggregate: result.aggregate,
+          proposalClassifications: result.proposals.reduce((counts, proposal) => {
+            counts[proposal.classification] = (counts[proposal.classification] || 0) + 1;
+            return counts;
+          }, {}),
+        },
+      ])
+    ),
+    recommendation:
+      selectedTier.stats.falsePositives === 0 && selectedTier.stats.netStageSideGain >= 3
+        ? "Runner/browser-equivalent parity is justified next for the selected tier."
+        : "Do not productionize yet. Continue with runner-only arithmetic-aware iPad selection; parity is useful only after a zero-FP tier shows material gain.",
+  };
+
+  await fs.writeFile(
+    path.join(ipadArithmeticSideSelectionInvestigationDir, "summary.json"),
+    JSON.stringify(summary, null, 2)
+  );
+  await fs.writeFile(
+    path.join(ipadArithmeticSideSelectionInvestigationDir, "all-candidate-tuples.json"),
+    JSON.stringify(Object.fromEntries(Object.entries(resultsByTier).map(([tier, result]) => [tier, result.tupleRecords])), null, 2)
+  );
+  await fs.writeFile(
+    path.join(ipadArithmeticSideSelectionInvestigationDir, "valid-tuples.json"),
+    JSON.stringify(
+      Object.fromEntries(Object.entries(resultsByTier).map(([tier, result]) => [tier, result.validTupleRecords])),
+      null,
+      2
+    )
+  );
+  await fs.writeFile(
+    path.join(ipadArithmeticSideSelectionInvestigationDir, "would-apply-proposals.json"),
+    JSON.stringify(Object.fromEntries(Object.entries(resultsByTier).map(([tier, result]) => [tier, result.proposals])), null, 2)
+  );
+  await fs.writeFile(
+    path.join(ipadArithmeticSideSelectionInvestigationDir, "block-reasons.json"),
+    JSON.stringify(Object.fromEntries(Object.entries(resultsByTier).map(([tier, result]) => [tier, result.blocked])), null, 2)
+  );
+  await fs.writeFile(
+    path.join(ipadArithmeticSideSelectionInvestigationDir, "regressions.json"),
+    JSON.stringify(Object.fromEntries(Object.entries(resultsByTier).map(([tier, result]) => [tier, result.regressions])), null, 2)
+  );
+  await fs.writeFile(
+    ipadArithmeticSideSelectionInvestigationReportPath,
+    buildIpadArithmeticSideSelectionInvestigationReport(summary)
+  );
+  return summary;
+}
+
+function buildIpadArithmeticSideSelectionInvestigationReport(summary) {
+  const selected = summary.tierSummaries[summary.selectedTier.tier];
+  const lines = [
+    "# iPad Arithmetic Side Selection Investigation",
+    "",
+    "## Summary",
+    "",
+    `- command: \`${summary.command}\``,
+    `- output directory: \`${summary.outputDir}\``,
+    `- ROI geometry: \`${summary.isolation.roiGeometry}\``,
+    `- selected safest tier: \`${summary.selectedTier.tier}\``,
+    `- selected tier TP / FP: ${selected.stats.truePositives} / ${selected.stats.falsePositives}`,
+    `- selected tier changed proposals: ${selected.stats.changedProposals}`,
+    `- selected tier net stage/side gain: ${selected.stats.netStageSideGain}`,
+    `- before stage/side accuracy: ${ratioText(summary.primaryAggregate.stageSides.pass, summary.primaryAggregate.stageSides.total)}`,
+    `- after selected tier stage/side accuracy: ${ratioText(selected.aggregate.stageSides.pass, selected.aggregate.stageSides.total)}`,
+    "",
+    "This is runner-only and diagnostic-only. It does not enable production iPad OCR, change app/UI output, change ROI geometry, change preprocessing profiles, or touch smartphone/current-PC/legacy desktop behavior.",
+    "",
+    "## Candidate And Zero Semantics",
+    "",
+  ];
+  for (const [key, value] of Object.entries(summary.zeroSemantics)) {
+    lines.push(`- \`${key}\`: ${value}`);
+  }
+  lines.push(
+    "",
+    "Candidate pools are the existing bounded iPad pools capped at 6 numeric values per field. Values retain raw text, normalized text, profile IDs, source rank, confidence signals, and contribution provenance. Expected fixtures are used only after selection for scoring.",
+    "",
+    "## Tuple Enumeration",
+    "",
+    `- fields: ${summary.tupleEnumeration.tupleFields.join(", ")}`,
+    `- equation: \`${summary.tupleEnumeration.equation}\``,
+    `- candidate cap per field: ${summary.tupleEnumeration.candidateCapPerField}`,
+    `- enumeration safety cap: ${summary.tupleEnumeration.safetyCap}`,
+    "- side proposals are atomic: member1, member2, member3, bonus, and total are adopted together or not at all",
+    "- no numeric values are derived, repaired, padded, merged, truncated, or inferred",
+    "",
+    "## Tier Definitions",
+    ""
+  );
+  for (const [tier, description] of Object.entries(summary.tierDefinitions)) {
+    lines.push(`- \`${tier}\`: ${description}`);
+  }
+  lines.push(
+    "",
+    "## Previous 24-Combination Audit",
+    "",
+    `- stage/sides: ${summary.previousArithmeticAudit.stageSides}`,
+    `- at least one arithmetic-valid combination: ${summary.previousArithmeticAudit.atLeastOneArithmeticCombination}`,
+    `- exactly one arithmetic-valid combination: ${summary.previousArithmeticAudit.exactlyOneArithmeticCombination}`,
+    `- multiple arithmetic-valid combinations: ${summary.previousArithmeticAudit.multipleArithmeticCombinations}`,
+    `- no arithmetic-valid combination: ${summary.previousArithmeticAudit.noArithmeticCombination}`,
+    "",
+    "The earlier count used observed member and total candidates plus an unconditional diagnostic bonus-zero candidate. This report splits that zero handling across Tier A/B/C so default-zero rows are not treated as observed evidence.",
+    "",
+    "## Tier Results",
+    "",
+    "| tier | eligible | exactly-one proposals | identical | changed | TP | FP | lost pass | net stage/side gain | image pass | stage pass | stage/side pass |",
+    "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- | --- |"
+  );
+  for (const [tier, result] of Object.entries(summary.tierSummaries)) {
+    lines.push(
+      `| \`${tier}\` | ${result.stats.eligible} | ${result.stats.exactlyOneProposals} | ${result.stats.identicalProposals} | ${result.stats.changedProposals} | ${result.stats.truePositives} | ${result.stats.falsePositives} | ${result.stats.previouslyPassingStageSidesLost} | ${result.stats.netStageSideGain} | ${ratioText(result.aggregate.images.pass, result.aggregate.images.total)} | ${ratioText(result.aggregate.stages.pass, result.aggregate.stages.total)} | ${ratioText(result.aggregate.stageSides.pass, result.aggregate.stageSides.total)} |`
+    );
+  }
+  lines.push(
+    "",
+    "## Field-Level Impact",
+    "",
+    "| tier | field gains | field regressions | member accuracy | bonus accuracy | total accuracy |",
+    "| --- | ---: | ---: | --- | --- | --- |"
+  );
+  for (const [tier, result] of Object.entries(summary.tierSummaries)) {
+    lines.push(
+      `| \`${tier}\` | ${result.stats.fieldLevelGains} | ${result.stats.fieldLevelRegressions} | ${ratioText(result.aggregate.fields.member.pass, result.aggregate.fields.member.total)} | ${ratioText(result.aggregate.fields.bonus.pass, result.aggregate.fields.bonus.total)} | ${ratioText(result.aggregate.fields.total.pass, result.aggregate.fields.total.total)} |`
+    );
+  }
+  lines.push(
+    "",
+    "## Cluster Results",
+    "",
+    "| tier | cluster | eligible | changed | TP | FP |",
+    "| --- | --- | ---: | ---: | ---: | ---: |"
+  );
+  for (const [tier, result] of Object.entries(summary.tierSummaries)) {
+    for (const [cluster, stats] of Object.entries(result.stats.byCluster)) {
+      lines.push(
+        `| \`${tier}\` | ${cluster} | ${stats.eligible} | ${stats.changedProposals} | ${stats.truePositives} | ${stats.falsePositives} |`
+      );
+    }
+  }
+  lines.push(
+    "",
+    "## Block Reasons",
+    "",
+    "| tier | reason | count |",
+    "| --- | --- | ---: |"
+  );
+  for (const [tier, result] of Object.entries(summary.tierSummaries)) {
+    for (const [reason, count] of Object.entries(result.stats.blockReasons)) {
+      lines.push(`| \`${tier}\` | \`${reason}\` | ${count} |`);
+    }
+  }
+  lines.push(
+    "",
+    "## Proposal Correctness Categories",
+    "",
+    "| tier | category | count |",
+    "| --- | --- | ---: |"
+  );
+  for (const [tier, result] of Object.entries(summary.tierSummaries)) {
+    for (const [category, count] of Object.entries(result.proposalClassifications)) {
+      lines.push(`| \`${tier}\` | \`${category}\` | ${count} |`);
+    }
+  }
+  lines.push(
+    "",
+    "## Selected Safest Tier",
+    "",
+    `Selected tier: \`${summary.selectedTier.tier}\`. The selector prioritizes zero false positives, no lost passing stage/sides, largest true gain, then stricter evidence. A looser tier is not preferred merely because it applies more often.`,
+    "",
+    "## Browser Parity Prerequisites",
+    "",
+    "- expose the same bounded iPad candidate pools to the browser-equivalent path",
+    "- preserve candidate origin semantics for observed, explicit-zero, and schema-default bonus zero",
+    "- share tuple enumeration and block-reason logic instead of duplicating runner-only code",
+    "- prove runner/browser-equivalent parity before any production iPad OCR output path is enabled",
+    "",
+    "## Recommendation",
+    "",
+    summary.recommendation,
+    "",
+    "The next useful experiment is browser-equivalent evidence plumbing only if the selected tier has zero FP and meaningful net gain. Otherwise, continue improving iPad OCR evidence capture before attempting selector productionization.",
+    ""
+  );
+  return `${lines.join("\n")}\n`;
 }
 
 function selectIpadCandidateSelectionV1(resultsByStrategy) {
@@ -23776,6 +24486,9 @@ async function main() {
   const ipadOcrBaseline = args.includes("--ipad-ocr-baseline");
   const ipadPreprocessingSimulation = args.includes("--ipad-preprocessing-simulation");
   const ipadCandidateSelectionSimulation = args.includes("--ipad-candidate-selection-simulation");
+  const ipadArithmeticSideSelectionSimulation = args.includes(
+    "--ipad-arithmetic-side-selection-simulation"
+  );
   const sourceIndex = args.indexOf("--source");
   const sourceValue = sourceIndex >= 0 ? args[sourceIndex + 1] : "";
   const forcedSource = ["smartphone", "desktop", "current-pc"].includes(sourceValue)
@@ -23820,6 +24533,7 @@ async function main() {
       value !== "--ipad-ocr-baseline" &&
       value !== "--ipad-preprocessing-simulation" &&
       value !== "--ipad-candidate-selection-simulation" &&
+      value !== "--ipad-arithmetic-side-selection-simulation" &&
       value !== "--source" &&
       value !== "--audit-disable-known-correction" &&
       !(sourceIndex >= 0 && index === sourceIndex + 1) &&
@@ -23907,6 +24621,43 @@ async function main() {
             outputDir: summary.outputDir,
             report: path
               .relative(rootDir, ipadCandidateSelectionInvestigationReportPath)
+              .replaceAll("\\", "/"),
+          },
+        },
+        null,
+        2
+      )
+    );
+    return;
+  }
+  if (ipadArithmeticSideSelectionSimulation) {
+    const summary = await runIpadArithmeticSideSelectionSimulation();
+    await terminateAuditGeometryWorker();
+    console.log(
+      JSON.stringify(
+        {
+          ipadArithmeticSideSelectionSimulation: {
+            selectedTier: summary.selectedTier,
+            previousArithmeticAudit: summary.previousArithmeticAudit,
+            tierSummaries: Object.fromEntries(
+              Object.entries(summary.tierSummaries).map(([tier, result]) => [
+                tier,
+                {
+                  stats: result.stats,
+                  aggregate: {
+                    images: result.aggregate.images,
+                    stages: result.aggregate.stages,
+                    stageSides: result.aggregate.stageSides,
+                    fields: result.aggregate.fields,
+                  },
+                  proposalClassifications: result.proposalClassifications,
+                },
+              ])
+            ),
+            recommendation: summary.recommendation,
+            outputDir: summary.outputDir,
+            report: path
+              .relative(rootDir, ipadArithmeticSideSelectionInvestigationReportPath)
               .replaceAll("\\", "/"),
           },
         },
