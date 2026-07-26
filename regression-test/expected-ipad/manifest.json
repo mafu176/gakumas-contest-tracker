@@ -1,7 +1,7 @@
 {
   "schema": "ipad-expected-manifest-v1",
-  "status": "pending-manual-transcription",
-  "note": "Do not infer values from OCR output. Fill expected values only from source screenshot review.",
+  "status": "complete-manual-transcription-batch-1",
+  "note": "Expected values were manually transcribed from source screenshots and validated by arithmetic plus crown-bonus rule. Do not infer future values from OCR output.",
   "images": [
     {
       "filename": "IMG_0264.png",
@@ -9,8 +9,8 @@
       "width": 1668,
       "height": 2420,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "notes": "cluster-start representative",
+      "expectedStatus": "complete",
+      "notes": "cluster-start representative; manually transcribed from source screenshot; arithmetic and crown rule validated",
       "requiredFields": [
         {
           "stage": 1,
@@ -75,7 +75,11 @@
             "total": "total"
           }
         }
-      ]
+      ],
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0264.json"
     },
     {
       "filename": "IMG_0270.png",
@@ -83,8 +87,8 @@
       "width": 1668,
       "height": 2420,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "notes": "evenly spaced cluster representative",
+      "expectedStatus": "complete",
+      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated",
       "requiredFields": [
         {
           "stage": 1,
@@ -149,7 +153,11 @@
             "total": "total"
           }
         }
-      ]
+      ],
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0270.json"
     },
     {
       "filename": "IMG_0278.png",
@@ -157,8 +165,8 @@
       "width": 1668,
       "height": 2420,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "notes": "evenly spaced cluster representative",
+      "expectedStatus": "complete",
+      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated",
       "requiredFields": [
         {
           "stage": 1,
@@ -223,7 +231,11 @@
             "total": "total"
           }
         }
-      ]
+      ],
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0278.json"
     },
     {
       "filename": "IMG_0283.png",
@@ -231,8 +243,8 @@
       "width": 1668,
       "height": 2420,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "notes": "evenly spaced cluster representative",
+      "expectedStatus": "complete",
+      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated",
       "requiredFields": [
         {
           "stage": 1,
@@ -297,7 +309,11 @@
             "total": "total"
           }
         }
-      ]
+      ],
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0283.json"
     },
     {
       "filename": "IMG_0287.png",
@@ -305,8 +321,8 @@
       "width": 1668,
       "height": 2420,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "notes": "evenly spaced cluster representative",
+      "expectedStatus": "complete",
+      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated",
       "requiredFields": [
         {
           "stage": 1,
@@ -371,7 +387,11 @@
             "total": "total"
           }
         }
-      ]
+      ],
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0287.json"
     },
     {
       "filename": "IMG_0296.png",
@@ -379,8 +399,8 @@
       "width": 1668,
       "height": 2420,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "notes": "evenly spaced cluster representative",
+      "expectedStatus": "complete",
+      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated",
       "requiredFields": [
         {
           "stage": 1,
@@ -445,7 +465,11 @@
             "total": "total"
           }
         }
-      ]
+      ],
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0296.json"
     },
     {
       "filename": "IMG_0300.png",
@@ -453,8 +477,8 @@
       "width": 1668,
       "height": 2420,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "notes": "evenly spaced cluster representative",
+      "expectedStatus": "complete",
+      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated",
       "requiredFields": [
         {
           "stage": 1,
@@ -519,7 +543,11 @@
             "total": "total"
           }
         }
-      ]
+      ],
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0300.json"
     },
     {
       "filename": "IMG_0306.png",
@@ -527,8 +555,8 @@
       "width": 1668,
       "height": 2420,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "notes": "evenly spaced cluster representative",
+      "expectedStatus": "complete",
+      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated",
       "requiredFields": [
         {
           "stage": 1,
@@ -593,7 +621,11 @@
             "total": "total"
           }
         }
-      ]
+      ],
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0306.json"
     },
     {
       "filename": "IMG_0317.png",
@@ -601,8 +633,8 @@
       "width": 1668,
       "height": 2420,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "notes": "evenly spaced cluster representative",
+      "expectedStatus": "complete",
+      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated",
       "requiredFields": [
         {
           "stage": 1,
@@ -667,7 +699,11 @@
             "total": "total"
           }
         }
-      ]
+      ],
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0317.json"
     },
     {
       "filename": "IMG_0322.png",
@@ -675,8 +711,8 @@
       "width": 1668,
       "height": 2420,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "notes": "evenly spaced cluster representative",
+      "expectedStatus": "complete",
+      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated",
       "requiredFields": [
         {
           "stage": 1,
@@ -741,7 +777,11 @@
             "total": "total"
           }
         }
-      ]
+      ],
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0322.json"
     },
     {
       "filename": "IMG_0326.png",
@@ -749,8 +789,8 @@
       "width": 1668,
       "height": 2420,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "notes": "evenly spaced cluster representative",
+      "expectedStatus": "complete",
+      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated",
       "requiredFields": [
         {
           "stage": 1,
@@ -815,7 +855,11 @@
             "total": "total"
           }
         }
-      ]
+      ],
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0326.json"
     },
     {
       "filename": "IMG_0332.png",
@@ -823,8 +867,8 @@
       "width": 1668,
       "height": 2420,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "notes": "evenly spaced cluster representative",
+      "expectedStatus": "complete",
+      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated",
       "requiredFields": [
         {
           "stage": 1,
@@ -889,7 +933,11 @@
             "total": "total"
           }
         }
-      ]
+      ],
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0332.json"
     },
     {
       "filename": "IMG_0337.png",
@@ -897,8 +945,8 @@
       "width": 1668,
       "height": 2420,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "notes": "cluster-end representative",
+      "expectedStatus": "complete",
+      "notes": "cluster-end representative; manually transcribed from source screenshot; arithmetic and crown rule validated",
       "requiredFields": [
         {
           "stage": 1,
@@ -963,7 +1011,11 @@
             "total": "total"
           }
         }
-      ]
+      ],
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0337.json"
     },
     {
       "filename": "IMG_0491.png",
@@ -971,8 +1023,8 @@
       "width": 1640,
       "height": 2360,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "notes": "cluster-start representative",
+      "expectedStatus": "complete",
+      "notes": "cluster-start representative; manually transcribed from source screenshot; arithmetic and crown rule validated",
       "requiredFields": [
         {
           "stage": 1,
@@ -1037,7 +1089,11 @@
             "total": "total"
           }
         }
-      ]
+      ],
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0491.json"
     },
     {
       "filename": "IMG_0497.png",
@@ -1045,8 +1101,8 @@
       "width": 1640,
       "height": 2360,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "notes": "evenly spaced cluster representative",
+      "expectedStatus": "complete",
+      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated",
       "requiredFields": [
         {
           "stage": 1,
@@ -1111,7 +1167,11 @@
             "total": "total"
           }
         }
-      ]
+      ],
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0497.json"
     },
     {
       "filename": "IMG_0792.png",
@@ -1119,8 +1179,8 @@
       "width": 1640,
       "height": 2360,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "notes": "evenly spaced cluster representative",
+      "expectedStatus": "complete",
+      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated",
       "requiredFields": [
         {
           "stage": 1,
@@ -1185,7 +1245,11 @@
             "total": "total"
           }
         }
-      ]
+      ],
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0792.json"
     },
     {
       "filename": "IMG_0796.png",
@@ -1193,8 +1257,8 @@
       "width": 1640,
       "height": 2360,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "notes": "evenly spaced cluster representative",
+      "expectedStatus": "complete",
+      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated",
       "requiredFields": [
         {
           "stage": 1,
@@ -1259,7 +1323,11 @@
             "total": "total"
           }
         }
-      ]
+      ],
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0796.json"
     },
     {
       "filename": "IMG_0802.png",
@@ -1267,8 +1335,8 @@
       "width": 1640,
       "height": 2360,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "notes": "cluster-end representative",
+      "expectedStatus": "complete",
+      "notes": "cluster-end representative; manually transcribed from source screenshot; arithmetic and crown rule validated",
       "requiredFields": [
         {
           "stage": 1,
@@ -1333,7 +1401,11 @@
             "total": "total"
           }
         }
-      ]
+      ],
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0802.json"
     }
   ]
 }

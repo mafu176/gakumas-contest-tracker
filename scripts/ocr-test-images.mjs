@@ -183,6 +183,17 @@ const ipadDatasetInventoryReportPath = path.join(
   "docs",
   "ipad-dataset-inventory.md"
 );
+const ipadExpectedTranscriptionReportPath = path.join(
+  rootDir,
+  "docs",
+  "ipad-expected-fixture-transcription.md"
+);
+const ipadInitialOcrBaselineReportPath = path.join(
+  rootDir,
+  "docs",
+  "ipad-initial-ocr-baseline.md"
+);
+const ipadOcrBaselineDir = path.join(rootDir, "tmp", "ipad-ocr-baseline");
 let currentPcBaselineScanSummary = null;
 const unsupportedNextScreenMessage =
   "Next screen is unsupported for OCR. Use normal result or high-score screen.";
@@ -4449,6 +4460,538 @@ async function writeIpadDatasetInventory(directoryArg) {
   await fs.writeFile(ipadDatasetInventoryReportPath, buildIpadDatasetInventoryReport(inventory));
 
   return inventory;
+}
+
+async function readJsonFile(filePath) {
+  return JSON.parse(await fs.readFile(filePath, "utf8"));
+}
+
+function normalizeIpadExpectedFixture(expected) {
+  return normalizeExpected(expected);
+}
+
+async function readIpadExpectedManifest() {
+  return readJsonFile(path.join(ipadExpectedDir, "manifest.json"));
+}
+
+async function collectIpadExpectedFixtures() {
+  const manifest = await readIpadExpectedManifest();
+  const rows = [];
+  const incomplete = [];
+
+  for (const image of manifest.images || []) {
+    const status = image.expectedStatus || "";
+    if (status !== "complete") {
+      incomplete.push(image);
+      continue;
+    }
+    const fixtureName = image.expectedFixture || `${path.parse(image.filename).name}.json`;
+    const imagePath = path.join(ipadFixtureDir, image.filename);
+    const expectedPath = path.join(ipadExpectedDir, fixtureName);
+    const expected = normalizeIpadExpectedFixture(await readJsonFile(expectedPath));
+    rows.push({
+      ...image,
+      imagePath,
+      expectedPath,
+      fixtureName,
+      expected,
+    });
+  }
+
+  return { manifest, rows, incomplete };
+}
+
+function validateIpadStageExpected({ image, stage, expectedStage }) {
+  const failures = [];
+  const stageLabel = `${image.filename} stage${stage}`;
+  const selfMembers = expectedStage.selfMembers || [];
+  const enemyMembers = expectedStage.enemyMembers || [];
+  const selfBonus = Number(expectedStage.selfBonus || 0);
+  const enemyBonus = Number(expectedStage.enemyBonus || 0);
+  const selfTotal = Number(expectedStage.selfTotal || 0);
+  const enemyTotal = Number(expectedStage.enemyTotal || 0);
+
+  for (const [side, members] of [
+    ["self", selfMembers],
+    ["enemy", enemyMembers],
+  ]) {
+    if (!Array.isArray(members) || members.length !== 3) {
+      failures.push(`${stageLabel} ${side}: members must contain exactly 3 values`);
+    }
+    for (const [index, member] of (members || []).entries()) {
+      if (!Number.isInteger(member) || member < 0) {
+        failures.push(`${stageLabel} ${side} member${index + 1}: invalid value ${member}`);
+      }
+    }
+  }
+
+  for (const [label, value] of [
+    ["selfBonus", selfBonus],
+    ["enemyBonus", enemyBonus],
+    ["selfTotal", selfTotal],
+    ["enemyTotal", enemyTotal],
+  ]) {
+    if (!Number.isInteger(value) || value < 0) {
+      failures.push(`${stageLabel} ${label}: invalid value ${value}`);
+    }
+  }
+
+  const selfCalculated = selfMembers.reduce((sum, value) => sum + value, 0) + selfBonus;
+  const enemyCalculated = enemyMembers.reduce((sum, value) => sum + value, 0) + enemyBonus;
+  if (selfCalculated !== selfTotal) {
+    failures.push(
+      `${stageLabel} self arithmetic: ${formatNumber(selfCalculated)} != ${formatNumber(selfTotal)}`
+    );
+  }
+  if (enemyCalculated !== enemyTotal) {
+    failures.push(
+      `${stageLabel} enemy arithmetic: ${formatNumber(enemyCalculated)} != ${formatNumber(enemyTotal)}`
+    );
+  }
+
+  const allMembers = [
+    ...selfMembers.map((value, index) => ({ side: "self", slot: index + 1, value })),
+    ...enemyMembers.map((value, index) => ({ side: "enemy", slot: index + 1, value })),
+  ];
+  const maxValue = Math.max(...allMembers.map((member) => member.value));
+  const winners = allMembers.filter((member) => member.value === maxValue);
+  const expectedBonus = Math.floor(maxValue * 0.2);
+
+  if (winners.length !== 1) {
+    failures.push(`${stageLabel}: expected a unique global rank-1 member, found ${winners.length}`);
+  } else {
+    const winner = winners[0];
+    const winnerBonus = winner.side === "self" ? selfBonus : enemyBonus;
+    const loserBonus = winner.side === "self" ? enemyBonus : selfBonus;
+    if (winnerBonus !== expectedBonus) {
+      failures.push(
+        `${stageLabel}: ${winner.side} bonus ${formatNumber(winnerBonus)} != floor(${formatNumber(maxValue)} * 0.20) ${formatNumber(expectedBonus)}`
+      );
+    }
+    if (loserBonus !== 0) {
+      failures.push(`${stageLabel}: non-winning side bonus must be 0, got ${formatNumber(loserBonus)}`);
+    }
+  }
+
+  return {
+    failures,
+    selfCalculated,
+    enemyCalculated,
+    maxValue,
+    winners,
+    expectedBonus,
+  };
+}
+
+async function validateIpadExpectedFixtures() {
+  const { manifest, rows, incomplete } = await collectIpadExpectedFixtures();
+  const failures = [];
+  const stageSummaries = [];
+
+  for (const row of rows) {
+    try {
+      await fs.access(row.imagePath);
+    } catch {
+      failures.push(`${row.filename}: source image missing at ${row.imagePath}`);
+    }
+    try {
+      const metadata = await sharp(row.imagePath).metadata();
+      if (Number(row.width || 0) !== Number(metadata.width || 0)) {
+        failures.push(`${row.filename}: manifest width ${row.width} != image width ${metadata.width}`);
+      }
+      if (Number(row.height || 0) !== Number(metadata.height || 0)) {
+        failures.push(`${row.filename}: manifest height ${row.height} != image height ${metadata.height}`);
+      }
+    } catch (error) {
+      failures.push(`${row.filename}: could not read source image metadata: ${error.message}`);
+    }
+
+    for (const stage of stages) {
+      const stageKey = `stage${stage}`;
+      const summary = validateIpadStageExpected({
+        image: row,
+        stage,
+        expectedStage: row.expected[stageKey],
+      });
+      failures.push(...summary.failures);
+      stageSummaries.push({
+        image: row.filename,
+        stage,
+        globalMax: summary.maxValue,
+        winningSide: summary.winners.length === 1 ? summary.winners[0].side : "ambiguous",
+        derivedBonus: summary.expectedBonus,
+        selfTotal: row.expected[stageKey].selfTotal,
+        enemyTotal: row.expected[stageKey].enemyTotal,
+      });
+    }
+  }
+
+  const summary = {
+    command: "node scripts/ocr-test-images.mjs --validate-ipad-expected",
+    manifestStatus: manifest.status || "",
+    totalManifestImages: (manifest.images || []).length,
+    completeFixtures: rows.length,
+    incompleteFixtures: incomplete.length,
+    stagesChecked: rows.length * stages.length,
+    stageSidesChecked: rows.length * stages.length * sides.length,
+    arithmeticPass: failures.length === 0,
+    crownRulePass: failures.length === 0,
+    failures,
+    stageSummaries,
+  };
+
+  await fs.writeFile(ipadExpectedTranscriptionReportPath, buildIpadExpectedValidationReport(summary));
+  return summary;
+}
+
+function buildIpadExpectedValidationReport(summary) {
+  const lines = [
+    "# iPad Expected Fixture Transcription",
+    "",
+    "## Summary",
+    "",
+    `- manifest status: \`${summary.manifestStatus}\``,
+    `- manifest images: ${summary.totalManifestImages}`,
+    `- complete expected fixtures: ${summary.completeFixtures}`,
+    `- incomplete expected fixtures: ${summary.incompleteFixtures}`,
+    `- stages checked: ${summary.stagesChecked}`,
+    `- stage/side rows checked: ${summary.stageSidesChecked}`,
+    `- arithmetic validation: ${summary.arithmeticPass ? "PASS" : "FAIL"}`,
+    `- crown-bonus floor-rule validation: ${summary.crownRulePass ? "PASS" : "FAIL"}`,
+    "",
+    "The fixture values in this first iPad batch were manually transcribed from the source screenshots. OCR output was not used as source truth.",
+    "",
+    "Blank displayed member slots are represented as `0`, matching the existing expected-fixture convention used by other OCR fixture families.",
+    "",
+    "## Validation Failures",
+    "",
+    summary.failures.length
+      ? summary.failures.map((failure) => `- ${failure}`).join("\n")
+      : "- None.",
+    "",
+    "## Stage Crown-Bonus Checks",
+    "",
+    "| image | stage | global max | winning side | derived bonus | self total | enemy total |",
+    "| --- | ---: | ---: | --- | ---: | ---: | ---: |",
+  ];
+
+  for (const row of summary.stageSummaries) {
+    lines.push(
+      `| \`${row.image}\` | ${row.stage} | ${formatNumber(row.globalMax)} | ${row.winningSide} | ${formatNumber(row.derivedBonus)} | ${formatNumber(row.selfTotal)} | ${formatNumber(row.enemyTotal)} |`
+    );
+  }
+
+  return `${lines.join("\n")}\n`;
+}
+
+function parseIpadOcrNumbers(text = "") {
+  const candidates = [];
+  const regex = /[+＋-]?\s*(?:\d{1,3}(?:[,.\s]\d{3})+|\d{1,8})/g;
+  for (const match of text.matchAll(regex)) {
+    const raw = match[0] || "";
+    const normalized = raw.replace(/[^\d]/g, "");
+    if (!normalized) continue;
+    const value = Number(normalized);
+    if (!Number.isInteger(value) || value < 0 || value > 9999999) continue;
+    candidates.push({
+      raw: raw.trim(),
+      value,
+      index: match.index || 0,
+      plusLike: /^[+＋]/.test(raw.trim()),
+    });
+  }
+  return candidates;
+}
+
+function buildIpadBaselineLayout(image) {
+  const diagnostic = buildIpadDiagnosticLayout(image);
+  return diagnostic.stageSideZones;
+}
+
+async function recognizeIpadBaselineSide(imagePath, image, stage, side, zone, outDir) {
+  const artifact = await saveIpadDiagnosticCrop(
+    imagePath,
+    image,
+    outDir,
+    `stage${stage}-${side}`,
+    zone
+  );
+  const ocr = await recognizeIpadDiagnosticZone(imagePath, zone);
+  const mergedText = ocr.map((entry) => entry.rawText || "").join("\n");
+  const parsed = parseIpadOcrNumbers(mergedText);
+  const plusCandidate = parsed.find((candidate) => candidate.plusLike);
+  const bonus = plusCandidate?.value || 0;
+  const values = parsed.map((candidate) => candidate.value);
+  const total = values[0] || 0;
+  const members = values
+    .filter((value, index) => index !== 0 && value !== bonus)
+    .slice(0, 3);
+  while (members.length < 3) members.push(0);
+
+  return {
+    stage,
+    side,
+    zone,
+    artifact,
+    ocr,
+    rawText: mergedText,
+    parsedCandidates: parsed,
+    selected: {
+      members,
+      bonus,
+      total,
+    },
+  };
+}
+
+function compareIpadSide(selected, expectedStage, side) {
+  const expectedMembers = side === "self" ? expectedStage.selfMembers : expectedStage.enemyMembers;
+  const expectedBonus = side === "self" ? expectedStage.selfBonus : expectedStage.enemyBonus;
+  const expectedTotal = side === "self" ? expectedStage.selfTotal : expectedStage.enemyTotal;
+  const memberMatches = expectedMembers.map((expected, index) => ({
+    slot: index + 1,
+    expected,
+    actual: selected.members[index] || 0,
+    pass: (selected.members[index] || 0) === expected,
+  }));
+  return {
+    pass:
+      memberMatches.every((match) => match.pass) &&
+      selected.bonus === expectedBonus &&
+      selected.total === expectedTotal,
+    membersPass: memberMatches.every((match) => match.pass),
+    memberMatches,
+    bonusPass: selected.bonus === expectedBonus,
+    totalPass: selected.total === expectedTotal,
+    expected: {
+      members: expectedMembers,
+      bonus: expectedBonus,
+      total: expectedTotal,
+    },
+    actual: selected,
+  };
+}
+
+function updateIpadBaselineCounters(counters, stage, side, comparison) {
+  counters.stageSideRows += 1;
+  counters.stageSidePass += comparison.pass ? 1 : 0;
+  const positionKey = `stage${stage}_${side}`;
+  counters.positions[positionKey] ||= { pass: 0, fail: 0 };
+  counters.positions[positionKey][comparison.pass ? "pass" : "fail"] += 1;
+
+  for (const match of comparison.memberMatches) {
+    const key = `member${match.slot}`;
+    counters.fields[key].total += 1;
+    counters.fields[key].pass += match.pass ? 1 : 0;
+  }
+  counters.fields.all3Members.total += 1;
+  counters.fields.all3Members.pass += comparison.membersPass ? 1 : 0;
+  counters.fields.bonus.total += 1;
+  counters.fields.bonus.pass += comparison.bonusPass ? 1 : 0;
+  counters.fields.total.total += 1;
+  counters.fields.total.pass += comparison.totalPass ? 1 : 0;
+}
+
+function percentage(pass, total) {
+  return total ? Number(((pass / total) * 100).toFixed(1)) : 0;
+}
+
+async function runIpadOcrBaseline() {
+  const { rows, incomplete } = await collectIpadExpectedFixtures();
+  await fs.rm(ipadOcrBaselineDir, { recursive: true, force: true });
+  await fs.mkdir(ipadOcrBaselineDir, { recursive: true });
+
+  const counters = {
+    images: rows.length,
+    imagePass: 0,
+    stages: rows.length * stages.length,
+    stagePass: 0,
+    stageSideRows: 0,
+    stageSidePass: 0,
+    positions: {},
+    fields: {
+      member1: { pass: 0, total: 0 },
+      member2: { pass: 0, total: 0 },
+      member3: { pass: 0, total: 0 },
+      all3Members: { pass: 0, total: 0 },
+      bonus: { pass: 0, total: 0 },
+      total: { pass: 0, total: 0 },
+    },
+  };
+  const imageResults = [];
+
+  for (const row of rows) {
+    const image = await readImageSize(row.imagePath);
+    const detection = detectIpadOcrLayout(image);
+    const outDir = path.join(ipadOcrBaselineDir, safeArtifactName(row.filename));
+    await fs.mkdir(outDir, { recursive: true });
+    const zones = buildIpadBaselineLayout(image);
+    const stageResults = {};
+    let imagePass = true;
+
+    for (const stage of stages) {
+      const stageKey = `stage${stage}`;
+      stageResults[stageKey] = {};
+      let stagePass = true;
+      for (const side of sides) {
+        const zone = zones.find((candidate) => candidate.stage === stage && candidate.side === side);
+        const recognized = await recognizeIpadBaselineSide(
+          row.imagePath,
+          image,
+          stage,
+          side,
+          zone.zone,
+          outDir
+        );
+        const comparison = compareIpadSide(recognized.selected, row.expected[stageKey], side);
+        updateIpadBaselineCounters(counters, stage, side, comparison);
+        stageResults[stageKey][side] = {
+          ...recognized,
+          comparison,
+        };
+        if (!comparison.pass) stagePass = false;
+      }
+      stageResults[stageKey].pass = stagePass;
+      if (stagePass) counters.stagePass += 1;
+      if (!stagePass) imagePass = false;
+    }
+
+    if (imagePass) counters.imagePass += 1;
+    const imageResult = {
+      image: row.filename,
+      expectedFixture: row.fixtureName,
+      metadata: image,
+      detectedOcrMode: detection.detected ? "ipad" : "unsupported-or-not-ipad",
+      pass: imagePass,
+      stages: stageResults,
+    };
+    const resultPath = path.join(outDir, "baseline.json");
+    await fs.writeFile(resultPath, JSON.stringify(imageResult, null, 2));
+    imageResults.push({
+      ...imageResult,
+      artifact: path.relative(rootDir, resultPath).replaceAll("\\", "/"),
+    });
+  }
+
+  const summary = {
+    command: "node scripts/ocr-test-images.mjs --ipad-ocr-baseline",
+    outputDir: path.relative(rootDir, ipadOcrBaselineDir).replaceAll("\\", "/"),
+    completeFixtures: rows.length,
+    incompleteFixtures: incomplete.length,
+    images: {
+      pass: counters.imagePass,
+      fail: counters.images - counters.imagePass,
+      total: counters.images,
+      accuracy: percentage(counters.imagePass, counters.images),
+    },
+    stages: {
+      pass: counters.stagePass,
+      fail: counters.stages - counters.stagePass,
+      total: counters.stages,
+      accuracy: percentage(counters.stagePass, counters.stages),
+    },
+    stageSides: {
+      pass: counters.stageSidePass,
+      fail: counters.stageSideRows - counters.stageSidePass,
+      total: counters.stageSideRows,
+      accuracy: percentage(counters.stageSidePass, counters.stageSideRows),
+    },
+    positions: counters.positions,
+    fields: Object.fromEntries(
+      Object.entries(counters.fields).map(([key, value]) => [
+        key,
+        { ...value, accuracy: percentage(value.pass, value.total) },
+      ])
+    ),
+    imagesDetail: imageResults.map((image) => ({
+      image: image.image,
+      pass: image.pass,
+      artifact: image.artifact,
+      failingRows: stages.flatMap((stage) =>
+        sides
+          .filter((side) => !image.stages[`stage${stage}`][side].comparison.pass)
+          .map((side) => ({ stage, side }))
+      ),
+    })),
+    note:
+      "Diagnostic-only first iPad baseline. It uses broad fixed iPad crops and does not alter production OCR output or reuse smartphone recoveries.",
+  };
+
+  await fs.writeFile(path.join(ipadOcrBaselineDir, "summary.json"), JSON.stringify(summary, null, 2));
+  await fs.writeFile(ipadInitialOcrBaselineReportPath, buildIpadInitialOcrBaselineReport(summary));
+  return summary;
+}
+
+function ratioText(pass, total) {
+  return `${pass} / ${total} (${percentage(pass, total)}%)`;
+}
+
+function buildIpadInitialOcrBaselineReport(summary) {
+  const lines = [
+    "# iPad Initial OCR Baseline",
+    "",
+    "## Summary",
+    "",
+    `- complete expected fixtures: ${summary.completeFixtures}`,
+    `- incomplete fixtures excluded: ${summary.incompleteFixtures}`,
+    `- image-level PASS: ${ratioText(summary.images.pass, summary.images.total)}`,
+    `- stage-level PASS: ${ratioText(summary.stages.pass, summary.stages.total)}`,
+    `- stage/side-level PASS: ${ratioText(summary.stageSides.pass, summary.stageSides.total)}`,
+    "",
+    "This is a diagnostic-only baseline for the new iPad fixture lane. It uses estimated iPad stage/side crops, writes artifacts under `tmp/ipad-ocr-baseline/`, and does not change production OCR output.",
+    "",
+    "## Field Accuracy",
+    "",
+    "| field | pass | total | accuracy |",
+    "| --- | ---: | ---: | ---: |",
+  ];
+
+  for (const [field, value] of Object.entries(summary.fields)) {
+    lines.push(`| ${field} | ${value.pass} | ${value.total} | ${value.accuracy}% |`);
+  }
+
+  lines.push(
+    "",
+    "## Stage/Side Position Accuracy",
+    "",
+    "| position | pass | fail |",
+    "| --- | ---: | ---: |"
+  );
+  for (const stage of stages) {
+    for (const side of sides) {
+      const key = `stage${stage}_${side}`;
+      const value = summary.positions[key] || { pass: 0, fail: 0 };
+      lines.push(`| S${stage} ${side} | ${value.pass} | ${value.fail} |`);
+    }
+  }
+
+  lines.push(
+    "",
+    "## Per-Image Result",
+    "",
+    "| image | result | failing stage/sides | artifact |",
+    "| --- | --- | --- | --- |"
+  );
+  for (const image of summary.imagesDetail) {
+    const failing = image.failingRows.length
+      ? image.failingRows.map((row) => `S${row.stage} ${row.side}`).join(", ")
+      : "-";
+    lines.push(
+      `| \`${image.image}\` | ${image.pass ? "PASS" : "FAIL"} | ${failing} | \`${image.artifact}\` |`
+    );
+  }
+
+  lines.push(
+    "",
+    "## Initial Interpretation",
+    "",
+    "- The baseline establishes a repeatable PASS/FAIL harness for iPad fixtures, not a production OCR claim.",
+    "- The broad diagnostic crops are expected to fail frequently because iPad-specific ROI calibration and preprocessing are still unproven.",
+    "- The next useful iPad step is to inspect the generated crop artifacts and choose one geometry family for runner-only ROI calibration.",
+    ""
+  );
+
+  return `${lines.join("\n")}\n`;
 }
 
 function buildIpadDatasetInventoryReport(inventory) {
@@ -20711,6 +21254,8 @@ async function main() {
   );
   const ipadOcrDiagnostics = args.includes("--ipad-ocr-diagnostics");
   const ipadOcrDiagnosticsDirMode = args.includes("--ipad-ocr-diagnostics-dir");
+  const validateIpadExpected = args.includes("--validate-ipad-expected");
+  const ipadOcrBaseline = args.includes("--ipad-ocr-baseline");
   const sourceIndex = args.indexOf("--source");
   const sourceValue = sourceIndex >= 0 ? args[sourceIndex + 1] : "";
   const forcedSource = ["smartphone", "desktop", "current-pc"].includes(sourceValue)
@@ -20751,6 +21296,8 @@ async function main() {
       value !== "--smartphone-exact-slot-selection-sim" &&
       value !== "--ipad-ocr-diagnostics" &&
       value !== "--ipad-ocr-diagnostics-dir" &&
+      value !== "--validate-ipad-expected" &&
+      value !== "--ipad-ocr-baseline" &&
       value !== "--source" &&
       value !== "--audit-disable-known-correction" &&
       !(sourceIndex >= 0 && index === sourceIndex + 1) &&
@@ -20763,6 +21310,50 @@ async function main() {
         .replace(/^\.?\/*test-images\//i, "")
         .toLowerCase()
     );
+  if (validateIpadExpected) {
+    const summary = await validateIpadExpectedFixtures();
+    await terminateAuditGeometryWorker();
+    console.log(
+      JSON.stringify(
+        {
+          ipadExpectedValidation: {
+            completeFixtures: summary.completeFixtures,
+            incompleteFixtures: summary.incompleteFixtures,
+            stagesChecked: summary.stagesChecked,
+            stageSidesChecked: summary.stageSidesChecked,
+            arithmeticPass: summary.arithmeticPass,
+            crownRulePass: summary.crownRulePass,
+            failures: summary.failures,
+            report: path.relative(rootDir, ipadExpectedTranscriptionReportPath).replaceAll("\\", "/"),
+          },
+        },
+        null,
+        2
+      )
+    );
+    if (summary.failures.length > 0) process.exitCode = 1;
+    return;
+  }
+  if (ipadOcrBaseline) {
+    const summary = await runIpadOcrBaseline();
+    await terminateAuditGeometryWorker();
+    console.log(
+      JSON.stringify(
+        {
+          ipadOcrBaseline: {
+            images: summary.images,
+            stages: summary.stages,
+            stageSides: summary.stageSides,
+            outputDir: summary.outputDir,
+            report: path.relative(rootDir, ipadInitialOcrBaselineReportPath).replaceAll("\\", "/"),
+          },
+        },
+        null,
+        2
+      )
+    );
+    return;
+  }
   if (ipadOcrDiagnostics) {
     const imagePaths = resolveIpadDiagnosticImagePaths(args);
     const summary = await writeIpadOcrDiagnostics(imagePaths);
