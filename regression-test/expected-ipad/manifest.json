@@ -1,0 +1,1339 @@
+{
+  "schema": "ipad-expected-manifest-v1",
+  "status": "pending-manual-transcription",
+  "note": "Do not infer values from OCR output. Fill expected values only from source screenshot review.",
+  "images": [
+    {
+      "filename": "IMG_0264.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "notes": "cluster-start representative",
+      "requiredFields": [
+        {
+          "stage": 1,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        },
+        {
+          "stage": 2,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        },
+        {
+          "stage": 3,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        }
+      ]
+    },
+    {
+      "filename": "IMG_0270.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "notes": "evenly spaced cluster representative",
+      "requiredFields": [
+        {
+          "stage": 1,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        },
+        {
+          "stage": 2,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        },
+        {
+          "stage": 3,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        }
+      ]
+    },
+    {
+      "filename": "IMG_0278.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "notes": "evenly spaced cluster representative",
+      "requiredFields": [
+        {
+          "stage": 1,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        },
+        {
+          "stage": 2,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        },
+        {
+          "stage": 3,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        }
+      ]
+    },
+    {
+      "filename": "IMG_0283.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "notes": "evenly spaced cluster representative",
+      "requiredFields": [
+        {
+          "stage": 1,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        },
+        {
+          "stage": 2,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        },
+        {
+          "stage": 3,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        }
+      ]
+    },
+    {
+      "filename": "IMG_0287.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "notes": "evenly spaced cluster representative",
+      "requiredFields": [
+        {
+          "stage": 1,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        },
+        {
+          "stage": 2,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        },
+        {
+          "stage": 3,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        }
+      ]
+    },
+    {
+      "filename": "IMG_0296.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "notes": "evenly spaced cluster representative",
+      "requiredFields": [
+        {
+          "stage": 1,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        },
+        {
+          "stage": 2,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        },
+        {
+          "stage": 3,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        }
+      ]
+    },
+    {
+      "filename": "IMG_0300.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "notes": "evenly spaced cluster representative",
+      "requiredFields": [
+        {
+          "stage": 1,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        },
+        {
+          "stage": 2,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        },
+        {
+          "stage": 3,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        }
+      ]
+    },
+    {
+      "filename": "IMG_0306.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "notes": "evenly spaced cluster representative",
+      "requiredFields": [
+        {
+          "stage": 1,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        },
+        {
+          "stage": 2,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        },
+        {
+          "stage": 3,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        }
+      ]
+    },
+    {
+      "filename": "IMG_0317.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "notes": "evenly spaced cluster representative",
+      "requiredFields": [
+        {
+          "stage": 1,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        },
+        {
+          "stage": 2,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        },
+        {
+          "stage": 3,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        }
+      ]
+    },
+    {
+      "filename": "IMG_0322.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "notes": "evenly spaced cluster representative",
+      "requiredFields": [
+        {
+          "stage": 1,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        },
+        {
+          "stage": 2,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        },
+        {
+          "stage": 3,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        }
+      ]
+    },
+    {
+      "filename": "IMG_0326.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "notes": "evenly spaced cluster representative",
+      "requiredFields": [
+        {
+          "stage": 1,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        },
+        {
+          "stage": 2,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        },
+        {
+          "stage": 3,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        }
+      ]
+    },
+    {
+      "filename": "IMG_0332.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "notes": "evenly spaced cluster representative",
+      "requiredFields": [
+        {
+          "stage": 1,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        },
+        {
+          "stage": 2,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        },
+        {
+          "stage": 3,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        }
+      ]
+    },
+    {
+      "filename": "IMG_0337.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "notes": "cluster-end representative",
+      "requiredFields": [
+        {
+          "stage": 1,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        },
+        {
+          "stage": 2,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        },
+        {
+          "stage": 3,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        }
+      ]
+    },
+    {
+      "filename": "IMG_0491.png",
+      "clusterId": "ipad-02",
+      "width": 1640,
+      "height": 2360,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "notes": "cluster-start representative",
+      "requiredFields": [
+        {
+          "stage": 1,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        },
+        {
+          "stage": 2,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        },
+        {
+          "stage": 3,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        }
+      ]
+    },
+    {
+      "filename": "IMG_0497.png",
+      "clusterId": "ipad-02",
+      "width": 1640,
+      "height": 2360,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "notes": "evenly spaced cluster representative",
+      "requiredFields": [
+        {
+          "stage": 1,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        },
+        {
+          "stage": 2,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        },
+        {
+          "stage": 3,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        }
+      ]
+    },
+    {
+      "filename": "IMG_0792.png",
+      "clusterId": "ipad-02",
+      "width": 1640,
+      "height": 2360,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "notes": "evenly spaced cluster representative",
+      "requiredFields": [
+        {
+          "stage": 1,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        },
+        {
+          "stage": 2,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        },
+        {
+          "stage": 3,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        }
+      ]
+    },
+    {
+      "filename": "IMG_0796.png",
+      "clusterId": "ipad-02",
+      "width": 1640,
+      "height": 2360,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "notes": "evenly spaced cluster representative",
+      "requiredFields": [
+        {
+          "stage": 1,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        },
+        {
+          "stage": 2,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        },
+        {
+          "stage": 3,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        }
+      ]
+    },
+    {
+      "filename": "IMG_0802.png",
+      "clusterId": "ipad-02",
+      "width": 1640,
+      "height": 2360,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "notes": "cluster-end representative",
+      "requiredFields": [
+        {
+          "stage": 1,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        },
+        {
+          "stage": 2,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        },
+        {
+          "stage": 3,
+          "self": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          },
+          "enemy": {
+            "members": [
+              "member1",
+              "member2",
+              "member3"
+            ],
+            "bonus": "crownBonus",
+            "total": "total"
+          }
+        }
+      ]
+    }
+  ]
+}

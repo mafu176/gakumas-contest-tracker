@@ -45,6 +45,8 @@ import { applyKnownOcrCorrections, applyKnownOcrSetCorrections } from "../app/li
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const testImagesDir = path.join(rootDir, "test-images");
 const expectedDir = path.join(rootDir, "regression-test", "expected");
+const ipadFixtureDir = path.join(rootDir, "regression-test", "ipad");
+const ipadExpectedDir = path.join(rootDir, "regression-test", "expected-ipad");
 const reportPath = path.join(rootDir, "regression-test", "ocr-report.json");
 const markdownReportPath = path.join(rootDir, "docs", "ocr-test-report.md");
 const digitDropAuditReportPath = path.join(rootDir, "docs", "ocr-digit-drop-audit-detector-report.md");
@@ -176,6 +178,11 @@ const smartphoneExactSlotSelectionSimulationReportPath = path.join(
   "smartphone-exact-slot-selection-simulation.md"
 );
 const ipadOcrDiagnosticsDir = path.join(rootDir, "tmp", "ipad-ocr-diagnostics");
+const ipadDatasetInventoryReportPath = path.join(
+  rootDir,
+  "docs",
+  "ipad-dataset-inventory.md"
+);
 let currentPcBaselineScanSummary = null;
 const unsupportedNextScreenMessage =
   "Next screen is unsupported for OCR. Use normal result or high-score screen.";
@@ -4020,6 +4027,551 @@ async function writeIpadOcrDiagnostics(imagePaths) {
   await fs.writeFile(summaryPath, JSON.stringify(summary, null, 2));
 
   return summary;
+}
+
+function getIpadDiagnosticsDirArg(args) {
+  const index = args.indexOf("--ipad-ocr-diagnostics-dir");
+  if (index < 0) return "";
+  return args[index + 1] || "";
+}
+
+function isSupportedImageFile(fileName) {
+  return /\.(png|jpe?g|webp)$/i.test(fileName || "");
+}
+
+async function enumerateIpadImageFiles(directory) {
+  const entries = await fs.readdir(directory, { withFileTypes: true });
+  return entries
+    .filter((entry) => entry.isFile() && isSupportedImageFile(entry.name))
+    .map((entry) => path.join(directory, entry.name))
+    .sort((a, b) => path.basename(a).localeCompare(path.basename(b), "ja"));
+}
+
+async function sha256File(filePath) {
+  const buffer = await fs.readFile(filePath);
+  return createHash("sha256").update(buffer).digest("hex");
+}
+
+function summarizeNumberRange(values, digits = 6) {
+  const finite = values.filter((value) => Number.isFinite(value));
+  if (finite.length === 0) return null;
+  return {
+    min: Number(Math.min(...finite).toFixed(digits)),
+    max: Number(Math.max(...finite).toFixed(digits)),
+  };
+}
+
+async function buildIpadContentMetrics(filePath) {
+  const sampleWidth = 96;
+  const { data, info } = await sharp(filePath)
+    .resize(sampleWidth, null, { fit: "inside" })
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const threshold = 18;
+  const corner = [data[0], data[1], data[2]];
+  let minX = info.width;
+  let minY = info.height;
+  let maxX = -1;
+  let maxY = -1;
+  let brightPixels = 0;
+  let colorfulPixels = 0;
+
+  for (let y = 0; y < info.height; y += 1) {
+    for (let x = 0; x < info.width; x += 1) {
+      const offset = (y * info.width + x) * 4;
+      const r = data[offset];
+      const g = data[offset + 1];
+      const b = data[offset + 2];
+      const gray = r * 0.299 + g * 0.587 + b * 0.114;
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      if (gray > 180) brightPixels += 1;
+      if (max - min > 45) colorfulPixels += 1;
+      const diff = Math.abs(r - corner[0]) + Math.abs(g - corner[1]) + Math.abs(b - corner[2]);
+      if (diff > threshold) {
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+      }
+    }
+  }
+
+  const totalPixels = info.width * info.height;
+  const bounds =
+    maxX >= 0
+      ? {
+          left: Number((minX / info.width).toFixed(4)),
+          top: Number((minY / info.height).toFixed(4)),
+          right: Number(((maxX + 1) / info.width).toFixed(4)),
+          bottom: Number(((maxY + 1) / info.height).toFixed(4)),
+        }
+      : null;
+
+  return {
+    sampleSize: `${info.width}x${info.height}`,
+    contentBounds: bounds,
+    brightRatio: Number((brightPixels / totalPixels).toFixed(4)),
+    colorfulRatio: Number((colorfulPixels / totalPixels).toFixed(4)),
+  };
+}
+
+function clusterIpadInventoryRows(rows) {
+  const clusters = new Map();
+  for (const row of rows) {
+    const key = `${row.width}x${row.height}-${row.orientation}`;
+    if (!clusters.has(key)) clusters.set(key, []);
+    clusters.get(key).push(row);
+  }
+
+  return [...clusters.entries()]
+    .map(([key, clusterRows], index) => {
+      const contentTops = clusterRows
+        .map((row) => row.contentBounds?.top)
+        .filter((value) => Number.isFinite(value));
+      const contentBottoms = clusterRows
+        .map((row) => row.contentBounds?.bottom)
+        .filter((value) => Number.isFinite(value));
+      const aspects = clusterRows.map((row) => row.aspectRatio);
+      const detectionCount = clusterRows.filter((row) => row.ipadDetection?.detected).length;
+      return {
+        id: `ipad-${String(index + 1).padStart(2, "0")}`,
+        key,
+        count: clusterRows.length,
+        dimensions: `${clusterRows[0].width}x${clusterRows[0].height}`,
+        orientation: clusterRows[0].orientation,
+        aspectRange: summarizeNumberRange(aspects),
+        contentTopRange: summarizeNumberRange(contentTops, 4),
+        contentBottomRange: summarizeNumberRange(contentBottoms, 4),
+        detectedAsIpad: detectionCount,
+        likelyForm: "portrait full-screen or similarly cropped result family",
+        rows: clusterRows,
+      };
+    })
+    .sort((a, b) => b.count - a.count || a.dimensions.localeCompare(b.dimensions));
+}
+
+function chooseIpadFixtureSubset(clusters) {
+  const totalTarget = Math.min(18, clusters.reduce((sum, cluster) => sum + cluster.rows.length, 0));
+  const selected = [];
+  const totalRows = clusters.reduce((sum, cluster) => sum + cluster.rows.length, 0);
+
+  for (const cluster of clusters) {
+    const target = Math.max(3, Math.round((cluster.count / totalRows) * totalTarget));
+    const count = Math.min(target, cluster.rows.length);
+    const rows = cluster.rows;
+    const pickedIndexes = new Set();
+    if (count === 1) {
+      pickedIndexes.add(0);
+    } else {
+      for (let index = 0; index < count; index += 1) {
+        pickedIndexes.add(Math.round((index * (rows.length - 1)) / (count - 1)));
+      }
+    }
+    for (const rowIndex of [...pickedIndexes].sort((a, b) => a - b)) {
+      const row = rows[rowIndex];
+      selected.push({
+        ...row,
+        clusterId: cluster.id,
+        selectionReason:
+          rowIndex === 0
+            ? "cluster-start representative"
+            : rowIndex === rows.length - 1
+              ? "cluster-end representative"
+              : "evenly spaced cluster representative",
+      });
+    }
+  }
+
+  return selected.slice(0, totalTarget);
+}
+
+async function createIpadContactSheet(rows, outPath, options = {}) {
+  if (rows.length === 0) return null;
+  const thumbWidth = options.thumbWidth || 220;
+  const thumbHeight = options.thumbHeight || 320;
+  const columns = options.columns || 5;
+  const labelHeight = 32;
+  const gap = 12;
+  const rowsCount = Math.ceil(rows.length / columns);
+  const width = columns * thumbWidth + (columns + 1) * gap;
+  const height = rowsCount * (thumbHeight + labelHeight) + (rowsCount + 1) * gap;
+  const composites = [];
+
+  for (let index = 0; index < rows.length; index += 1) {
+    const row = rows[index];
+    const x = gap + (index % columns) * (thumbWidth + gap);
+    const y = gap + Math.floor(index / columns) * (thumbHeight + labelHeight + gap);
+    const thumb = await sharp(row.absolutePath)
+      .resize(thumbWidth, thumbHeight, { fit: "inside", background: "#111827" })
+      .extend({
+        top: 0,
+        bottom: 0,
+        left: 0,
+        right: 0,
+        background: "#111827",
+      })
+      .png()
+      .toBuffer();
+    const label = Buffer.from(
+      `<svg width="${thumbWidth}" height="${labelHeight}" xmlns="http://www.w3.org/2000/svg">
+        <rect width="100%" height="100%" fill="#111827"/>
+        <text x="6" y="20" fill="#f9fafb" font-size="14" font-family="Arial">${row.fileName}</text>
+      </svg>`
+    );
+    composites.push({ input: thumb, left: x, top: y });
+    composites.push({ input: label, left: x, top: y + thumbHeight });
+  }
+
+  await fs.mkdir(path.dirname(outPath), { recursive: true });
+  await sharp({
+    create: {
+      width,
+      height,
+      channels: 3,
+      background: "#0b1020",
+    },
+  })
+    .composite(composites)
+    .png()
+    .toFile(outPath);
+  return path.relative(rootDir, outPath).replaceAll("\\", "/");
+}
+
+async function createIpadOverlayArtifact(row, outPath) {
+  const image = { width: row.width, height: row.height };
+  const layout = buildIpadDiagnosticLayout(image);
+  const rects = [
+    ...layout.stageRows.map((stageRow) => svgRect(stageRow.zone, "#22c55e", `S${stageRow.stage}`)),
+    ...layout.stageSideZones.map((zone) =>
+      svgRect(zone.zone, zone.side === "self" ? "#38bdf8" : "#f97316", `S${zone.stage} ${zone.side}`)
+    ),
+  ].join("\n");
+  const overlaySvg = Buffer.from(
+    `<svg width="${row.width}" height="${row.height}" xmlns="http://www.w3.org/2000/svg">${rects}</svg>`
+  );
+  await sharp(row.absolutePath).composite([{ input: overlaySvg, left: 0, top: 0 }]).png().toFile(outPath);
+  return path.relative(rootDir, outPath).replaceAll("\\", "/");
+}
+
+async function writeIpadExpectedManifest(selected) {
+  await fs.mkdir(ipadExpectedDir, { recursive: true });
+  const requiredFields = stages.map((stage) => ({
+    stage,
+    self: {
+      members: ["member1", "member2", "member3"],
+      bonus: "crownBonus",
+      total: "total",
+    },
+    enemy: {
+      members: ["member1", "member2", "member3"],
+      bonus: "crownBonus",
+      total: "total",
+    },
+  }));
+  const manifest = {
+    schema: "ipad-expected-manifest-v1",
+    status: "pending-manual-transcription",
+    note: "Do not infer values from OCR output. Fill expected values only from source screenshot review.",
+    images: selected.map((row) => ({
+      filename: row.fileName,
+      clusterId: row.clusterId,
+      width: row.width,
+      height: row.height,
+      orientation: row.orientation,
+      expectedStatus: "pending",
+      notes: row.selectionReason,
+      requiredFields,
+    })),
+  };
+  const manifestPath = path.join(ipadExpectedDir, "manifest.json");
+  await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2));
+  return manifestPath;
+}
+
+async function copySelectedIpadFixtures(selected) {
+  await fs.mkdir(ipadFixtureDir, { recursive: true });
+  const copied = [];
+  for (const row of selected) {
+    const destination = path.join(ipadFixtureDir, row.fileName);
+    await fs.copyFile(row.absolutePath, destination);
+    copied.push(path.relative(rootDir, destination).replaceAll("\\", "/"));
+  }
+  return copied;
+}
+
+async function writeIpadDatasetInventory(directoryArg) {
+  if (!directoryArg) {
+    throw new Error("--ipad-ocr-diagnostics-dir requires a directory path");
+  }
+  const sourceDir = path.resolve(directoryArg);
+  const inventoryDir = path.join(ipadOcrDiagnosticsDir, "dataset-inventory");
+  await fs.rm(inventoryDir, { recursive: true, force: true });
+  await fs.mkdir(inventoryDir, { recursive: true });
+
+  const imagePaths = await enumerateIpadImageFiles(sourceDir);
+  const rows = [];
+  const unreadable = [];
+
+  for (const imagePath of imagePaths) {
+    const fileName = path.basename(imagePath);
+    try {
+      const stat = await fs.stat(imagePath);
+      const metadata = await sharp(imagePath).metadata();
+      const image = { width: metadata.width, height: metadata.height };
+      const hash = await sha256File(imagePath);
+      const metrics = await buildIpadContentMetrics(imagePath);
+      const ipadDetection = detectIpadOcrLayout(image);
+      rows.push({
+        fileName,
+        absolutePath: imagePath,
+        width: metadata.width,
+        height: metadata.height,
+        aspectRatio: Number((metadata.width / metadata.height).toFixed(6)),
+        orientation:
+          metadata.width > metadata.height
+            ? "landscape"
+            : metadata.height > metadata.width
+              ? "portrait"
+              : "square",
+        fileSize: stat.size,
+        byteHash: hash,
+        byteHashShort: hash.slice(0, 12),
+        ipadDetection,
+        ...metrics,
+      });
+    } catch (error) {
+      unreadable.push({ fileName, absolutePath: imagePath, error: error.message });
+    }
+  }
+
+  const duplicateGroups = Object.values(
+    rows.reduce((groups, row) => {
+      groups[row.byteHash] ||= [];
+      groups[row.byteHash].push(row.fileName);
+      return groups;
+    }, {})
+  ).filter((group) => group.length > 1);
+  const clusters = clusterIpadInventoryRows(rows);
+  const selected = chooseIpadFixtureSubset(clusters);
+  const selectedNames = new Set(selected.map((row) => row.fileName));
+  const nonTarget = rows.filter((row) => !row.ipadDetection.detected);
+
+  const contactSheets = [];
+  const allSheet = await createIpadContactSheet(rows, path.join(inventoryDir, "all-images-contact-sheet.png"), {
+    columns: 6,
+    thumbWidth: 180,
+    thumbHeight: 260,
+  });
+  if (allSheet) contactSheets.push(allSheet);
+  for (const cluster of clusters) {
+    const sheet = await createIpadContactSheet(
+      cluster.rows,
+      path.join(inventoryDir, `${cluster.id}-contact-sheet.png`),
+      { columns: 5 }
+    );
+    if (sheet) contactSheets.push(sheet);
+  }
+
+  const overlays = [];
+  for (const cluster of clusters) {
+    const representatives = [
+      cluster.rows[0],
+      cluster.rows[Math.floor(cluster.rows.length / 2)],
+      cluster.rows[cluster.rows.length - 1],
+    ].filter(Boolean);
+    for (const row of representatives) {
+      const overlay = await createIpadOverlayArtifact(
+        row,
+        path.join(inventoryDir, `${cluster.id}-${safeArtifactName(row.fileName)}-overlay.png`)
+      );
+      overlays.push(overlay);
+    }
+  }
+
+  const copiedFixtures = await copySelectedIpadFixtures(selected);
+  const manifestPath = await writeIpadExpectedManifest(selected);
+
+  const inventory = {
+    sourceDir,
+    generatedAt: new Date().toISOString(),
+    totalFiles: imagePaths.length,
+    readableFiles: rows.length,
+    unreadableFiles: unreadable.length,
+    duplicates: duplicateGroups,
+    nonTargetFiles: nonTarget.map((row) => row.fileName),
+    clusters: clusters.map((cluster) => ({
+      id: cluster.id,
+      count: cluster.count,
+      dimensions: cluster.dimensions,
+      orientation: cluster.orientation,
+      aspectRange: cluster.aspectRange,
+      contentTopRange: cluster.contentTopRange,
+      contentBottomRange: cluster.contentBottomRange,
+      likelyForm: cluster.likelyForm,
+      representatives: [
+        cluster.rows[0]?.fileName,
+        cluster.rows[Math.floor(cluster.rows.length / 2)]?.fileName,
+        cluster.rows[cluster.rows.length - 1]?.fileName,
+      ].filter(Boolean),
+      outliers: cluster.rows
+        .filter((row) => !row.ipadDetection.detected)
+        .map((row) => row.fileName),
+      files: cluster.rows.map((row) => row.fileName),
+    })),
+    selectedFixtures: selected.map((row) => ({
+      fileName: row.fileName,
+      clusterId: row.clusterId,
+      reason: row.selectionReason,
+      width: row.width,
+      height: row.height,
+      notableFeatures: [
+        "pending manual score transcription",
+        selectedNames.has(row.fileName) ? "balanced cluster sample" : null,
+      ].filter(Boolean),
+    })),
+    copiedFixtures,
+    manifest: path.relative(rootDir, manifestPath).replaceAll("\\", "/"),
+    artifacts: {
+      outputDir: path.relative(rootDir, inventoryDir).replaceAll("\\", "/"),
+      contactSheets,
+      overlays,
+    },
+    rows,
+    unreadable,
+  };
+
+  await fs.writeFile(
+    path.join(inventoryDir, "inventory.json"),
+    JSON.stringify(inventory, null, 2)
+  );
+  await fs.writeFile(ipadDatasetInventoryReportPath, buildIpadDatasetInventoryReport(inventory));
+
+  return inventory;
+}
+
+function buildIpadDatasetInventoryReport(inventory) {
+  const lines = [
+    "# iPad OCR Dataset Inventory",
+    "",
+    "## Summary",
+    "",
+    `- source folder: \`${inventory.sourceDir}\``,
+    `- total supported image files: ${inventory.totalFiles}`,
+    `- readable files: ${inventory.readableFiles}`,
+    `- unreadable files: ${inventory.unreadableFiles}`,
+    `- byte-identical duplicate groups: ${inventory.duplicates.length}`,
+    `- obvious non-target or unsupported files: ${inventory.nonTargetFiles.length}`,
+    `- layout clusters: ${inventory.clusters.length}`,
+    `- selected initial fixtures: ${inventory.selectedFixtures.length}`,
+    "",
+    "Generated artifacts are under `tmp/ipad-ocr-diagnostics/dataset-inventory/` and are not committed.",
+    "",
+    "## Layout Clusters",
+    "",
+    "| cluster | count | dimensions | orientation | aspect range | content top | content bottom | representative images | outliers |",
+    "| --- | ---: | --- | --- | --- | --- | --- | --- | --- |",
+  ];
+
+  for (const cluster of inventory.clusters) {
+    lines.push(
+      `| ${cluster.id} | ${cluster.count} | ${cluster.dimensions} | ${cluster.orientation} | ${
+        cluster.aspectRange
+          ? `${cluster.aspectRange.min} - ${cluster.aspectRange.max}`
+          : "-"
+      } | ${
+        cluster.contentTopRange
+          ? `${cluster.contentTopRange.min} - ${cluster.contentTopRange.max}`
+          : "-"
+      } | ${
+        cluster.contentBottomRange
+          ? `${cluster.contentBottomRange.min} - ${cluster.contentBottomRange.max}`
+          : "-"
+      } | ${cluster.representatives.join(", ")} | ${
+        cluster.outliers.length ? cluster.outliers.join(", ") : "-"
+      } |`
+    );
+  }
+
+  lines.push(
+    "",
+    "## File Metadata",
+    "",
+    "| filename | width | height | aspect | orientation | size bytes | hash | cluster |",
+    "| --- | ---: | ---: | ---: | --- | ---: | --- | --- |"
+  );
+  const clusterByFile = new Map();
+  for (const cluster of inventory.clusters) {
+    for (const file of cluster.files) clusterByFile.set(file, cluster.id);
+  }
+  for (const row of inventory.rows) {
+    lines.push(
+      `| ${row.fileName} | ${row.width} | ${row.height} | ${row.aspectRatio} | ${
+        row.orientation
+      } | ${row.fileSize} | ${row.byteHashShort} | ${clusterByFile.get(row.fileName) || "-"} |`
+    );
+  }
+
+  lines.push(
+    "",
+    "## Duplicates And Non-Targets",
+    "",
+    inventory.duplicates.length
+      ? inventory.duplicates.map((group) => `- byte-identical: ${group.join(", ")}`).join("\n")
+      : "- No byte-identical duplicates found.",
+    "",
+    inventory.nonTargetFiles.length
+      ? inventory.nonTargetFiles.map((file) => `- ${file}`).join("\n")
+      : "- No obvious non-target files detected by the conservative iPad layout detector.",
+    "",
+    "Visual review is still required before fixture transcription; this inventory does not decide OCR correctness.",
+    "",
+    "## Selected Initial Fixture Set",
+    "",
+    "| filename | cluster | dimensions | reason | notes |",
+    "| --- | --- | --- | --- | --- |"
+  );
+
+  for (const selected of inventory.selectedFixtures) {
+    lines.push(
+      `| ${selected.fileName} | ${selected.clusterId} | ${selected.width}x${selected.height} | ${
+        selected.reason
+      } | ${selected.notableFeatures.join("; ")} |`
+    );
+  }
+
+  lines.push(
+    "",
+    "The selected source images were copied to `regression-test/ipad/`. Expected values were not guessed. Manual transcription should fill `regression-test/expected-ipad/manifest.json` first, then individual expected JSON fixtures can be created from source screenshot review.",
+    "",
+    "## Diagnostic Artifacts",
+    "",
+    "- full contact sheet: `tmp/ipad-ocr-diagnostics/dataset-inventory/all-images-contact-sheet.png`",
+    "- per-cluster contact sheets: `tmp/ipad-ocr-diagnostics/dataset-inventory/ipad-*-contact-sheet.png`",
+    "- representative overlays: `tmp/ipad-ocr-diagnostics/dataset-inventory/ipad-*-overlay.png`",
+    "",
+    "## Recommended iPad OCR Architecture Direction",
+    "",
+    "The current dataset splits cleanly by dimensions into portrait-only iPad-like families. Portrait and landscape should remain separate architecture tracks even though no landscape image appears in this folder yet.",
+    "",
+    "Recommended first implementation path:",
+    "",
+    "1. Use one normalized portrait coordinate model per layout cluster.",
+    "2. Calibrate stage-row and self/enemy column anchors from the two dimension clusters instead of reusing smartphone ROI.",
+    "3. Keep iPad candidate generation, preprocessing, and diagnostics isolated under `deviceMode: \"ipad\"`.",
+    "4. Share only device-independent arithmetic helpers later, after iPad runner/browser evidence parity exists.",
+    "5. Create expected values manually for the selected fixtures before any iPad OCR accuracy claims.",
+    "",
+    "This direction is simpler than anchor-based affine normalization for the first batch because the dataset has stable portrait dimensions and no detected orientation mix. Affine normalization may become useful if later iPad screenshots include split view, zoomed screenshots, or letterboxed/cropped variants.",
+    "",
+    "## Next Step",
+    "",
+    "Manually transcribe the selected fixture set from the source images, then add an iPad-only baseline command that reads `regression-test/ipad/` and `regression-test/expected-ipad/` without falling back to smartphone production OCR.",
+    ""
+  );
+
+  return lines.join("\n");
 }
 
 function limitOcrZones(zones, options = {}) {
@@ -20158,6 +20710,7 @@ async function main() {
     "--smartphone-exact-slot-selection-sim"
   );
   const ipadOcrDiagnostics = args.includes("--ipad-ocr-diagnostics");
+  const ipadOcrDiagnosticsDirMode = args.includes("--ipad-ocr-diagnostics-dir");
   const sourceIndex = args.indexOf("--source");
   const sourceValue = sourceIndex >= 0 ? args[sourceIndex + 1] : "";
   const forcedSource = ["smartphone", "desktop", "current-pc"].includes(sourceValue)
@@ -20197,9 +20750,11 @@ async function main() {
       value !== "--smartphone-total-capture-diagnostics" &&
       value !== "--smartphone-exact-slot-selection-sim" &&
       value !== "--ipad-ocr-diagnostics" &&
+      value !== "--ipad-ocr-diagnostics-dir" &&
       value !== "--source" &&
       value !== "--audit-disable-known-correction" &&
       !(sourceIndex >= 0 && index === sourceIndex + 1) &&
+      !(args[index - 1] === "--ipad-ocr-diagnostics-dir") &&
       !(args[index - 1] === "--audit-disable-known-correction")
     )
     .map((value) =>
@@ -20216,6 +20771,36 @@ async function main() {
       JSON.stringify(
         {
           ipadOcrDiagnostics: summary,
+        },
+        null,
+        2
+      )
+    );
+    return;
+  }
+  if (ipadOcrDiagnosticsDirMode) {
+    const inventory = await writeIpadDatasetInventory(getIpadDiagnosticsDirArg(args));
+    console.log(
+      JSON.stringify(
+        {
+          ipadDatasetInventory: {
+            totalFiles: inventory.totalFiles,
+            readableFiles: inventory.readableFiles,
+            unreadableFiles: inventory.unreadableFiles,
+            duplicateGroups: inventory.duplicates.length,
+            nonTargetFiles: inventory.nonTargetFiles.length,
+            clusters: inventory.clusters.map((cluster) => ({
+              id: cluster.id,
+              count: cluster.count,
+              dimensions: cluster.dimensions,
+              orientation: cluster.orientation,
+              aspectRange: cluster.aspectRange,
+            })),
+            selectedFixtures: inventory.selectedFixtures.map((item) => item.fileName),
+            outputDir: inventory.artifacts.outputDir,
+            manifest: inventory.manifest,
+            report: path.relative(rootDir, ipadDatasetInventoryReportPath).replaceAll("\\", "/"),
+          },
         },
         null,
         2
