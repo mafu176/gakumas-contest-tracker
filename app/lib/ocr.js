@@ -423,6 +423,299 @@ export function detectIpadOcrLayout(image) {
   };
 }
 
+export function ipadDiagnosticPercentBox(image, box) {
+  const width = Number(image?.width || 0);
+  const height = Number(image?.height || 0);
+  return {
+    x: Math.max(0, Math.floor(width * box.left)),
+    y: Math.max(0, Math.floor(height * box.top)),
+    width: Math.max(1, Math.floor(width * box.width)),
+    height: Math.max(1, Math.floor(height * box.height)),
+  };
+}
+
+export function buildIpadArithmeticRoiTemplate(image) {
+  const sideColumns = {
+    self: {
+      side: { left: 0.115, width: 0.37 },
+      total: { left: 0.16, width: 0.33 },
+      members: [
+        { left: 0.145, width: 0.12 },
+        { left: 0.255, width: 0.13 },
+        { left: 0.365, width: 0.13 },
+      ],
+      bonus: { left: 0.105, width: 0.38 },
+    },
+    enemy: {
+      side: { left: 0.515, width: 0.37 },
+      total: { left: 0.58, width: 0.33 },
+      members: [
+        { left: 0.535, width: 0.12 },
+        { left: 0.645, width: 0.13 },
+        { left: 0.755, width: 0.13 },
+      ],
+      bonus: { left: 0.505, width: 0.38 },
+    },
+  };
+  const rows = [
+    { stage: 1, rowTop: 0.095, totalTop: 0.112, memberTop: 0.149, bonusTop: 0.166 },
+    { stage: 2, rowTop: 0.334, totalTop: 0.351, memberTop: 0.388, bonusTop: 0.405 },
+    { stage: 3, rowTop: 0.576, totalTop: 0.593, memberTop: 0.631, bonusTop: 0.648 },
+  ];
+  const box = (definition) => ipadDiagnosticPercentBox(image, definition);
+  const stageRows = rows.map((row) => ({
+    stage: row.stage,
+    normalized: { left: 0.09, top: row.rowTop, width: 0.82, height: 0.165 },
+    zone: box({ left: 0.09, top: row.rowTop, width: 0.82, height: 0.165 }),
+  }));
+  const stageSideZones = rows.flatMap((row) =>
+    Object.entries(sideColumns).map(([side, column]) => ({
+      stage: row.stage,
+      side,
+      normalized: {
+        left: column.side.left,
+        top: row.rowTop,
+        width: column.side.width,
+        height: 0.165,
+      },
+      zone: box({
+        left: column.side.left,
+        top: row.rowTop,
+        width: column.side.width,
+        height: 0.165,
+      }),
+    }))
+  );
+  const fields = rows.flatMap((row) =>
+    Object.entries(sideColumns).flatMap(([side, column]) => {
+      const base = [
+        {
+          stage: row.stage,
+          side,
+          field: "total",
+          slot: 0,
+          normalized: {
+            left: column.total.left,
+            top: row.totalTop,
+            width: column.total.width,
+            height: 0.035,
+          },
+        },
+        {
+          stage: row.stage,
+          side,
+          field: "bonus",
+          slot: 0,
+          normalized: {
+            left: column.bonus.left,
+            top: row.bonusTop,
+            width: column.bonus.width,
+            height: 0.034,
+          },
+        },
+      ];
+      const members = column.members.map((member, index) => ({
+        stage: row.stage,
+        side,
+        field: "member",
+        slot: index + 1,
+        normalized: {
+          left: member.left,
+          top: row.memberTop,
+          width: member.width,
+          height: 0.028,
+        },
+      }));
+      return [...base, ...members].map((field) => ({
+        ...field,
+        zone: box(field.normalized),
+      }));
+    })
+  );
+
+  return {
+    version: "ipad-shared-portrait-v2",
+    confidence: "manually-calibrated-diagnostic",
+    note:
+      "Shared normalized iPad portrait score-table template, calibrated against the 18 manually verified fixtures. Diagnostic-only.",
+    stageRows,
+    stageSideZones,
+    fields,
+  };
+}
+
+export function parseIpadArithmeticOcrNumbers(text = "") {
+  const candidates = [];
+  const regex = /[+＋-]?\s*(?:\d{1,3}(?:[,.\s]\d{3})+|\d{1,8})/g;
+  for (const match of String(text || "").matchAll(regex)) {
+    const raw = match[0] || "";
+    const normalized = raw.replace(/[^\d]/g, "");
+    if (!normalized) continue;
+    const value = Number(normalized);
+    if (!Number.isInteger(value) || value < 0 || value > 9999999) continue;
+    candidates.push({
+      raw: raw.trim(),
+      value,
+      index: match.index || 0,
+      plusLike: /^[+＋]/.test(raw.trim()),
+    });
+  }
+  return candidates;
+}
+
+export function getIpadArithmeticPreprocessingProfiles() {
+  return [
+    {
+      id: "baseline-score-preprocess-3x-psm7",
+      label: "Existing score preprocessing, 3x, PSM 7",
+      kind: "existing",
+      scale: 3,
+      pageSegMode: "7",
+      fieldTypes: ["member", "bonus", "total"],
+    },
+    {
+      id: "invert-normalize-3x-psm7",
+      label: "Inverted grayscale normalize, 3x, PSM 7",
+      kind: "invert-normalize",
+      scale: 3,
+      pageSegMode: "7",
+      fieldTypes: ["member", "bonus", "total"],
+    },
+    {
+      id: "white-mask-3x-psm7",
+      label: "White-text mask, 3x, PSM 7",
+      kind: "white-mask",
+      scale: 3,
+      pageSegMode: "7",
+      fieldTypes: ["member", "bonus", "total"],
+    },
+    {
+      id: "blue-bonus-mask-3x-psm7",
+      label: "Blue bonus mask, 3x, PSM 7",
+      kind: "blue-bonus-mask",
+      scale: 3,
+      pageSegMode: "7",
+      fieldTypes: ["bonus"],
+    },
+  ];
+}
+
+export function getIpadArithmeticProfilesForFieldType(profiles, fieldType) {
+  return (profiles || []).filter((profile) => profile.fieldTypes?.includes(fieldType));
+}
+
+export function getIpadArithmeticFieldType(field) {
+  return field === "member" ? "member" : field;
+}
+
+export function padIpadArithmeticFieldZone(field, image, paddingRatio = 0.12) {
+  const width = Number(image?.width || 0);
+  const height = Number(image?.height || 0);
+  const padX = Math.max(2, Math.round(field.zone.width * paddingRatio));
+  const padY = Math.max(2, Math.round(field.zone.height * paddingRatio));
+  const left = Math.max(0, field.zone.x - padX);
+  const top = Math.max(0, field.zone.y - padY);
+  return {
+    x: left,
+    y: top,
+    width: Math.max(1, Math.min(width - left, field.zone.width + padX * 2)),
+    height: Math.max(1, Math.min(height - top, field.zone.height + padY * 2)),
+  };
+}
+
+export function buildIpadArithmeticFieldCandidatePool({
+  imageName = "",
+  clusterId = "browser-debug",
+  field,
+  profileResults = {},
+  profiles = getIpadArithmeticPreprocessingProfiles(),
+  cropQuality = {},
+}) {
+  const fieldType = getIpadArithmeticFieldType(field.field);
+  const applicableProfiles = getIpadArithmeticProfilesForFieldType(profiles, fieldType);
+  const candidatesByValue = new Map();
+  for (const [profileIndex, profile] of applicableProfiles.entries()) {
+    const result = profileResults[profile.id];
+    if (!result) continue;
+    for (const [candidateIndex, parsed] of (result.parsedCandidates || []).entries()) {
+      const value = Number(parsed.value || 0);
+      if (!Number.isInteger(value)) continue;
+      const normalizedText = String(parsed.raw || "").replace(/[^\d]/g, "");
+      const contribution = {
+        profileId: profile.id,
+        profileLabel: profile.label,
+        sourceRank: profileIndex,
+        candidateIndex,
+        rawText: result.rawText || "",
+        rawCandidate: parsed.raw,
+        normalizedText,
+        ocrConfidence: Number(result.ocrConfidence || 0),
+        plusLike: Boolean(parsed.plusLike),
+      };
+      const existing = candidatesByValue.get(value);
+      if (existing) {
+        existing.profileIds.push(profile.id);
+        existing.contributions.push(contribution);
+        existing.confidenceSignals.ocrConfidence = Math.max(
+          existing.confidenceSignals.ocrConfidence,
+          contribution.ocrConfidence
+        );
+        existing.confidenceSignals.repeatedProfiles = existing.profileIds.length;
+        existing.confidenceSignals.independentAgreement = new Set(existing.profileIds).size;
+        existing.confidenceSignals.plusLike ||= contribution.plusLike;
+        continue;
+      }
+      candidatesByValue.set(value, {
+        value,
+        rawText: result.rawText || "",
+        normalizedText,
+        fieldType,
+        profileId: profile.id,
+        profileIds: [profile.id],
+        sourceRank: profileIndex,
+        cropQuality: { ...cropQuality },
+        digitCount: String(value).length,
+        confidenceSignals: {
+          ocrConfidence: contribution.ocrConfidence,
+          digitOnlyPurity: parsed.raw ? normalizedText.length / String(parsed.raw).length : 0,
+          lengthInSchema: true,
+          plusLike: contribution.plusLike,
+          repeatedProfiles: 1,
+          independentAgreement: 1,
+        },
+        contributions: [contribution],
+      });
+    }
+  }
+
+  const sortedCandidates = [...candidatesByValue.values()].sort((a, b) => {
+    if (a.sourceRank !== b.sourceRank) return a.sourceRank - b.sourceRank;
+    if (b.confidenceSignals.independentAgreement !== a.confidenceSignals.independentAgreement) {
+      return b.confidenceSignals.independentAgreement - a.confidenceSignals.independentAgreement;
+    }
+    return a.value - b.value;
+  });
+  const candidates = sortedCandidates.slice(0, 6);
+
+  return {
+    key: `${imageName}|${field.stage}|${field.side}|${field.field}|${field.slot || 0}`,
+    image: imageName,
+    clusterId,
+    stage: field.stage,
+    side: field.side,
+    field: field.field,
+    fieldType,
+    slot: field.slot || 0,
+    zone: field.zone,
+    cropQuality,
+    candidates,
+    candidateCap: 6,
+    rawDistinctCandidateCount: sortedCandidates.length,
+    truncated: sortedCandidates.length > candidates.length,
+    profileResults,
+  };
+}
+
 const ipadArithmeticFieldSpecs = [
   { field: "member", slot: 1, label: "member1" },
   { field: "member", slot: 2, label: "member2" },
@@ -1551,6 +1844,19 @@ function getOcrPresetConfig(preset) {
       preserveColorText: true,
       scale: 4,
     },
+    "ipad-invert-normalize": {
+      ipadKind: "invert-normalize",
+      scale: 3,
+    },
+    "ipad-white-mask": {
+      ipadKind: "white-mask",
+      threshold: 176,
+      scale: 3,
+    },
+    "ipad-blue-bonus-mask": {
+      ipadKind: "blue-bonus-mask",
+      scale: 3,
+    },
   };
 
   return presets[preset] || null;
@@ -1769,6 +2075,26 @@ export function createPreprocessedStageBlob(image, cropArea, options = {}) {
     const max = Math.max(r, g, b);
     const min = Math.min(r, g, b);
     const saturation = max - min;
+
+    if (presetConfig?.ipadKind === "invert-normalize") {
+      const inverted = 255 - gray;
+      data[i] = inverted;
+      data[i + 1] = inverted;
+      data[i + 2] = inverted;
+      continue;
+    }
+
+    if (presetConfig?.ipadKind === "white-mask" || presetConfig?.ipadKind === "blue-bonus-mask") {
+      const isDigit =
+        presetConfig.ipadKind === "blue-bonus-mask"
+          ? b > 145 && b > r + 24 && b > g + 8
+          : max >= (presetConfig.threshold || 176) && saturation < 130;
+      const maskValue = isDigit ? 0 : 255;
+      data[i] = maskValue;
+      data[i + 1] = maskValue;
+      data[i + 2] = maskValue;
+      continue;
+    }
 
     // White score text on bright/colorful backgrounds can be washed out.
     // Keep white/near-white text dark, and push colorful or darker background to white.

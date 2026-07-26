@@ -80,6 +80,239 @@ function getSeasonTypeChipKind(stageType) {
   return "unset";
 }
 
+function isIpadArithmeticDebugEnabled() {
+  if (typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).get("ipadArithmeticDebug") === "1";
+}
+
+function ipadArithmeticFieldKey({ imageName, stage, side, field, slot = 0 }) {
+  return `${imageName || "browser"}|${stage}|${side}|${field}|${slot || 0}`;
+}
+
+function ipadArithmeticProfilePreset(profile) {
+  if (profile.kind === "invert-normalize") return "ipad-invert-normalize";
+  if (profile.kind === "white-mask") return "ipad-white-mask";
+  if (profile.kind === "blue-bonus-mask") return "ipad-blue-bonus-mask";
+  return undefined;
+}
+
+const ipadCurrentPrimaryPriorities = {
+  member: ["baseline-score-preprocess-3x-psm7"],
+  bonus: ["blue-bonus-mask-3x-psm7"],
+  total: ["white-mask-3x-psm7"],
+};
+
+function ipadCandidateProfilePriority(candidate, priority = []) {
+  const ranks = (candidate.profileIds || []).map((profileId) => {
+    const index = priority.indexOf(profileId);
+    return index >= 0 ? index : 999;
+  });
+  return ranks.length ? Math.min(...ranks) : 999;
+}
+
+function selectIpadCurrentPrimaryCandidate(pool = {}) {
+  const priority = ipadCurrentPrimaryPriorities[pool.fieldType] || [];
+  const candidateList = (pool.candidates || []).filter(
+    (candidate) => ipadCandidateProfilePriority(candidate, priority) === 0
+  );
+  if (!candidateList.length) {
+    return { value: 0, candidate: null, reason: "empty-current-primary-profile" };
+  }
+  const scored = candidateList
+    .map((candidate, index) => ({
+      candidate,
+      score:
+        1000 +
+        (pool.fieldType === "bonus" && candidate.confidenceSignals?.plusLike ? 20 : 0) -
+        Number(candidate.contributions?.[0]?.candidateIndex || 0),
+      tieBreak: index,
+    }))
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      if (a.candidate.sourceRank !== b.candidate.sourceRank) {
+        return a.candidate.sourceRank - b.candidate.sourceRank;
+      }
+      if (a.tieBreak !== b.tieBreak) return a.tieBreak - b.tieBreak;
+      return a.candidate.value - b.candidate.value;
+    });
+  return {
+    value: scored[0].candidate.value,
+    candidate: scored[0].candidate,
+    score: scored[0].score,
+    alternatives: scored.slice(1, 5).map((entry) => ({
+      value: entry.candidate.value,
+      score: entry.score,
+      profileIds: entry.candidate.profileIds,
+    })),
+  };
+}
+
+async function buildIpadArithmeticBrowserDiagnostics({ image, imageName }) {
+  const detection = detectIpadOcrLayout(image);
+  const diagnostics = {
+    schema: "ipad-arithmetic-browser-diagnostics-v1",
+    debugFlag: "ipadArithmeticDebug=1",
+    imageIdentifier: imageName || "",
+    image: {
+      width: Number(image?.width || 0),
+      height: Number(image?.height || 0),
+    },
+    detection,
+    productionOutputChanged: false,
+    note:
+      "Diagnostic-only browser evidence. Tier C proposals are not applied to displayed OCR output.",
+    template: null,
+    profiles: [],
+    fieldPools: [],
+    stages: {},
+    acceptedCases: [],
+  };
+
+  if (!detection.detected) {
+    diagnostics.blockReason = "not-ipad-layout";
+    return diagnostics;
+  }
+
+  const template = buildIpadArithmeticRoiTemplate(image);
+  const profiles = getIpadArithmeticPreprocessingProfiles();
+  diagnostics.template = {
+    version: template.version,
+    confidence: template.confidence,
+    stageRows: template.stageRows,
+    stageSideZones: template.stageSideZones,
+  };
+  diagnostics.profiles = profiles.map(({ id, label, kind, pageSegMode, fieldTypes }) => ({
+    id,
+    label,
+    kind,
+    pageSegMode,
+    fieldTypes,
+  }));
+
+  const poolsByKey = new Map();
+  for (const field of template.fields) {
+    const fieldType = getIpadArithmeticFieldType(field.field);
+    const applicableProfiles = getIpadArithmeticProfilesForFieldType(profiles, fieldType);
+    const profileResults = {};
+    for (const profile of applicableProfiles) {
+      const zone = padIpadArithmeticFieldZone(field, image, profile.paddingRatio ?? 0.12);
+      const result = await recognizeOcrZone(image, zone, {
+        preset: ipadArithmeticProfilePreset(profile),
+        pageSegMode: profile.pageSegMode || "7",
+        charWhitelist: "0123456789,+.＋",
+      });
+      const parsedCandidates = parseIpadArithmeticOcrNumbers(result.text);
+      const values = parsedCandidates.map((candidate) => candidate.value);
+      profileResults[profile.id] = {
+        profileId: profile.id,
+        stage: field.stage,
+        side: field.side,
+        field: field.field,
+        slot: field.slot || 0,
+        zone,
+        rawText: result.text || "",
+        ocrConfidence: 0,
+        parsedCandidates,
+        selected:
+          field.field === "bonus"
+            ? parsedCandidates.find((candidate) => candidate.plusLike)?.value || values[0] || 0
+            : values[0] || 0,
+      };
+    }
+    const pool = buildIpadArithmeticFieldCandidatePool({
+      imageName,
+      field,
+      profileResults,
+      profiles,
+      cropQuality: {
+        source: "browser-debug",
+        measured: false,
+      },
+    });
+    const key = ipadArithmeticFieldKey({
+      imageName,
+      stage: field.stage,
+      side: field.side,
+      field: field.field,
+      slot: field.slot || 0,
+    });
+    poolsByKey.set(key, pool);
+    diagnostics.fieldPools.push(pool);
+  }
+
+  const fieldSpecs = [
+    { field: "member", slot: 1, label: "member1" },
+    { field: "member", slot: 2, label: "member2" },
+    { field: "member", slot: 3, label: "member3" },
+    { field: "bonus", slot: 0, label: "bonus" },
+    { field: "total", slot: 0, label: "total" },
+  ];
+  for (const stage of stages) {
+    const stageKey = `stage${stage}`;
+    diagnostics.stages[stageKey] = {};
+    for (const side of ["self", "enemy"]) {
+      const fieldCandidatePools = Object.fromEntries(
+        fieldSpecs.map((field) => [
+          field.label,
+          poolsByKey.get(
+            ipadArithmeticFieldKey({
+              imageName,
+              stage,
+              side,
+              field: field.field,
+              slot: field.slot,
+            })
+          ) || {},
+        ])
+      );
+      const currentSelections = Object.fromEntries(
+        Object.entries(fieldCandidatePools).map(([label, pool]) => [
+          label,
+          selectIpadCurrentPrimaryCandidate(pool),
+        ])
+      );
+      const currentPrimary = {
+        members: [
+          currentSelections.member1.value,
+          currentSelections.member2.value,
+          currentSelections.member3.value,
+        ],
+        bonus: currentSelections.bonus.value,
+        total: currentSelections.total.value,
+      };
+      const tierC = evaluateIpadArithmeticSideSelectionTier({
+        deviceMode: "ipad",
+        fieldCandidatePools,
+        currentPrimary,
+        tier: "tier-c",
+      });
+      const sideDiagnostics = {
+        imageIdentifier: imageName || "",
+        stage,
+        side,
+        candidatePools: fieldCandidatePools,
+        currentPrimary,
+        currentSelections,
+        tierC,
+        eligibility: tierC.eligible,
+        validTupleCount: tierC.validTupleCount,
+        selectedTuple: tierC.selectedTuple,
+        wouldApply: tierC.wouldApply,
+        blockReason: tierC.blockReason,
+        proposal: tierC.proposal,
+        provenance: {
+          origins: tierC.selectedTuple?.origins || {},
+          profileIds: tierC.selectedTuple?.profileIds || {},
+        },
+      };
+      diagnostics.stages[stageKey][side] = sideDiagnostics;
+      if (tierC.wouldApply) diagnostics.acceptedCases.push(sideDiagnostics);
+    }
+  }
+
+  return diagnostics;
+}
+
 import {
   API_URL,
   stages,
@@ -96,6 +329,7 @@ import {
   OCR_PARSER_VERSION,
   normalizeOcrMode,
   detectCurrentPcLayout,
+  detectIpadOcrLayout,
   getDeviceOcrLayout,
   getFixedOcrZones,
   getAlternativeTotalZones,
@@ -130,6 +364,14 @@ import {
   applySmartphoneCrownBonusRuleRecovery,
   applySmartphoneExactSlotSelectionRecovery,
   applySmartphoneStageWideSixMemberCandidateSolverRecovery,
+  buildIpadArithmeticFieldCandidatePool,
+  buildIpadArithmeticRoiTemplate,
+  evaluateIpadArithmeticSideSelectionTier,
+  getIpadArithmeticFieldType,
+  getIpadArithmeticPreprocessingProfiles,
+  getIpadArithmeticProfilesForFieldType,
+  padIpadArithmeticFieldZone,
+  parseIpadArithmeticOcrNumbers,
   buildCurrentPcCandidateSourceSummary,
   buildCurrentPcCrownBonusRuleEvidence,
   buildCurrentPcExactMembersCrownBonusTotalRecoveryEvidence,
@@ -422,6 +664,7 @@ export default function Home() {
   const [ocrStatus, setOcrStatus] = useState("");
   const [ocrProgress, setOcrProgress] = useState(0);
   const [parsedOcrScores, setParsedOcrScores] = useState(null);
+  const [ipadArithmeticDiagnostics, setIpadArithmeticDiagnostics] = useState(null);
   const [ocrMode, setOcrMode] = useState("smartphone");
   const [currentTime] = useState(() => Date.now());
 
@@ -436,6 +679,7 @@ export default function Home() {
     setOcrStatus("");
     setOcrProgress(0);
     setParsedOcrScores(null);
+    setIpadArithmeticDiagnostics(null);
   }, [screenshotPreview]);
 
   useEffect(() => {
@@ -2006,6 +2250,7 @@ export default function Home() {
     setOcrStatus("");
     setOcrProgress(0);
     setParsedOcrScores(null);
+    setIpadArithmeticDiagnostics(null);
   };
 
   const runOcr = async () => {
@@ -2017,6 +2262,7 @@ export default function Home() {
     setOcrText("");
     setOcrProgress(0);
     setParsedOcrScores(null);
+    setIpadArithmeticDiagnostics(null);
     setOcrStatus("合計値と個人スコア部分を切り抜き中...");
 
     try {
@@ -2028,6 +2274,14 @@ export default function Home() {
         img.onerror = reject;
         img.src = imageUrl;
       });
+
+      const ipadArithmeticDebug = isIpadArithmeticDebugEnabled();
+      const ipadArithmeticDebugData = ipadArithmeticDebug
+        ? await buildIpadArithmeticBrowserDiagnostics({
+            image,
+            imageName: screenshotName || screenshotFile.name || "",
+          })
+        : null;
 
       const stageTexts = [];
       const stageScores = {
@@ -3960,7 +4214,9 @@ export default function Home() {
         stages: correctedStageScores,
         currentPcGroupedRawEvidence,
         smartphoneCrownStageWideEvidence,
+        ipadArithmeticDiagnostics: ipadArithmeticDebugData,
       });
+      setIpadArithmeticDiagnostics(ipadArithmeticDebugData);
       setOcrProgress(100);
       setOcrStatus("OCR完了");
     } catch (error) {
@@ -5050,6 +5306,7 @@ const metaStats = useMemo(() => {
             members={members}
             applyOcrScores={applyOcrScores}
             ocrText={ocrText}
+            ipadArithmeticDiagnostics={ipadArithmeticDiagnostics}
           />
         </section>
 

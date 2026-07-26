@@ -17,10 +17,28 @@ export default function OcrImportPanel({
   members,
   applyOcrScores,
   ocrText,
+  ipadArithmeticDiagnostics,
 }) {
   const debugOcrText = ocrText?.startsWith("[OCR_PARSER_VERSION]")
     ? ocrText
     : `[OCR_PARSER_VERSION] ${OCR_PARSER_VERSION}\n\n${ocrText}`;
+  const exportIpadArithmeticDiagnostics = () => {
+    if (!ipadArithmeticDiagnostics || typeof document === "undefined") return;
+    const blob = new Blob([JSON.stringify(ipadArithmeticDiagnostics, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const safeName = (ipadArithmeticDiagnostics.imageIdentifier || screenshotName || "ipad")
+      .replace(/[\\/:*?"<>|]/g, "_")
+      .slice(0, 80);
+    a.href = url;
+    a.download = `${safeName || "ipad"}-ipad-arithmetic-diagnostics.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <>
@@ -220,6 +238,60 @@ export default function OcrImportPanel({
               >
                 入力欄へ反映（保存はしません）
               </button>
+            </div>
+          )}
+
+          {ipadArithmeticDiagnostics && (
+            <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4">
+              <div className="mb-2 font-semibold text-sky-950">
+                iPad arithmetic diagnostics
+              </div>
+              <p className="mb-3 text-xs text-sky-800">
+                Developer-only output from <code>?ipadArithmeticDebug=1</code>. Proposals are not
+                applied to the displayed OCR result.
+              </p>
+              <div className="mb-3 grid grid-cols-1 gap-2 text-xs text-sky-900 md:grid-cols-4">
+                <div className="rounded-lg bg-white px-3 py-2">
+                  detected: {ipadArithmeticDiagnostics.detection?.detected ? "yes" : "no"}
+                </div>
+                <div className="rounded-lg bg-white px-3 py-2">
+                  accepted: {ipadArithmeticDiagnostics.acceptedCases?.length || 0}
+                </div>
+                <div className="rounded-lg bg-white px-3 py-2">
+                  output changed: {ipadArithmeticDiagnostics.productionOutputChanged ? "yes" : "no"}
+                </div>
+                <div className="rounded-lg bg-white px-3 py-2">
+                  template: {ipadArithmeticDiagnostics.template?.version || "-"}
+                </div>
+              </div>
+              <button
+                onClick={exportIpadArithmeticDiagnostics}
+                className="rounded-xl bg-sky-900 px-4 py-2 text-sm font-semibold text-white"
+              >
+                Export iPad arithmetic diagnostics
+              </button>
+              {developerMode && (
+                <pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap rounded-xl bg-white p-3 text-xs text-zinc-700">
+                  {JSON.stringify(
+                    {
+                      imageIdentifier: ipadArithmeticDiagnostics.imageIdentifier,
+                      detection: ipadArithmeticDiagnostics.detection,
+                      acceptedCases: (ipadArithmeticDiagnostics.acceptedCases || []).map(
+                        ({ stage, side, currentPrimary, selectedTuple, wouldApply, blockReason }) => ({
+                          stage,
+                          side,
+                          currentPrimary,
+                          selectedTuple,
+                          wouldApply,
+                          blockReason,
+                        })
+                      ),
+                    },
+                    null,
+                    2
+                  )}
+                </pre>
+              )}
             </div>
           )}
 
