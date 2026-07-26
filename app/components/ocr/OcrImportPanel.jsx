@@ -113,6 +113,7 @@ export default function OcrImportPanel({
           type="file"
           accept="image/*"
           className="hidden"
+          data-testid="ocr-screenshot-file-input"
           onChange={handleScreenshotChange}
         />
       </label>
@@ -135,6 +136,7 @@ export default function OcrImportPanel({
 
           <button
             onClick={runOcr}
+            data-testid="run-ocr-button"
             className="w-full rounded-2xl bg-zinc-900 py-4 font-semibold text-white md:w-auto md:px-6"
           >
             OCRで読み取る
@@ -242,7 +244,11 @@ export default function OcrImportPanel({
           )}
 
           {ipadArithmeticDiagnostics && (
-            <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4">
+            <div
+              className="rounded-2xl border border-sky-200 bg-sky-50 p-4"
+              data-testid="ipad-arithmetic-diagnostics-panel"
+              data-ipad-arithmetic-diagnostics-ready="true"
+            >
               <div className="mb-2 font-semibold text-sky-950">
                 iPad arithmetic diagnostics
               </div>
@@ -266,10 +272,17 @@ export default function OcrImportPanel({
               </div>
               <button
                 onClick={exportIpadArithmeticDiagnostics}
+                data-testid="export-ipad-arithmetic-diagnostics"
                 className="rounded-xl bg-sky-900 px-4 py-2 text-sm font-semibold text-white"
               >
                 Export iPad arithmetic diagnostics
               </button>
+              <textarea
+                readOnly
+                data-testid="ipad-arithmetic-diagnostics-json"
+                className="hidden"
+                value={JSON.stringify(ipadArithmeticDiagnostics)}
+              />
               {developerMode && (
                 <pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap rounded-xl bg-white p-3 text-xs text-zinc-700">
                   {JSON.stringify(
