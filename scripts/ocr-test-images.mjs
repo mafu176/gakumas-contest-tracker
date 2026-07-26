@@ -204,11 +204,21 @@ const ipadPreprocessingInvestigationReportPath = path.join(
   "docs",
   "ipad-preprocessing-ocr-investigation.md"
 );
+const ipadCandidateSelectionInvestigationReportPath = path.join(
+  rootDir,
+  "docs",
+  "ipad-candidate-selection-investigation.md"
+);
 const ipadOcrBaselineDir = path.join(rootDir, "tmp", "ipad-ocr-baseline");
 const ipadPreprocessingInvestigationDir = path.join(
   rootDir,
   "tmp",
   "ipad-preprocessing-investigation"
+);
+const ipadCandidateSelectionInvestigationDir = path.join(
+  rootDir,
+  "tmp",
+  "ipad-candidate-selection"
 );
 let currentPcBaselineScanSummary = null;
 const unsupportedNextScreenMessage =
@@ -5635,6 +5645,7 @@ async function recognizeIpadPreprocessedField(worker, imagePath, image, field, p
     slot: field.slot || 0,
     zone,
     rawText,
+    ocrConfidence: Number(result.data.confidence || 0),
     parsedCandidates,
     selected,
   };
@@ -6280,6 +6291,1222 @@ function buildIpadPreprocessingInvestigationReport(summary) {
     "## Recommendation",
     "",
     "Proceed with a runner-only iPad candidate-selection experiment using a small bounded candidate union from the selected profiles. Do not productionize or apply arithmetic/crown/stage-wide solving until runner/browser-equivalent iPad evidence parity exists.",
+    ""
+  );
+  return `${lines.join("\n")}\n`;
+}
+
+function ipadFieldKey({ filename, stage, side, field, slot = 0 }) {
+  return `${filename}|${stage}|${side}|${field}|${slot || 0}`;
+}
+
+function ipadFieldType(field) {
+  return field === "member" ? "member" : field;
+}
+
+function sortedNumberDistribution(values = []) {
+  const counts = {};
+  for (const value of values) counts[value] = (counts[value] || 0) + 1;
+  return Object.fromEntries(
+    Object.entries(counts).sort((a, b) => Number(a[0]) - Number(b[0]))
+  );
+}
+
+function buildIpadDigitLengthSchema(rows) {
+  const valuesByField = {
+    member: [],
+    bonus: [],
+    total: [],
+  };
+  for (const row of rows) {
+    for (const stage of stages) {
+      const stageExpected = row.expected[`stage${stage}`];
+      for (const side of sides) {
+        const members = side === "self" ? stageExpected.selfMembers : stageExpected.enemyMembers;
+        for (const member of members) valuesByField.member.push(Number(member || 0));
+        valuesByField.bonus.push(
+          Number(side === "self" ? stageExpected.selfBonus || 0 : stageExpected.enemyBonus || 0)
+        );
+        valuesByField.total.push(
+          Number(side === "self" ? stageExpected.selfTotal || 0 : stageExpected.enemyTotal || 0)
+        );
+      }
+    }
+  }
+
+  return Object.fromEntries(
+    Object.entries(valuesByField).map(([fieldType, values]) => {
+      const lengths = values.map((value) => String(Number(value || 0)).length);
+      const nonZeroLengths = values
+        .filter((value) => Number(value || 0) > 0)
+        .map((value) => String(Number(value)).length);
+      return [
+        fieldType,
+        {
+          minDigits: Math.min(...lengths),
+          maxDigits: Math.max(...lengths),
+          nonZeroMinDigits: nonZeroLengths.length ? Math.min(...nonZeroLengths) : 0,
+          nonZeroMaxDigits: nonZeroLengths.length ? Math.max(...nonZeroLengths) : 0,
+          digitLengthDistribution: sortedNumberDistribution(lengths),
+          nonZeroDigitLengthDistribution: sortedNumberDistribution(nonZeroLengths),
+        },
+      ];
+    })
+  );
+}
+
+async function measureIpadFieldCropQuality(imagePath, image, field) {
+  const zone = paddedIpadFieldZone(field, image, 0.12);
+  const { data, info } = await sharp(imagePath)
+    .extract(zone)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const mask = new Uint8Array(info.width * info.height);
+  let foreground = 0;
+  let borderForeground = 0;
+  for (let pixel = 0, index = 0; index < data.length; index += 4, pixel += 1) {
+    const r = data[index];
+    const g = data[index + 1];
+    const b = data[index + 2];
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const saturation = max - min;
+    const isForeground =
+      field.field === "bonus"
+        ? b > 135 && b > r + 16 && b > g + 4
+        : max > 168 && saturation < 155;
+    if (!isForeground) continue;
+    mask[pixel] = 1;
+    foreground += 1;
+    const x = pixel % info.width;
+    const y = Math.floor(pixel / info.width);
+    if (x === 0 || y === 0 || x === info.width - 1 || y === info.height - 1) {
+      borderForeground += 1;
+    }
+  }
+
+  const visited = new Uint8Array(mask.length);
+  let connectedComponents = 0;
+  const queue = [];
+  for (let start = 0; start < mask.length; start += 1) {
+    if (!mask[start] || visited[start]) continue;
+    let componentSize = 0;
+    queue.length = 0;
+    queue.push(start);
+    visited[start] = 1;
+    while (queue.length) {
+      const current = queue.pop();
+      componentSize += 1;
+      const x = current % info.width;
+      const y = Math.floor(current / info.width);
+      for (const next of [
+        x > 0 ? current - 1 : -1,
+        x < info.width - 1 ? current + 1 : -1,
+        y > 0 ? current - info.width : -1,
+        y < info.height - 1 ? current + info.width : -1,
+      ]) {
+        if (next >= 0 && mask[next] && !visited[next]) {
+          visited[next] = 1;
+          queue.push(next);
+        }
+      }
+    }
+    if (componentSize >= 3) connectedComponents += 1;
+  }
+
+  const pixels = Math.max(1, info.width * info.height);
+  const foregroundRatio = Number((foreground / pixels).toFixed(4));
+  const borderRatio = foreground ? Number((borderForeground / foreground).toFixed(4)) : 0;
+  return {
+    zone,
+    foregroundRatio,
+    connectedComponents,
+    touchesBorder: borderRatio > 0.08,
+    borderForegroundRatio: borderRatio,
+    likelyEmpty: foregroundRatio < 0.002,
+  };
+}
+
+function normalizeIpadCandidateText(rawText = "") {
+  return String(rawText || "").replace(/[^\d]/g, "");
+}
+
+function buildIpadFieldCandidatePool({ row, field, profileResults, profiles, cropQuality, digitSchema }) {
+  const fieldType = ipadFieldType(field.field);
+  const applicableProfiles = getIpadProfilesForFieldType(profiles, fieldType);
+  const candidatesByValue = new Map();
+  for (const [profileIndex, profile] of applicableProfiles.entries()) {
+    const result = profileResults[profile.id];
+    if (!result) continue;
+    for (const [candidateIndex, parsed] of (result.parsedCandidates || []).entries()) {
+      const value = Number(parsed.value || 0);
+      if (!Number.isInteger(value)) continue;
+      const normalizedText = normalizeIpadCandidateText(parsed.raw);
+      const digitCount = String(value).length;
+      const schema = digitSchema[fieldType] || {};
+      const lengthInSchema =
+        digitCount >= Number(schema.minDigits || 0) && digitCount <= Number(schema.maxDigits || 99);
+      const contribution = {
+        profileId: profile.id,
+        profileLabel: profile.label,
+        sourceRank: profileIndex,
+        candidateIndex,
+        rawText: result.rawText,
+        rawCandidate: parsed.raw,
+        normalizedText,
+        ocrConfidence: Number(result.ocrConfidence || 0),
+        plusLike: Boolean(parsed.plusLike),
+      };
+      const existing = candidatesByValue.get(value);
+      if (existing) {
+        existing.profileIds.push(profile.id);
+        existing.contributions.push(contribution);
+        existing.confidenceSignals.ocrConfidence = Math.max(
+          existing.confidenceSignals.ocrConfidence,
+          contribution.ocrConfidence
+        );
+        existing.confidenceSignals.repeatedProfiles = existing.profileIds.length;
+        existing.confidenceSignals.independentAgreement = new Set(existing.profileIds).size;
+        existing.confidenceSignals.plusLike ||= contribution.plusLike;
+        continue;
+      }
+      candidatesByValue.set(value, {
+        value,
+        rawText: result.rawText,
+        normalizedText,
+        fieldType,
+        profileId: profile.id,
+        profileIds: [profile.id],
+        sourceRank: profileIndex,
+        cropQuality: {
+          foregroundRatio: cropQuality.foregroundRatio,
+          connectedComponents: cropQuality.connectedComponents,
+          touchesBorder: cropQuality.touchesBorder,
+        },
+        foregroundRatio: cropQuality.foregroundRatio,
+        connectedComponents: cropQuality.connectedComponents,
+        touchesBorder: cropQuality.touchesBorder,
+        digitCount,
+        confidenceSignals: {
+          ocrConfidence: contribution.ocrConfidence,
+          digitOnlyPurity: parsed.raw ? normalizedText.length / String(parsed.raw).length : 0,
+          lengthInSchema,
+          plusLike: contribution.plusLike,
+          repeatedProfiles: 1,
+          independentAgreement: 1,
+        },
+        contributions: [contribution],
+      });
+    }
+  }
+
+  const candidates = [...candidatesByValue.values()]
+    .sort((a, b) => {
+      if (a.sourceRank !== b.sourceRank) return a.sourceRank - b.sourceRank;
+      if (b.confidenceSignals.independentAgreement !== a.confidenceSignals.independentAgreement) {
+        return b.confidenceSignals.independentAgreement - a.confidenceSignals.independentAgreement;
+      }
+      return a.value - b.value;
+    })
+    .slice(0, 6);
+
+  return {
+    key: ipadFieldKey({
+      filename: row.filename,
+      stage: field.stage,
+      side: field.side,
+      field: field.field,
+      slot: field.slot || 0,
+    }),
+    image: row.filename,
+    clusterId: row.clusterId || "unknown",
+    stage: field.stage,
+    side: field.side,
+    field: field.field,
+    fieldType,
+    slot: field.slot || 0,
+    zone: field.zone,
+    cropQuality,
+    candidates,
+    profileResults,
+  };
+}
+
+async function collectIpadBoundedCandidatePools() {
+  const { rows } = await collectIpadExpectedFixtures();
+  const profiles = getIpadPreprocessingProfiles();
+  const digitSchema = buildIpadDigitLengthSchema(rows);
+  const worker = await getIpadOcrWorker();
+  const workerState = {};
+  const poolsByKey = new Map();
+  const poolRecords = [];
+
+  try {
+    for (const row of rows) {
+      const image = await readImageSize(row.imagePath);
+      const template = buildIpadCorrectedRoiTemplate(image);
+      for (const field of template.fields) {
+        const fieldType = ipadFieldType(field.field);
+        const applicableProfiles = getIpadProfilesForFieldType(profiles, fieldType);
+        const cropQuality = await measureIpadFieldCropQuality(row.imagePath, image, field);
+        const profileResults = {};
+        for (const profile of applicableProfiles) {
+          const result = await recognizeIpadPreprocessedField(
+            worker,
+            row.imagePath,
+            image,
+            field,
+            profile,
+            workerState
+          );
+          profileResults[profile.id] = result;
+        }
+        const pool = buildIpadFieldCandidatePool({
+          row,
+          field,
+          profileResults,
+          profiles,
+          cropQuality,
+          digitSchema,
+        });
+        poolsByKey.set(pool.key, pool);
+        poolRecords.push(pool);
+      }
+    }
+  } finally {
+    await worker.terminate();
+  }
+
+  return { rows, profiles, digitSchema, poolsByKey, poolRecords };
+}
+
+function candidateProfilePriority(candidate, priority = []) {
+  const ranks = (candidate.profileIds || []).map((profileId) => {
+    const index = priority.indexOf(profileId);
+    return index >= 0 ? index : 999;
+  });
+  return ranks.length ? Math.min(...ranks) : 999;
+}
+
+function scoreIpadCandidate(candidate, strategy, fieldType, priorities, digitSchema) {
+  const priorityRank = candidateProfilePriority(candidate, priorities[fieldType] || []);
+  const confidence = Number(candidate.confidenceSignals?.ocrConfidence || 0);
+  const agreement = Number(candidate.confidenceSignals?.independentAgreement || 1);
+  const purity = Number(candidate.confidenceSignals?.digitOnlyPurity || 0);
+  const lengthInSchema = candidate.confidenceSignals?.lengthInSchema ? 1 : 0;
+  const foreground = Number(candidate.foregroundRatio || 0);
+  const borderPenalty = candidate.touchesBorder ? 1 : 0;
+  const plusBonus = fieldType === "bonus" && candidate.confidenceSignals?.plusLike ? 1 : 0;
+  const nonZeroLengthBonus =
+    Number(candidate.value || 0) > 0 &&
+    candidate.digitCount >= Number(digitSchema[fieldType]?.nonZeroMinDigits || 0) &&
+    candidate.digitCount <= Number(digitSchema[fieldType]?.nonZeroMaxDigits || 99)
+      ? 1
+      : 0;
+
+  if (strategy === "current-primary") {
+    return priorityRank === 0
+      ? 1000 + plusBonus * 20 - candidate.contributions[0].candidateIndex
+      : -1000 - priorityRank;
+  }
+  if (strategy === "profile-priority") {
+    return 1000 + plusBonus * 20 - priorityRank * 20 - candidate.contributions[0].candidateIndex;
+  }
+  if (strategy === "consensus") {
+    return agreement * 100 + (10 - priorityRank) + plusBonus * 8;
+  }
+  if (strategy === "quality-weighted") {
+    return confidence + purity * 20 + lengthInSchema * 20 + nonZeroLengthBonus * 8 - borderPenalty * 30 + foreground * 40 + plusBonus * 10 - priorityRank;
+  }
+  if (strategy === "consensus-plus-quality") {
+    return agreement * 80 + confidence * 0.7 + purity * 15 + lengthInSchema * 20 + nonZeroLengthBonus * 8 - borderPenalty * 30 + plusBonus * 12 - priorityRank;
+  }
+  return 0;
+}
+
+function getIpadCandidateSelectionStrategies() {
+  return [
+    {
+      id: "current-primary",
+      label: "Current primary-profile selection",
+      priorities: {
+        member: ["baseline-score-preprocess-3x-psm7"],
+        bonus: ["blue-bonus-mask-3x-psm7"],
+        total: ["white-mask-3x-psm7"],
+      },
+    },
+    {
+      id: "profile-priority",
+      label: "Profile-priority selection",
+      priorities: {
+        member: [
+          "baseline-score-preprocess-3x-psm7",
+          "white-mask-3x-psm7",
+          "invert-normalize-3x-psm7",
+        ],
+        bonus: [
+          "blue-bonus-mask-3x-psm7",
+          "baseline-score-preprocess-3x-psm7",
+          "white-mask-3x-psm7",
+          "invert-normalize-3x-psm7",
+        ],
+        total: [
+          "white-mask-3x-psm7",
+          "baseline-score-preprocess-3x-psm7",
+          "invert-normalize-3x-psm7",
+        ],
+      },
+    },
+    {
+      id: "consensus",
+      label: "Consensus selection",
+      priorities: {
+        member: [
+          "baseline-score-preprocess-3x-psm7",
+          "white-mask-3x-psm7",
+          "invert-normalize-3x-psm7",
+        ],
+        bonus: [
+          "blue-bonus-mask-3x-psm7",
+          "baseline-score-preprocess-3x-psm7",
+          "white-mask-3x-psm7",
+          "invert-normalize-3x-psm7",
+        ],
+        total: [
+          "white-mask-3x-psm7",
+          "baseline-score-preprocess-3x-psm7",
+          "invert-normalize-3x-psm7",
+        ],
+      },
+    },
+    {
+      id: "quality-weighted",
+      label: "Quality-weighted selection",
+      priorities: {
+        member: [
+          "baseline-score-preprocess-3x-psm7",
+          "white-mask-3x-psm7",
+          "invert-normalize-3x-psm7",
+        ],
+        bonus: [
+          "blue-bonus-mask-3x-psm7",
+          "baseline-score-preprocess-3x-psm7",
+          "white-mask-3x-psm7",
+          "invert-normalize-3x-psm7",
+        ],
+        total: [
+          "white-mask-3x-psm7",
+          "baseline-score-preprocess-3x-psm7",
+          "invert-normalize-3x-psm7",
+        ],
+      },
+    },
+    {
+      id: "consensus-plus-quality",
+      label: "Consensus plus quality selection",
+      priorities: {
+        member: [
+          "baseline-score-preprocess-3x-psm7",
+          "white-mask-3x-psm7",
+          "invert-normalize-3x-psm7",
+        ],
+        bonus: [
+          "blue-bonus-mask-3x-psm7",
+          "baseline-score-preprocess-3x-psm7",
+          "white-mask-3x-psm7",
+          "invert-normalize-3x-psm7",
+        ],
+        total: [
+          "white-mask-3x-psm7",
+          "baseline-score-preprocess-3x-psm7",
+          "invert-normalize-3x-psm7",
+        ],
+      },
+    },
+  ];
+}
+
+function selectIpadCandidate(pool, strategy, digitSchema) {
+  const candidateList =
+    strategy.id === "current-primary"
+      ? pool.candidates.filter(
+          (candidate) =>
+            candidateProfilePriority(candidate, strategy.priorities[pool.fieldType] || []) === 0
+        )
+      : pool.candidates;
+  if (!candidateList.length) {
+    return {
+      value: 0,
+      candidate: null,
+      score: 0,
+      scoreBreakdown: { reason: "empty candidate pool" },
+    };
+  }
+  const scored = candidateList
+    .map((candidate, index) => ({
+      candidate,
+      score: scoreIpadCandidate(
+        candidate,
+        strategy.id,
+        pool.fieldType,
+        strategy.priorities,
+        digitSchema
+      ),
+      tieBreak: index,
+    }))
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      if (a.candidate.sourceRank !== b.candidate.sourceRank) return a.candidate.sourceRank - b.candidate.sourceRank;
+      if (a.tieBreak !== b.tieBreak) return a.tieBreak - b.tieBreak;
+      return a.candidate.value - b.candidate.value;
+    });
+  const chosen = scored[0];
+  return {
+    value: chosen.candidate.value,
+    candidate: chosen.candidate,
+    score: Number(chosen.score.toFixed(3)),
+    scoreBreakdown: {
+      strategy: strategy.id,
+      profileIds: chosen.candidate.profileIds,
+      agreement: chosen.candidate.confidenceSignals.independentAgreement,
+      confidence: chosen.candidate.confidenceSignals.ocrConfidence,
+      digitCount: chosen.candidate.digitCount,
+      lengthInSchema: chosen.candidate.confidenceSignals.lengthInSchema,
+      touchesBorder: chosen.candidate.touchesBorder,
+      foregroundRatio: chosen.candidate.foregroundRatio,
+    },
+    alternatives: scored.slice(1, 5).map((entry) => ({
+      value: entry.candidate.value,
+      score: Number(entry.score.toFixed(3)),
+      profileIds: entry.candidate.profileIds,
+    })),
+  };
+}
+
+function emptyIpadStrategyStats() {
+  return {
+    fields: 0,
+    exact: 0,
+    emptyOutput: 0,
+    newlyCorrect: 0,
+    previouslyCorrectLost: 0,
+    unchangedCorrect: 0,
+    changedIncorrect: 0,
+    candidatePresentButNotSelected: 0,
+    expectedNotPresentInPool: 0,
+    byFieldType: {
+      member: { fields: 0, exact: 0, newlyCorrect: 0, previouslyCorrectLost: 0 },
+      bonus: { fields: 0, exact: 0, newlyCorrect: 0, previouslyCorrectLost: 0 },
+      total: { fields: 0, exact: 0, newlyCorrect: 0, previouslyCorrectLost: 0 },
+    },
+    byCluster: {},
+  };
+}
+
+function finalizeIpadStrategyStats(stats) {
+  return {
+    ...stats,
+    accuracy: percentage(stats.exact, stats.fields),
+    netGain: stats.newlyCorrect - stats.previouslyCorrectLost,
+    byFieldType: Object.fromEntries(
+      Object.entries(stats.byFieldType).map(([fieldType, value]) => [
+        fieldType,
+        {
+          ...value,
+          accuracy: percentage(value.exact, value.fields),
+          netGain: value.newlyCorrect - value.previouslyCorrectLost,
+        },
+      ])
+    ),
+    byCluster: Object.fromEntries(
+      Object.entries(stats.byCluster).map(([cluster, value]) => [
+        cluster,
+        {
+          ...value,
+          accuracy: percentage(value.exact, value.fields),
+          netGain: value.newlyCorrect - value.previouslyCorrectLost,
+        },
+      ])
+    ),
+  };
+}
+
+function compareIpadSelectedField({ pool, selection, expectedValue, primarySelection }) {
+  const expectedPresent = pool.candidates.some((candidate) => candidate.value === expectedValue);
+  const exact = selection.value === expectedValue;
+  const primaryExact = primarySelection.value === expectedValue;
+  let headroom = "correct";
+  if (!exact) {
+    if (!pool.candidates.length) headroom = "candidate pool empty";
+    else if (!expectedPresent) headroom = "expected absent from candidate pool";
+    else if (pool.candidates.length === 1) headroom = "expected present only in non-selected profile";
+    else headroom = "expected present but wrong candidate selected";
+  }
+  return {
+    expectedPresent,
+    exact,
+    primaryExact,
+    newlyCorrect: exact && !primaryExact,
+    previouslyCorrectLost: !exact && primaryExact,
+    unchangedCorrect: exact && primaryExact,
+    changedIncorrect: !exact && !primaryExact && selection.value !== primarySelection.value,
+    headroom,
+  };
+}
+
+function buildIpadStrategySelections({ rows, poolsByKey, strategies, digitSchema }) {
+  const selectionsByStrategy = {};
+  const primaryStrategy = strategies.find((strategy) => strategy.id === "current-primary");
+  const primarySelections = new Map();
+  for (const pool of poolsByKey.values()) {
+    primarySelections.set(pool.key, selectIpadCandidate(pool, primaryStrategy, digitSchema));
+  }
+
+  for (const strategy of strategies) {
+    const stats = emptyIpadStrategyStats();
+    const selections = {};
+    const regressions = [];
+    const newlyCorrect = [];
+    const presentNotSelected = [];
+    const headroom = {};
+    for (const pool of poolsByKey.values()) {
+      const selection = selectIpadCandidate(pool, strategy, digitSchema);
+      const primarySelection = primarySelections.get(pool.key);
+      const row = rows.find((candidate) => candidate.filename === pool.image);
+      const expectedValue = getExpectedIpadField(
+        row.expected[`stage${pool.stage}`],
+        pool.side,
+        pool.field,
+        pool.slot
+      );
+      const comparison = compareIpadSelectedField({
+        pool,
+        selection,
+        expectedValue,
+        primarySelection,
+      });
+      selections[pool.key] = {
+        value: selection.value,
+        candidate: selection.candidate
+          ? {
+              value: selection.candidate.value,
+              profileIds: selection.candidate.profileIds,
+              rawText: selection.candidate.rawText,
+              normalizedText: selection.candidate.normalizedText,
+            }
+          : null,
+        score: selection.score,
+        scoreBreakdown: selection.scoreBreakdown,
+        alternatives: selection.alternatives,
+        expectedValue,
+        exact: comparison.exact,
+      };
+
+      stats.fields += 1;
+      stats.exact += comparison.exact ? 1 : 0;
+      stats.emptyOutput += selection.value === 0 ? 1 : 0;
+      stats.newlyCorrect += comparison.newlyCorrect ? 1 : 0;
+      stats.previouslyCorrectLost += comparison.previouslyCorrectLost ? 1 : 0;
+      stats.unchangedCorrect += comparison.unchangedCorrect ? 1 : 0;
+      stats.changedIncorrect += comparison.changedIncorrect ? 1 : 0;
+      stats.candidatePresentButNotSelected +=
+        comparison.expectedPresent && !comparison.exact ? 1 : 0;
+      stats.expectedNotPresentInPool += !comparison.expectedPresent ? 1 : 0;
+      stats.byFieldType[pool.fieldType].fields += 1;
+      stats.byFieldType[pool.fieldType].exact += comparison.exact ? 1 : 0;
+      stats.byFieldType[pool.fieldType].newlyCorrect += comparison.newlyCorrect ? 1 : 0;
+      stats.byFieldType[pool.fieldType].previouslyCorrectLost += comparison.previouslyCorrectLost ? 1 : 0;
+      stats.byCluster[pool.clusterId] ||= {
+        fields: 0,
+        exact: 0,
+        newlyCorrect: 0,
+        previouslyCorrectLost: 0,
+      };
+      stats.byCluster[pool.clusterId].fields += 1;
+      stats.byCluster[pool.clusterId].exact += comparison.exact ? 1 : 0;
+      stats.byCluster[pool.clusterId].newlyCorrect += comparison.newlyCorrect ? 1 : 0;
+      stats.byCluster[pool.clusterId].previouslyCorrectLost += comparison.previouslyCorrectLost ? 1 : 0;
+      headroom[comparison.headroom] = (headroom[comparison.headroom] || 0) + 1;
+
+      const auditRecord = {
+        key: pool.key,
+        image: pool.image,
+        clusterId: pool.clusterId,
+        stage: pool.stage,
+        side: pool.side,
+        field: pool.field,
+        slot: pool.slot,
+        expectedValue,
+        selectedValue: selection.value,
+        primaryValue: primarySelection.value,
+        candidateValues: pool.candidates.map((candidate) => candidate.value),
+        selectedCandidate: selections[pool.key].candidate,
+        scoreBreakdown: selection.scoreBreakdown,
+      };
+      if (comparison.previouslyCorrectLost) regressions.push(auditRecord);
+      if (comparison.newlyCorrect) newlyCorrect.push(auditRecord);
+      if (comparison.expectedPresent && !comparison.exact) presentNotSelected.push(auditRecord);
+    }
+
+    selectionsByStrategy[strategy.id] = {
+      strategy,
+      stats: finalizeIpadStrategyStats(stats),
+      selections,
+      headroom,
+      regressions,
+      newlyCorrect,
+      expectedPresentButNotSelected: presentNotSelected,
+    };
+  }
+  return { selectionsByStrategy, primarySelections };
+}
+
+function buildIpadAggregateAccuracy({ rows, selections }) {
+  const counters = {
+    images: { pass: 0, total: rows.length },
+    stages: { pass: 0, total: rows.length * stages.length },
+    stageSides: { pass: 0, total: rows.length * stages.length * sides.length },
+    fields: {
+      member: { pass: 0, total: 0 },
+      bonus: { pass: 0, total: 0 },
+      total: { pass: 0, total: 0 },
+    },
+  };
+  const details = [];
+  for (const row of rows) {
+    let imagePass = true;
+    const failures = [];
+    for (const stage of stages) {
+      let stagePass = true;
+      for (const side of sides) {
+        const selected = { members: [0, 0, 0], bonus: 0, total: 0 };
+        for (const field of ["member", "bonus", "total"]) {
+          const slots = field === "member" ? [1, 2, 3] : [0];
+          for (const slot of slots) {
+            const key = ipadFieldKey({ filename: row.filename, stage, side, field, slot });
+            const value = Number(selections[key]?.value || 0);
+            const expectedValue = getExpectedIpadField(row.expected[`stage${stage}`], side, field, slot);
+            const fieldType = ipadFieldType(field);
+            counters.fields[fieldType].total += 1;
+            counters.fields[fieldType].pass += value === expectedValue ? 1 : 0;
+            if (field === "member") selected.members[slot - 1] = value;
+            else selected[field] = value;
+          }
+        }
+        const comparison = compareIpadSide(selected, row.expected[`stage${stage}`], side);
+        if (comparison.pass) {
+          counters.stageSides.pass += 1;
+        } else {
+          stagePass = false;
+          failures.push(`S${stage} ${side}`);
+        }
+      }
+      if (stagePass) counters.stages.pass += 1;
+      else imagePass = false;
+    }
+    if (imagePass) counters.images.pass += 1;
+    details.push({ image: row.filename, pass: imagePass, failures });
+  }
+  return {
+    images: {
+      ...counters.images,
+      fail: counters.images.total - counters.images.pass,
+      accuracy: percentage(counters.images.pass, counters.images.total),
+    },
+    stages: {
+      ...counters.stages,
+      fail: counters.stages.total - counters.stages.pass,
+      accuracy: percentage(counters.stages.pass, counters.stages.total),
+    },
+    stageSides: {
+      ...counters.stageSides,
+      fail: counters.stageSides.total - counters.stageSides.pass,
+      accuracy: percentage(counters.stageSides.pass, counters.stageSides.total),
+    },
+    fields: Object.fromEntries(
+      Object.entries(counters.fields).map(([fieldType, value]) => [
+        fieldType,
+        { ...value, accuracy: percentage(value.pass, value.total) },
+      ])
+    ),
+    details,
+  };
+}
+
+function summarizeIpadCandidatePools({ poolRecords, rows }) {
+  const counts = poolRecords.map((pool) => pool.candidates.length);
+  const sortedCounts = [...counts].sort((a, b) => a - b);
+  const byFieldType = {};
+  const byCluster = {};
+  for (const pool of poolRecords) {
+    for (const target of [byFieldType, byCluster]) {
+      const key = target === byFieldType ? pool.fieldType : pool.clusterId;
+      target[key] ||= {
+        fields: 0,
+        candidateCountSum: 0,
+        empty: 0,
+        single: 0,
+        multi: 0,
+        maxCandidateCount: 0,
+      };
+      const summary = target[key];
+      summary.fields += 1;
+      summary.candidateCountSum += pool.candidates.length;
+      summary.empty += pool.candidates.length === 0 ? 1 : 0;
+      summary.single += pool.candidates.length === 1 ? 1 : 0;
+      summary.multi += pool.candidates.length > 1 ? 1 : 0;
+      summary.maxCandidateCount = Math.max(summary.maxCandidateCount, pool.candidates.length);
+    }
+  }
+  const finalize = (summary) => ({
+    ...summary,
+    averageCandidateCount: summary.fields
+      ? Number((summary.candidateCountSum / summary.fields).toFixed(2))
+      : 0,
+  });
+  return {
+    fields: poolRecords.length,
+    averageCandidateCount: counts.length
+      ? Number((counts.reduce((sum, count) => sum + count, 0) / counts.length).toFixed(2))
+      : 0,
+    medianCandidateCount: sortedCounts.length
+      ? sortedCounts[Math.floor(sortedCounts.length / 2)]
+      : 0,
+    maxCandidateCount: sortedCounts.at(-1) || 0,
+    emptyCandidateFields: counts.filter((count) => count === 0).length,
+    singleCandidateFields: counts.filter((count) => count === 1).length,
+    multiCandidateFields: counts.filter((count) => count > 1).length,
+    byFieldType: Object.fromEntries(Object.entries(byFieldType).map(([key, value]) => [key, finalize(value)])),
+    byCluster: Object.fromEntries(Object.entries(byCluster).map(([key, value]) => [key, finalize(value)])),
+  };
+}
+
+function buildIpadOracleUpperBound({ rows, poolRecords }) {
+  const byFieldType = {
+    member: { present: 0, absent: 0, total: 0 },
+    bonus: { present: 0, absent: 0, total: 0 },
+    total: { present: 0, absent: 0, total: 0 },
+  };
+  const byCluster = {};
+  let present = 0;
+  let selectablePresent = 0;
+  for (const pool of poolRecords) {
+    const row = rows.find((candidate) => candidate.filename === pool.image);
+    const expectedValue = getExpectedIpadField(
+      row.expected[`stage${pool.stage}`],
+      pool.side,
+      pool.field,
+      pool.slot
+    );
+    const hasExpected = pool.candidates.some((candidate) => candidate.value === expectedValue);
+    const hasSelectableExpected =
+      hasExpected || (expectedValue === 0 && (pool.fieldType === "bonus" || pool.fieldType === "member"));
+    present += hasExpected ? 1 : 0;
+    selectablePresent += hasSelectableExpected ? 1 : 0;
+    byFieldType[pool.fieldType].total += 1;
+    byFieldType[pool.fieldType][hasExpected ? "present" : "absent"] += 1;
+    byCluster[pool.clusterId] ||= { present: 0, absent: 0, total: 0 };
+    byCluster[pool.clusterId].total += 1;
+    byCluster[pool.clusterId][hasExpected ? "present" : "absent"] += 1;
+  }
+  const finalize = (value) => ({
+    ...value,
+    presentRate: percentage(value.present, value.total),
+  });
+  return {
+    present,
+    absent: poolRecords.length - present,
+    selectablePresent,
+    selectableAbsent: poolRecords.length - selectablePresent,
+    total: poolRecords.length,
+    presentRate: percentage(present, poolRecords.length),
+    selectablePresentRate: percentage(selectablePresent, poolRecords.length),
+    byFieldType: Object.fromEntries(Object.entries(byFieldType).map(([key, value]) => [key, finalize(value)])),
+    byCluster: Object.fromEntries(Object.entries(byCluster).map(([key, value]) => [key, finalize(value)])),
+  };
+}
+
+function product(values) {
+  return values.reduce((acc, list) => acc.flatMap((prefix) => list.map((value) => [...prefix, value])), [[]]);
+}
+
+function buildIpadArithmeticCombinationAudit({ rows, poolsByKey }) {
+  const counters = {
+    stageSides: rows.length * stages.length * sides.length,
+    expectedMembersPresent: 0,
+    expectedBonusPresent: 0,
+    expectedTotalPresent: 0,
+    allExpectedFieldsPresent: 0,
+    atLeastOneArithmeticCombination: 0,
+    exactlyOneArithmeticCombination: 0,
+    multipleArithmeticCombinations: 0,
+    noArithmeticCombination: 0,
+  };
+  const details = [];
+  for (const row of rows) {
+    for (const stage of stages) {
+      for (const side of sides) {
+        const expectedStage = row.expected[`stage${stage}`];
+        const expectedMembers = side === "self" ? expectedStage.selfMembers : expectedStage.enemyMembers;
+        const expectedBonus = side === "self" ? expectedStage.selfBonus : expectedStage.enemyBonus;
+        const expectedTotal = side === "self" ? expectedStage.selfTotal : expectedStage.enemyTotal;
+        const memberPools = [1, 2, 3].map((slot) =>
+          poolsByKey.get(ipadFieldKey({ filename: row.filename, stage, side, field: "member", slot }))
+        );
+        const bonusPool = poolsByKey.get(ipadFieldKey({ filename: row.filename, stage, side, field: "bonus" }));
+        const totalPool = poolsByKey.get(ipadFieldKey({ filename: row.filename, stage, side, field: "total" }));
+        const memberValues = memberPools.map((pool) => uniqueNumbers(pool?.candidates.map((candidate) => candidate.value) || []));
+        const bonusValues = uniqueNumbers([0, ...(bonusPool?.candidates.map((candidate) => candidate.value) || [])]);
+        const totalValues = uniqueNumbers(totalPool?.candidates.map((candidate) => candidate.value) || []);
+        const expectedMembersPresent = expectedMembers.every((expected, index) =>
+          memberValues[index].includes(expected)
+        );
+        const expectedBonusPresent = bonusValues.includes(expectedBonus);
+        const expectedTotalPresent = totalValues.includes(expectedTotal);
+        counters.expectedMembersPresent += expectedMembersPresent ? 1 : 0;
+        counters.expectedBonusPresent += expectedBonusPresent ? 1 : 0;
+        counters.expectedTotalPresent += expectedTotalPresent ? 1 : 0;
+        counters.allExpectedFieldsPresent +=
+          expectedMembersPresent && expectedBonusPresent && expectedTotalPresent ? 1 : 0;
+        const combinations =
+          memberValues.every((values) => values.length) && totalValues.length
+            ? product([...memberValues, bonusValues, totalValues])
+            : [];
+        const valid = combinations.filter((combo) => {
+          const members = combo.slice(0, 3);
+          const bonus = combo[3];
+          const total = combo[4];
+          return members.reduce((sum, value) => sum + value, 0) + bonus === total;
+        });
+        counters.atLeastOneArithmeticCombination += valid.length > 0 ? 1 : 0;
+        counters.exactlyOneArithmeticCombination += valid.length === 1 ? 1 : 0;
+        counters.multipleArithmeticCombinations += valid.length > 1 ? 1 : 0;
+        counters.noArithmeticCombination += valid.length === 0 ? 1 : 0;
+        details.push({
+          image: row.filename,
+          stage,
+          side,
+          expectedMembersPresent,
+          expectedBonusPresent,
+          expectedTotalPresent,
+          validCombinationCount: valid.length,
+          sampleValidCombinations: valid.slice(0, 5).map((combo) => ({
+            members: combo.slice(0, 3),
+            bonus: combo[3],
+            total: combo[4],
+          })),
+        });
+      }
+    }
+  }
+  return {
+    ...counters,
+    details,
+  };
+}
+
+function selectIpadCandidateSelectionV1(resultsByStrategy) {
+  return Object.values(resultsByStrategy)
+    .map((result) => ({
+      id: result.strategy.id,
+      label: result.strategy.label,
+      stats: result.stats,
+    }))
+    .sort((a, b) => {
+      if (b.stats.exact !== a.stats.exact) return b.stats.exact - a.stats.exact;
+      if (a.stats.previouslyCorrectLost !== b.stats.previouslyCorrectLost) {
+        return a.stats.previouslyCorrectLost - b.stats.previouslyCorrectLost;
+      }
+      if (b.stats.byCluster["ipad-02"]?.accuracy !== a.stats.byCluster["ipad-02"]?.accuracy) {
+        return (b.stats.byCluster["ipad-02"]?.accuracy || 0) - (a.stats.byCluster["ipad-02"]?.accuracy || 0);
+      }
+      return a.id.localeCompare(b.id);
+    })[0];
+}
+
+async function runIpadCandidateSelectionSimulation() {
+  const { rows, profiles, digitSchema, poolsByKey, poolRecords } =
+    await collectIpadBoundedCandidatePools();
+  await fs.rm(ipadCandidateSelectionInvestigationDir, { recursive: true, force: true });
+  await fs.mkdir(ipadCandidateSelectionInvestigationDir, { recursive: true });
+  const strategies = getIpadCandidateSelectionStrategies();
+  const { selectionsByStrategy } = buildIpadStrategySelections({
+    rows,
+    poolsByKey,
+    strategies,
+    digitSchema,
+  });
+  const selectedStrategy = selectIpadCandidateSelectionV1(selectionsByStrategy);
+  const selectedResult = selectionsByStrategy[selectedStrategy.id];
+  const selectedAggregate = buildIpadAggregateAccuracy({
+    rows,
+    selections: selectedResult.selections,
+  });
+  const poolStats = summarizeIpadCandidatePools({ poolRecords, rows });
+  const oracleUpperBound = buildIpadOracleUpperBound({ rows, poolRecords });
+  const arithmeticAudit = buildIpadArithmeticCombinationAudit({ rows, poolsByKey });
+  const strategySummaries = Object.fromEntries(
+    Object.entries(selectionsByStrategy).map(([id, result]) => [
+      id,
+      {
+        label: result.strategy.label,
+        stats: result.stats,
+        headroom: result.headroom,
+        regressionCount: result.regressions.length,
+        newlyCorrectCount: result.newlyCorrect.length,
+        expectedPresentButNotSelectedCount: result.expectedPresentButNotSelected.length,
+      },
+    ])
+  );
+
+  const fieldCandidateRecords = poolRecords.map((pool) => ({
+    key: pool.key,
+    image: pool.image,
+    clusterId: pool.clusterId,
+    stage: pool.stage,
+    side: pool.side,
+    field: pool.field,
+    slot: pool.slot,
+    cropQuality: pool.cropQuality,
+    candidates: pool.candidates,
+  }));
+
+  const summary = {
+    command: "node scripts/ocr-test-images.mjs --ipad-candidate-selection-simulation",
+    outputDir: path.relative(rootDir, ipadCandidateSelectionInvestigationDir).replaceAll("\\", "/"),
+    isolation: {
+      roiGeometry: "ipad-shared-portrait-v2",
+      roiGeometryChanged: false,
+      productionOutputChanged: false,
+      smartphoneBehaviorChanged: false,
+      currentPcBehaviorChanged: false,
+      legacyDesktopBehaviorChanged: false,
+      ipadProductionEnabled: false,
+      arithmeticSelectionApplied: false,
+      crownRecoveryApplied: false,
+      stageWideSolverApplied: false,
+    },
+    profiles: profiles.map(({ id, label, kind, fieldTypes }) => ({ id, label, kind, fieldTypes })),
+    digitSchema,
+    poolStats,
+    strategySummaries,
+    selectedStrategy,
+    selectedAggregate,
+    oracleUpperBound,
+    headroom: selectedResult.headroom,
+    arithmeticAudit: {
+      ...arithmeticAudit,
+      details: undefined,
+    },
+  };
+
+  await fs.writeFile(
+    path.join(ipadCandidateSelectionInvestigationDir, "summary.json"),
+    JSON.stringify(summary, null, 2)
+  );
+  await fs.writeFile(
+    path.join(ipadCandidateSelectionInvestigationDir, "field-candidates.json"),
+    JSON.stringify(fieldCandidateRecords, null, 2)
+  );
+  await fs.writeFile(
+    path.join(ipadCandidateSelectionInvestigationDir, "strategy-results.json"),
+    JSON.stringify(
+      Object.fromEntries(
+        Object.entries(selectionsByStrategy).map(([id, result]) => [
+          id,
+          {
+            strategy: result.strategy,
+            stats: result.stats,
+            headroom: result.headroom,
+          },
+        ])
+      ),
+      null,
+      2
+    )
+  );
+  await fs.writeFile(
+    path.join(ipadCandidateSelectionInvestigationDir, "regressions.json"),
+    JSON.stringify(selectedResult.regressions, null, 2)
+  );
+  await fs.writeFile(
+    path.join(ipadCandidateSelectionInvestigationDir, "newly-correct.json"),
+    JSON.stringify(selectedResult.newlyCorrect, null, 2)
+  );
+  await fs.writeFile(
+    path.join(ipadCandidateSelectionInvestigationDir, "expected-present-but-not-selected.json"),
+    JSON.stringify(selectedResult.expectedPresentButNotSelected, null, 2)
+  );
+  await fs.writeFile(
+    path.join(ipadCandidateSelectionInvestigationDir, "arithmetic-combination-audit.json"),
+    JSON.stringify(arithmeticAudit, null, 2)
+  );
+  await fs.writeFile(
+    ipadCandidateSelectionInvestigationReportPath,
+    buildIpadCandidateSelectionInvestigationReport(summary)
+  );
+  return summary;
+}
+
+function buildIpadCandidateSelectionInvestigationReport(summary) {
+  const selected = summary.strategySummaries[summary.selectedStrategy.id];
+  const lines = [
+    "# iPad Candidate Selection Investigation",
+    "",
+    "## Summary",
+    "",
+    `- command: \`${summary.command}\``,
+    `- output directory: \`${summary.outputDir}\``,
+    `- ROI geometry: \`${summary.isolation.roiGeometry}\``,
+    `- selected Candidate Selection v1 strategy: \`${summary.selectedStrategy.id}\` (${summary.selectedStrategy.label})`,
+    `- selected exact fields: ${ratioText(selected.stats.exact, selected.stats.fields)}`,
+    `- selected net gain vs current primary: ${selected.stats.netGain}`,
+    `- selected regressions vs current primary: ${selected.stats.previouslyCorrectLost}`,
+    `- observed numeric candidate-pool upper bound: ${ratioText(summary.oracleUpperBound.present, summary.oracleUpperBound.total)}`,
+    `- selectable output upper bound including zero defaults: ${ratioText(summary.oracleUpperBound.selectablePresent, summary.oracleUpperBound.total)}`,
+    `- expected-present-but-not-selected fields: ${selected.expectedPresentButNotSelectedCount}`,
+    "",
+    "This is runner-only and diagnostic-only. It does not change iPad production output, ROI geometry, smartphone OCR, current-PC OCR, or legacy desktop OCR.",
+    "",
+    "## Candidate Pool Structure",
+    "",
+    "Each field candidate preserves `value`, `rawText`, `normalizedText`, `fieldType`, contributing `profileIds`, deterministic `sourceRank`, crop quality (`foregroundRatio`, `connectedComponents`, `touchesBorder`), `digitCount`, and confidence signals. Identical numeric values are deduplicated while retaining all contributing profiles. Pools are capped at 6 values per field.",
+    "",
+    "## Candidate Sources",
+    "",
+    "| profile | fields | kind |",
+    "| --- | --- | --- |",
+  ];
+  for (const profile of summary.profiles) {
+    lines.push(
+      `| \`${profile.id}\` | ${(profile.fieldTypes || []).join(", ")} | ${profile.kind} |`
+    );
+  }
+  lines.push(
+    "",
+    "## Candidate Count Statistics",
+    "",
+    `- fields: ${summary.poolStats.fields}`,
+    `- average candidate count: ${summary.poolStats.averageCandidateCount}`,
+    `- median candidate count: ${summary.poolStats.medianCandidateCount}`,
+    `- max candidate count: ${summary.poolStats.maxCandidateCount}`,
+    `- empty candidate fields: ${summary.poolStats.emptyCandidateFields}`,
+    `- single-candidate fields: ${summary.poolStats.singleCandidateFields}`,
+    `- multi-candidate fields: ${summary.poolStats.multiCandidateFields}`,
+    "",
+    "| field | fields | avg candidates | empty | single | multi | max |",
+    "| --- | ---: | ---: | ---: | ---: | ---: | ---: |"
+  );
+  for (const [fieldType, stats] of Object.entries(summary.poolStats.byFieldType)) {
+    lines.push(
+      `| ${fieldType} | ${stats.fields} | ${stats.averageCandidateCount} | ${stats.empty} | ${stats.single} | ${stats.multi} | ${stats.maxCandidateCount} |`
+    );
+  }
+  lines.push(
+    "",
+    "## Observed Digit-Length Schema",
+    "",
+    "| field | min | max | non-zero min | non-zero max | length distribution |",
+    "| --- | ---: | ---: | ---: | ---: | --- |"
+  );
+  for (const [fieldType, schema] of Object.entries(summary.digitSchema)) {
+    lines.push(
+      `| ${fieldType} | ${schema.minDigits} | ${schema.maxDigits} | ${schema.nonZeroMinDigits} | ${schema.nonZeroMaxDigits} | ${JSON.stringify(schema.digitLengthDistribution)} |`
+    );
+  }
+  lines.push(
+    "",
+    "## Strategy Results",
+    "",
+    "| strategy | exact fields | accuracy | net gain | newly correct | lost | present but not selected | expected absent |",
+    "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |"
+  );
+  for (const [strategyId, result] of Object.entries(summary.strategySummaries)) {
+    lines.push(
+      `| \`${strategyId}\` | ${ratioText(result.stats.exact, result.stats.fields)} | ${result.stats.accuracy}% | ${result.stats.netGain} | ${result.stats.newlyCorrect} | ${result.stats.previouslyCorrectLost} | ${result.stats.candidatePresentButNotSelected} | ${result.stats.expectedNotPresentInPool} |`
+    );
+  }
+  lines.push(
+    "",
+    "## Selected Strategy Field Results",
+    "",
+    "| field | exact | accuracy | net gain | newly correct | lost |",
+    "| --- | --- | ---: | ---: | ---: | ---: |"
+  );
+  for (const [fieldType, stats] of Object.entries(selected.stats.byFieldType)) {
+    lines.push(
+      `| ${fieldType} | ${ratioText(stats.exact, stats.fields)} | ${stats.accuracy}% | ${stats.netGain} | ${stats.newlyCorrect} | ${stats.previouslyCorrectLost} |`
+    );
+  }
+  lines.push(
+    "",
+    "## Per-Cluster Selected Strategy Results",
+    "",
+    "| cluster | exact | accuracy | net gain | lost |",
+    "| --- | --- | ---: | ---: | ---: |"
+  );
+  for (const [cluster, stats] of Object.entries(selected.stats.byCluster)) {
+    lines.push(
+      `| ${cluster} | ${ratioText(stats.exact, stats.fields)} | ${stats.accuracy}% | ${stats.netGain} | ${stats.previouslyCorrectLost} |`
+    );
+  }
+  lines.push(
+    "",
+    "## Aggregate Simulated Accuracy",
+    "",
+    `- image PASS: ${ratioText(summary.selectedAggregate.images.pass, summary.selectedAggregate.images.total)}`,
+    `- stage PASS: ${ratioText(summary.selectedAggregate.stages.pass, summary.selectedAggregate.stages.total)}`,
+    `- stage/side PASS: ${ratioText(summary.selectedAggregate.stageSides.pass, summary.selectedAggregate.stageSides.total)}`,
+    `- member field accuracy: ${ratioText(summary.selectedAggregate.fields.member.pass, summary.selectedAggregate.fields.member.total)}`,
+    `- bonus field accuracy: ${ratioText(summary.selectedAggregate.fields.bonus.pass, summary.selectedAggregate.fields.bonus.total)}`,
+    `- total field accuracy: ${ratioText(summary.selectedAggregate.fields.total.pass, summary.selectedAggregate.fields.total.total)}`,
+    "",
+    "Aggregate PASS is calculated only from selected field-local outputs. No arithmetic, crown rule, or stage-wide solver is applied.",
+    "",
+    "## Oracle Candidate-Pool Upper Bound",
+    "",
+    `- expected present as observed numeric candidate: ${ratioText(summary.oracleUpperBound.present, summary.oracleUpperBound.total)}`,
+    `- expected absent from observed numeric candidates: ${summary.oracleUpperBound.absent}`,
+    `- selectable upper bound including zero defaults for blank member/bonus fields: ${ratioText(summary.oracleUpperBound.selectablePresent, summary.oracleUpperBound.total)}`,
+    "",
+    "| field | expected present | expected absent | present rate |",
+    "| --- | --- | ---: | ---: |"
+  );
+  for (const [fieldType, stats] of Object.entries(summary.oracleUpperBound.byFieldType)) {
+    lines.push(
+      `| ${fieldType} | ${ratioText(stats.present, stats.total)} | ${stats.absent} | ${stats.presentRate}% |`
+    );
+  }
+  lines.push(
+    "",
+    "## Headroom Classification",
+    "",
+    "| category | fields |",
+    "| --- | ---: |"
+  );
+  for (const [category, count] of Object.entries(summary.headroom)) {
+    lines.push(`| ${category} | ${count} |`);
+  }
+  lines.push(
+    "",
+    "## Arithmetic-Combination Audit",
+    "",
+    "This audit is not used for selection. It only measures whether a future arithmetic-aware stage/side selector could have enough evidence.",
+    "",
+    `- stage/side rows: ${summary.arithmeticAudit.stageSides}`,
+    `- expected all 3 members present: ${summary.arithmeticAudit.expectedMembersPresent}`,
+    `- expected bonus present: ${summary.arithmeticAudit.expectedBonusPresent}`,
+    `- expected total present: ${summary.arithmeticAudit.expectedTotalPresent}`,
+    `- all expected side fields present: ${summary.arithmeticAudit.allExpectedFieldsPresent}`,
+    `- at least one arithmetic-valid combination: ${summary.arithmeticAudit.atLeastOneArithmeticCombination}`,
+    `- exactly one arithmetic-valid combination: ${summary.arithmeticAudit.exactlyOneArithmeticCombination}`,
+    `- multiple arithmetic-valid combinations: ${summary.arithmeticAudit.multipleArithmeticCombinations}`,
+    `- no arithmetic-valid combination: ${summary.arithmeticAudit.noArithmeticCombination}`,
+    "",
+    "## Recommendation",
+    "",
+    "Field-local candidate selection alone is useful for measuring candidate quality, but the selected v1 strategy still leaves broad ambiguity and does not improve aggregate stage/side PASS. The next experiment should remain runner-only and test a narrowly guarded iPad arithmetic-aware side selector only for rows with exactly one arithmetic-valid candidate combination and no missing member evidence.",
     ""
   );
   return `${lines.join("\n")}\n`;
@@ -22548,6 +23775,7 @@ async function main() {
   const validateIpadExpected = args.includes("--validate-ipad-expected");
   const ipadOcrBaseline = args.includes("--ipad-ocr-baseline");
   const ipadPreprocessingSimulation = args.includes("--ipad-preprocessing-simulation");
+  const ipadCandidateSelectionSimulation = args.includes("--ipad-candidate-selection-simulation");
   const sourceIndex = args.indexOf("--source");
   const sourceValue = sourceIndex >= 0 ? args[sourceIndex + 1] : "";
   const forcedSource = ["smartphone", "desktop", "current-pc"].includes(sourceValue)
@@ -22591,6 +23819,7 @@ async function main() {
       value !== "--validate-ipad-expected" &&
       value !== "--ipad-ocr-baseline" &&
       value !== "--ipad-preprocessing-simulation" &&
+      value !== "--ipad-candidate-selection-simulation" &&
       value !== "--source" &&
       value !== "--audit-disable-known-correction" &&
       !(sourceIndex >= 0 && index === sourceIndex + 1) &&
@@ -22644,6 +23873,40 @@ async function main() {
             outputDir: summary.outputDir,
             report: path
               .relative(rootDir, ipadPreprocessingInvestigationReportPath)
+              .replaceAll("\\", "/"),
+          },
+        },
+        null,
+        2
+      )
+    );
+    return;
+  }
+  if (ipadCandidateSelectionSimulation) {
+    const summary = await runIpadCandidateSelectionSimulation();
+    await terminateAuditGeometryWorker();
+    console.log(
+      JSON.stringify(
+        {
+          ipadCandidateSelectionSimulation: {
+            selectedStrategy: summary.selectedStrategy,
+            poolStats: {
+              fields: summary.poolStats.fields,
+              averageCandidateCount: summary.poolStats.averageCandidateCount,
+              medianCandidateCount: summary.poolStats.medianCandidateCount,
+              maxCandidateCount: summary.poolStats.maxCandidateCount,
+              emptyCandidateFields: summary.poolStats.emptyCandidateFields,
+              singleCandidateFields: summary.poolStats.singleCandidateFields,
+              multiCandidateFields: summary.poolStats.multiCandidateFields,
+            },
+            selectedFieldAccuracy:
+              summary.strategySummaries[summary.selectedStrategy.id].stats,
+            aggregate: summary.selectedAggregate,
+            oracleUpperBound: summary.oracleUpperBound,
+            arithmeticAudit: summary.arithmeticAudit,
+            outputDir: summary.outputDir,
+            report: path
+              .relative(rootDir, ipadCandidateSelectionInvestigationReportPath)
               .replaceAll("\\", "/"),
           },
         },
