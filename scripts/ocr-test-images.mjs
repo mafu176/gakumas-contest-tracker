@@ -15,6 +15,7 @@ import {
   applySmartphoneStage3SelfSevenDigitDisplacementRecovery,
   applySmartphoneStage3EnemySevenDigitRecovery,
   applySmartphoneCrownBonusRuleRecovery,
+  applySmartphoneExactSlotSelectionRecovery,
   applySmartphoneStageWideSixMemberCandidateSolverRecovery,
   applyCurrentPcGroupedRawTokenRecovery,
   applyCurrentPcCrownBonusRuleRecovery,
@@ -4675,6 +4676,7 @@ async function runOcrForImage(imagePath, options = {}) {
     let smartphoneCrownBonusRuleRecovery = null;
     let smartphoneStageWideSixMemberCandidateSolverSimulation = null;
     let smartphoneStageWideSixMemberCandidateSolverRecovery = null;
+    let smartphoneExactSlotSelectionRecoveryBySide = null;
     if (ocrSource === "smartphone") {
       const buildSmartphoneStageEvidenceInput = () => ({
         stage,
@@ -4755,6 +4757,32 @@ async function runOcrForImage(imagePath, options = {}) {
         enemy = smartphoneStageWideSixMemberCandidateSolverRecovery.enemy.members;
         selfTotal = smartphoneStageWideSixMemberCandidateSolverRecovery.self.total;
         enemyTotal = smartphoneStageWideSixMemberCandidateSolverRecovery.enemy.total;
+      }
+      smartphoneExactSlotSelectionRecoveryBySide = {};
+      for (const side of sides) {
+        const exactSlotRecovery = applySmartphoneExactSlotSelectionRecovery({
+          stage,
+          side,
+          stageResult: buildSmartphoneStageEvidenceInput(),
+          mode: ocrSource,
+        });
+        smartphoneExactSlotSelectionRecoveryBySide[side] = exactSlotRecovery;
+        if (exactSlotRecovery.applied) {
+          const beforeState = cloneStageState({ self, enemy, selfTotal, enemyTotal });
+          if (side === "self") {
+            self = exactSlotRecovery.members;
+            selfTotal = exactSlotRecovery.total;
+          } else {
+            enemy = exactSlotRecovery.members;
+            enemyTotal = exactSlotRecovery.total;
+          }
+          knownCorrectionDeltas.push({
+            pass: "smartphoneExactSlotSelectionRecovery applied",
+            before: beforeState,
+            after: cloneStageState({ self, enemy, selfTotal, enemyTotal }),
+            message: exactSlotRecovery.message,
+          });
+        }
       }
     }
 
@@ -5244,6 +5272,8 @@ async function runOcrForImage(imagePath, options = {}) {
         smartphoneStageWideSixMemberCandidateSolverSimulation;
       stageResult.smartphoneStageWideSixMemberCandidateSolverRecovery =
         smartphoneStageWideSixMemberCandidateSolverRecovery;
+      stageResult.smartphoneExactSlotSelectionRecoveryBySide =
+        smartphoneExactSlotSelectionRecoveryBySide;
     }
 
     if (options.debugArtifacts && (ocrSource === "smartphone" || ocrSource === "current-pc")) {
@@ -6011,7 +6041,8 @@ function cloneSmartphoneStageResult(stageResult = {}) {
   return JSON.parse(JSON.stringify(stageResult || {}));
 }
 
-function applySmartphoneProductionSolverRecoveriesToStage(stageResult = {}, stage = 0) {
+function applySmartphoneProductionSolverRecoveriesToStage(stageResult = {}, stage = 0, options = {}) {
+  const includeExactSlot = options.includeExactSlot !== false;
   const next = cloneSmartphoneStageResult(stageResult);
   next.stage = stage;
   const before = smartphoneStageOutputFromResult(next);
@@ -6048,6 +6079,27 @@ function applySmartphoneProductionSolverRecoveriesToStage(stageResult = {}, stag
     next.selfTotal = stageWideRecovery.self.total;
     next.enemyTotal = stageWideRecovery.enemy.total;
   }
+  const exactSlotRecoveries = {};
+  if (includeExactSlot) {
+    for (const side of sides) {
+      const exactSlotRecovery = applySmartphoneExactSlotSelectionRecovery({
+        stage,
+        side,
+        stageResult: next,
+        mode: "smartphone",
+      });
+      exactSlotRecoveries[side] = exactSlotRecovery;
+      if (exactSlotRecovery.applied) {
+        if (side === "self") {
+          next.self = exactSlotRecovery.members;
+          next.selfTotal = exactSlotRecovery.total;
+        } else {
+          next.enemy = exactSlotRecovery.members;
+          next.enemyTotal = exactSlotRecovery.total;
+        }
+      }
+    }
+  }
   return {
     stageResult: next,
     before,
@@ -6056,6 +6108,7 @@ function applySmartphoneProductionSolverRecoveriesToStage(stageResult = {}, stag
     crownRecovery,
     stageWideSimulation,
     stageWideRecovery,
+    exactSlotRecoveries,
   };
 }
 
@@ -6745,7 +6798,9 @@ function evaluateSmartphoneExactSlotSelectionSimulation(items = []) {
       const originalStageResult = item.result?.[stageKey];
       const expectedStage = item.expectedData?.[stageKey];
       if (!originalStageResult || !expectedStage) continue;
-      const production = applySmartphoneProductionSolverRecoveriesToStage(originalStageResult, stage);
+      const production = applySmartphoneProductionSolverRecoveriesToStage(originalStageResult, stage, {
+        includeExactSlot: false,
+      });
       const output = production.after;
       for (const side of sides) {
         const expected = smartphoneStageSideExpected(expectedStage, side);
@@ -6894,7 +6949,9 @@ function compareSmartphoneExactSlotSelectionParity(items = []) {
       const originalStageResult = item.result?.[stageKey];
       const expectedStage = item.expectedData?.[stageKey];
       if (!originalStageResult || !expectedStage) continue;
-      const production = applySmartphoneProductionSolverRecoveriesToStage(originalStageResult, stage);
+      const production = applySmartphoneProductionSolverRecoveriesToStage(originalStageResult, stage, {
+        includeExactSlot: false,
+      });
       const runnerStageResult = { ...production.stageResult, stage };
       const browserStageResult = buildSmartphoneBrowserEquivalentStageResult(production.stageResult, stage);
       for (const side of sides) {
@@ -7020,6 +7077,121 @@ function compareSmartphoneExactSlotSelectionParity(items = []) {
   };
 }
 
+function buildSmartphoneExactSlotProductionImpact(items = []) {
+  const summary = {
+    beforeAccuracy: {
+      imagesPass: 0,
+      imagesFail: 0,
+      stagesPass: 0,
+      stagesFail: 0,
+      stageSidesPass: 0,
+      stageSidesFail: 0,
+    },
+    afterAccuracy: {
+      imagesPass: 0,
+      imagesFail: 0,
+      stagesPass: 0,
+      stagesFail: 0,
+      stageSidesPass: 0,
+      stageSidesFail: 0,
+    },
+    exactSlotRecoveriesApplied: 0,
+    uniqueRecoveredStageSides: 0,
+    uniqueRecoveredStages: 0,
+    uniqueRecoveredImages: 0,
+    fullImagePassGain: 0,
+    unexpectedChangedStageSides: [],
+    overlap: {
+      crownBonusStage: 0,
+      stageWideStage: 0,
+    },
+    appliedRows: [],
+  };
+  const recoveredStageKeys = new Set();
+  const recoveredImageKeys = new Set();
+
+  for (const item of items.filter((entry) => entry.source === "smartphone" && entry.expectedData)) {
+    let beforeImagePass = true;
+    let afterImagePass = true;
+    for (const stage of stages) {
+      const stageKey = `stage${stage}`;
+      const expectedStage = item.expectedData?.[stageKey];
+      const originalStageResult = item.result?.[stageKey];
+      if (!expectedStage || !originalStageResult) continue;
+      const before = applySmartphoneProductionSolverRecoveriesToStage(originalStageResult, stage, {
+        includeExactSlot: false,
+      });
+      const after = applySmartphoneProductionSolverRecoveriesToStage(originalStageResult, stage, {
+        includeExactSlot: true,
+      });
+      let beforeStagePass = true;
+      let afterStagePass = true;
+      for (const side of sides) {
+        const expected = smartphoneStageSideExpected(expectedStage, side);
+        const beforeSide = smartphoneStageSideOutput(before.after, side);
+        const afterSide = smartphoneStageSideOutput(after.after, side);
+        const beforePass = smartphoneStageSideOutputPass(beforeSide, expected);
+        const afterPass = smartphoneStageSideOutputPass(afterSide, expected);
+        if (beforePass) summary.beforeAccuracy.stageSidesPass += 1;
+        else summary.beforeAccuracy.stageSidesFail += 1;
+        if (afterPass) summary.afterAccuracy.stageSidesPass += 1;
+        else summary.afterAccuracy.stageSidesFail += 1;
+        if (!beforePass) beforeStagePass = false;
+        if (!afterPass) afterStagePass = false;
+        const recovery = after.exactSlotRecoveries?.[side];
+        if (recovery?.applied) {
+          summary.exactSlotRecoveriesApplied += 1;
+          const recovered = !beforePass && afterPass;
+          if (recovered) {
+            summary.uniqueRecoveredStageSides += 1;
+            recoveredStageKeys.add(`${item.image}::S${stage}`);
+            recoveredImageKeys.add(item.image);
+          }
+          if (before.crownRecovery?.applied) summary.overlap.crownBonusStage += 1;
+          if (before.stageWideRecovery?.applied) summary.overlap.stageWideStage += 1;
+          if (!afterPass) {
+            summary.unexpectedChangedStageSides.push({
+              image: item.image,
+              stage,
+              side,
+              expected,
+              before: beforeSide,
+              after: afterSide,
+              message: recovery.message,
+            });
+          }
+          summary.appliedRows.push({
+            image: item.image,
+            stage,
+            side,
+            before: beforeSide,
+            after: afterSide,
+            expected,
+            recovered,
+            message: recovery.message,
+          });
+        }
+      }
+      if (beforeStagePass) summary.beforeAccuracy.stagesPass += 1;
+      else summary.beforeAccuracy.stagesFail += 1;
+      if (afterStagePass) summary.afterAccuracy.stagesPass += 1;
+      else summary.afterAccuracy.stagesFail += 1;
+      if (!beforeStagePass) beforeImagePass = false;
+      if (!afterStagePass) afterImagePass = false;
+    }
+    if (beforeImagePass) summary.beforeAccuracy.imagesPass += 1;
+    else summary.beforeAccuracy.imagesFail += 1;
+    if (afterImagePass) summary.afterAccuracy.imagesPass += 1;
+    else summary.afterAccuracy.imagesFail += 1;
+  }
+
+  summary.uniqueRecoveredStages = recoveredStageKeys.size;
+  summary.uniqueRecoveredImages = recoveredImageKeys.size;
+  summary.fullImagePassGain =
+    summary.afterAccuracy.imagesPass - summary.beforeAccuracy.imagesPass;
+  return summary;
+}
+
 function formatSmartphoneExactSlotSources(memberSources = []) {
   return memberSources
     .map((slotSources, index) => {
@@ -7036,7 +7208,11 @@ function formatSmartphoneExactSlotNumber(value) {
   return Number.isFinite(number) ? number.toLocaleString("ja-JP") : "";
 }
 
-function buildSmartphoneExactSlotSelectionSimulationReport(result = {}, parity = null) {
+function buildSmartphoneExactSlotSelectionSimulationReport(
+  result = {},
+  parity = null,
+  productionImpact = null
+) {
   const lines = [
     "# Smartphone Exact-Slot Selection Simulation",
     "",
@@ -7187,6 +7363,42 @@ function buildSmartphoneExactSlotSelectionSimulationReport(result = {}, parity =
       ? "No runner/browser-equivalent mismatches were found."
       : `Mismatch rows: ${parity.mismatchRows.length}. Do not productionize until these are resolved.`,
     "",
+    "## Production Recovery Impact",
+    "",
+    "The production recovery uses `applySmartphoneExactSlotSelectionRecovery(...)`, which applies only when the same shared exact-slot evaluator returns `wouldApply`. It runs after smartphone crown-bonus recovery and smartphone stage-wide six-member solver recovery, and it updates only the target side.",
+    "",
+    "| level | before PASS | before FAIL | after PASS | after FAIL |",
+    "| --- | ---: | ---: | ---: | ---: |",
+    `| image | ${productionImpact?.beforeAccuracy?.imagesPass || 0} | ${productionImpact?.beforeAccuracy?.imagesFail || 0} | ${productionImpact?.afterAccuracy?.imagesPass || 0} | ${productionImpact?.afterAccuracy?.imagesFail || 0} |`,
+    `| stage | ${productionImpact?.beforeAccuracy?.stagesPass || 0} | ${productionImpact?.beforeAccuracy?.stagesFail || 0} | ${productionImpact?.afterAccuracy?.stagesPass || 0} | ${productionImpact?.afterAccuracy?.stagesFail || 0} |`,
+    `| stage/side | ${productionImpact?.beforeAccuracy?.stageSidesPass || 0} | ${productionImpact?.beforeAccuracy?.stageSidesFail || 0} | ${productionImpact?.afterAccuracy?.stageSidesPass || 0} | ${productionImpact?.afterAccuracy?.stageSidesFail || 0} |`,
+    "",
+    `| exact-slot recoveries applied | ${productionImpact?.exactSlotRecoveriesApplied || 0} |`,
+    `| unique recovered stage/sides | ${productionImpact?.uniqueRecoveredStageSides || 0} |`,
+    `| unique recovered stages | ${productionImpact?.uniqueRecoveredStages || 0} |`,
+    `| images with exact-slot recovery | ${productionImpact?.uniqueRecoveredImages || 0} |`,
+    `| full-image PASS gain | ${productionImpact?.fullImagePassGain || 0} |`,
+    `| unexpected changed stage/sides | ${productionImpact?.unexpectedChangedStageSides?.length || 0} |`,
+    `| overlap with crown-bonus recovery stage | ${productionImpact?.overlap?.crownBonusStage || 0} |`,
+    `| overlap with stage-wide solver stage | ${productionImpact?.overlap?.stageWideStage || 0} |`,
+    "",
+    "### Production Applied Rows",
+    "",
+    "| image | stage | side | before | after | expected |",
+    "| --- | ---: | --- | --- | --- | --- |",
+    ...((productionImpact?.appliedRows || []).length
+      ? productionImpact.appliedRows.map(
+          (row) =>
+            `| \`${row.image}\` | ${row.stage} | ${row.side} | ${row.before.members
+              .map(formatSmartphoneExactSlotNumber)
+              .join(" / ")} = ${formatSmartphoneExactSlotNumber(row.before.total)} | ${row.after.members
+              .map(formatSmartphoneExactSlotNumber)
+              .join(" / ")} = ${formatSmartphoneExactSlotNumber(row.after.total)} | ${row.expected.members
+              .map(formatSmartphoneExactSlotNumber)
+              .join(" / ")} = ${formatSmartphoneExactSlotNumber(row.expected.total)} |`
+        )
+      : ["| - | - | - | - | - | - |"]),
+    "",
     "## Overlap With Existing Recoveries",
     "",
     "The simulation is scored only after current smartphone production recoveries are replayed in memory. Rows that are already correct after existing production recovery are counted as already correct, not TP. Therefore all TP rows are true incremental proposals beyond current production output.",
@@ -7200,7 +7412,7 @@ function buildSmartphoneExactSlotSelectionSimulationReport(result = {}, parity =
       parity.safetyRelevantMismatches === 0 &&
       parity.wouldApplyDisagreements === 0 &&
       parity.proposedRecoveryDisagreements === 0
-      ? "Runner/browser-equivalent parity is exact for the 3 TP rows with zero safety-relevant mismatches. Productionization can be considered next, but this task intentionally does not change final OCR output."
+      ? "Runner/browser-equivalent parity is exact for the 3 TP rows with zero safety-relevant mismatches. The production recovery is enabled only through the shared strict helper and applied to the 3 parity-proven stage/sides."
       : result.recommendation || "",
     ""
   );
@@ -19730,13 +19942,17 @@ async function main() {
     await writeSmartphoneBaselineCacheSummary(cachedReport);
     const simulation = evaluateSmartphoneExactSlotSelectionSimulation(cachedReport);
     const parity = compareSmartphoneExactSlotSelectionParity(cachedReport);
+    const productionImpact = buildSmartphoneExactSlotProductionImpact(cachedReport);
     await fs.writeFile(
       smartphoneExactSlotSelectionSimulationReportPath,
-      buildSmartphoneExactSlotSelectionSimulationReport(simulation, parity)
+      buildSmartphoneExactSlotSelectionSimulationReport(simulation, parity, productionImpact)
     );
     await fs.mkdir(path.join(rootDir, "tmp"), { recursive: true });
     const resultPath = path.join(rootDir, "tmp", "smartphone-exact-slot-selection-simulation.json");
-    await fs.writeFile(resultPath, JSON.stringify({ simulation, parity }, null, 2));
+    await fs.writeFile(
+      resultPath,
+      JSON.stringify({ simulation, parity, productionImpact }, null, 2)
+    );
     console.log(
       JSON.stringify(
         {
@@ -19764,6 +19980,17 @@ async function main() {
               missingRequiredBrowserEvidence: parity.missingRequiredBrowserEvidence,
               missingRequiredRunnerEvidence: parity.missingRequiredRunnerEvidence,
               safetyRelevantMismatches: parity.safetyRelevantMismatches,
+            },
+            productionImpact: {
+              beforeAccuracy: productionImpact.beforeAccuracy,
+              afterAccuracy: productionImpact.afterAccuracy,
+              exactSlotRecoveriesApplied: productionImpact.exactSlotRecoveriesApplied,
+              uniqueRecoveredStageSides: productionImpact.uniqueRecoveredStageSides,
+              uniqueRecoveredStages: productionImpact.uniqueRecoveredStages,
+              uniqueRecoveredImages: productionImpact.uniqueRecoveredImages,
+              fullImagePassGain: productionImpact.fullImagePassGain,
+              unexpectedChangedStageSides:
+                productionImpact.unexpectedChangedStageSides.length,
             },
             recommendation: simulation.recommendation,
             report: path

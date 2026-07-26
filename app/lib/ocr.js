@@ -2763,6 +2763,87 @@ export function applySmartphoneStageWideSixMemberCandidateSolverRecovery({
   };
 }
 
+function smartphoneExactSlotMemberSourceSummary(proposal = {}) {
+  return (proposal.memberSources || [])
+    .map((slotSources, index) => {
+      const sources = [
+        ...new Set(
+          (slotSources || [])
+            .flatMap((entry) => entry.sources || [])
+            .filter(Boolean)
+        ),
+      ];
+      return `member${index + 1}:${sources.join("+") || "unknown"}`;
+    })
+    .join(";");
+}
+
+function smartphoneExactSlotBonusProofSummary(proposal = {}) {
+  const proof = proposal.bonusProof || {};
+  if (proof.type === "zero-bonus-proof") {
+    return `zero-bonus-proof rank1=${proof.rank1?.side || "unknown"}.member${
+      proof.rank1?.slot || "?"
+    }:${proof.rank1?.value || 0} winningSide=${proof.winningSide || "unknown"} derivedBonus=${
+      proof.derivedBonus || 0
+    }`;
+  }
+  if (proof.type === "direct-observed-bonus") {
+    return `direct-observed-bonus bonus=${proof.bonus || proposal.bonus || 0} sources=${
+      (proof.sources || []).join("+") || "unknown"
+    }`;
+  }
+  return proof.type || "unknown";
+}
+
+export function applySmartphoneExactSlotSelectionRecovery({
+  stage = 0,
+  side = "self",
+  stageResult = null,
+  simulation = null,
+  mode = "smartphone",
+} = {}) {
+  if (normalizeOcrMode(mode) !== "smartphone") {
+    return { applied: false, rejectionReasons: ["not-smartphone-mode"] };
+  }
+  const evidence =
+    simulation ||
+    buildSmartphoneExactSlotSelectionEvidence({
+      stage,
+      side,
+      stageResult: stageResult || {},
+    });
+  if (!evidence?.wouldApply || !evidence?.proposed) {
+    return {
+      applied: false,
+      rejectionReasons: evidence?.rejectionReasons || ["exact-slot-selection-not-applicable"],
+      evidence,
+    };
+  }
+  const proposal = evidence.proposed;
+  const previous = evidence.selected || {};
+  return {
+    applied: true,
+    side,
+    members: proposal.members || previous.members || [],
+    bonus: Number(proposal.bonus || 0),
+    total: Number(proposal.total || 0),
+    evidence,
+    message:
+      `smartphoneExactSlotSelectionRecovery applied stage=${stage} side=${side} ` +
+      `previousMembers=${(previous.members || []).join(",")} previousTotal=${previous.total || 0} ` +
+      `proposedMembers=${(proposal.members || []).join(",")}+${proposal.bonus || 0}=${
+        proposal.total || 0
+      } ` +
+      `slotProvenance=${smartphoneExactSlotMemberSourceSummary(proposal) || "unknown"} ` +
+      `totalEvidence=${proposal.totalEvidence?.value || 0}:${
+        (proposal.totalEvidence?.sources || []).join("+") || "unknown"
+      } ` +
+      `bonusProof=${smartphoneExactSlotBonusProofSummary(proposal)} ` +
+      `competingChangedProposals=${Math.max(0, (evidence.changedProposalCount || 0) - 1)} ` +
+      `unique=${evidence.changedProposalCount === 1 ? "yes" : "no"}`,
+  };
+}
+
 export function buildCurrentPcExactMembersCrownBonusTotalRecoveryEvidence({
   stage = 0,
   side = "self",

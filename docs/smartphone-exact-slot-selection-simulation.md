@@ -1,6 +1,6 @@
 # Smartphone Exact-Slot Selection Simulation
 
-Generated: 2026-07-25T01:57:20.637Z
+Generated: 2026-07-26T02:52:05.276Z
 
 ## Scope
 
@@ -145,6 +145,33 @@ The parity check compares the shared evaluator across all 534 smartphone stage/s
 
 No runner/browser-equivalent mismatches were found.
 
+## Production Recovery Impact
+
+The production recovery uses `applySmartphoneExactSlotSelectionRecovery(...)`, which applies only when the same shared exact-slot evaluator returns `wouldApply`. It runs after smartphone crown-bonus recovery and smartphone stage-wide six-member solver recovery, and it updates only the target side.
+
+| level | before PASS | before FAIL | after PASS | after FAIL |
+| --- | ---: | ---: | ---: | ---: |
+| image | 62 | 27 | 64 | 25 |
+| stage | 237 | 30 | 239 | 28 |
+| stage/side | 503 | 31 | 506 | 28 |
+
+| exact-slot recoveries applied | 3 |
+| unique recovered stage/sides | 3 |
+| unique recovered stages | 3 |
+| images with exact-slot recovery | 3 |
+| full-image PASS gain | 2 |
+| unexpected changed stage/sides | 0 |
+| overlap with crown-bonus recovery stage | 0 |
+| overlap with stage-wide solver stage | 0 |
+
+### Production Applied Rows
+
+| image | stage | side | before | after | expected |
+| --- | ---: | --- | --- | --- | --- |
+| `user-reports/unreviewed/IMG_8951.png` | 3 | enemy | 18,338 / 52,841 / 0 = 72,101 | 18,338 / 52,841 / 72,101 = 143,280 | 18,338 / 52,841 / 72,101 = 143,280 |
+| `user-reports/unreviewed/IMG_9264.png` | 2 | self | 638,016 / 755,237 = 2,402,568 | 638,016 / 1,009,315 / 755,237 = 2,402,568 | 638,016 / 1,009,315 / 755,237 = 2,402,568 |
+| `user-reports/unreviewed/IMG_9310.png` | 3 | enemy | 58,192 / 54,710 / 0 = 113,556 | 113,556 / 58,192 / 54,710 = 226,458 | 113,556 / 58,192 / 54,710 = 226,458 |
+
 ## Overlap With Existing Recoveries
 
 The simulation is scored only after current smartphone production recoveries are replayed in memory. Rows that are already correct after existing production recovery are counted as already correct, not TP. Therefore all TP rows are true incremental proposals beyond current production output.
@@ -153,4 +180,4 @@ Existing production recoveries considered before this simulation include smartph
 
 ## Recommendation
 
-Runner/browser-equivalent parity is exact for the 3 TP rows with zero safety-relevant mismatches. Productionization can be considered next, but this task intentionally does not change final OCR output.
+Runner/browser-equivalent parity is exact for the 3 TP rows with zero safety-relevant mismatches. The production recovery is enabled only through the shared strict helper and applied to the 3 parity-proven stage/sides.

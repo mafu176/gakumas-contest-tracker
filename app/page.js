@@ -128,6 +128,7 @@ import {
   buildSmartphoneExactSlotSelectionEvidence,
   buildSmartphoneStageWideSixMemberCandidateSolverEvidence,
   applySmartphoneCrownBonusRuleRecovery,
+  applySmartphoneExactSlotSelectionRecovery,
   applySmartphoneStageWideSixMemberCandidateSolverRecovery,
   buildCurrentPcCandidateSourceSummary,
   buildCurrentPcCrownBonusRuleEvidence,
@@ -3881,6 +3882,26 @@ export default function Home() {
             selfTotal = smartphoneStageWideSixMemberCandidateSolverRecovery.self.total;
             enemyTotal = smartphoneStageWideSixMemberCandidateSolverRecovery.enemy.total;
           }
+          const smartphoneExactSlotSelectionRecoveryBySide = {};
+          for (const side of ["self", "enemy"]) {
+            const exactSlotRecovery = applySmartphoneExactSlotSelectionRecovery({
+              stage,
+              side,
+              stageResult: buildSmartphoneStageEvidenceInput(),
+              mode: activeOcrMode,
+            });
+            smartphoneExactSlotSelectionRecoveryBySide[side] = exactSlotRecovery;
+            if (exactSlotRecovery.applied) {
+              correctionLogs.push(exactSlotRecovery.message);
+              if (side === "self") {
+                correctedSelfMembers = exactSlotRecovery.members;
+                selfTotal = exactSlotRecovery.total;
+              } else {
+                correctedEnemyMembers = exactSlotRecovery.members;
+                enemyTotal = exactSlotRecovery.total;
+              }
+            }
+          }
           smartphoneCrownStageWideEvidence.stages[`stage${stage}`] = {
             crownBonusRuleSimulation: smartphoneCrownBonusRuleSimulation,
             crownBonusRuleRecovery: smartphoneCrownBonusRuleRecovery,
@@ -3888,18 +3909,17 @@ export default function Home() {
               smartphoneStageWideSixMemberCandidateSolverSimulation,
             stageWideSixMemberCandidateSolverRecovery:
               smartphoneStageWideSixMemberCandidateSolverRecovery,
+            exactSlotSelectionRecoveryBySide: smartphoneExactSlotSelectionRecoveryBySide,
             exactSlotSelectionEvidence: {
               self: buildSmartphoneExactSlotSelectionEvidence({
                 stage,
                 side: "self",
                 stageResult: buildSmartphoneStageEvidenceInput(),
-                stageWideEvidence: smartphoneStageWideSixMemberCandidateSolverSimulation,
               }),
               enemy: buildSmartphoneExactSlotSelectionEvidence({
                 stage,
                 side: "enemy",
                 stageResult: buildSmartphoneStageEvidenceInput(),
-                stageWideEvidence: smartphoneStageWideSixMemberCandidateSolverSimulation,
               }),
             },
           };
