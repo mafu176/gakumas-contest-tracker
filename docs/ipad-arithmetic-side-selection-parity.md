@@ -6,13 +6,13 @@
 - output directory: `tmp/ipad-arithmetic-side-selection-parity`
 - tier: `tier-c`
 - compared stage/sides: 108
-- runner eligible: 12
-- browser-equivalent eligible: 12
-- runner wouldApply: 5
-- browser-equivalent wouldApply: 5
+- runner eligible: 11
+- browser-equivalent eligible: 11
+- runner wouldApply: 4
+- browser-equivalent wouldApply: 4
 - exact proposal parity: 108 / 108
 - safety mismatches: 0
-- accepted-case TP / FP: 5 / 0
+- accepted-case TP / FP: 4 / 0
 
 This is browser-equivalent parity only. It does not enable production iPad OCR, change app/UI output, change final stage scores, or claim real browser PASS.
 
@@ -48,11 +48,10 @@ This is browser-equivalent parity only. It does not enable production iPad OCR, 
 
 | image | stage | side | changed fields | tuple | expected result |
 | --- | ---: | --- | --- | --- | --- |
-| IMG_0264.png | 1 | self | bonus | 169765 / 296381 / 167466 + 59276 = 692888 | TP |
-| IMG_0278.png | 2 | self | member1 | 147170 / 116778 / 147255 + 29451 = 440654 | TP |
-| IMG_0317.png | 2 | self | member3 | 193311 / 56363 / 54603 + 38662 = 342939 | TP |
+| IMG_0264.png | 1 | self | member2, bonus | 169765 / 296381 / 167466 + 59276 = 692888 | TP |
+| IMG_0270.png | 1 | enemy | bonus | 41330 / 127105 / 103446 + 0 = 271881 | TP |
+| IMG_0497.png | 1 | self | member2, total | 205442 / 762450 / 322186 + 152490 = 1442568 | TP |
 | IMG_0792.png | 1 | self | member2 | 690896 / 458571 / 123570 + 0 = 1273037 | TP |
-| IMG_0796.png | 1 | self | member2 | 518388 / 327111 / 431154 + 103677 = 1380330 | TP |
 
 ## Non-iPad Guard Audit
 
@@ -74,4 +73,3 @@ This is browser-equivalent parity only. It does not enable production iPad OCR, 
 ## Recommendation
 
 Browser-equivalent parity is exact for Tier C; iPad productionization can be considered only after a real browser evidence path exists and is manually verified.
-

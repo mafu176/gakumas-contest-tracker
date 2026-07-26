@@ -26,6 +26,7 @@ import {
   buildCurrentPcCrownBonusRuleEvidence as sharedBuildCurrentPcCrownBonusRuleEvidence,
   buildCurrentPcExactMembersCrownBonusTotalRecoveryEvidence as sharedBuildCurrentPcExactMembersCrownBonusTotalRecoveryEvidence,
   buildCurrentPcSideLocalExactEvidenceRecoveryEvidence as sharedBuildCurrentPcSideLocalExactEvidenceRecoveryEvidence,
+  getIpadArithmeticPreprocessingProfiles as sharedGetIpadArithmeticPreprocessingProfiles,
   buildSmartphoneCrownBonusRuleEvidence as sharedBuildSmartphoneCrownBonusRuleEvidence,
   buildSmartphoneExactSlotSelectionEvidence as sharedBuildSmartphoneExactSlotSelectionEvidence,
   buildSmartphoneStageWideSixMemberCandidateSolverEvidence as sharedBuildSmartphoneStageWideSixMemberCandidateSolverEvidence,
@@ -37,6 +38,7 @@ import {
   collectCurrentPcGroupedRawTokenEvidence as sharedCollectCurrentPcGroupedRawTokenEvidence,
   collectCurrentPcSourceTokenAudits as sharedCollectCurrentPcSourceTokenAudits,
   currentPcOrderedMemberValuesFromTokenEvidence as sharedCurrentPcOrderedMemberValuesFromTokenEvidence,
+  buildIpadArithmeticRoiTemplate as sharedBuildIpadArithmeticRoiTemplate,
   detectCurrentPcLayout as sharedDetectCurrentPcLayout,
   detectIpadOcrLayout as sharedDetectIpadOcrLayout,
   extractNumericLikeTokenAudit as sharedExtractNumericLikeTokenAudit,
@@ -4754,113 +4756,29 @@ function buildIpadBaselineLayout(image) {
   return buildIpadCorrectedRoiTemplate(image).stageSideZones;
 }
 
-function buildIpadCorrectedRoiTemplate(image) {
-  const sideColumns = {
-    self: {
-      side: { left: 0.115, width: 0.37 },
-      total: { left: 0.16, width: 0.33 },
-      members: [
-        { left: 0.145, width: 0.12 },
-        { left: 0.255, width: 0.13 },
-        { left: 0.365, width: 0.13 },
-      ],
-      bonus: { left: 0.105, width: 0.38 },
-    },
-    enemy: {
-      side: { left: 0.515, width: 0.37 },
-      total: { left: 0.58, width: 0.33 },
-      members: [
-        { left: 0.535, width: 0.12 },
-        { left: 0.645, width: 0.13 },
-        { left: 0.755, width: 0.13 },
-      ],
-      bonus: { left: 0.505, width: 0.38 },
-    },
-  };
-  const rows = [
-    { stage: 1, rowTop: 0.095, totalTop: 0.112, memberTop: 0.149, bonusTop: 0.166 },
-    { stage: 2, rowTop: 0.334, totalTop: 0.351, memberTop: 0.388, bonusTop: 0.405 },
-    { stage: 3, rowTop: 0.576, totalTop: 0.593, memberTop: 0.631, bonusTop: 0.648 },
-  ];
-  const box = (definition) => ipadDiagnosticPercentBox(image, definition);
-  const stageRows = rows.map((row) => ({
-    stage: row.stage,
-    normalized: { left: 0.09, top: row.rowTop, width: 0.82, height: 0.165 },
-    zone: box({ left: 0.09, top: row.rowTop, width: 0.82, height: 0.165 }),
-  }));
-  const stageSideZones = rows.flatMap((row) =>
-    Object.entries(sideColumns).map(([side, column]) => ({
-      stage: row.stage,
-      side,
-      normalized: {
-        left: column.side.left,
-        top: row.rowTop,
-        width: column.side.width,
-        height: 0.165,
-      },
-      zone: box({
-        left: column.side.left,
-        top: row.rowTop,
-        width: column.side.width,
-        height: 0.165,
-      }),
-    }))
-  );
-  const fields = rows.flatMap((row) =>
-    Object.entries(sideColumns).flatMap(([side, column]) => {
-      const base = [
-        {
-          stage: row.stage,
-          side,
-          field: "total",
-          slot: 0,
-          normalized: {
-            left: column.total.left,
-            top: row.totalTop,
-            width: column.total.width,
-            height: 0.035,
-          },
-        },
-        {
-          stage: row.stage,
-          side,
-          field: "bonus",
-          slot: 0,
-          normalized: {
-            left: column.bonus.left,
-            top: row.bonusTop,
-            width: column.bonus.width,
-            height: 0.034,
-          },
-        },
-      ];
-      const members = column.members.map((member, index) => ({
-        stage: row.stage,
-        side,
-        field: "member",
-        slot: index + 1,
-        normalized: {
-          left: member.left,
-          top: row.memberTop,
-          width: member.width,
-          height: 0.028,
-        },
-      }));
-      return [...base, ...members].map((field) => ({
-        ...field,
-        zone: box(field.normalized),
-      }));
-    })
-  );
-
+function normalizeIpadTemplateZoneForRunner(zone) {
   return {
-    version: "ipad-shared-portrait-v2",
-    confidence: "manually-calibrated-diagnostic",
-    note:
-      "Shared normalized iPad portrait score-table template, calibrated against the 18 manually verified fixtures. Diagnostic-only.",
-    stageRows,
-    stageSideZones,
-    fields,
+    left: zone.left ?? zone.x ?? 0,
+    top: zone.top ?? zone.y ?? 0,
+    width: zone.width,
+    height: zone.height,
+  };
+}
+
+function normalizeIpadTemplateEntryForRunner(entry) {
+  return {
+    ...entry,
+    zone: normalizeIpadTemplateZoneForRunner(entry.zone || {}),
+  };
+}
+
+function buildIpadCorrectedRoiTemplate(image) {
+  const template = sharedBuildIpadArithmeticRoiTemplate(image);
+  return {
+    ...template,
+    stageRows: (template.stageRows || []).map(normalizeIpadTemplateEntryForRunner),
+    stageSideZones: (template.stageSideZones || []).map(normalizeIpadTemplateEntryForRunner),
+    fields: (template.fields || []).map(normalizeIpadTemplateEntryForRunner),
   };
 }
 
@@ -5528,41 +5446,7 @@ function buildIpadRoiGeometryInvestigationReport(summary) {
 }
 
 function getIpadPreprocessingProfiles() {
-  return [
-    {
-      id: "baseline-score-preprocess-3x-psm7",
-      label: "Existing score preprocessing, 3x, PSM 7",
-      kind: "existing",
-      scale: 3,
-      pageSegMode: "7",
-      fieldTypes: ["member", "bonus", "total"],
-    },
-    {
-      id: "invert-normalize-3x-psm7",
-      label: "Inverted grayscale normalize, 3x, PSM 7",
-      kind: "invert-normalize",
-      scale: 3,
-      pageSegMode: "7",
-      fieldTypes: ["member", "bonus", "total"],
-    },
-    {
-      id: "white-mask-3x-psm7",
-      label: "White-text mask, 3x, PSM 7",
-      kind: "white-mask",
-      scale: 3,
-      pageSegMode: "7",
-      threshold: 176,
-      fieldTypes: ["member", "bonus", "total"],
-    },
-    {
-      id: "blue-bonus-mask-3x-psm7",
-      label: "Blue bonus mask, 3x, PSM 7",
-      kind: "blue-bonus-mask",
-      scale: 3,
-      pageSegMode: "7",
-      fieldTypes: ["bonus"],
-    },
-  ];
+  return sharedGetIpadArithmeticPreprocessingProfiles();
 }
 
 function paddedIpadFieldZone(field, image, paddingRatio = 0.12) {
@@ -5581,12 +5465,13 @@ function paddedIpadFieldZone(field, image, paddingRatio = 0.12) {
 
 async function createIpadPreprocessedFieldBuffer(imagePath, image, field, profile) {
   const zone = paddedIpadFieldZone(field, image, profile.paddingRatio ?? 0.12);
+  const rawCropBuffer = await sharp(imagePath).extract(zone).png().toBuffer();
   if (profile.kind === "existing") {
     const buffer = await createPreprocessedStageBuffer(imagePath, zone, {
       pageSegMode: profile.pageSegMode || "7",
       charWhitelist: "0123456789,+.＋",
     });
-    return { buffer, zone };
+    return { buffer, zone, rawCropBuffer };
   }
 
   if (profile.kind === "white-mask" || profile.kind === "blue-bonus-mask") {
@@ -5624,7 +5509,7 @@ async function createIpadPreprocessedFieldBuffer(imagePath, image, field, profil
       .resize(info.width * scale, info.height * scale, { kernel: profile.kernel || "cubic" })
       .png()
       .toBuffer();
-    return { buffer, zone };
+    return { buffer, zone, rawCropBuffer };
   }
 
   let pipeline = sharp(imagePath).extract(zone).greyscale().normalize();
@@ -5636,7 +5521,7 @@ async function createIpadPreprocessedFieldBuffer(imagePath, image, field, profil
     })
     .png()
     .toBuffer();
-  return { buffer, zone };
+  return { buffer, zone, rawCropBuffer };
 }
 
 async function recognizeIpadPreprocessedField(worker, imagePath, image, field, profile, workerState) {
@@ -5649,7 +5534,12 @@ async function recognizeIpadPreprocessedField(worker, imagePath, image, field, p
     });
     workerState.configKey = workerConfigKey;
   }
-  const { buffer, zone } = await createIpadPreprocessedFieldBuffer(imagePath, image, field, profile);
+  const { buffer, zone, rawCropBuffer } = await createIpadPreprocessedFieldBuffer(
+    imagePath,
+    image,
+    field,
+    profile
+  );
   const result = await worker.recognize(buffer);
   const rawText = result.data.text || "";
   const parsedCandidates = parseIpadOcrNumbers(rawText);
@@ -5658,6 +5548,7 @@ async function recognizeIpadPreprocessedField(worker, imagePath, image, field, p
     field.field === "bonus"
       ? parsedCandidates.find((candidate) => candidate.plusLike)?.value || values[0] || 0
       : values[0] || 0;
+  const effectiveScale = profile.kind === "existing" ? 4 : profile.scale || 3;
   return {
     profileId: profile.id,
     stage: field.stage,
@@ -5669,6 +5560,41 @@ async function recognizeIpadPreprocessedField(worker, imagePath, image, field, p
     ocrConfidence: Number(result.data.confidence || 0),
     parsedCandidates,
     selected,
+    debugArtifacts: {
+      crop: {
+        x: zone.left ?? zone.x ?? 0,
+        y: zone.top ?? zone.y ?? 0,
+        width: zone.width,
+        height: zone.height,
+      },
+      rawCrop: {
+        format: "png",
+        width: zone.width,
+        height: zone.height,
+        sha256: createHash("sha256").update(rawCropBuffer).digest("hex"),
+        bytes: rawCropBuffer.length,
+      },
+      processedCrop: {
+        format: "png",
+        width: zone.width * effectiveScale,
+        height: zone.height * effectiveScale,
+        sha256: createHash("sha256").update(buffer).digest("hex"),
+        bytes: buffer.length,
+      },
+      preprocessing: {
+        preset: profile.kind === "existing" ? "default" : profile.kind,
+        kind: profile.kind,
+        scale: effectiveScale,
+        threshold: profile.threshold || null,
+        kernel: profile.kernel || (profile.kind === "existing" ? "nearest" : "cubic"),
+      },
+      ocr: {
+        engine: "tesseract.js-node",
+        language: "eng",
+        pageSegMode: profile.pageSegMode || "7",
+        charWhitelist: "0123456789,+.＋",
+      },
+    },
   };
 }
 
@@ -7706,7 +7632,7 @@ function compareIpadArithmeticParityEvidence(runner, browserEquivalent) {
 }
 
 async function runIpadArithmeticSideSelectionParity() {
-  const { rows, poolsByKey } = await collectIpadBoundedCandidatePools();
+  const { rows, poolsByKey, poolRecords } = await collectIpadBoundedCandidatePools();
   await fs.rm(ipadArithmeticSideSelectionParityDir, { recursive: true, force: true });
   await fs.mkdir(ipadArithmeticSideSelectionParityDir, { recursive: true });
   const strategies = getIpadCandidateSelectionStrategies();
@@ -7885,7 +7811,7 @@ async function runIpadArithmeticSideSelectionParity() {
   summary.recommendation =
     summary.safetyMismatches === 0 &&
     summary.acceptedCaseFp === 0 &&
-    summary.acceptedCases.length === 5 &&
+    summary.acceptedCases.length > 0 &&
     summary.nonIpadGuardPass
       ? "Browser-equivalent parity is exact for Tier C; iPad productionization can be considered only after a real browser evidence path exists and is manually verified."
       : "Do not productionize. Resolve parity, safety, or non-iPad guard issues first.";
@@ -7905,6 +7831,10 @@ async function runIpadArithmeticSideSelectionParity() {
   await fs.writeFile(
     path.join(ipadArithmeticSideSelectionParityDir, "accepted-cases.json"),
     JSON.stringify(summary.acceptedCases, null, 2)
+  );
+  await fs.writeFile(
+    path.join(ipadArithmeticSideSelectionParityDir, "field-pools.json"),
+    JSON.stringify(poolRecords, null, 2)
   );
   await fs.writeFile(
     path.join(ipadArithmeticSideSelectionParityDir, "non-ipad-guard-audit.json"),

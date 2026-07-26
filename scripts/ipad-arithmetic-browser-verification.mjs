@@ -5,11 +5,15 @@ import { spawn, spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import net from "node:net";
+import sharp from "sharp";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, "..");
-const artifactDir = path.join(rootDir, "tmp", "ipad-arithmetic-real-browser-verification");
+const investigateCandidateMismatch = process.argv.includes("--investigate-candidate-mismatch");
+const realBrowserArtifactDir = path.join(rootDir, "tmp", "ipad-arithmetic-real-browser-verification");
+const mismatchArtifactDir = path.join(rootDir, "tmp", "ipad-runner-browser-candidate-mismatch");
+const artifactDir = investigateCandidateMismatch ? mismatchArtifactDir : realBrowserArtifactDir;
 const parityDir = path.join(rootDir, "tmp", "ipad-arithmetic-side-selection-parity");
 const ipadImageDir = path.join(rootDir, "regression-test", "ipad");
 
@@ -31,6 +35,68 @@ function stable(value) {
 
 function stableJson(value) {
   return JSON.stringify(stable(value));
+}
+
+function normalizeZone(zone = {}) {
+  return {
+    x: Number(zone.x ?? zone.left ?? 0),
+    y: Number(zone.y ?? zone.top ?? 0),
+    width: Number(zone.width || 0),
+    height: Number(zone.height || 0),
+  };
+}
+
+function zoneMatches(left, right) {
+  return stableJson(normalizeZone(left)) === stableJson(normalizeZone(right));
+}
+
+function valuesFromPool(pool = {}) {
+  return (pool.candidates || []).map((candidate) => Number(candidate.value || 0));
+}
+
+function rawProfileTextMap(pool = {}) {
+  return Object.fromEntries(
+    Object.entries(pool.profileResults || {}).map(([profileId, result]) => [
+      profileId,
+      {
+        rawText: result.rawText || "",
+        parsedValues: (result.parsedCandidates || []).map((candidate) => Number(candidate.value || 0)),
+        zone: normalizeZone(result.zone || {}),
+        rawCropHash: result.debugArtifacts?.rawCrop?.sha256 || null,
+        processedCropHash: result.debugArtifacts?.processedCrop?.sha256 || null,
+        processedBytes: result.debugArtifacts?.processedCrop?.bytes || null,
+        ocrEngine: result.debugArtifacts?.ocr?.engine || null,
+        preprocessing: result.debugArtifacts?.preprocessing || null,
+      },
+    ])
+  );
+}
+
+function classifyEarliestDivergence({ imageMatches, runnerPool = {}, browserPool = {} }) {
+  if (!imageMatches) return "image-decode-mismatch";
+  if (!zoneMatches(runnerPool.zone, browserPool.zone)) return "roi-rectangle-mismatch";
+  const runnerProfiles = rawProfileTextMap(runnerPool);
+  const browserProfiles = rawProfileTextMap(browserPool);
+  const profileIds = [...new Set([...Object.keys(runnerProfiles), ...Object.keys(browserProfiles)])].sort();
+  for (const profileId of profileIds) {
+    if (!runnerProfiles[profileId] || !browserProfiles[profileId]) return "preprocessing-profile-mismatch";
+    if (!zoneMatches(runnerProfiles[profileId].zone, browserProfiles[profileId].zone)) {
+      return "preprocessing-crop-rectangle-mismatch";
+    }
+    const runnerHash = runnerProfiles[profileId].processedCropHash;
+    const browserHash = browserProfiles[profileId].processedCropHash;
+    if (runnerHash && browserHash && runnerHash !== browserHash) return "preprocessing-mismatch";
+    if ((runnerProfiles[profileId].rawText || "") !== (browserProfiles[profileId].rawText || "")) {
+      return "ocr-raw-text-mismatch";
+    }
+    if (stableJson(runnerProfiles[profileId].parsedValues) !== stableJson(browserProfiles[profileId].parsedValues)) {
+      return "normalization-mismatch";
+    }
+  }
+  if (stableJson(valuesFromPool(runnerPool)) !== stableJson(valuesFromPool(browserPool))) {
+    return "deduplication-or-candidate-cap-mismatch";
+  }
+  return "no-mismatch";
 }
 
 async function loadJson(filePath) {
@@ -361,7 +427,9 @@ function summarizeArtifacts(artifacts, allAcceptedCases) {
         stableJson(tupleValues(comparison.browser.selectedTuple))
   );
   return {
-    command: "node scripts/ipad-arithmetic-browser-verification.mjs",
+    command: `node scripts/ipad-arithmetic-browser-verification.mjs${
+      investigateCandidateMismatch ? " --investigate-candidate-mismatch" : ""
+    }`,
     artifactDir: normalizePathForReport(artifactDir),
     imagesProcessed: artifacts.length,
     images: artifacts.map((artifact) => artifact.image),
@@ -408,6 +476,133 @@ function summarizeArtifacts(artifacts, allAcceptedCases) {
         ? "Do not productionize from this browser diagnostic path yet; real-browser candidate evidence does not match runner parity for every accepted case."
         : "Real-browser diagnostics match runner accepted proposals; parity evidence is sufficient for the next productionization review.",
   };
+}
+
+async function loadRunnerFieldPools() {
+  const parityPoolsPath = path.join(parityDir, "field-pools.json");
+  try {
+    return await loadJson(parityPoolsPath);
+  } catch {
+    return await loadJson(path.join(rootDir, "tmp", "ipad-candidate-selection", "field-candidates.json"));
+  }
+}
+
+async function readRunnerImageMetadata(imageName) {
+  const metadata = await sharp(path.join(ipadImageDir, imageName)).metadata();
+  return {
+    width: Number(metadata.width || 0),
+    height: Number(metadata.height || 0),
+    orientation: metadata.orientation || null,
+    format: metadata.format || null,
+  };
+}
+
+async function writeCandidateMismatchInvestigation({ artifacts, acceptedRows, summary }) {
+  const runnerPools = await loadRunnerFieldPools();
+  const runnerPoolsByKey = new Map((runnerPools || []).map((pool) => [pool.key, pool]));
+  const perField = [];
+  const perCase = [];
+  const categoryCounts = {};
+  const fieldLabels = ["member1", "member2", "member3", "bonus", "total"];
+  const labelToField = {
+    member1: { field: "member", slot: 1 },
+    member2: { field: "member", slot: 2 },
+    member3: { field: "member", slot: 3 },
+    bonus: { field: "bonus", slot: 0 },
+    total: { field: "total", slot: 0 },
+  };
+
+  for (const artifact of artifacts) {
+    const accepted = acceptedRows.find(
+      (entry) =>
+        entry.acceptedCase.image === artifact.image &&
+        entry.acceptedCase.stage === artifact.stage &&
+        entry.acceptedCase.side === artifact.side
+    );
+    const browserDiagnostics = await loadJson(
+      path.join(artifactDir, `${artifact.image.replace(/[^a-zA-Z0-9._-]/g, "_")}-stage${artifact.stage}-${artifact.side}`, "exported-diagnostics.json")
+    );
+    const browserImage = browserDiagnostics.image || {};
+    const runnerImage = await readRunnerImageMetadata(artifact.image);
+    const imageMatches =
+      Number(browserImage.width || 0) === Number(runnerImage.width || 0) &&
+      Number(browserImage.height || 0) === Number(runnerImage.height || 0);
+    const stageKey = `stage${artifact.stage}`;
+    const browserSide = browserDiagnostics.stages?.[stageKey]?.[artifact.side] || {};
+    const caseFields = [];
+
+    for (const label of fieldLabels) {
+      const spec = labelToField[label];
+      const key = `${artifact.image}|${artifact.stage}|${artifact.side}|${spec.field}|${spec.slot}`;
+      const runnerPool = runnerPoolsByKey.get(key) || {};
+      const browserPool = browserSide.candidatePools?.[label] || {};
+      const earliestDivergence = classifyEarliestDivergence({ imageMatches, runnerPool, browserPool });
+      categoryCounts[earliestDivergence] = (categoryCounts[earliestDivergence] || 0) + 1;
+      const record = {
+        image: artifact.image,
+        stage: artifact.stage,
+        side: artifact.side,
+        field: label,
+        earliestDivergence,
+        imageMetadata: {
+          runner: runnerImage,
+          browser: browserImage,
+          matches: imageMatches,
+        },
+        roi: {
+          runner: normalizeZone(runnerPool.zone || {}),
+          browser: normalizeZone(browserPool.zone || {}),
+          matches: zoneMatches(runnerPool.zone || {}, browserPool.zone || {}),
+        },
+        candidates: {
+          runnerValues: valuesFromPool(runnerPool),
+          browserValues: valuesFromPool(browserPool),
+          matches: stableJson(valuesFromPool(runnerPool)) === stableJson(valuesFromPool(browserPool)),
+          runnerCount: runnerPool.candidates?.length || 0,
+          browserCount: browserPool.candidates?.length || 0,
+          runnerRawDistinctCount: runnerPool.rawDistinctCandidateCount || 0,
+          browserRawDistinctCount: browserPool.rawDistinctCandidateCount || 0,
+          runnerTruncated: Boolean(runnerPool.truncated),
+          browserTruncated: Boolean(browserPool.truncated),
+        },
+        profiles: {
+          runner: rawProfileTextMap(runnerPool),
+          browser: rawProfileTextMap(browserPool),
+        },
+      };
+      caseFields.push(record);
+      perField.push(record);
+    }
+
+    perCase.push({
+      image: artifact.image,
+      stage: artifact.stage,
+      side: artifact.side,
+      runnerTuple: accepted?.runnerRow?.runner?.selectedTuple || null,
+      browserTuple: artifact.comparisons?.[0]?.browser?.selectedTuple || null,
+      runnerWouldApply: Boolean(accepted?.runnerRow?.runner?.wouldApply),
+      browserWouldApply: Boolean(artifact.comparisons?.[0]?.browser?.wouldApply),
+      fieldDivergences: caseFields.map(({ field, earliestDivergence }) => ({
+        field,
+        earliestDivergence,
+      })),
+    });
+  }
+
+  const mismatchSummary = {
+    ...summary,
+    investigationMode: true,
+    fieldComparisons: perField.length,
+    earliestDivergenceCounts: Object.fromEntries(
+      Object.entries(categoryCounts).sort(([a], [b]) => a.localeCompare(b))
+    ),
+    note:
+      "Field-level diagnostic only. iPad Tier C proposals are not applied to final OCR output.",
+  };
+  await fs.writeFile(path.join(artifactDir, "summary.json"), JSON.stringify(mismatchSummary, null, 2));
+  await fs.writeFile(path.join(artifactDir, "per-case-comparison.json"), JSON.stringify(perCase, null, 2));
+  await fs.writeFile(path.join(artifactDir, "per-field-comparison.json"), JSON.stringify(perField, null, 2));
+  return mismatchSummary;
 }
 
 async function main() {
@@ -466,9 +661,13 @@ async function main() {
     await stopDevServer(server);
   }
 
-  const summary = summarizeArtifacts(artifacts, acceptedCases);
-  await fs.writeFile(path.join(artifactDir, "summary.json"), JSON.stringify(summary, null, 2));
+  let summary = summarizeArtifacts(artifacts, acceptedCases);
   await fs.writeFile(path.join(artifactDir, "all-artifacts.json"), JSON.stringify(artifacts, null, 2));
+  if (investigateCandidateMismatch) {
+    summary = await writeCandidateMismatchInvestigation({ artifacts, acceptedRows, summary });
+  } else {
+    await fs.writeFile(path.join(artifactDir, "summary.json"), JSON.stringify(summary, null, 2));
+  }
 
   console.log(JSON.stringify(summary, null, 2));
   if (

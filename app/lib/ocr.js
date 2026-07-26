@@ -567,9 +567,9 @@ export function getIpadArithmeticPreprocessingProfiles() {
   return [
     {
       id: "baseline-score-preprocess-3x-psm7",
-      label: "Existing score preprocessing, 3x, PSM 7",
+      label: "Existing score preprocessing, default 4x, PSM 7",
       kind: "existing",
-      scale: 3,
+      scale: 4,
       pageSegMode: "7",
       fieldTypes: ["member", "bonus", "total"],
     },
@@ -587,6 +587,7 @@ export function getIpadArithmeticPreprocessingProfiles() {
       kind: "white-mask",
       scale: 3,
       pageSegMode: "7",
+      threshold: 176,
       fieldTypes: ["member", "bonus", "total"],
     },
     {
@@ -2044,8 +2045,9 @@ export function createPreprocessedStageBlob(image, cropArea, options = {}) {
     willReadFrequently: true,
   });
 
-  canvas.width = cropArea.width * scale;
-  canvas.height = cropArea.height * scale;
+  const processAtSourceScale = Boolean(presetConfig?.ipadKind);
+  canvas.width = processAtSourceScale ? cropArea.width : cropArea.width * scale;
+  canvas.height = processAtSourceScale ? cropArea.height : cropArea.height * scale;
 
   context.fillStyle = "white";
   context.fillRect(0, 0, canvas.width, canvas.height);
@@ -2143,6 +2145,59 @@ export function createPreprocessedStageBlob(image, cropArea, options = {}) {
 
   context.putImageData(imageData, 0, 0);
 
+  if (processAtSourceScale && scale !== 1) {
+    const scaledCanvas = document.createElement("canvas");
+    const scaledContext = scaledCanvas.getContext("2d", {
+      willReadFrequently: true,
+    });
+    scaledCanvas.width = cropArea.width * scale;
+    scaledCanvas.height = cropArea.height * scale;
+    scaledContext.fillStyle = "white";
+    scaledContext.fillRect(0, 0, scaledCanvas.width, scaledCanvas.height);
+    scaledContext.imageSmoothingEnabled = true;
+    scaledContext.drawImage(canvas, 0, 0, scaledCanvas.width, scaledCanvas.height);
+    return new Promise((resolve) => {
+      scaledCanvas.toBlob(resolve, "image/png");
+    });
+  }
+
+  return new Promise((resolve) => {
+    canvas.toBlob(resolve, "image/png");
+  });
+}
+
+async function hashBlobForOcrDebug(blob) {
+  if (!blob || typeof crypto === "undefined" || !crypto.subtle) return null;
+  const buffer = await blob.arrayBuffer();
+  const digest = await crypto.subtle.digest("SHA-256", buffer);
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function createOcrDebugRawCropBlob(image, cropArea) {
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d", {
+    willReadFrequently: true,
+  });
+  canvas.width = cropArea.width;
+  canvas.height = cropArea.height;
+  context.fillStyle = "white";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.imageSmoothingEnabled = false;
+  const cropX = cropArea.x ?? cropArea.left ?? 0;
+  const cropY = cropArea.y ?? cropArea.top ?? 0;
+  context.drawImage(
+    image,
+    cropX,
+    cropY,
+    cropArea.width,
+    cropArea.height,
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
   return new Promise((resolve) => {
     canvas.toBlob(resolve, "image/png");
   });
@@ -7310,6 +7365,47 @@ export function applyCommonMemberCleanup(members, totals = []) {
 
 export async function recognizeOcrZone(image, zone, options = {}) {
   const blob = await createPreprocessedStageBlob(image, zone, options);
+  let debugArtifacts = null;
+  if (options.includeDebugArtifacts) {
+    const presetConfig = getOcrPresetConfig(options.preset);
+    const scale = presetConfig?.scale || 4;
+    const rawBlob = await createOcrDebugRawCropBlob(image, zone);
+    debugArtifacts = {
+      crop: {
+        x: zone.x ?? zone.left ?? 0,
+        y: zone.y ?? zone.top ?? 0,
+        width: zone.width,
+        height: zone.height,
+      },
+      rawCrop: {
+        format: "png",
+        width: zone.width,
+        height: zone.height,
+        sha256: await hashBlobForOcrDebug(rawBlob),
+        bytes: rawBlob?.size || 0,
+      },
+      processedCrop: {
+        format: "png",
+        width: zone.width * scale,
+        height: zone.height * scale,
+        sha256: await hashBlobForOcrDebug(blob),
+        bytes: blob?.size || 0,
+      },
+      preprocessing: {
+        preset: options.preset || "default",
+        scale,
+        ipadKind: presetConfig?.ipadKind || null,
+        threshold: presetConfig?.threshold || null,
+        processAtSourceScale: Boolean(presetConfig?.ipadKind),
+      },
+      ocr: {
+        engine: "tesseract.js-browser",
+        language: "eng",
+        pageSegMode: options.pageSegMode || "6",
+        charWhitelist: options.charWhitelist || "0123456789,.",
+      },
+    };
+  }
 
   const tesseractOptions = {
     tessedit_char_whitelist: options.charWhitelist || "0123456789,.",
@@ -7326,6 +7422,8 @@ export async function recognizeOcrZone(image, zone, options = {}) {
   return {
     text: result.data.text || "",
     numbers: extractNumbersForZone(result.data.text || ""),
+    confidence: Number(result.data.confidence || 0),
+    debugArtifacts,
   };
 }
 

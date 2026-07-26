@@ -230,12 +230,15 @@ async function buildIpadArithmeticBrowserDiagnostics({ image, imageName, filter 
     stageRows: template.stageRows,
     stageSideZones: template.stageSideZones,
   };
-  diagnostics.profiles = profiles.map(({ id, label, kind, pageSegMode, fieldTypes }) => ({
+  diagnostics.profiles = profiles.map(({ id, label, kind, pageSegMode, fieldTypes, scale, threshold, paddingRatio }) => ({
     id,
     label,
     kind,
     pageSegMode,
     fieldTypes,
+    scale,
+    threshold,
+    paddingRatio,
   }));
 
   const poolsByKey = new Map();
@@ -255,6 +258,7 @@ async function buildIpadArithmeticBrowserDiagnostics({ image, imageName, filter 
         preset: ipadArithmeticProfilePreset(profile),
         pageSegMode: profile.pageSegMode || "7",
         charWhitelist: "0123456789,+.＋",
+        includeDebugArtifacts: true,
       });
       const parsedCandidates = parseIpadArithmeticOcrNumbers(result.text);
       const values = parsedCandidates.map((candidate) => candidate.value);
@@ -266,12 +270,13 @@ async function buildIpadArithmeticBrowserDiagnostics({ image, imageName, filter 
         slot: field.slot || 0,
         zone,
         rawText: result.text || "",
-        ocrConfidence: 0,
+        ocrConfidence: Number(result.confidence || 0),
         parsedCandidates,
         selected:
           field.field === "bonus"
             ? parsedCandidates.find((candidate) => candidate.plusLike)?.value || values[0] || 0
             : values[0] || 0,
+        debugArtifacts: result.debugArtifacts || null,
       };
     }
     const pool = buildIpadArithmeticFieldCandidatePool({
