@@ -423,6 +423,318 @@ export function detectIpadOcrLayout(image) {
   };
 }
 
+const ipadArithmeticFieldSpecs = [
+  { field: "member", slot: 1, label: "member1" },
+  { field: "member", slot: 2, label: "member2" },
+  { field: "member", slot: 3, label: "member3" },
+  { field: "bonus", slot: 0, label: "bonus" },
+  { field: "total", slot: 0, label: "total" },
+];
+
+function normalizeIpadArithmeticNumber(value) {
+  const number = Number(value);
+  return Number.isInteger(number) ? number : 0;
+}
+
+function normalizeIpadArithmeticCandidate(candidate, origin = "observed") {
+  if (!candidate) {
+    return {
+      value: 0,
+      origin,
+      profileIds: [],
+      sourceRank: 999,
+      rawText: "",
+      normalizedText: "",
+      confidenceSignals: {},
+      contributions: [],
+    };
+  }
+  return {
+    value: normalizeIpadArithmeticNumber(candidate.value),
+    origin,
+    profileIds: Array.isArray(candidate.profileIds) ? [...candidate.profileIds] : [],
+    sourceRank: Number.isFinite(Number(candidate.sourceRank))
+      ? Number(candidate.sourceRank)
+      : 999,
+    rawText: String(candidate.rawText || ""),
+    normalizedText: String(candidate.normalizedText || ""),
+    confidenceSignals: { ...(candidate.confidenceSignals || {}) },
+    contributions: Array.isArray(candidate.contributions)
+      ? candidate.contributions.map((contribution) => ({
+          profileId: contribution.profileId,
+          candidateIndex: contribution.candidateIndex,
+          rawCandidate: contribution.rawCandidate,
+          normalizedText: contribution.normalizedText,
+          ocrConfidence: contribution.ocrConfidence,
+          plusLike: Boolean(contribution.plusLike),
+        }))
+      : [],
+  };
+}
+
+function ipadArithmeticTupleKey(values = []) {
+  return values.map((value) => normalizeIpadArithmeticNumber(value)).join("|");
+}
+
+export function summarizeIpadArithmeticSideSelectionTuple(tuple = {}) {
+  const values = Array.isArray(tuple.values)
+    ? tuple.values.map(normalizeIpadArithmeticNumber)
+    : [0, 0, 0, 0, 0];
+  const components = tuple.components || {};
+  const componentFor = (label) => components[label] || {};
+  return {
+    members: values.slice(0, 3),
+    bonus: values[3],
+    total: values[4],
+    equation: `${values[0]} + ${values[1]} + ${values[2]} + ${values[3]} = ${values[4]}`,
+    origins: {
+      member1: componentFor("member1").origin,
+      member2: componentFor("member2").origin,
+      member3: componentFor("member3").origin,
+      bonus: componentFor("bonus").origin,
+      total: componentFor("total").origin,
+    },
+    profileIds: {
+      member1: componentFor("member1").profileIds || [],
+      member2: componentFor("member2").profileIds || [],
+      member3: componentFor("member3").profileIds || [],
+      bonus: componentFor("bonus").profileIds || [],
+      total: componentFor("total").profileIds || [],
+    },
+  };
+}
+
+export function buildIpadArithmeticSideSelectionCandidateSets({
+  deviceMode = "ipad",
+  fieldCandidatePools = {},
+  tier = "tier-c",
+} = {}) {
+  const sets = {};
+  const fieldDiagnostics = {};
+  for (const spec of ipadArithmeticFieldSpecs) {
+    const pool = fieldCandidatePools[spec.label] || {};
+    const observed = (pool.candidates || []).map((candidate) =>
+      normalizeIpadArithmeticCandidate(
+        candidate,
+        normalizeIpadArithmeticNumber(candidate.value) === 0 ? "explicit-zero" : "observed"
+      )
+    );
+    let candidates = observed;
+    if (tier === "tier-a") {
+      candidates = observed.filter((candidate) => candidate.value !== 0);
+    } else if (tier === "tier-b") {
+      candidates = observed;
+    } else if (tier === "tier-c") {
+      candidates = observed;
+      if (spec.field === "bonus" && observed.length === 0) {
+        candidates = [
+          {
+            value: 0,
+            origin: "schema-default-bonus-zero",
+            profileIds: [],
+            sourceRank: 999,
+            rawText: "",
+            normalizedText: "0",
+            confidenceSignals: {},
+            contributions: [],
+          },
+        ];
+      }
+    }
+    sets[spec.label] = candidates;
+    fieldDiagnostics[spec.label] = {
+      key: pool.key || "",
+      field: spec.field,
+      slot: spec.slot,
+      deviceMode,
+      poolSize: Array.isArray(pool.candidates) ? pool.candidates.length : 0,
+      candidateCap: Number(pool.candidateCap || 6),
+      rawDistinctCandidateCount: Number(
+        pool.rawDistinctCandidateCount ||
+          (Array.isArray(pool.candidates) ? pool.candidates.length : 0)
+      ),
+      truncated: Boolean(pool.truncated),
+      observedValues: observed.map((candidate) => candidate.value),
+      values: candidates.map((candidate) => candidate.value),
+      origins: candidates.map((candidate) => candidate.origin),
+    };
+  }
+  return { sets, fieldDiagnostics };
+}
+
+function enumerateIpadArithmeticSideSelectionTuples({ sets = {}, safetyCap = 10000 } = {}) {
+  const labels = ["member1", "member2", "member3", "bonus", "total"];
+  const pools = labels.map((label) => sets[label] || []);
+  if (pools.some((pool) => pool.length === 0)) {
+    return { tuples: [], validTuples: [], exceededCap: false, duplicateTupleConflicts: [] };
+  }
+  const totalCombinations = pools.reduce((count, pool) => count * pool.length, 1);
+  if (totalCombinations > safetyCap) {
+    return {
+      tuples: [],
+      validTuples: [],
+      exceededCap: true,
+      totalCombinations,
+      duplicateTupleConflicts: [],
+    };
+  }
+  const allTuples = [];
+  const validByKey = new Map();
+  const duplicateTupleConflicts = [];
+  for (const member1 of pools[0]) {
+    for (const member2 of pools[1]) {
+      for (const member3 of pools[2]) {
+        for (const bonus of pools[3]) {
+          for (const total of pools[4]) {
+            const components = { member1, member2, member3, bonus, total };
+            const values = labels.map((label) =>
+              normalizeIpadArithmeticNumber(components[label].value)
+            );
+            const tuple = { values, components };
+            allTuples.push(tuple);
+            if (values[0] + values[1] + values[2] + values[3] !== values[4]) continue;
+            const key = ipadArithmeticTupleKey(values);
+            if (validByKey.has(key)) {
+              duplicateTupleConflicts.push({
+                values,
+                first: summarizeIpadArithmeticSideSelectionTuple(validByKey.get(key)),
+                duplicate: summarizeIpadArithmeticSideSelectionTuple(tuple),
+              });
+              continue;
+            }
+            validByKey.set(key, tuple);
+          }
+        }
+      }
+    }
+  }
+  return {
+    tuples: allTuples,
+    validTuples: [...validByKey.values()],
+    exceededCap: false,
+    totalCombinations,
+    duplicateTupleConflicts,
+  };
+}
+
+export function evaluateIpadArithmeticSideSelectionTier({
+  deviceMode = "ipad",
+  fieldCandidatePools = {},
+  currentPrimary = {},
+  tier = "tier-c",
+  safetyCap = 10000,
+} = {}) {
+  const current = {
+    members: Array.isArray(currentPrimary.members)
+      ? currentPrimary.members.slice(0, 3).map(normalizeIpadArithmeticNumber)
+      : [0, 0, 0],
+    bonus: normalizeIpadArithmeticNumber(currentPrimary.bonus),
+    total: normalizeIpadArithmeticNumber(currentPrimary.total),
+  };
+  while (current.members.length < 3) current.members.push(0);
+
+  if (deviceMode !== "ipad") {
+    return {
+      deviceMode,
+      tier,
+      eligible: false,
+      wouldApply: false,
+      blockReason: `non-ipad-mode:${deviceMode || "unknown"}`,
+      validTupleCount: 0,
+      totalCombinationCount: 0,
+      candidateCompleteness: {
+        complete: false,
+        missingLabels: ["member1", "member2", "member3", "bonus", "total"],
+        truncatedLabels: [],
+      },
+      fieldDiagnostics: {},
+      currentPrimary: current,
+    };
+  }
+
+  const { sets, fieldDiagnostics } = buildIpadArithmeticSideSelectionCandidateSets({
+    deviceMode,
+    fieldCandidatePools,
+    tier,
+  });
+  const requiredLabels = ["member1", "member2", "member3", "bonus", "total"];
+  const missingLabels = requiredLabels.filter((label) => !sets[label]?.length);
+  const truncatedLabels = Object.entries(fieldDiagnostics)
+    .filter(([, diagnostics]) => diagnostics.truncated)
+    .map(([label]) => label);
+  let blockReason = "";
+  let enumeration = {
+    tuples: [],
+    validTuples: [],
+    exceededCap: false,
+    duplicateTupleConflicts: [],
+    totalCombinations: 0,
+  };
+  if (missingLabels.length) {
+    blockReason = `missing-candidate:${missingLabels.join(",")}`;
+  } else if (truncatedLabels.length) {
+    blockReason = `truncated-pool:${truncatedLabels.join(",")}`;
+  } else {
+    enumeration = enumerateIpadArithmeticSideSelectionTuples({ sets, safetyCap });
+    if (enumeration.exceededCap) {
+      blockReason = "enumeration-safety-cap";
+    } else if (enumeration.duplicateTupleConflicts.length) {
+      blockReason = "duplicate-tuple-provenance-conflict";
+    } else if (enumeration.validTuples.length === 0) {
+      blockReason = "no-arithmetic-valid-tuple";
+    } else if (enumeration.validTuples.length > 1) {
+      blockReason = "multiple-arithmetic-valid-tuples";
+    }
+  }
+
+  const selectedTuple = !blockReason ? enumeration.validTuples[0] : null;
+  const proposal = selectedTuple
+    ? {
+        members: selectedTuple.values.slice(0, 3),
+        bonus: selectedTuple.values[3],
+        total: selectedTuple.values[4],
+        components: selectedTuple.components,
+        provenanceTier: tier,
+        equation: `${selectedTuple.values[0]} + ${selectedTuple.values[1]} + ${selectedTuple.values[2]} + ${selectedTuple.values[3]} = ${selectedTuple.values[4]}`,
+      }
+    : null;
+  const proposalValues = proposal ? [...proposal.members, proposal.bonus, proposal.total] : [];
+  const currentValues = [...current.members, current.bonus, current.total];
+  const changedFields = proposal
+    ? requiredLabels.filter((_, index) => proposalValues[index] !== currentValues[index])
+    : [];
+
+  return {
+    deviceMode,
+    tier,
+    eligible: !blockReason,
+    wouldApply: Boolean(proposal && changedFields.length > 0),
+    blockReason,
+    tupleCount: (enumeration.tuples || []).length,
+    validTupleCount: enumeration.validTuples.length,
+    totalCombinationCount: enumeration.totalCombinations || 0,
+    candidateCompleteness: {
+      complete: missingLabels.length === 0 && truncatedLabels.length === 0,
+      missingLabels,
+      truncatedLabels,
+    },
+    fieldDiagnostics,
+    currentPrimary: current,
+    proposal,
+    selectedTuple: selectedTuple
+      ? summarizeIpadArithmeticSideSelectionTuple(selectedTuple)
+      : null,
+    changedFields,
+    duplicateTupleConflicts: enumeration.duplicateTupleConflicts || [],
+    sampleTuples: (enumeration.tuples || [])
+      .slice(0, 10)
+      .map(summarizeIpadArithmeticSideSelectionTuple),
+    validTuples: (enumeration.validTuples || []).map(
+      summarizeIpadArithmeticSideSelectionTuple
+    ),
+  };
+}
+
 export function getFixedOcrZones(image, stage, mode) {
   mode = normalizeOcrMode(mode);
   const layout = getDeviceOcrLayout(mode);

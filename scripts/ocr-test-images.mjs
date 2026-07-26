@@ -29,6 +29,7 @@ import {
   buildSmartphoneCrownBonusRuleEvidence as sharedBuildSmartphoneCrownBonusRuleEvidence,
   buildSmartphoneExactSlotSelectionEvidence as sharedBuildSmartphoneExactSlotSelectionEvidence,
   buildSmartphoneStageWideSixMemberCandidateSolverEvidence as sharedBuildSmartphoneStageWideSixMemberCandidateSolverEvidence,
+  evaluateIpadArithmeticSideSelectionTier as sharedEvaluateIpadArithmeticSideSelectionTier,
   buildCurrentPcCandidateSourceSummary as sharedBuildCurrentPcCandidateSourceSummary,
   buildCurrentPcGroupedRawTokenEvidenceSimulation as sharedBuildCurrentPcGroupedRawTokenEvidenceSimulation,
   buildCurrentPcStageWideSixMemberCandidateSolverEvidence as sharedBuildCurrentPcStageWideSixMemberCandidateSolverEvidence,
@@ -229,6 +230,16 @@ const ipadArithmeticSideSelectionInvestigationDir = path.join(
   rootDir,
   "tmp",
   "ipad-arithmetic-side-selection"
+);
+const ipadArithmeticSideSelectionParityReportPath = path.join(
+  rootDir,
+  "docs",
+  "ipad-arithmetic-side-selection-parity.md"
+);
+const ipadArithmeticSideSelectionParityDir = path.join(
+  rootDir,
+  "tmp",
+  "ipad-arithmetic-side-selection-parity"
 );
 let currentPcBaselineScanSummary = null;
 const unsupportedNextScreenMessage =
@@ -7218,38 +7229,7 @@ function buildIpadArithmeticCombinationAudit({ rows, poolsByKey }) {
   };
 }
 
-function serializeIpadCandidate(candidate, origin = "observed") {
-  if (!candidate) {
-    return {
-      value: 0,
-      origin,
-      profileIds: [],
-      sourceRank: 999,
-      rawText: "",
-      normalizedText: "",
-      confidenceSignals: {},
-    };
-  }
-  return {
-    value: Number(candidate.value || 0),
-    origin,
-    profileIds: candidate.profileIds || [],
-    sourceRank: candidate.sourceRank,
-    rawText: candidate.rawText,
-    normalizedText: candidate.normalizedText,
-    confidenceSignals: candidate.confidenceSignals || {},
-    contributions: (candidate.contributions || []).map((contribution) => ({
-      profileId: contribution.profileId,
-      candidateIndex: contribution.candidateIndex,
-      rawCandidate: contribution.rawCandidate,
-      normalizedText: contribution.normalizedText,
-      ocrConfidence: contribution.ocrConfidence,
-      plusLike: contribution.plusLike,
-    })),
-  };
-}
-
-function getIpadSideCandidateSets({ poolsByKey, filename, stage, side, tier }) {
+function getIpadSideFieldCandidatePools({ poolsByKey, filename, stage, side }) {
   const fields = [
     { field: "member", slot: 1, label: "member1" },
     { field: "member", slot: 2, label: "member2" },
@@ -7257,123 +7237,73 @@ function getIpadSideCandidateSets({ poolsByKey, filename, stage, side, tier }) {
     { field: "bonus", slot: 0, label: "bonus" },
     { field: "total", slot: 0, label: "total" },
   ];
-  const sets = {};
-  const fieldDiagnostics = {};
-  for (const field of fields) {
-    const key = ipadFieldKey({ filename, stage, side, field: field.field, slot: field.slot });
-    const pool = poolsByKey.get(key);
-    const observed = (pool?.candidates || []).map((candidate) =>
-      serializeIpadCandidate(candidate, candidate.value === 0 ? "explicit-zero" : "observed")
-    );
-    let candidates = observed;
-    if (tier === "tier-a") {
-      candidates = observed.filter((candidate) => candidate.value !== 0);
-    } else if (tier === "tier-b") {
-      candidates = observed;
-    } else if (tier === "tier-c") {
-      candidates = observed;
-      if (field.field === "bonus" && !observed.length) {
-        candidates = [
-          {
-            value: 0,
-            origin: "schema-default-bonus-zero",
-            profileIds: [],
-            sourceRank: 999,
-            rawText: "",
-            normalizedText: "0",
-            confidenceSignals: {},
-            contributions: [],
-          },
-        ];
-      }
-    }
-    sets[field.label] = candidates;
-    fieldDiagnostics[field.label] = {
-      key,
-      poolSize: pool?.candidates?.length || 0,
-      candidateCap: pool?.candidateCap || 6,
-      rawDistinctCandidateCount: pool?.rawDistinctCandidateCount || pool?.candidates?.length || 0,
-      truncated: Boolean(pool?.truncated),
-      observedValues: observed.map((candidate) => candidate.value),
-      values: candidates.map((candidate) => candidate.value),
-      origins: candidates.map((candidate) => candidate.origin),
-    };
-  }
-  return { sets, fieldDiagnostics };
+  return Object.fromEntries(
+    fields.map((field) => [
+      field.label,
+      poolsByKey.get(ipadFieldKey({ filename, stage, side, field: field.field, slot: field.slot })) || {},
+    ])
+  );
+}
+
+function getIpadArithmeticSideSelectionEvidence({ poolsByKey, primarySelections, filename, stage, side, tier }) {
+  const fieldCandidatePools = getIpadSideFieldCandidatePools({ poolsByKey, filename, stage, side });
+  const currentPrimary = getIpadCurrentPrimarySide({
+    selections: primarySelections,
+    filename,
+    stage,
+    side,
+  });
+  return sharedEvaluateIpadArithmeticSideSelectionTier({
+    deviceMode: "ipad",
+    fieldCandidatePools,
+    currentPrimary,
+    tier,
+  });
+}
+
+function getIpadBrowserEquivalentArithmeticSideSelectionEvidence({
+  poolsByKey,
+  primarySelections,
+  filename,
+  stage,
+  side,
+  tier,
+}) {
+  const fieldCandidatePools = getIpadSideFieldCandidatePools({ poolsByKey, filename, stage, side });
+  const browserEquivalentPools = Object.fromEntries(
+    Object.entries(fieldCandidatePools).map(([label, pool]) => [
+      label,
+      {
+        ...pool,
+        candidates: (pool.candidates || []).map((candidate) => ({
+          ...candidate,
+          profileIds: [...(candidate.profileIds || [])],
+          confidenceSignals: { ...(candidate.confidenceSignals || {}) },
+          contributions: (candidate.contributions || []).map((contribution) => ({ ...contribution })),
+        })),
+      },
+    ])
+  );
+  const currentPrimary = getIpadCurrentPrimarySide({
+    selections: primarySelections,
+    filename,
+    stage,
+    side,
+  });
+  return sharedEvaluateIpadArithmeticSideSelectionTier({
+    deviceMode: "ipad",
+    fieldCandidatePools: browserEquivalentPools,
+    currentPrimary: {
+      members: [...currentPrimary.members],
+      bonus: currentPrimary.bonus,
+      total: currentPrimary.total,
+    },
+    tier,
+  });
 }
 
 function tupleKey(values) {
   return values.join("|");
-}
-
-function summarizeIpadTuple(tuple) {
-  return {
-    members: tuple.values.slice(0, 3),
-    bonus: tuple.values[3],
-    total: tuple.values[4],
-    equation: `${tuple.values[0]} + ${tuple.values[1]} + ${tuple.values[2]} + ${tuple.values[3]} = ${tuple.values[4]}`,
-    origins: {
-      member1: tuple.components.member1.origin,
-      member2: tuple.components.member2.origin,
-      member3: tuple.components.member3.origin,
-      bonus: tuple.components.bonus.origin,
-      total: tuple.components.total.origin,
-    },
-    profileIds: {
-      member1: tuple.components.member1.profileIds,
-      member2: tuple.components.member2.profileIds,
-      member3: tuple.components.member3.profileIds,
-      bonus: tuple.components.bonus.profileIds,
-      total: tuple.components.total.profileIds,
-    },
-  };
-}
-
-function enumerateIpadArithmeticTuples({ sets, safetyCap = 10000 }) {
-  const labels = ["member1", "member2", "member3", "bonus", "total"];
-  const pools = labels.map((label) => sets[label] || []);
-  if (pools.some((pool) => pool.length === 0)) {
-    return { tuples: [], validTuples: [], exceededCap: false, duplicateTupleConflicts: [] };
-  }
-  const totalCombinations = pools.reduce((count, pool) => count * pool.length, 1);
-  if (totalCombinations > safetyCap) {
-    return { tuples: [], validTuples: [], exceededCap: true, totalCombinations, duplicateTupleConflicts: [] };
-  }
-  const allTuples = [];
-  const validByKey = new Map();
-  const duplicateTupleConflicts = [];
-  for (const member1 of pools[0]) {
-    for (const member2 of pools[1]) {
-      for (const member3 of pools[2]) {
-        for (const bonus of pools[3]) {
-          for (const total of pools[4]) {
-            const components = { member1, member2, member3, bonus, total };
-            const values = labels.map((label) => Number(components[label].value || 0));
-            const tuple = { values, components };
-            allTuples.push(tuple);
-            if (values[0] + values[1] + values[2] + values[3] !== values[4]) continue;
-            const key = tupleKey(values);
-            if (validByKey.has(key)) {
-              duplicateTupleConflicts.push({
-                values,
-                first: summarizeIpadTuple(validByKey.get(key)),
-                duplicate: summarizeIpadTuple(tuple),
-              });
-              continue;
-            }
-            validByKey.set(key, tuple);
-          }
-        }
-      }
-    }
-  }
-  return {
-    tuples: allTuples,
-    validTuples: [...validByKey.values()],
-    exceededCap: false,
-    totalCombinations,
-    duplicateTupleConflicts,
-  };
 }
 
 function getIpadCurrentPrimarySide({ selections, filename, stage, side }) {
@@ -7456,49 +7386,19 @@ function evaluateIpadArithmeticTier({ rows, poolsByKey, primarySelections, tier 
   for (const row of rows) {
     for (const stage of stages) {
       for (const side of sides) {
-        const { sets, fieldDiagnostics } = getIpadSideCandidateSets({
+        const sharedResult = getIpadArithmeticSideSelectionEvidence({
           poolsByKey,
+          primarySelections,
           filename: row.filename,
           stage,
           side,
           tier,
         });
-        const current = getIpadCurrentPrimarySide({
-          selections: primarySelections,
-          filename: row.filename,
-          stage,
-          side,
-        });
+        const fieldDiagnostics = sharedResult.fieldDiagnostics;
+        const current = sharedResult.currentPrimary;
         const expectedStage = row.expected[`stage${stage}`];
         const currentComparison = compareIpadSide(current, expectedStage, side);
-        const requiredLabels = ["member1", "member2", "member3", "bonus", "total"];
-        const emptyLabels = requiredLabels.filter((label) => !sets[label]?.length);
-        const truncatedLabels = Object.entries(fieldDiagnostics)
-          .filter(([, diagnostics]) => diagnostics.truncated)
-          .map(([label]) => label);
-        let blockReason = "";
-        let enumeration = {
-          tuples: [],
-          validTuples: [],
-          exceededCap: false,
-          duplicateTupleConflicts: [],
-        };
-        if (emptyLabels.length) {
-          blockReason = `missing-candidate:${emptyLabels.join(",")}`;
-        } else if (truncatedLabels.length) {
-          blockReason = `truncated-pool:${truncatedLabels.join(",")}`;
-        } else {
-          enumeration = enumerateIpadArithmeticTuples({ sets });
-          if (enumeration.exceededCap) {
-            blockReason = "enumeration-safety-cap";
-          } else if (enumeration.duplicateTupleConflicts.length) {
-            blockReason = "duplicate-tuple-provenance-conflict";
-          } else if (enumeration.validTuples.length === 0) {
-            blockReason = "no-arithmetic-valid-tuple";
-          } else if (enumeration.validTuples.length > 1) {
-            blockReason = "multiple-arithmetic-valid-tuples";
-          }
-        }
+        const blockReason = sharedResult.blockReason;
 
         const commonRecord = {
           image: row.filename,
@@ -7515,17 +7415,17 @@ function evaluateIpadArithmeticTier({ rows, poolsByKey, primarySelections, tier 
             total: side === "self" ? expectedStage.selfTotal : expectedStage.enemyTotal,
           },
           fieldDiagnostics,
-          totalCombinationCount: enumeration.totalCombinations || 0,
+          totalCombinationCount: sharedResult.totalCombinationCount || 0,
         };
         tupleRecords.push({
           ...commonRecord,
-          tupleCount: enumeration.tuples.length,
-          sampleTuples: enumeration.tuples.slice(0, 10).map(summarizeIpadTuple),
+          tupleCount: sharedResult.sampleTuples.length,
+          sampleTuples: sharedResult.sampleTuples,
         });
         validTupleRecords.push({
           ...commonRecord,
-          validTupleCount: enumeration.validTuples.length,
-          validTuples: enumeration.validTuples.map(summarizeIpadTuple),
+          validTupleCount: sharedResult.validTupleCount,
+          validTuples: sharedResult.validTuples,
         });
 
         if (blockReason) {
@@ -7537,20 +7437,10 @@ function evaluateIpadArithmeticTier({ rows, poolsByKey, primarySelections, tier 
 
         stats.eligible += 1;
         stats.exactlyOneProposals += 1;
-        const tuple = enumeration.validTuples[0];
-        const proposal = {
-          members: tuple.values.slice(0, 3),
-          bonus: tuple.values[3],
-          total: tuple.values[4],
-          components: tuple.components,
-          provenanceTier: tier,
-          equation: `${tuple.values[0]} + ${tuple.values[1]} + ${tuple.values[2]} + ${tuple.values[3]} = ${tuple.values[4]}`,
-        };
+        const proposal = sharedResult.proposal;
         const proposalValues = [...proposal.members, proposal.bonus, proposal.total];
         const currentValues = [...current.members, current.bonus, current.total];
-        const changedFields = ["member1", "member2", "member3", "bonus", "total"].filter(
-          (_, index) => proposalValues[index] !== currentValues[index]
-        );
+        const changedFields = sharedResult.changedFields;
         const proposedSide = {
           members: proposal.members,
           bonus: proposal.bonus,
@@ -7568,7 +7458,7 @@ function evaluateIpadArithmeticTier({ rows, poolsByKey, primarySelections, tier 
         const fieldLosses = beforeFieldCorrect.filter((correct, index) => correct && !afterFieldCorrect[index]).length;
         const proposalRecord = {
           ...commonRecord,
-          proposal: summarizeIpadTuple(tuple),
+          proposal: sharedResult.selectedTuple,
           changedFields,
           currentPass: currentComparison.pass,
           proposalPass: proposalComparison.pass,
@@ -7577,7 +7467,9 @@ function evaluateIpadArithmeticTier({ rows, poolsByKey, primarySelections, tier 
             proposal,
             expectedStage,
             side,
-            validTuples: enumeration.validTuples,
+            validTuples: sharedResult.validTuples.map((tuple) => ({
+              values: [...tuple.members, tuple.bonus, tuple.total],
+            })),
           }),
           fieldGains,
           fieldLosses,
@@ -7775,6 +7667,337 @@ async function runIpadArithmeticSideSelectionSimulation() {
     buildIpadArithmeticSideSelectionInvestigationReport(summary)
   );
   return summary;
+}
+
+function stableJson(value) {
+  return JSON.stringify(value ?? null);
+}
+
+function compactIpadArithmeticEvidenceForParity(result) {
+  return {
+    eligible: Boolean(result.eligible),
+    wouldApply: Boolean(result.wouldApply),
+    validTupleCount: Number(result.validTupleCount || 0),
+    selectedTuple: result.selectedTuple || null,
+    changedFields: result.changedFields || [],
+    blockReason: result.blockReason || "",
+    candidateCompleteness: result.candidateCompleteness || {},
+    fieldDiagnostics: result.fieldDiagnostics || {},
+  };
+}
+
+function compareIpadArithmeticParityEvidence(runner, browserEquivalent) {
+  const checks = {
+    eligibility: runner.eligible === browserEquivalent.eligible,
+    wouldApply: runner.wouldApply === browserEquivalent.wouldApply,
+    validTupleCount: runner.validTupleCount === browserEquivalent.validTupleCount,
+    selectedTuple: stableJson(runner.selectedTuple) === stableJson(browserEquivalent.selectedTuple),
+    changedFields: stableJson(runner.changedFields) === stableJson(browserEquivalent.changedFields),
+    blockReason: (runner.blockReason || "") === (browserEquivalent.blockReason || ""),
+    candidateCompleteness:
+      stableJson(runner.candidateCompleteness) === stableJson(browserEquivalent.candidateCompleteness),
+    fieldDiagnostics: stableJson(runner.fieldDiagnostics) === stableJson(browserEquivalent.fieldDiagnostics),
+  };
+  return {
+    checks,
+    exact: Object.values(checks).every(Boolean),
+    safetyMismatch: runner.wouldApply !== browserEquivalent.wouldApply,
+  };
+}
+
+async function runIpadArithmeticSideSelectionParity() {
+  const { rows, poolsByKey } = await collectIpadBoundedCandidatePools();
+  await fs.rm(ipadArithmeticSideSelectionParityDir, { recursive: true, force: true });
+  await fs.mkdir(ipadArithmeticSideSelectionParityDir, { recursive: true });
+  const strategies = getIpadCandidateSelectionStrategies();
+  const { selectionsByStrategy } = buildIpadStrategySelections({
+    rows,
+    poolsByKey,
+    strategies,
+    digitSchema: buildIpadDigitLengthSchema(rows),
+  });
+  const primarySelections = selectionsByStrategy["current-primary"].selections;
+  const primaryAggregate = buildIpadAggregateAccuracy({ rows, selections: primarySelections });
+  const tier = "tier-c";
+  const rowsCompared = rows.length * stages.length * sides.length;
+  const summary = {
+    command: "node scripts/ocr-test-images.mjs --ipad-arithmetic-side-selection-parity",
+    outputDir: path.relative(rootDir, ipadArithmeticSideSelectionParityDir).replaceAll("\\", "/"),
+    tier,
+    rowsCompared,
+    runnerEligible: 0,
+    browserEquivalentEligible: 0,
+    runnerWouldApply: 0,
+    browserEquivalentWouldApply: 0,
+    exactProposalParity: 0,
+    eligibilityDisagreements: 0,
+    wouldApplyDisagreements: 0,
+    selectedTupleDisagreements: 0,
+    blockReasonDisagreements: 0,
+    provenanceDisagreements: 0,
+    candidatePoolDisagreements: 0,
+    missingEvidence: 0,
+    safetyMismatches: 0,
+    acceptedCases: [],
+    acceptedCaseTp: 0,
+    acceptedCaseFp: 0,
+    nonIpadGuardAudit: [],
+    primaryAggregate,
+    finalOutputChanged: false,
+    realBrowserVerified: false,
+    recommendation: "",
+  };
+  const perSide = [];
+  const mismatches = [];
+  const incrementMismatch = (key) => {
+    summary[key] = (summary[key] || 0) + 1;
+  };
+
+  for (const row of rows) {
+    for (const stage of stages) {
+      for (const side of sides) {
+        const runnerResult = compactIpadArithmeticEvidenceForParity(
+          getIpadArithmeticSideSelectionEvidence({
+            poolsByKey,
+            primarySelections,
+            filename: row.filename,
+            stage,
+            side,
+            tier,
+          })
+        );
+        const browserResult = compactIpadArithmeticEvidenceForParity(
+          getIpadBrowserEquivalentArithmeticSideSelectionEvidence({
+            poolsByKey,
+            primarySelections,
+            filename: row.filename,
+            stage,
+            side,
+            tier,
+          })
+        );
+        const parity = compareIpadArithmeticParityEvidence(runnerResult, browserResult);
+        const expectedStage = row.expected[`stage${stage}`];
+        const current = getIpadCurrentPrimarySide({
+          selections: primarySelections,
+          filename: row.filename,
+          stage,
+          side,
+        });
+        const currentComparison = compareIpadSide(current, expectedStage, side);
+        const proposedSide = browserResult.selectedTuple
+          ? {
+              members: browserResult.selectedTuple.members,
+              bonus: browserResult.selectedTuple.bonus,
+              total: browserResult.selectedTuple.total,
+            }
+          : null;
+        const proposalComparison = proposedSide
+          ? compareIpadSide(proposedSide, expectedStage, side)
+          : { pass: false };
+        const common = {
+          image: row.filename,
+          clusterId: row.clusterId || "unknown",
+          stage,
+          side,
+          current,
+          expected: {
+            members: side === "self" ? expectedStage.selfMembers : expectedStage.enemyMembers,
+            bonus: side === "self" ? expectedStage.selfBonus : expectedStage.enemyBonus,
+            total: side === "self" ? expectedStage.selfTotal : expectedStage.enemyTotal,
+          },
+          currentPass: currentComparison.pass,
+          proposalPass: proposalComparison.pass,
+        };
+        summary.runnerEligible += runnerResult.eligible ? 1 : 0;
+        summary.browserEquivalentEligible += browserResult.eligible ? 1 : 0;
+        summary.runnerWouldApply += runnerResult.wouldApply ? 1 : 0;
+        summary.browserEquivalentWouldApply += browserResult.wouldApply ? 1 : 0;
+        summary.exactProposalParity += parity.exact ? 1 : 0;
+        if (!parity.checks.eligibility) incrementMismatch("eligibilityDisagreements");
+        if (!parity.checks.wouldApply) incrementMismatch("wouldApplyDisagreements");
+        if (!parity.checks.selectedTuple) incrementMismatch("selectedTupleDisagreements");
+        if (!parity.checks.blockReason) incrementMismatch("blockReasonDisagreements");
+        if (!parity.checks.fieldDiagnostics) incrementMismatch("candidatePoolDisagreements");
+        if (!parity.checks.candidateCompleteness) incrementMismatch("missingEvidence");
+        if (
+          !parity.checks.selectedTuple ||
+          !parity.checks.changedFields ||
+          !parity.checks.fieldDiagnostics
+        ) {
+          incrementMismatch("provenanceDisagreements");
+        }
+        if (parity.safetyMismatch) incrementMismatch("safetyMismatches");
+        const record = {
+          ...common,
+          runner: runnerResult,
+          browserEquivalent: browserResult,
+          parity,
+        };
+        perSide.push(record);
+        if (!parity.exact) mismatches.push(record);
+        if (browserResult.wouldApply) {
+          const accepted = {
+            ...common,
+            runnerTuple: runnerResult.selectedTuple,
+            browserEquivalentTuple: browserResult.selectedTuple,
+            changedFields: browserResult.changedFields,
+            provenance: {
+              origins: browserResult.selectedTuple?.origins || {},
+              profileIds: browserResult.selectedTuple?.profileIds || {},
+            },
+            expectedEvaluation: proposalComparison,
+            runnerTp: !currentComparison.pass && proposalComparison.pass,
+            browserEquivalentTp: !currentComparison.pass && proposalComparison.pass,
+            browserEquivalentFp: currentComparison.pass && !proposalComparison.pass,
+          };
+          summary.acceptedCases.push(accepted);
+          summary.acceptedCaseTp += accepted.browserEquivalentTp ? 1 : 0;
+          summary.acceptedCaseFp += accepted.browserEquivalentFp ? 1 : 0;
+        }
+      }
+    }
+  }
+
+  const guardModes = ["smartphone", "current-pc", "desktop", "legacy-desktop", "unknown", ""];
+  summary.nonIpadGuardAudit = guardModes.map((deviceMode) => {
+    const result = sharedEvaluateIpadArithmeticSideSelectionTier({
+      deviceMode,
+      fieldCandidatePools: {
+        member1: { candidates: [{ value: 1 }] },
+        member2: { candidates: [{ value: 2 }] },
+        member3: { candidates: [{ value: 3 }] },
+        bonus: { candidates: [{ value: 0 }] },
+        total: { candidates: [{ value: 6 }] },
+      },
+      currentPrimary: { members: [1, 2, 3], bonus: 0, total: 0 },
+      tier,
+    });
+    return {
+      deviceMode: deviceMode || "empty",
+      eligible: result.eligible,
+      wouldApply: result.wouldApply,
+      blockReason: result.blockReason,
+      pass: !result.eligible && !result.wouldApply && String(result.blockReason).startsWith("non-ipad-mode"),
+    };
+  });
+  summary.nonIpadGuardPass = summary.nonIpadGuardAudit.every((entry) => entry.pass);
+  summary.recommendation =
+    summary.safetyMismatches === 0 &&
+    summary.acceptedCaseFp === 0 &&
+    summary.acceptedCases.length === 5 &&
+    summary.nonIpadGuardPass
+      ? "Browser-equivalent parity is exact for Tier C; iPad productionization can be considered only after a real browser evidence path exists and is manually verified."
+      : "Do not productionize. Resolve parity, safety, or non-iPad guard issues first.";
+
+  await fs.writeFile(
+    path.join(ipadArithmeticSideSelectionParityDir, "summary.json"),
+    JSON.stringify(summary, null, 2)
+  );
+  await fs.writeFile(
+    path.join(ipadArithmeticSideSelectionParityDir, "per-side-parity.json"),
+    JSON.stringify(perSide, null, 2)
+  );
+  await fs.writeFile(
+    path.join(ipadArithmeticSideSelectionParityDir, "mismatches.json"),
+    JSON.stringify(mismatches, null, 2)
+  );
+  await fs.writeFile(
+    path.join(ipadArithmeticSideSelectionParityDir, "accepted-cases.json"),
+    JSON.stringify(summary.acceptedCases, null, 2)
+  );
+  await fs.writeFile(
+    path.join(ipadArithmeticSideSelectionParityDir, "non-ipad-guard-audit.json"),
+    JSON.stringify(summary.nonIpadGuardAudit, null, 2)
+  );
+  await fs.writeFile(
+    ipadArithmeticSideSelectionParityReportPath,
+    buildIpadArithmeticSideSelectionParityReport(summary)
+  );
+  return summary;
+}
+
+function buildIpadArithmeticSideSelectionParityReport(summary) {
+  const lines = [
+    "# iPad Arithmetic Side Selection Parity",
+    "",
+    "## Summary",
+    "",
+    `- command: \`${summary.command}\``,
+    `- output directory: \`${summary.outputDir}\``,
+    `- tier: \`${summary.tier}\``,
+    `- compared stage/sides: ${summary.rowsCompared}`,
+    `- runner eligible: ${summary.runnerEligible}`,
+    `- browser-equivalent eligible: ${summary.browserEquivalentEligible}`,
+    `- runner wouldApply: ${summary.runnerWouldApply}`,
+    `- browser-equivalent wouldApply: ${summary.browserEquivalentWouldApply}`,
+    `- exact proposal parity: ${summary.exactProposalParity} / ${summary.rowsCompared}`,
+    `- safety mismatches: ${summary.safetyMismatches}`,
+    `- accepted-case TP / FP: ${summary.acceptedCaseTp} / ${summary.acceptedCaseFp}`,
+    "",
+    "This is browser-equivalent parity only. It does not enable production iPad OCR, change app/UI output, change final stage scores, or claim real browser PASS.",
+    "",
+    "## Shared Helper Boundary",
+    "",
+    "- shared helpers live in `app/lib/ocr.js`",
+    "- `buildIpadArithmeticSideSelectionCandidateSets(...)` normalizes observed candidates and Tier C schema-default bonus zero",
+    "- `evaluateIpadArithmeticSideSelectionTier(...)` applies device-mode guard, candidate completeness checks, tuple enumeration, uniqueness, and atomic side proposal creation",
+    "- `summarizeIpadArithmeticSideSelectionTuple(...)` serializes tuple values and provenance for runner/browser-equivalent comparison",
+    "- helpers are pure: they do not read filenames, expected fixtures, filesystem state, or mutable global state",
+    "",
+    "## Tier C Semantics",
+    "",
+    "- members and total may use observed OCR numeric candidates only",
+    "- bonus may use observed OCR numeric candidates",
+    "- bonus may use `schema-default-bonus-zero` only when the observed bonus pool is empty",
+    "- no default member values, default total values, digit repair, crown-derived bonus, cross-side evidence, or arithmetic-derived candidates are allowed",
+    "",
+    "## Parity Metrics",
+    "",
+    "| metric | count |",
+    "| --- | ---: |",
+    `| eligibility disagreements | ${summary.eligibilityDisagreements} |`,
+    `| wouldApply disagreements | ${summary.wouldApplyDisagreements} |`,
+    `| selected tuple disagreements | ${summary.selectedTupleDisagreements} |`,
+    `| block-reason disagreements | ${summary.blockReasonDisagreements} |`,
+    `| provenance disagreements | ${summary.provenanceDisagreements} |`,
+    `| candidate-pool disagreements | ${summary.candidatePoolDisagreements} |`,
+    `| missing evidence mismatches | ${summary.missingEvidence} |`,
+    `| safety mismatches | ${summary.safetyMismatches} |`,
+    "",
+    "## Accepted Five-Case Audit",
+    "",
+    "| image | stage | side | changed fields | tuple | expected result |",
+    "| --- | ---: | --- | --- | --- | --- |",
+    ...summary.acceptedCases.map((entry) => {
+      const tuple = entry.browserEquivalentTuple;
+      const tupleText = tuple
+        ? `${tuple.members.join(" / ")} + ${tuple.bonus} = ${tuple.total}`
+        : "none";
+      return `| ${entry.image} | ${entry.stage} | ${entry.side} | ${entry.changedFields.join(", ")} | ${tupleText} | ${entry.expectedEvaluation.pass ? "TP" : "not TP"} |`;
+    }),
+    "",
+    "## Non-iPad Guard Audit",
+    "",
+    "| device mode | eligible | wouldApply | block reason | pass |",
+    "| --- | --- | --- | --- | --- |",
+    ...summary.nonIpadGuardAudit.map(
+      (entry) =>
+        `| ${entry.deviceMode} | ${entry.eligible ? "yes" : "no"} | ${entry.wouldApply ? "yes" : "no"} | ${entry.blockReason} | ${entry.pass ? "yes" : "no"} |`
+    ),
+    "",
+    "## Browser Feasibility",
+    "",
+    "- required evidence is available in the diagnostic browser-equivalent flow: bounded field candidates, provenance, profile identity, current-primary values, candidate caps, raw distinct counts, and truncation flags",
+    "- real browser iPad OCR remains unimplemented; this report only proves the selector can consume browser-shaped evidence deterministically",
+    "- generated artifacts are written under `tmp/` and are not intended for commit",
+    "",
+    "## Recommendation",
+    "",
+    summary.recommendation,
+    "",
+  ];
+  return `${lines.join("\n")}\n`;
 }
 
 function buildIpadArithmeticSideSelectionInvestigationReport(summary) {
@@ -24489,6 +24712,9 @@ async function main() {
   const ipadArithmeticSideSelectionSimulation = args.includes(
     "--ipad-arithmetic-side-selection-simulation"
   );
+  const ipadArithmeticSideSelectionParity = args.includes(
+    "--ipad-arithmetic-side-selection-parity"
+  );
   const sourceIndex = args.indexOf("--source");
   const sourceValue = sourceIndex >= 0 ? args[sourceIndex + 1] : "";
   const forcedSource = ["smartphone", "desktop", "current-pc"].includes(sourceValue)
@@ -24534,6 +24760,7 @@ async function main() {
       value !== "--ipad-preprocessing-simulation" &&
       value !== "--ipad-candidate-selection-simulation" &&
       value !== "--ipad-arithmetic-side-selection-simulation" &&
+      value !== "--ipad-arithmetic-side-selection-parity" &&
       value !== "--source" &&
       value !== "--audit-disable-known-correction" &&
       !(sourceIndex >= 0 && index === sourceIndex + 1) &&
@@ -24665,6 +24892,49 @@ async function main() {
         2
       )
     );
+    return;
+  }
+  if (ipadArithmeticSideSelectionParity) {
+    const summary = await runIpadArithmeticSideSelectionParity();
+    await terminateAuditGeometryWorker();
+    console.log(
+      JSON.stringify(
+        {
+          ipadArithmeticSideSelectionParity: {
+            comparedStageSides: summary.rowsCompared,
+            runnerEligible: summary.runnerEligible,
+            browserEquivalentEligible: summary.browserEquivalentEligible,
+            runnerWouldApply: summary.runnerWouldApply,
+            browserEquivalentWouldApply: summary.browserEquivalentWouldApply,
+            exactProposalParity: summary.exactProposalParity,
+            disagreements: {
+              eligibility: summary.eligibilityDisagreements,
+              wouldApply: summary.wouldApplyDisagreements,
+              selectedTuple: summary.selectedTupleDisagreements,
+              blockReason: summary.blockReasonDisagreements,
+              provenance: summary.provenanceDisagreements,
+              candidatePool: summary.candidatePoolDisagreements,
+              missingEvidence: summary.missingEvidence,
+              safety: summary.safetyMismatches,
+            },
+            acceptedCases: summary.acceptedCases.length,
+            acceptedCaseTp: summary.acceptedCaseTp,
+            acceptedCaseFp: summary.acceptedCaseFp,
+            nonIpadGuardPass: summary.nonIpadGuardPass,
+            recommendation: summary.recommendation,
+            outputDir: summary.outputDir,
+            report: path
+              .relative(rootDir, ipadArithmeticSideSelectionParityReportPath)
+              .replaceAll("\\", "/"),
+          },
+        },
+        null,
+        2
+      )
+    );
+    if (summary.safetyMismatches > 0 || summary.acceptedCaseFp > 0 || !summary.nonIpadGuardPass) {
+      process.exitCode = 1;
+    }
     return;
   }
   if (ipadOcrBaseline) {
