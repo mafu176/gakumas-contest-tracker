@@ -379,6 +379,50 @@ export function detectCurrentPcLayout(image) {
   };
 }
 
+export function detectIpadOcrLayout(image) {
+  const width = Number(image?.width || 0);
+  const height = Number(image?.height || 0);
+  if (!width || !height) {
+    return {
+      detected: false,
+      family: "unknown",
+      deviceMode: "ipad",
+      reasons: ["missing-image-size"],
+    };
+  }
+
+  const aspect = width / height;
+  const normalizedAspect = Math.min(width, height) / Math.max(width, height);
+  const orientation =
+    width > height ? "landscape" : height > width ? "portrait" : "square";
+  const currentPc = detectCurrentPcLayout(image);
+  const largeEnough = Math.max(width, height) >= 1000 && Math.min(width, height) >= 700;
+  const ipadLikeAspect = normalizedAspect >= 0.68 && normalizedAspect <= 0.82;
+  const detected = !currentPc.detected && largeEnough && ipadLikeAspect;
+  const reasons = [];
+
+  if (currentPc.detected) reasons.push("excluded-current-pc-layout");
+  if (!largeEnough) reasons.push(`size-too-small=${width}x${height}`);
+  if (!ipadLikeAspect) reasons.push(`normalized-aspect=${normalizedAspect.toFixed(6)}`);
+  if (detected) {
+    reasons.push("large-4-by-3-family-aspect");
+    reasons.push("diagnostic-only-ipad-layout");
+  }
+
+  return {
+    detected,
+    family: detected ? "ipad-result-diagnostic-unverified" : "not-ipad-result",
+    deviceMode: "ipad",
+    width,
+    height,
+    aspect: Number(aspect.toFixed(6)),
+    normalizedAspect: Number(normalizedAspect.toFixed(6)),
+    orientation,
+    confidence: detected ? "diagnostic-candidate" : "not-detected",
+    reasons,
+  };
+}
+
 export function getFixedOcrZones(image, stage, mode) {
   mode = normalizeOcrMode(mode);
   const layout = getDeviceOcrLayout(mode);

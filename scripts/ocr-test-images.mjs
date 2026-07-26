@@ -37,6 +37,7 @@ import {
   collectCurrentPcSourceTokenAudits as sharedCollectCurrentPcSourceTokenAudits,
   currentPcOrderedMemberValuesFromTokenEvidence as sharedCurrentPcOrderedMemberValuesFromTokenEvidence,
   detectCurrentPcLayout as sharedDetectCurrentPcLayout,
+  detectIpadOcrLayout as sharedDetectIpadOcrLayout,
   extractNumericLikeTokenAudit as sharedExtractNumericLikeTokenAudit,
 } from "../app/lib/ocr.js";
 import { applyKnownOcrCorrections, applyKnownOcrSetCorrections } from "../app/lib/ocrPostProcess.js";
@@ -174,6 +175,7 @@ const smartphoneExactSlotSelectionSimulationReportPath = path.join(
   "docs",
   "smartphone-exact-slot-selection-simulation.md"
 );
+const ipadOcrDiagnosticsDir = path.join(rootDir, "tmp", "ipad-ocr-diagnostics");
 let currentPcBaselineScanSummary = null;
 const unsupportedNextScreenMessage =
   "Next screen is unsupported for OCR. Use normal result or high-score screen.";
@@ -3751,6 +3753,273 @@ async function readImageSize(imagePath) {
 
 function detectCurrentPcLayout(image) {
   return sharedDetectCurrentPcLayout(image);
+}
+
+function detectIpadOcrLayout(image) {
+  return sharedDetectIpadOcrLayout(image);
+}
+
+function ipadDiagnosticPercentBox(image, box) {
+  return clampZoneToImage(
+    {
+      left: image.width * box.left,
+      top: image.height * box.top,
+      width: image.width * box.width,
+      height: image.height * box.height,
+    },
+    image
+  );
+}
+
+function buildIpadDiagnosticLayout(image) {
+  const portrait = image.height >= image.width;
+  const stageRows = portrait
+    ? [
+        { stage: 1, top: 0.14, height: 0.20 },
+        { stage: 2, top: 0.40, height: 0.20 },
+        { stage: 3, top: 0.66, height: 0.20 },
+      ]
+    : [
+        { stage: 1, top: 0.12, height: 0.22 },
+        { stage: 2, top: 0.39, height: 0.22 },
+        { stage: 3, top: 0.66, height: 0.22 },
+      ];
+  const columns = portrait
+    ? {
+        self: { left: 0.08, width: 0.40 },
+        enemy: { left: 0.52, width: 0.40 },
+      }
+    : {
+        self: { left: 0.08, width: 0.39 },
+        enemy: { left: 0.53, width: 0.39 },
+      };
+
+  return {
+    confidence: "estimated-unverified",
+    note: "Diagnostic-only iPad geometry. These boxes are not used by production OCR.",
+    stageRows: stageRows.map((row) => ({
+      stage: row.stage,
+      normalized: { left: 0.04, top: row.top, width: 0.92, height: row.height },
+      zone: ipadDiagnosticPercentBox(image, {
+        left: 0.04,
+        top: row.top,
+        width: 0.92,
+        height: row.height,
+      }),
+    })),
+    sides: Object.fromEntries(
+      Object.entries(columns).map(([side, column]) => [
+        side,
+        {
+          normalized: { left: column.left, top: 0, width: column.width, height: 1 },
+          role: side === "self" ? "left-side-estimate" : "right-side-estimate",
+        },
+      ])
+    ),
+    stageSideZones: stageRows.flatMap((row) =>
+      Object.entries(columns).map(([side, column]) => ({
+        stage: row.stage,
+        side,
+        normalized: {
+          left: column.left,
+          top: row.top,
+          width: column.width,
+          height: row.height,
+        },
+        zone: ipadDiagnosticPercentBox(image, {
+          left: column.left,
+          top: row.top,
+          width: column.width,
+          height: row.height,
+        }),
+      }))
+    ),
+  };
+}
+
+async function recognizeIpadDiagnosticZone(imagePath, zone) {
+  const passes = [
+    { name: "default", options: { pageSegMode: "6" } },
+    { name: "single-line", options: { pageSegMode: "7" } },
+  ];
+  const results = [];
+
+  for (const pass of passes) {
+    const result = await recognizeOcrZone(imagePath, zone, pass.options);
+    results.push({
+      pass: pass.name,
+      rawText: result.text,
+      normalizedCandidates: uniqueNumbers(result.numbers || []),
+    });
+  }
+
+  return results;
+}
+
+function resolveIpadDiagnosticImagePaths(args) {
+  const excludedFlags = new Set([
+    "--ipad-ocr-diagnostics",
+    "--source",
+    "--audit-disable-known-correction",
+  ]);
+  const candidates = [];
+
+  for (let index = 0; index < args.length; index += 1) {
+    const value = args[index];
+    if (excludedFlags.has(value)) {
+      if (value === "--source" || value === "--audit-disable-known-correction") index += 1;
+      continue;
+    }
+    if (value.startsWith("--")) continue;
+    candidates.push(value);
+  }
+
+  return candidates.map((candidate) => {
+    const normalized = candidate.replaceAll("/", path.sep);
+    return path.isAbsolute(normalized) ? normalized : path.resolve(rootDir, normalized);
+  });
+}
+
+async function saveIpadDiagnosticCrop(imagePath, image, outDir, label, zone) {
+  const safeLabel = safeArtifactName(label);
+  const clamped = clampZoneToImage(zone, image);
+  const cropPath = path.join(outDir, `${safeLabel}.png`);
+  const binarizedPath = path.join(outDir, `${safeLabel}.binarized.png`);
+  await sharp(imagePath).extract(clamped).png().toFile(cropPath);
+  const binarized = await createPreprocessedStageBuffer(imagePath, clamped, {
+    pageSegMode: "6",
+  });
+  await fs.writeFile(binarizedPath, binarized);
+
+  return {
+    label,
+    zone: clamped,
+    crop: path.relative(rootDir, cropPath).replaceAll("\\", "/"),
+    binarized: path.relative(rootDir, binarizedPath).replaceAll("\\", "/"),
+  };
+}
+
+async function writeIpadOcrDiagnostics(imagePaths) {
+  await fs.rm(ipadOcrDiagnosticsDir, { recursive: true, force: true });
+  await fs.mkdir(ipadOcrDiagnosticsDir, { recursive: true });
+
+  const diagnostics = [];
+  const missing = [];
+
+  for (const imagePath of imagePaths) {
+    try {
+      await fs.access(imagePath);
+    } catch {
+      missing.push(imagePath);
+      continue;
+    }
+
+    const image = await readImageSize(imagePath);
+    const imageName = path.basename(imagePath);
+    const outDir = path.join(ipadOcrDiagnosticsDir, safeArtifactName(imageName));
+    await fs.mkdir(outDir, { recursive: true });
+
+    const detection = detectIpadOcrLayout(image);
+    const currentPcDetection = detectCurrentPcLayout(image);
+    const layout = buildIpadDiagnosticLayout(image);
+    const cropArtifacts = [];
+    const ocrZones = [];
+
+    for (const row of layout.stageRows) {
+      const artifact = await saveIpadDiagnosticCrop(
+        imagePath,
+        image,
+        outDir,
+        `stage${row.stage}-row`,
+        row.zone
+      );
+      const ocr = await recognizeIpadDiagnosticZone(imagePath, row.zone);
+      cropArtifacts.push(artifact);
+      ocrZones.push({ type: "stage-row", stage: row.stage, zone: row.zone, artifact, ocr });
+    }
+
+    for (const zone of layout.stageSideZones) {
+      const artifact = await saveIpadDiagnosticCrop(
+        imagePath,
+        image,
+        outDir,
+        `stage${zone.stage}-${zone.side}`,
+        zone.zone
+      );
+      const ocr = await recognizeIpadDiagnosticZone(imagePath, zone.zone);
+      cropArtifacts.push(artifact);
+      ocrZones.push({
+        type: "stage-side",
+        stage: zone.stage,
+        side: zone.side,
+        zone: zone.zone,
+        artifact,
+        ocr,
+      });
+    }
+
+    const diagnostic = {
+      image: imageName,
+      absolutePath: imagePath,
+      metadata: {
+        width: image.width,
+        height: image.height,
+        aspectRatio: Number((image.width / image.height).toFixed(6)),
+        orientation:
+          image.width > image.height
+            ? "landscape"
+            : image.height > image.width
+              ? "portrait"
+              : "square",
+      },
+      detectedOcrMode: detection.detected ? "ipad" : "unsupported-or-not-ipad",
+      detection,
+      currentPcDetection,
+      layoutAnchors: {
+        confidence: layout.confidence,
+        note: layout.note,
+        stageRows: layout.stageRows.map(({ stage, normalized, zone }) => ({
+          stage,
+          normalized,
+          zone,
+        })),
+        sides: layout.sides,
+      },
+      cropArtifacts,
+      ocrZones,
+      productionBehavior: {
+        finalStageScoresChanged: false,
+        smartphoneRecoveriesApplied: false,
+        note: "Diagnostics only. The runner exits before normal OCR baseline extraction.",
+      },
+    };
+
+    const diagnosticPath = path.join(outDir, "diagnostics.json");
+    await fs.writeFile(diagnosticPath, JSON.stringify(diagnostic, null, 2));
+    diagnostics.push({
+      ...diagnostic,
+      artifact: path.relative(rootDir, diagnosticPath).replaceAll("\\", "/"),
+    });
+  }
+
+  const summary = {
+    command: "node scripts/ocr-test-images.mjs --ipad-ocr-diagnostics <image...>",
+    outputDir: path.relative(rootDir, ipadOcrDiagnosticsDir).replaceAll("\\", "/"),
+    imagesRequested: imagePaths.length,
+    imagesProcessed: diagnostics.length,
+    missing,
+    images: diagnostics.map((item) => ({
+      image: item.image,
+      detectedOcrMode: item.detectedOcrMode,
+      metadata: item.metadata,
+      detectionReasons: item.detection.reasons,
+      artifact: item.artifact,
+    })),
+  };
+  const summaryPath = path.join(ipadOcrDiagnosticsDir, "summary.json");
+  await fs.writeFile(summaryPath, JSON.stringify(summary, null, 2));
+
+  return summary;
 }
 
 function limitOcrZones(zones, options = {}) {
@@ -19888,6 +20157,7 @@ async function main() {
   const smartphoneExactSlotSelectionSimulation = args.includes(
     "--smartphone-exact-slot-selection-sim"
   );
+  const ipadOcrDiagnostics = args.includes("--ipad-ocr-diagnostics");
   const sourceIndex = args.indexOf("--source");
   const sourceValue = sourceIndex >= 0 ? args[sourceIndex + 1] : "";
   const forcedSource = ["smartphone", "desktop", "current-pc"].includes(sourceValue)
@@ -19926,6 +20196,7 @@ async function main() {
       value !== "--smartphone-crown-bonus-stage-wide-solver-from-baseline" &&
       value !== "--smartphone-total-capture-diagnostics" &&
       value !== "--smartphone-exact-slot-selection-sim" &&
+      value !== "--ipad-ocr-diagnostics" &&
       value !== "--source" &&
       value !== "--audit-disable-known-correction" &&
       !(sourceIndex >= 0 && index === sourceIndex + 1) &&
@@ -19937,6 +20208,21 @@ async function main() {
         .replace(/^\.?\/*test-images\//i, "")
         .toLowerCase()
     );
+  if (ipadOcrDiagnostics) {
+    const imagePaths = resolveIpadDiagnosticImagePaths(args);
+    const summary = await writeIpadOcrDiagnostics(imagePaths);
+    await terminateAuditGeometryWorker();
+    console.log(
+      JSON.stringify(
+        {
+          ipadOcrDiagnostics: summary,
+        },
+        null,
+        2
+      )
+    );
+    return;
+  }
   if (smartphoneExactSlotSelectionSimulation) {
     const cachedReport = await readSmartphoneBaselineCache(filters);
     await writeSmartphoneBaselineCacheSummary(cachedReport);
