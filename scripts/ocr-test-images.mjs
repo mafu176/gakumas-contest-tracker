@@ -199,7 +199,17 @@ const ipadRoiGeometryInvestigationReportPath = path.join(
   "docs",
   "ipad-roi-geometry-investigation.md"
 );
+const ipadPreprocessingInvestigationReportPath = path.join(
+  rootDir,
+  "docs",
+  "ipad-preprocessing-ocr-investigation.md"
+);
 const ipadOcrBaselineDir = path.join(rootDir, "tmp", "ipad-ocr-baseline");
+const ipadPreprocessingInvestigationDir = path.join(
+  rootDir,
+  "tmp",
+  "ipad-preprocessing-investigation"
+);
 let currentPcBaselineScanSummary = null;
 const unsupportedNextScreenMessage =
   "Next screen is unsupported for OCR. Use normal result or high-score screen.";
@@ -5483,6 +5493,795 @@ function buildIpadRoiGeometryInvestigationReport(summary) {
     ""
   );
 
+  return `${lines.join("\n")}\n`;
+}
+
+function getIpadPreprocessingProfiles() {
+  return [
+    {
+      id: "baseline-score-preprocess-3x-psm7",
+      label: "Existing score preprocessing, 3x, PSM 7",
+      kind: "existing",
+      scale: 3,
+      pageSegMode: "7",
+      fieldTypes: ["member", "bonus", "total"],
+    },
+    {
+      id: "invert-normalize-3x-psm7",
+      label: "Inverted grayscale normalize, 3x, PSM 7",
+      kind: "invert-normalize",
+      scale: 3,
+      pageSegMode: "7",
+      fieldTypes: ["member", "bonus", "total"],
+    },
+    {
+      id: "white-mask-3x-psm7",
+      label: "White-text mask, 3x, PSM 7",
+      kind: "white-mask",
+      scale: 3,
+      pageSegMode: "7",
+      threshold: 176,
+      fieldTypes: ["member", "bonus", "total"],
+    },
+    {
+      id: "blue-bonus-mask-3x-psm7",
+      label: "Blue bonus mask, 3x, PSM 7",
+      kind: "blue-bonus-mask",
+      scale: 3,
+      pageSegMode: "7",
+      fieldTypes: ["bonus"],
+    },
+  ];
+}
+
+function paddedIpadFieldZone(field, image, paddingRatio = 0.12) {
+  const padX = Math.max(2, Math.round(field.zone.width * paddingRatio));
+  const padY = Math.max(2, Math.round(field.zone.height * paddingRatio));
+  return clampZoneToImage(
+    {
+      left: field.zone.left - padX,
+      top: field.zone.top - padY,
+      width: field.zone.width + padX * 2,
+      height: field.zone.height + padY * 2,
+    },
+    image
+  );
+}
+
+async function createIpadPreprocessedFieldBuffer(imagePath, image, field, profile) {
+  const zone = paddedIpadFieldZone(field, image, profile.paddingRatio ?? 0.12);
+  if (profile.kind === "existing") {
+    const buffer = await createPreprocessedStageBuffer(imagePath, zone, {
+      pageSegMode: profile.pageSegMode || "7",
+      charWhitelist: "0123456789,+.＋",
+    });
+    return { buffer, zone };
+  }
+
+  if (profile.kind === "white-mask" || profile.kind === "blue-bonus-mask") {
+    const { data, info } = await sharp(imagePath)
+      .extract(zone)
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const output = Buffer.alloc(info.width * info.height * 4);
+    for (let index = 0; index < data.length; index += 4) {
+      const r = data[index];
+      const g = data[index + 1];
+      const b = data[index + 2];
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      const saturation = max - min;
+      const isDigit =
+        profile.kind === "blue-bonus-mask"
+          ? b > 145 && b > r + 24 && b > g + 8
+          : max >= (profile.threshold || 176) && saturation < 130;
+      const value = isDigit ? 0 : 255;
+      output[index] = value;
+      output[index + 1] = value;
+      output[index + 2] = value;
+      output[index + 3] = 255;
+    }
+    const scale = profile.scale || 3;
+    const buffer = await sharp(output, {
+      raw: {
+        width: info.width,
+        height: info.height,
+        channels: 4,
+      },
+    })
+      .resize(info.width * scale, info.height * scale, { kernel: profile.kernel || "cubic" })
+      .png()
+      .toBuffer();
+    return { buffer, zone };
+  }
+
+  let pipeline = sharp(imagePath).extract(zone).greyscale().normalize();
+  if (profile.kind === "invert-normalize") pipeline = pipeline.negate();
+  const scale = profile.scale || 3;
+  const buffer = await pipeline
+    .resize(zone.width * scale, zone.height * scale, {
+      kernel: profile.kernel || "cubic",
+    })
+    .png()
+    .toBuffer();
+  return { buffer, zone };
+}
+
+async function recognizeIpadPreprocessedField(worker, imagePath, image, field, profile, workerState) {
+  const workerConfigKey = `${profile.pageSegMode || "7"}`;
+  if (workerState.configKey !== workerConfigKey) {
+    await worker.setParameters({
+      tessedit_char_whitelist: "0123456789,+.＋",
+      tessedit_pageseg_mode: profile.pageSegMode || "7",
+      preserve_interword_spaces: "1",
+    });
+    workerState.configKey = workerConfigKey;
+  }
+  const { buffer, zone } = await createIpadPreprocessedFieldBuffer(imagePath, image, field, profile);
+  const result = await worker.recognize(buffer);
+  const rawText = result.data.text || "";
+  const parsedCandidates = parseIpadOcrNumbers(rawText);
+  const values = parsedCandidates.map((candidate) => candidate.value);
+  const selected =
+    field.field === "bonus"
+      ? parsedCandidates.find((candidate) => candidate.plusLike)?.value || values[0] || 0
+      : values[0] || 0;
+  return {
+    profileId: profile.id,
+    stage: field.stage,
+    side: field.side,
+    field: field.field,
+    slot: field.slot || 0,
+    zone,
+    rawText,
+    parsedCandidates,
+    selected,
+  };
+}
+
+function levenshteinDistance(a, b) {
+  const left = String(a || "");
+  const right = String(b || "");
+  const matrix = Array.from({ length: left.length + 1 }, () => Array(right.length + 1).fill(0));
+  for (let i = 0; i <= left.length; i += 1) matrix[i][0] = i;
+  for (let j = 0; j <= right.length; j += 1) matrix[0][j] = j;
+  for (let i = 1; i <= left.length; i += 1) {
+    for (let j = 1; j <= right.length; j += 1) {
+      const cost = left[i - 1] === right[j - 1] ? 0 : 1;
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,
+        matrix[i][j - 1] + 1,
+        matrix[i - 1][j - 1] + cost
+      );
+    }
+  }
+  return matrix[left.length][right.length];
+}
+
+function createIpadVariantMetric() {
+  return {
+    fields: 0,
+    exact: 0,
+    numericCandidate: 0,
+    empty: 0,
+    nonNumeric: 0,
+    editDistanceSum: 0,
+    digitLengthExact: 0,
+    leadingDigitErrors: 0,
+    trailingDigitErrors: 0,
+    insertedDigits: 0,
+    deletedDigits: 0,
+    newlyCorrect: 0,
+    previouslyCorrectLost: 0,
+    changedFields: 0,
+  };
+}
+
+function updateIpadVariantMetric(metric, result, expectedValue, baselineResult) {
+  const selected = Number(result.selected || 0);
+  const expected = Number(expectedValue || 0);
+  const selectedText = selected ? String(selected) : "";
+  const expectedText = String(expected);
+  const baselineSelected = Number(baselineResult?.selected || 0);
+  const exact = selected === expected;
+  const baselineExact = baselineSelected === expected;
+  metric.fields += 1;
+  metric.exact += exact ? 1 : 0;
+  metric.numericCandidate += result.parsedCandidates.length ? 1 : 0;
+  metric.empty += String(result.rawText || "").trim() ? 0 : 1;
+  metric.nonNumeric += String(result.rawText || "").trim() && !result.parsedCandidates.length ? 1 : 0;
+  metric.editDistanceSum += levenshteinDistance(selectedText, expectedText);
+  metric.digitLengthExact += selectedText.length === expectedText.length ? 1 : 0;
+  metric.leadingDigitErrors += selectedText[0] && selectedText[0] !== expectedText[0] ? 1 : 0;
+  metric.trailingDigitErrors +=
+    selectedText[selectedText.length - 1] &&
+    selectedText[selectedText.length - 1] !== expectedText[expectedText.length - 1]
+      ? 1
+      : 0;
+  metric.insertedDigits += Math.max(0, selectedText.length - expectedText.length);
+  metric.deletedDigits += Math.max(0, expectedText.length - selectedText.length);
+  metric.newlyCorrect += exact && !baselineExact ? 1 : 0;
+  metric.previouslyCorrectLost += !exact && baselineExact ? 1 : 0;
+  metric.changedFields += selected !== baselineSelected ? 1 : 0;
+}
+
+function finalizeIpadVariantMetric(metric) {
+  return {
+    ...metric,
+    exactAccuracy: percentage(metric.exact, metric.fields),
+    numericCandidateRate: percentage(metric.numericCandidate, metric.fields),
+    emptyRate: percentage(metric.empty, metric.fields),
+    nonNumericRate: percentage(metric.nonNumeric, metric.fields),
+    averageEditDistance: metric.fields
+      ? Number((metric.editDistanceSum / metric.fields).toFixed(2))
+      : 0,
+    digitLengthAccuracy: percentage(metric.digitLengthExact, metric.fields),
+    netExactGain: metric.newlyCorrect - metric.previouslyCorrectLost,
+  };
+}
+
+function chooseIpadPrimaryProfiles(metricsByFieldType, profiles) {
+  const selected = {};
+  for (const fieldType of ["member", "bonus", "total"]) {
+    const ranked = profiles
+      .map((profile) => ({
+        profileId: profile.id,
+        metric: metricsByFieldType[fieldType]?.[profile.id],
+      }))
+      .filter((entry) => entry.metric)
+      .sort((a, b) => {
+        if (b.metric.exact !== a.metric.exact) return b.metric.exact - a.metric.exact;
+        if (a.metric.previouslyCorrectLost !== b.metric.previouslyCorrectLost) {
+          return a.metric.previouslyCorrectLost - b.metric.previouslyCorrectLost;
+        }
+        if (b.metric.numericCandidate !== a.metric.numericCandidate) {
+          return b.metric.numericCandidate - a.metric.numericCandidate;
+        }
+        return a.profileId.localeCompare(b.profileId);
+      });
+    selected[fieldType] = ranked[0]?.profileId || profiles[0].id;
+  }
+  return selected;
+}
+
+function getIpadProfilesForFieldType(profiles, fieldType) {
+  return profiles.filter(
+    (profile) => !profile.fieldTypes || profile.fieldTypes.includes(fieldType)
+  );
+}
+
+function buildIpadSelectedSimulationSummary({ rows, resultsByFieldKey, selectedProfiles, unionProfiles }) {
+  const counters = {
+    images: rows.length,
+    imagePass: 0,
+    stages: rows.length * stages.length,
+    stagePass: 0,
+    stageSides: rows.length * stages.length * sides.length,
+    stageSidePass: 0,
+    fields: {
+      member: { pass: 0, total: 0 },
+      bonus: { pass: 0, total: 0 },
+      total: { pass: 0, total: 0 },
+    },
+    clusters: {},
+    union: {
+      present: 0,
+      total: 0,
+      candidateCountSum: 0,
+      ambiguous: 0,
+    },
+  };
+  const imageDetails = [];
+
+  for (const row of rows) {
+    const clusterKey = `${row.clusterId || "unknown"} ${row.width}x${row.height}`;
+    counters.clusters[clusterKey] ||= {
+      images: 0,
+      imagePass: 0,
+      stages: 0,
+      stagePass: 0,
+      stageSides: 0,
+      stageSidePass: 0,
+    };
+    counters.clusters[clusterKey].images += 1;
+    counters.clusters[clusterKey].stages += stages.length;
+    let imagePass = true;
+    const failures = [];
+    for (const stage of stages) {
+      const stageKey = `stage${stage}`;
+      let stagePass = true;
+      for (const side of sides) {
+        const selected = { members: [0, 0, 0], bonus: 0, total: 0 };
+        for (const fieldType of ["total", "bonus", "member"]) {
+          const slots = fieldType === "member" ? [1, 2, 3] : [0];
+          for (const slot of slots) {
+            const key = `${row.filename}|${stage}|${side}|${fieldType}|${slot}`;
+            const expectedValue = getExpectedIpadField(row.expected[stageKey], side, fieldType, slot);
+            const profileId = selectedProfiles[fieldType];
+            const result = resultsByFieldKey.get(key)?.[profileId];
+            const selectedValue = Number(result?.selected || 0);
+            const fieldKey = fieldType === "member" ? "member" : fieldType;
+            counters.fields[fieldKey].total += 1;
+            counters.fields[fieldKey].pass += selectedValue === expectedValue ? 1 : 0;
+
+            const unionIds = unionProfiles[fieldType] || [profileId];
+            const unionCandidates = uniqueNumbers(
+              unionIds.flatMap((unionProfileId) =>
+                (resultsByFieldKey.get(key)?.[unionProfileId]?.parsedCandidates || []).map(
+                  (candidate) => candidate.value
+                )
+              )
+            );
+            counters.union.total += 1;
+            counters.union.present += unionCandidates.includes(expectedValue) ? 1 : 0;
+            counters.union.candidateCountSum += unionCandidates.length;
+            counters.union.ambiguous += unionCandidates.length > 1 ? 1 : 0;
+
+            if (fieldType === "total") selected.total = selectedValue;
+            else if (fieldType === "bonus") selected.bonus = selectedValue;
+            else selected.members[slot - 1] = selectedValue;
+          }
+        }
+        const comparison = compareIpadSide(selected, row.expected[stageKey], side);
+        if (comparison.pass) {
+          counters.stageSidePass += 1;
+          counters.clusters[clusterKey].stageSidePass += 1;
+        } else {
+          stagePass = false;
+          failures.push(`S${stage} ${side}`);
+        }
+        counters.clusters[clusterKey].stageSides += 1;
+      }
+      if (stagePass) {
+        counters.stagePass += 1;
+        counters.clusters[clusterKey].stagePass += 1;
+      } else {
+        imagePass = false;
+      }
+    }
+    if (imagePass) {
+      counters.imagePass += 1;
+      counters.clusters[clusterKey].imagePass += 1;
+    }
+    imageDetails.push({ image: row.filename, pass: imagePass, failures });
+  }
+
+  return {
+    images: {
+      pass: counters.imagePass,
+      fail: counters.images - counters.imagePass,
+      total: counters.images,
+      accuracy: percentage(counters.imagePass, counters.images),
+    },
+    stages: {
+      pass: counters.stagePass,
+      fail: counters.stages - counters.stagePass,
+      total: counters.stages,
+      accuracy: percentage(counters.stagePass, counters.stages),
+    },
+    stageSides: {
+      pass: counters.stageSidePass,
+      fail: counters.stageSides - counters.stageSidePass,
+      total: counters.stageSides,
+      accuracy: percentage(counters.stageSidePass, counters.stageSides),
+    },
+    fields: Object.fromEntries(
+      Object.entries(counters.fields).map(([field, value]) => [
+        field,
+        { ...value, accuracy: percentage(value.pass, value.total) },
+      ])
+    ),
+    clusters: Object.fromEntries(
+      Object.entries(counters.clusters).map(([cluster, value]) => [
+        cluster,
+        {
+          images: {
+            pass: value.imagePass,
+            fail: value.images - value.imagePass,
+            total: value.images,
+            accuracy: percentage(value.imagePass, value.images),
+          },
+          stages: {
+            pass: value.stagePass,
+            fail: value.stages - value.stagePass,
+            total: value.stages,
+            accuracy: percentage(value.stagePass, value.stages),
+          },
+          stageSides: {
+            pass: value.stageSidePass,
+            fail: value.stageSides - value.stageSidePass,
+            total: value.stageSides,
+            accuracy: percentage(value.stageSidePass, value.stageSides),
+          },
+        },
+      ])
+    ),
+    union: {
+      expectedPresent: counters.union.present,
+      fields: counters.union.total,
+      expectedPresentRate: percentage(counters.union.present, counters.union.total),
+      averageCandidateCount: counters.union.total
+        ? Number((counters.union.candidateCountSum / counters.union.total).toFixed(2))
+        : 0,
+      ambiguousFields: counters.union.ambiguous,
+    },
+    imageDetails,
+  };
+}
+
+async function writeIpadPreprocessingComparisonSheet(rows, outPath) {
+  const selected = rows.slice(0, 24);
+  if (!selected.length) return null;
+  const columns = 2;
+  const thumbWidth = 220;
+  const thumbHeight = 64;
+  const labelHeight = 44;
+  const gap = 12;
+  const rowHeight = thumbHeight + labelHeight;
+  const rowsCount = Math.ceil(selected.length / columns);
+  const width = columns * thumbWidth * 2 + (columns + 1) * gap;
+  const height = rowsCount * rowHeight + (rowsCount + 1) * gap;
+  const composites = [];
+  for (let index = 0; index < selected.length; index += 1) {
+    const item = selected[index];
+    const left = gap + (index % columns) * (thumbWidth * 2 + gap);
+    const top = gap + Math.floor(index / columns) * (rowHeight + gap);
+    const original = await sharp(item.imagePath)
+      .extract(item.field.zone)
+      .resize(thumbWidth, thumbHeight, { fit: "contain", background: "#111827" })
+      .png()
+      .toBuffer();
+    const profile = getIpadPreprocessingProfiles().find((candidate) => candidate.id === item.profileId);
+    const { buffer } = await createIpadPreprocessedFieldBuffer(
+      item.imagePath,
+      item.image,
+      item.field,
+      profile
+    );
+    const processed = await sharp(buffer)
+      .resize(thumbWidth, thumbHeight, { fit: "contain", background: "#111827" })
+      .png()
+      .toBuffer();
+    const label = Buffer.from(
+      `<svg width="${thumbWidth * 2}" height="${labelHeight}" xmlns="http://www.w3.org/2000/svg">
+        <rect width="100%" height="100%" fill="#111827"/>
+        <text x="4" y="16" fill="#f9fafb" font-size="12" font-family="Arial">${item.label}</text>
+        <text x="4" y="34" fill="#93c5fd" font-size="12" font-family="Arial">exp ${item.expected} got ${item.actual} ${item.profileId}</text>
+      </svg>`
+    );
+    composites.push({ input: original, left, top });
+    composites.push({ input: processed, left: left + thumbWidth, top });
+    composites.push({ input: label, left, top: top + thumbHeight });
+  }
+  await fs.mkdir(path.dirname(outPath), { recursive: true });
+  await sharp({
+    create: {
+      width,
+      height,
+      channels: 3,
+      background: "#0b1020",
+    },
+  })
+    .composite(composites)
+    .png()
+    .toFile(outPath);
+  return path.relative(rootDir, outPath).replaceAll("\\", "/");
+}
+
+async function runIpadPreprocessingSimulation() {
+  const { rows } = await collectIpadExpectedFixtures();
+  const profiles = getIpadPreprocessingProfiles();
+  await fs.rm(ipadPreprocessingInvestigationDir, { recursive: true, force: true });
+  await fs.mkdir(ipadPreprocessingInvestigationDir, { recursive: true });
+  const worker = await getIpadOcrWorker();
+  const resultsByFieldKey = new Map();
+  const metricsByFieldType = {
+    member: {},
+    bonus: {},
+    total: {},
+  };
+  const metricsByCluster = {};
+  const workerState = {};
+
+  for (const fieldType of Object.keys(metricsByFieldType)) {
+    for (const profile of getIpadProfilesForFieldType(profiles, fieldType)) {
+      metricsByFieldType[fieldType][profile.id] = createIpadVariantMetric();
+    }
+  }
+
+  try {
+    for (const row of rows) {
+      const image = await readImageSize(row.imagePath);
+      const clusterKey = `${row.clusterId || "unknown"} ${image.width}x${image.height}`;
+      metricsByCluster[clusterKey] ||= {};
+      const template = buildIpadCorrectedRoiTemplate(image);
+      for (const field of template.fields) {
+        const fieldType = field.field === "member" ? "member" : field.field;
+        const applicableProfiles = getIpadProfilesForFieldType(profiles, fieldType);
+        const expectedValue = getExpectedIpadField(
+          row.expected[`stage${field.stage}`],
+          field.side,
+          field.field,
+          field.slot
+        );
+        const fieldKey = `${row.filename}|${field.stage}|${field.side}|${field.field}|${field.slot || 0}`;
+        const profileResults = {};
+        for (const profile of applicableProfiles) {
+          const result = await recognizeIpadPreprocessedField(
+            worker,
+            row.imagePath,
+            image,
+            field,
+            profile,
+            workerState
+          );
+          profileResults[profile.id] = result;
+        }
+        resultsByFieldKey.set(fieldKey, profileResults);
+        const baselineResult = profileResults["baseline-score-preprocess-3x-psm7"];
+        for (const profile of applicableProfiles) {
+          metricsByCluster[clusterKey][fieldType] ||= {};
+          metricsByCluster[clusterKey][fieldType][profile.id] ||= createIpadVariantMetric();
+          updateIpadVariantMetric(
+            metricsByFieldType[fieldType][profile.id],
+            profileResults[profile.id],
+            expectedValue,
+            baselineResult
+          );
+          updateIpadVariantMetric(
+            metricsByCluster[clusterKey][fieldType][profile.id],
+            profileResults[profile.id],
+            expectedValue,
+            baselineResult
+          );
+        }
+      }
+    }
+  } finally {
+    await worker.terminate();
+  }
+
+  const finalizedMetrics = Object.fromEntries(
+    Object.entries(metricsByFieldType).map(([fieldType, byProfile]) => [
+      fieldType,
+      Object.fromEntries(
+        Object.entries(byProfile).map(([profileId, metric]) => [
+          profileId,
+          finalizeIpadVariantMetric(metric),
+        ])
+      ),
+    ])
+  );
+  const finalizedClusterMetrics = Object.fromEntries(
+    Object.entries(metricsByCluster).map(([cluster, byField]) => [
+      cluster,
+      Object.fromEntries(
+        Object.entries(byField).map(([fieldType, byProfile]) => [
+          fieldType,
+          Object.fromEntries(
+            Object.entries(byProfile).map(([profileId, metric]) => [
+              profileId,
+              finalizeIpadVariantMetric(metric),
+            ])
+          ),
+        ])
+      ),
+    ])
+  );
+  const selectedProfiles = chooseIpadPrimaryProfiles(finalizedMetrics, profiles);
+  const unionProfiles = Object.fromEntries(
+    Object.entries(finalizedMetrics).map(([fieldType, byProfile]) => [
+      fieldType,
+      Object.entries(byProfile)
+        .sort((a, b) => b[1].exact - a[1].exact || b[1].numericCandidate - a[1].numericCandidate)
+        .slice(0, 3)
+        .map(([profileId]) => profileId),
+    ])
+  );
+  const selectedSummary = buildIpadSelectedSimulationSummary({
+    rows,
+    resultsByFieldKey,
+    selectedProfiles,
+    unionProfiles,
+  });
+
+  const representativeRows = [];
+  for (const row of rows) {
+    const image = { width: row.width, height: row.height };
+    const template = buildIpadCorrectedRoiTemplate(image);
+    for (const stage of stages) {
+      for (const side of sides) {
+        for (const fieldType of ["total", "bonus", "member"]) {
+          const slots = fieldType === "member" ? [1, 2, 3] : [0];
+          for (const slot of slots) {
+            const key = `${row.filename}|${stage}|${side}|${fieldType}|${slot}`;
+            const expectedValue = getExpectedIpadField(row.expected[`stage${stage}`], side, fieldType, slot);
+            const profileId = selectedProfiles[fieldType];
+            const selected = resultsByFieldKey.get(key)?.[profileId];
+            const baseline = resultsByFieldKey.get(key)?.["baseline-score-preprocess-3x-psm7"];
+            if (!selected || !baseline) continue;
+            const selectedExact = selected.selected === expectedValue;
+            const baselineExact = baseline.selected === expectedValue;
+            if (
+              (selectedExact && !baselineExact) ||
+              (!selectedExact && baselineExact) ||
+              (!selected.parsedCandidates.length && !selectedExact) ||
+              (!selectedExact && selected.parsedCandidates.length)
+            ) {
+              const field = template.fields.find(
+                (candidate) =>
+                  candidate.stage === stage &&
+                  candidate.side === side &&
+                  candidate.field === fieldType &&
+                  (candidate.slot || 0) === slot
+              );
+              representativeRows.push({
+                label: `${path.parse(row.filename).name} S${stage} ${side} ${fieldType}${slot || ""}`,
+                expected: expectedValue,
+                actual: selected.selected,
+                profileId,
+                imagePath: row.imagePath,
+                image,
+                field,
+              });
+            }
+          }
+        }
+      }
+    }
+  }
+
+  const comparisonSheet = await writeIpadPreprocessingComparisonSheet(
+    representativeRows,
+    path.join(ipadPreprocessingInvestigationDir, "representative-comparisons.png")
+  );
+
+  const summary = {
+    command: "node scripts/ocr-test-images.mjs --ipad-preprocessing-simulation",
+    outputDir: path.relative(rootDir, ipadPreprocessingInvestigationDir).replaceAll("\\", "/"),
+    testedVariants: profiles.length,
+    profiles: profiles.map(({ id, label, kind, scale, pageSegMode, fieldTypes }) => ({
+      id,
+      label,
+      kind,
+      scale,
+      pageSegMode,
+      fieldTypes,
+    })),
+    baselineProfile: "baseline-score-preprocess-3x-psm7",
+    selectedProfiles,
+    unionProfiles,
+    metrics: finalizedMetrics,
+    clusterMetrics: finalizedClusterMetrics,
+    selectedSummary,
+    comparisonSheet,
+    isolation: {
+      roiGeometryChanged: false,
+      productionOutputChanged: false,
+      smartphoneBehaviorChanged: false,
+      currentPcBehaviorChanged: false,
+      legacyDesktopBehaviorChanged: false,
+      ipadProductionEnabled: false,
+      recoveryLogicAdded: false,
+    },
+  };
+  await fs.writeFile(
+    path.join(ipadPreprocessingInvestigationDir, "summary.json"),
+    JSON.stringify(summary, null, 2)
+  );
+  await fs.writeFile(
+    ipadPreprocessingInvestigationReportPath,
+    buildIpadPreprocessingInvestigationReport(summary)
+  );
+  return summary;
+}
+
+function formatIpadProfileMetric(metric) {
+  return `${metric.exact} / ${metric.fields} (${metric.exactAccuracy}%), net ${metric.netExactGain}, lost ${metric.previouslyCorrectLost}`;
+}
+
+function buildIpadPreprocessingInvestigationReport(summary) {
+  const lines = [
+    "# iPad Preprocessing OCR Investigation",
+    "",
+    "## Summary",
+    "",
+    `- tested variants: ${summary.testedVariants}`,
+    `- member profile: \`${summary.selectedProfiles.member}\``,
+    `- bonus profile: \`${summary.selectedProfiles.bonus}\``,
+    `- total profile: \`${summary.selectedProfiles.total}\``,
+    `- selected-profile image PASS: ${ratioText(summary.selectedSummary.images.pass, summary.selectedSummary.images.total)}`,
+    `- selected-profile stage PASS: ${ratioText(summary.selectedSummary.stages.pass, summary.selectedSummary.stages.total)}`,
+    `- selected-profile stage/side PASS: ${ratioText(summary.selectedSummary.stageSides.pass, summary.selectedSummary.stageSides.total)}`,
+    `- bounded candidate-union expected-value presence: ${ratioText(summary.selectedSummary.union.expectedPresent, summary.selectedSummary.union.fields)}`,
+    `- average bounded-union candidate count: ${summary.selectedSummary.union.averageCandidateCount}`,
+    `- ambiguous bounded-union fields: ${summary.selectedSummary.union.ambiguousFields}`,
+    "",
+    "This is diagnostic-only. It does not change ROI geometry, production OCR output, or any smartphone/current-PC/legacy desktop behavior.",
+    "",
+    "## Current Preprocessing Baseline",
+    "",
+    "- source format: screenshot RGB/RGBA crops via Sharp.",
+    "- baseline conversion: existing `createPreprocessedStageBuffer(...)` score preprocessing.",
+    "- OCR engine: Tesseract.js `eng`.",
+    "- baseline page segmentation: PSM 7 for isolated fields.",
+    "- whitelist: ASCII digits plus comma/period and plus-like bonus markers.",
+    "- candidate normalization: punctuation and non-digits are stripped, plus-like bonus candidates are preserved as provenance only.",
+    "",
+    "## Tested Variant Matrix",
+    "",
+    "| profile | fields | kind | scale | PSM |",
+    "| --- | --- | --- | ---: | ---: |",
+  ];
+  for (const profile of summary.profiles) {
+    lines.push(
+      `| \`${profile.id}\` | ${(profile.fieldTypes || ["member", "bonus", "total"]).join(", ")} | ${profile.kind} | ${profile.scale || "-"} | ${profile.pageSegMode} |`
+    );
+  }
+
+  lines.push(
+    "",
+    "## Results By Field Type",
+    "",
+    "| field | profile | exact | numeric candidates | empty | avg edit distance | digit length | newly correct | lost |",
+    "| --- | --- | --- | --- | --- | ---: | --- | ---: | ---: |"
+  );
+  for (const fieldType of ["member", "bonus", "total"]) {
+    const entries = Object.entries(summary.metrics[fieldType] || {}).sort(
+      (a, b) => b[1].exact - a[1].exact || b[1].numericCandidate - a[1].numericCandidate
+    );
+    for (const [profileId, metric] of entries) {
+      lines.push(
+        `| ${fieldType} | \`${profileId}\` | ${ratioText(metric.exact, metric.fields)} | ${ratioText(metric.numericCandidate, metric.fields)} | ${ratioText(metric.empty, metric.fields)} | ${metric.averageEditDistance} | ${ratioText(metric.digitLengthExact, metric.fields)} | ${metric.newlyCorrect} | ${metric.previouslyCorrectLost} |`
+      );
+    }
+  }
+
+  lines.push(
+    "",
+    "## Per-Cluster Selected Profile Results",
+    "",
+    "| cluster | image | stage | stage/side |",
+    "| --- | --- | --- | --- |"
+  );
+  for (const [cluster, metrics] of Object.entries(summary.selectedSummary.clusters || {})) {
+    lines.push(
+      `| ${cluster} | ${ratioText(metrics.images.pass, metrics.images.total)} | ${ratioText(metrics.stages.pass, metrics.stages.total)} | ${ratioText(metrics.stageSides.pass, metrics.stageSides.total)} |`
+    );
+  }
+
+  lines.push(
+    "",
+    "## Candidate Union",
+    "",
+    `- member union profiles: ${summary.unionProfiles.member.map((id) => `\`${id}\``).join(", ")}`,
+    `- bonus union profiles: ${summary.unionProfiles.bonus.map((id) => `\`${id}\``).join(", ")}`,
+    `- total union profiles: ${summary.unionProfiles.total.map((id) => `\`${id}\``).join(", ")}`,
+    "- Candidate union is an upper-bound diagnostic only. It does not choose values and does not use arithmetic.",
+    "",
+    "## Regression Analysis",
+    "",
+    `- member selected profile: ${formatIpadProfileMetric(summary.metrics.member[summary.selectedProfiles.member])}`,
+    `- bonus selected profile: ${formatIpadProfileMetric(summary.metrics.bonus[summary.selectedProfiles.bonus])}`,
+    `- total selected profile: ${formatIpadProfileMetric(summary.metrics.total[summary.selectedProfiles.total])}`,
+    "",
+    "## Visual Artifacts",
+    "",
+    `- output directory: \`${summary.outputDir}\``,
+    summary.comparisonSheet ? `- representative comparison sheet: \`${summary.comparisonSheet}\`` : "- representative comparison sheet: not generated",
+    "",
+    "## Remaining Error Categories",
+    "",
+    "- Many isolated white numeric fields still produce empty or non-numeric OCR after simple thresholding.",
+    "- Total/member fields remain sensitive to anti-aliased white text and patterned backgrounds.",
+    "- Bonus fields need separate treatment because blue bonus text responds differently from white score text.",
+    "",
+    "## Recommendation",
+    "",
+    "Proceed with a runner-only iPad candidate-selection experiment using a small bounded candidate union from the selected profiles. Do not productionize or apply arithmetic/crown/stage-wide solving until runner/browser-equivalent iPad evidence parity exists.",
+    ""
+  );
   return `${lines.join("\n")}\n`;
 }
 
@@ -21748,6 +22547,7 @@ async function main() {
   const ipadOcrDiagnosticsDirMode = args.includes("--ipad-ocr-diagnostics-dir");
   const validateIpadExpected = args.includes("--validate-ipad-expected");
   const ipadOcrBaseline = args.includes("--ipad-ocr-baseline");
+  const ipadPreprocessingSimulation = args.includes("--ipad-preprocessing-simulation");
   const sourceIndex = args.indexOf("--source");
   const sourceValue = sourceIndex >= 0 ? args[sourceIndex + 1] : "";
   const forcedSource = ["smartphone", "desktop", "current-pc"].includes(sourceValue)
@@ -21790,6 +22590,7 @@ async function main() {
       value !== "--ipad-ocr-diagnostics-dir" &&
       value !== "--validate-ipad-expected" &&
       value !== "--ipad-ocr-baseline" &&
+      value !== "--ipad-preprocessing-simulation" &&
       value !== "--source" &&
       value !== "--audit-disable-known-correction" &&
       !(sourceIndex >= 0 && index === sourceIndex + 1) &&
@@ -21824,6 +22625,32 @@ async function main() {
       )
     );
     if (summary.failures.length > 0) process.exitCode = 1;
+    return;
+  }
+  if (ipadPreprocessingSimulation) {
+    const summary = await runIpadPreprocessingSimulation();
+    await terminateAuditGeometryWorker();
+    console.log(
+      JSON.stringify(
+        {
+          ipadPreprocessingSimulation: {
+            testedVariants: summary.testedVariants,
+            selectedProfiles: summary.selectedProfiles,
+            images: summary.selectedSummary.images,
+            stages: summary.selectedSummary.stages,
+            stageSides: summary.selectedSummary.stageSides,
+            fields: summary.selectedSummary.fields,
+            candidateUnion: summary.selectedSummary.union,
+            outputDir: summary.outputDir,
+            report: path
+              .relative(rootDir, ipadPreprocessingInvestigationReportPath)
+              .replaceAll("\\", "/"),
+          },
+        },
+        null,
+        2
+      )
+    );
     return;
   }
   if (ipadOcrBaseline) {
