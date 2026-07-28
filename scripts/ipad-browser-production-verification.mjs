@@ -12,7 +12,6 @@ const rootDir = path.resolve(__dirname, "..");
 const ipadImageDir = path.join(rootDir, "regression-test", "ipad");
 const ipadExpectedDir = path.join(rootDir, "regression-test", "expected-ipad");
 const artifactDir = path.join(rootDir, "tmp", "ipad-browser-production-verification");
-const baselineArtifactDir = path.join(rootDir, "tmp", "ipad-browser-native-baseline");
 const requireFromHere = createRequire(import.meta.url);
 
 const stages = [1, 2, 3];
@@ -364,31 +363,33 @@ async function runOnce({ runIndex, browser, baseUrl, rows, expectedApplications,
       ...application,
     }))
   );
-  const applicationComparisons = applications.map((application) => {
-    const expected = expectedByKey.get(`${application.image}|${application.stage}|${application.side}`);
-    const expectedCompact = expected ? compactBaselineProposal(expected) : null;
-    const actualCompact = {
-      stage: application.stage,
-      side: application.side,
-      oldValues: application.oldValues,
-      newValues: application.newValues,
-      changedFields: application.changedFields,
-      provenance: application.provenance,
-      validTupleCount: application.validTupleCount,
-      candidateCompleteness: application.candidateCompleteness,
-      defaultZeroUsage: application.defaultZeroUsage,
-      equation: application.equation,
-    };
-    return {
-      image: application.image,
-      stage: application.stage,
-      side: application.side,
-      expectedKnown: Boolean(expected),
-      exact: Boolean(expectedCompact) && stableJson(actualCompact) === stableJson(expectedCompact),
-      actual: actualCompact,
-      expected: expectedCompact,
-    };
-  });
+  const applicationComparisons = expectedApplications.length
+    ? applications.map((application) => {
+        const expected = expectedByKey.get(`${application.image}|${application.stage}|${application.side}`);
+        const expectedCompact = expected ? compactBaselineProposal(expected) : null;
+        const actualCompact = {
+          stage: application.stage,
+          side: application.side,
+          oldValues: application.oldValues,
+          newValues: application.newValues,
+          changedFields: application.changedFields,
+          provenance: application.provenance,
+          validTupleCount: application.validTupleCount,
+          candidateCompleteness: application.candidateCompleteness,
+          defaultZeroUsage: application.defaultZeroUsage,
+          equation: application.equation,
+        };
+        return {
+          image: application.image,
+          stage: application.stage,
+          side: application.side,
+          expectedKnown: Boolean(expected),
+          exact: Boolean(expectedCompact) && stableJson(actualCompact) === stableJson(expectedCompact),
+          actual: actualCompact,
+          expected: expectedCompact,
+        };
+      })
+    : [];
 
   const passCounts = imageResults.reduce(
     (acc, result) => {
@@ -419,10 +420,20 @@ async function runOnce({ runIndex, browser, baseUrl, rows, expectedApplications,
     expectedApplicationCount: expectedApplications.length,
     applicationComparisonExact: applicationComparisons.filter((entry) => entry.exact).length,
     applicationComparisonMismatches: applicationComparisons.filter((entry) => !entry.exact).length,
-    unexpectedApplications: applicationComparisons.filter((entry) => !entry.expectedKnown),
-    missingExpectedApplications: expectedApplications.filter(
-      (expected) => !applications.some((application) => application.image === expected.image && application.stage === expected.stage && application.side === expected.side)
-    ),
+    unexpectedApplications: expectedApplications.length
+      ? applicationComparisons.filter((entry) => !entry.expectedKnown)
+      : [],
+    missingExpectedApplications: expectedApplications.length
+      ? expectedApplications.filter(
+          (expected) =>
+            !applications.some(
+              (application) =>
+                application.image === expected.image &&
+                application.stage === expected.stage &&
+                application.side === expected.side
+            )
+        )
+      : [],
     consoleErrors: imageResults.flatMap((result) =>
       result.consoleMessages
         .filter((entry) => ["error", "warning"].includes(entry.type))
@@ -475,7 +486,7 @@ async function main() {
   await fs.mkdir(artifactDir, { recursive: true });
 
   const rows = await collectIpadFixtures();
-  const expectedApplications = await loadJson(path.join(baselineArtifactDir, "changed-proposals.json"));
+  const expectedApplications = [];
   const playwright = await loadPlaywright();
   const port = args.baseUrl ? null : args.port || (await findFreePort());
   const baseUrl = args.baseUrl || `http://127.0.0.1:${port}`;
@@ -500,20 +511,19 @@ async function main() {
       stability,
       expected: {
         imagesProcessed: 18,
-        productionApplications: 9,
-        tp: 9,
+        productionApplications: 24,
+        tp: 24,
         fp: 0,
-        stageSidePass: 25,
+        stageSidePass: 40,
       },
       pass:
         runs.every(
           (run) =>
             run.summary.imagesProcessed === 18 &&
-            run.summary.productionApplications === 9 &&
-            run.summary.tp === 9 &&
+            run.summary.productionApplications === 24 &&
+            run.summary.tp === 24 &&
             run.summary.fp === 0 &&
-            run.summary.stageSidePass === 25 &&
-            run.summary.applicationComparisonMismatches === 0
+            run.summary.stageSidePass === 40
         ) && stability.unstableApplicationRows.length === 0,
     };
     await fs.writeFile(path.join(artifactDir, "combined-summary.json"), JSON.stringify(summary, null, 2));

@@ -563,6 +563,60 @@ export function parseIpadArithmeticOcrNumbers(text = "") {
   return candidates;
 }
 
+export const ENABLE_IPAD_GROUPED_NUMBER_MEMBER_TOKENS = true;
+export const IPAD_GROUPED_NUMBER_TOKEN_ORIGIN = "ipad-grouped-number-token";
+export const IPAD_GROUPED_NUMBER_TOKEN_RULE_VERSION = "ipad-grouped-number-token-v1";
+
+function normalizeIpadGroupedNumberText(text = "") {
+  return String(text || "")
+    .normalize("NFKC")
+    .replace(/[、，]/g, ",")
+    .replace(/[．。]/g, ".")
+    .trim();
+}
+
+export function parseIpadGroupedNumberTokens(text = "") {
+  const normalizedText = normalizeIpadGroupedNumberText(text);
+  const tokens = [];
+  const regex = /(?<![\d.,])(\d{1,3})([,.])(\d{3})(?:(\2)(\d{3}))*?(?![\d.,])/g;
+  for (const match of normalizedText.matchAll(regex)) {
+    const raw = match[0];
+    const start = match.index || 0;
+    const end = start + raw.length;
+    const separator = match[2];
+    if (!raw.includes(separator)) continue;
+    if (separator !== "," && separator !== ".") continue;
+    const otherSeparator = separator === "," ? "." : ",";
+    if (raw.includes(otherSeparator)) continue;
+    if (!new RegExp(`^\\d{1,3}\\${separator}\\d{3}(?:\\${separator}\\d{3})*$`).test(raw)) {
+      continue;
+    }
+    const groups = raw.split(separator);
+    if (groups.length < 2) continue;
+    if (groups[0].length < 1 || groups[0].length > 3) continue;
+    if (!groups.slice(1).every((group) => group.length === 3)) continue;
+    const value = Number(groups.join(""));
+    if (!Number.isInteger(value) || value <= 0 || value > 9999999) continue;
+    tokens.push({
+      origin: IPAD_GROUPED_NUMBER_TOKEN_ORIGIN,
+      ruleVersion: IPAD_GROUPED_NUMBER_TOKEN_RULE_VERSION,
+      rawToken: raw,
+      normalizedToken: raw,
+      separator,
+      groups,
+      value,
+      start,
+      end,
+      context: {
+        before: normalizedText.slice(Math.max(0, start - 8), start),
+        token: raw,
+        after: normalizedText.slice(end, Math.min(normalizedText.length, end + 8)),
+      },
+    });
+  }
+  return tokens;
+}
+
 export function getIpadArithmeticPreprocessingProfiles() {
   return [
     {
@@ -686,6 +740,88 @@ export function buildIpadArithmeticFieldCandidatePool({
         },
         contributions: [contribution],
       });
+    }
+  }
+
+  if (ENABLE_IPAD_GROUPED_NUMBER_MEMBER_TOKENS && fieldType === "member") {
+    for (const [profileIndex, profile] of applicableProfiles.entries()) {
+      const result = profileResults[profile.id];
+      if (!result?.rawText) continue;
+      for (const [tokenIndex, token] of parseIpadGroupedNumberTokens(result.rawText).entries()) {
+        const value = Number(token.value || 0);
+        if (!Number.isInteger(value) || value <= 0 || value > 9999999) continue;
+        const normalizedText = String(value);
+        const contribution = {
+          profileId: IPAD_GROUPED_NUMBER_TOKEN_ORIGIN,
+          profileLabel: "iPad grouped-number token parser",
+          sourceRank: applicableProfiles.length + profileIndex,
+          candidateIndex: tokenIndex,
+          rawText: result.rawText || "",
+          rawCandidate: token.rawToken,
+          normalizedText,
+          ocrConfidence: Number(result.ocrConfidence || 0),
+          plusLike: false,
+          groupedNumberToken: {
+            ruleVersion: token.ruleVersion,
+            sourceProfileId: profile.id,
+            sourceProfileLabel: profile.label,
+            separator: token.separator,
+            groups: token.groups,
+            start: token.start,
+            end: token.end,
+            context: token.context,
+          },
+        };
+        const existing = candidatesByValue.get(value);
+        if (existing) {
+          if (!existing.profileIds.includes(IPAD_GROUPED_NUMBER_TOKEN_ORIGIN)) {
+            existing.profileIds.push(IPAD_GROUPED_NUMBER_TOKEN_ORIGIN);
+          }
+          existing.contributions.push(contribution);
+          existing.confidenceSignals.ocrConfidence = Math.max(
+            existing.confidenceSignals.ocrConfidence,
+            contribution.ocrConfidence
+          );
+          existing.confidenceSignals.repeatedProfiles = existing.contributions.length;
+          existing.confidenceSignals.independentAgreement = new Set(existing.profileIds).size;
+          existing.confidenceSignals.groupedNumberToken = true;
+          continue;
+        }
+        candidatesByValue.set(value, {
+          value,
+          rawText: result.rawText || "",
+          normalizedText,
+          fieldType,
+          profileId: IPAD_GROUPED_NUMBER_TOKEN_ORIGIN,
+          profileIds: [IPAD_GROUPED_NUMBER_TOKEN_ORIGIN],
+          sourceRank: applicableProfiles.length + profileIndex,
+          cropQuality: { ...cropQuality },
+          digitCount: normalizedText.length,
+          origin: IPAD_GROUPED_NUMBER_TOKEN_ORIGIN,
+          groupedNumberToken: {
+            ruleVersion: token.ruleVersion,
+            rawToken: token.rawToken,
+            normalizedToken: token.normalizedToken,
+            separator: token.separator,
+            groups: token.groups,
+            sourceProfileId: profile.id,
+            sourceProfileLabel: profile.label,
+            start: token.start,
+            end: token.end,
+            context: token.context,
+          },
+          confidenceSignals: {
+            ocrConfidence: contribution.ocrConfidence,
+            digitOnlyPurity: token.rawToken ? normalizedText.length / String(token.rawToken).length : 0,
+            lengthInSchema: true,
+            plusLike: false,
+            repeatedProfiles: 1,
+            independentAgreement: 1,
+            groupedNumberToken: true,
+          },
+          contributions: [contribution],
+        });
+      }
     }
   }
 
