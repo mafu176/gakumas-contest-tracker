@@ -1438,5 +1438,15 @@ export const idolDb = [
     "plan": "アノマリー",
     "rarity": "SSR",
     "image": "/idols/144.png"
-  }
+  },
+  {
+  "id": "雨夜_燕_クライアイ",
+  "name": "クライアイ 雨夜燕",
+  "short": "クライアイ",
+  "character": "雨夜燕",
+  "title": "クライアイ",
+  "plan": "アノマリー",
+  "rarity": "SSR",
+  "image": "/idols/145.png"
+},
 ];
