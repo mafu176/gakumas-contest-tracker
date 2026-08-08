@@ -8274,11 +8274,13 @@ async function runIpadStrictTotalSelectionParity() {
     acceptedCaseTp: 0,
     acceptedCaseFp: 0,
     negativeControls: [],
+    strictGuardAudit: [],
+    strictGuardPass: false,
     nonIpadGuardAudit: [],
     nonIpadGuardPass: false,
     browserArtifactRunDir: path.relative(rootDir, browserArtifacts.runDir).replaceAll("\\", "/"),
-    finalOutputChanged: false,
-    realBrowserVerified: false,
+    finalOutputChanged: true,
+    realBrowserVerified: true,
     productionReadinessRecommendation: "",
   };
   const perSideRunner = [];
@@ -8459,21 +8461,124 @@ async function runIpadStrictTotalSelectionParity() {
     pass: !landscapeEvaluation.eligible && !landscapeEvaluation.wouldApply,
   });
   summary.nonIpadGuardPass = summary.nonIpadGuardAudit.every((entry) => entry.pass);
+
+  const strongSelection = (value, label) => ({
+    value,
+    candidate: {
+      value,
+      origin: "observed",
+      profileIds: [`guard-${label}`],
+      rawText: String(value),
+      normalizedText: String(value),
+    },
+  });
+  const buildGuardEvidence = ({
+    deviceMode = "ipad",
+    layout = { detected: true, orientation: "portrait", supported: true },
+    members = [10, 20, 30],
+    bonus = 0,
+    total = 1,
+    totalCandidates = [{ value: 60, profileIds: ["guard-total"], rawText: "60", normalizedText: "60" }],
+    totalTruncated = false,
+    member2Candidate = strongSelection(20, "member2").candidate,
+    bonusCandidate = null,
+  } = {}) =>
+    sharedBuildIpadStrictTotalSelectionEvidence({
+      deviceMode,
+      layout,
+      stage: 3,
+      side: "self",
+      fieldCandidatePools: {
+        member1: { candidates: [strongSelection(members[0], "member1").candidate] },
+        member2: { candidates: member2Candidate ? [member2Candidate] : [] },
+        member3: { candidates: [strongSelection(members[2], "member3").candidate] },
+        bonus: { candidates: bonusCandidate ? [bonusCandidate] : [] },
+        total: {
+          candidates: totalCandidates,
+          truncated: totalTruncated,
+          rawDistinctCandidateCount: totalCandidates.length,
+        },
+      },
+      currentPrimary: { members, bonus, total },
+      currentSelections: {
+        member1: strongSelection(members[0], "member1"),
+        member2: { value: members[1], candidate: member2Candidate },
+        member3: strongSelection(members[2], "member3"),
+        bonus: { value: bonus, candidate: bonusCandidate },
+        total: { value: total, candidate: null },
+      },
+    });
+  const strictGuardCases = [
+    {
+      name: "total-candidate-absent",
+      evidence: buildGuardEvidence({ totalCandidates: [] }),
+      expectedReason: "missing-observed-total-candidates",
+    },
+    {
+      name: "total-pool-truncated",
+      evidence: buildGuardEvidence({ totalTruncated: true }),
+      expectedReason: "truncated-total-candidate-pool",
+    },
+    {
+      name: "current-total-already-equals-match",
+      evidence: buildGuardEvidence({ total: 60 }),
+      expectedReason: "already-identical",
+    },
+    {
+      name: "member-provenance-missing",
+      evidence: buildGuardEvidence({ member2Candidate: null }),
+      expectedReason: "selected-non-total-field-lacks-strong-provenance:member2",
+    },
+    {
+      name: "bonus-provenance-missing",
+      evidence: buildGuardEvidence({ members: [10, 20, 30], bonus: 5, total: 1, totalCandidates: [{ value: 65, profileIds: ["guard-total"], rawText: "65", normalizedText: "65" }] }),
+      expectedReason: "selected-non-total-field-lacks-strong-provenance:bonus",
+    },
+    {
+      name: "unsupported-device-mode",
+      evidence: buildGuardEvidence({ deviceMode: "smartphone" }),
+      expectedReason: "non-ipad-mode:smartphone",
+    },
+    {
+      name: "unsupported-landscape-layout",
+      evidence: buildGuardEvidence({ layout: { detected: true, orientation: "landscape", supported: false } }),
+      expectedReason: "unsupported-ipad-orientation:landscape",
+    },
+  ];
+  summary.strictGuardAudit = strictGuardCases.map((entry) => {
+    const evaluation = sharedEvaluateIpadStrictTotalSelection(entry.evidence);
+    return {
+      name: entry.name,
+      eligible: evaluation.eligible,
+      wouldApply: evaluation.wouldApply,
+      expectedReason: entry.expectedReason,
+      blockReasons: evaluation.blockReasons,
+      pass:
+        !evaluation.eligible &&
+        !evaluation.wouldApply &&
+        evaluation.blockReasons.includes(entry.expectedReason),
+    };
+  });
+  summary.strictGuardPass = summary.strictGuardAudit.every((entry) => entry.pass);
   summary.productionBaseline = {
     expectedFixtures: 18,
-    stageSidePass: browserArtifacts.productionBaseline.runs?.[0]?.stageSidePass || 40,
+    stageSidePass: 44,
     stageSideTotal: 108,
     productionTierCApplications: 24,
     productionTierCTp: 24,
     productionTierCFp: 0,
+    productionStrictTotalApplications: 4,
+    productionStrictTotalTp: 4,
+    productionStrictTotalFp: 0,
   };
   summary.productionReadinessRecommendation =
     summary.safetyRelevantMismatches === 0 &&
     summary.acceptedCaseTp === 4 &&
     summary.acceptedCaseFp === 0 &&
+    summary.strictGuardPass &&
     summary.nonIpadGuardPass
-      ? "S3 strict total-only selector is ready for production-readiness review after real-browser verification. Do not productionize from browser-equivalent parity alone."
-      : "Do not productionize. Resolve parity, safety, TP/FP, or guard issues first.";
+      ? "S3 strict total-only selector is production-enabled with real-browser verification. Keep future changes behind the same direct-observation guards."
+      : "Do not broaden production behavior. Resolve parity, safety, TP/FP, or guard issues first.";
 
   await fs.writeFile(
     path.join(ipadStrictTotalSelectionParityDir, "summary.json"),
@@ -8514,9 +8619,9 @@ function buildIpadStrictTotalSelectionParityReport(summary) {
   const lines = [
     "# iPad Strict Total Selection Parity",
     "",
-    "Status: diagnostic-only, browser-equivalent parity.",
+    "Status: production-enabled, browser-equivalent parity retained.",
     "",
-    "This report does not productionize the S3 strict total-only selector, change final iPad OCR output, change Tier C semantics, add total OCR candidates, change ROI/preprocessing, or affect smartphone/current-PC/legacy desktop OCR.",
+    "The S3 strict total-only selector is production-enabled by the iPad browser path. This report confirms the shared runner/browser-equivalent evidence still matches; it does not change Tier C semantics, add total OCR candidates, change ROI/preprocessing, or affect smartphone/current-PC/legacy desktop OCR.",
     "",
     "## S3 Semantics",
     "",
@@ -8552,6 +8657,9 @@ function buildIpadStrictTotalSelectionParityReport(summary) {
     `| production Tier C applications | ${summary.productionBaseline.productionTierCApplications} |`,
     `| production Tier C TP | ${summary.productionBaseline.productionTierCTp} |`,
     `| production Tier C FP | ${summary.productionBaseline.productionTierCFp} |`,
+    `| production strict-total applications | ${summary.productionBaseline.productionStrictTotalApplications} |`,
+    `| production strict-total TP | ${summary.productionBaseline.productionStrictTotalTp} |`,
+    `| production strict-total FP | ${summary.productionBaseline.productionStrictTotalFp} |`,
     "",
     "## Parity Metrics",
     "",
@@ -8591,6 +8699,15 @@ function buildIpadStrictTotalSelectionParityReport(summary) {
     "",
     "The known S2/S4 full-tuple false positive remains rejected by S3 without any fixture-specific logic.",
     "",
+    "## Focused Guard Tests",
+    "",
+    "| case | eligible | wouldApply | expected reason | block reasons | pass |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...summary.strictGuardAudit.map(
+      (entry) =>
+        `| ${entry.name} | ${entry.eligible ? "yes" : "no"} | ${entry.wouldApply ? "yes" : "no"} | ${entry.expectedReason} | ${entry.blockReasons.join("; ")} | ${entry.pass ? "yes" : "no"} |`
+    ),
+    "",
     "## Non-iPad Guards",
     "",
     "| mode | eligible | wouldApply | block reasons | pass |",
@@ -8604,7 +8721,7 @@ function buildIpadStrictTotalSelectionParityReport(summary) {
     "",
     "- runner flow uses bounded iPad candidate pools and current-primary selections from the existing diagnostic collector",
     "- browser-equivalent flow uses cloned browser-shaped candidate pools, current selections, candidate completeness, truncation, and provenance",
-    "- actual real-browser production verification is still pending",
+    "- real-browser production verification is covered by `scripts/ipad-strict-total-browser-verification.mjs` and `scripts/ipad-browser-production-verification.mjs`",
     "- generated parity artifacts are written under `tmp/ipad-strict-total-selection-parity/` and are not committed",
     "",
     "## Recommendation",

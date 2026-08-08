@@ -1166,6 +1166,8 @@ export function evaluateIpadArithmeticSideSelectionTier({
 }
 
 const ipadStrictTotalSelectionLabels = ["member1", "member2", "member3", "bonus", "total"];
+export const ENABLE_IPAD_STRICT_TOTAL_SELECTION = true;
+export const IPAD_STRICT_TOTAL_SELECTION_RECOVERY_ID = "ipad-strict-total-selection";
 
 function summarizeIpadStrictTotalCandidate(candidate = {}) {
   return {
@@ -1410,15 +1412,215 @@ export function evaluateIpadStrictTotalSelection(evidence = {}) {
   };
 }
 
-export function applyIpadStrictTotalSelectionRecovery(stageScores, evidenceByStageSide = {}) {
+function normalizeIpadStrictTotalMembers(values = []) {
+  const members = Array.isArray(values)
+    ? values.slice(0, 3).map(normalizeIpadArithmeticNumber)
+    : [];
+  while (members.length < 3) members.push(0);
+  return members;
+}
+
+function formatIpadStrictTotalDisplayNumber(value) {
+  const numeric = normalizeIpadArithmeticNumber(value);
+  return numeric > 0 ? numeric.toLocaleString() : "";
+}
+
+function normalizeIpadStrictTotalDisplayValue(value) {
+  const normalized = Number(String(value ?? "").replace(/[^\d-]/g, ""));
+  return Number.isFinite(normalized) ? normalized : 0;
+}
+
+function getIpadStrictTotalDisplayedSide(stageScores, stage, side, fallbackBonus = 0) {
+  const stageScore = stageScores?.[stage] || stageScores?.[`stage${stage}`] || {};
   return {
-    stageScores,
-    productionRecovery: {
-      recovery: "ipadStrictTotalSelectionRecovery",
-      appliedCases: [],
-      note: "Diagnostic stub only; not connected to production output.",
-      evidenceByStageSide,
+    members: normalizeIpadStrictTotalMembers(
+      (stageScore[side] || []).map(normalizeIpadStrictTotalDisplayValue)
+    ),
+    bonus: normalizeIpadArithmeticNumber(fallbackBonus),
+    total: normalizeIpadStrictTotalDisplayValue(
+      stageScore[side === "self" ? "selfTotal" : "enemyTotal"]
+    ),
+  };
+}
+
+function buildIpadStrictTotalProductionCounters() {
+  return {
+    evaluated: 0,
+    eligible: 0,
+    applied: 0,
+    blockedNotWouldApply: 0,
+    blockedAlreadyIdentical: 0,
+    blockedAssertionFailure: 0,
+    blockedMemberMutation: 0,
+    blockedBonusMutation: 0,
+    blockedNonTotalMutation: 0,
+    blockedOther: 0,
+  };
+}
+
+function summarizeIpadStrictTotalBlockReason(reasons = []) {
+  if (!Array.isArray(reasons) || reasons.length === 0) return "blockedOther";
+  if (reasons.includes("already-identical")) return "blockedAlreadyIdentical";
+  return "blockedOther";
+}
+
+function buildIpadStrictTotalRecoveryApplication({
+  stage,
+  side,
+  oldValues,
+  proposal,
+  evidence,
+  evaluation,
+}) {
+  const observedTotalCandidate =
+    evaluation.matchingObservedTotalCandidates?.find(
+      (candidate) => candidate.value === evaluation.proposedTotal
+    ) || null;
+  const observedTotalProvenance = observedTotalCandidate
+    ? summarizeIpadStrictTotalCandidate(observedTotalCandidate)
+    : null;
+  return {
+    recoveryId: IPAD_STRICT_TOTAL_SELECTION_RECOVERY_ID,
+    stage,
+    side,
+    oldValues,
+    newValues: {
+      members: normalizeIpadStrictTotalMembers(proposal.members),
+      bonus: normalizeIpadArithmeticNumber(proposal.bonus),
+      total: normalizeIpadArithmeticNumber(proposal.total),
     },
+    changedFields: ["total"],
+    provenance: {
+      observedTotal: observedTotalProvenance,
+      selectedMemberProfileIds: evidence.provenanceSummary?.selectedMemberProfileIds || {},
+      selectedBonusProfileIds: evidence.provenanceSummary?.selectedBonusProfileIds || [],
+      selectedBonusOrigin: evidence.provenanceSummary?.selectedBonusOrigin || "",
+      matchingTotalProfileIds: evidence.provenanceSummary?.matchingTotalProfileIds || [],
+      matchingTotalRawText: evidence.provenanceSummary?.matchingTotalRawText || "",
+      matchingTotalNormalizedText: evidence.provenanceSummary?.matchingTotalNormalizedText || "",
+    },
+    candidateCompleteness: evaluation.candidateCompleteness || {},
+    totalCandidateCompleteness: evaluation.totalCandidateCompleteness || {},
+    observedTotalCandidateCount: Array.isArray(evidence.observedTotalCandidates)
+      ? evidence.observedTotalCandidates.length
+      : 0,
+    computedValidationTotal: normalizeIpadArithmeticNumber(
+      evaluation.computedValidationTotal
+    ),
+    uniqueMatchingObservedTotal: normalizeIpadArithmeticNumber(
+      evaluation.uniqueMatchingObservedTotal
+    ),
+    equation: `${proposal.members.join("+")}+${normalizeIpadArithmeticNumber(
+      proposal.bonus
+    )}=${normalizeIpadArithmeticNumber(proposal.total)}`,
+  };
+}
+
+export function applyIpadStrictTotalSelectionRecovery(stageScores, evidenceByStageSide = {}) {
+  const productionRecovery = {
+    recoveryId: IPAD_STRICT_TOTAL_SELECTION_RECOVERY_ID,
+    enabled: ENABLE_IPAD_STRICT_TOTAL_SELECTION,
+    appliedCases: [],
+    rejectedCases: [],
+    counters: buildIpadStrictTotalProductionCounters(),
+    note:
+      "Applies only the verified iPad strict total-only selector. Members and bonus are never changed.",
+  };
+
+  if (!ENABLE_IPAD_STRICT_TOTAL_SELECTION) {
+    productionRecovery.blockReason = "feature-disabled";
+    return { stageScores, productionRecovery };
+  }
+
+  const nextStageScores = JSON.parse(JSON.stringify(stageScores || {}));
+  const stagesEvidence = evidenceByStageSide?.stages || evidenceByStageSide || {};
+  for (const stage of [1, 2, 3]) {
+    const stageKey = `stage${stage}`;
+    const stageEvidence = stagesEvidence[stageKey] || stagesEvidence[stage] || {};
+    for (const side of ["self", "enemy"]) {
+      const row = stageEvidence?.[side] || null;
+      const evidence = row?.evidence || row?.strictTotalSelectionEvidence || row || null;
+      if (!evidence) continue;
+
+      productionRecovery.counters.evaluated += 1;
+      const evaluation = row?.evaluation || evaluateIpadStrictTotalSelection(evidence);
+      if (evaluation.eligible) productionRecovery.counters.eligible += 1;
+      if (!evaluation.wouldApply || !evaluation.proposal) {
+        productionRecovery.counters[summarizeIpadStrictTotalBlockReason(evaluation.blockReasons)] += 1;
+        productionRecovery.rejectedCases.push({
+          stage,
+          side,
+          reason: evaluation.blockReasons?.join(",") || evaluation.blockReason || "would-not-apply",
+        });
+        continue;
+      }
+
+      const oldValues = getIpadStrictTotalDisplayedSide(
+        nextStageScores,
+        stage,
+        side,
+        evidence.selected?.bonus
+      );
+      const selectedMembers = normalizeIpadStrictTotalMembers(evidence.selected?.members);
+      const selectedBonus = normalizeIpadArithmeticNumber(evidence.selected?.bonus);
+      const proposal = evaluation.proposal;
+      const proposedMembers = normalizeIpadStrictTotalMembers(proposal.members);
+      const proposedBonus = normalizeIpadArithmeticNumber(proposal.bonus);
+      const proposedTotal = normalizeIpadArithmeticNumber(proposal.total);
+      const assertionPass =
+        proposedMembers.reduce((sum, value) => sum + value, 0) + proposedBonus === proposedTotal;
+      const rejectionReasons = [];
+
+      if (!arraysEqualWithinTolerance(oldValues.members, selectedMembers, 0)) {
+        rejectionReasons.push("displayed-members-do-not-match-evidence");
+      }
+      if (!arraysEqualWithinTolerance(selectedMembers, proposedMembers, 0)) {
+        rejectionReasons.push("proposal-would-change-members");
+      }
+      if (oldValues.bonus !== selectedBonus || selectedBonus !== proposedBonus) {
+        rejectionReasons.push("proposal-would-change-bonus");
+      }
+      if (!assertionPass) rejectionReasons.push("proposal-equation-assertion-failed");
+      if (oldValues.total === proposedTotal) rejectionReasons.push("displayed-total-already-identical");
+
+      if (rejectionReasons.length) {
+        if (rejectionReasons.some((reason) => reason.includes("members"))) {
+          productionRecovery.counters.blockedMemberMutation += 1;
+        } else if (rejectionReasons.some((reason) => reason.includes("bonus"))) {
+          productionRecovery.counters.blockedBonusMutation += 1;
+        } else if (rejectionReasons.some((reason) => reason.includes("assertion"))) {
+          productionRecovery.counters.blockedAssertionFailure += 1;
+        } else {
+          productionRecovery.counters.blockedNonTotalMutation += 1;
+        }
+        productionRecovery.rejectedCases.push({
+          stage,
+          side,
+          reason: rejectionReasons.join(","),
+        });
+        continue;
+      }
+
+      nextStageScores[stage] ||= {};
+      nextStageScores[stage][side === "self" ? "selfTotal" : "enemyTotal"] =
+        formatIpadStrictTotalDisplayNumber(proposedTotal);
+      productionRecovery.appliedCases.push(
+        buildIpadStrictTotalRecoveryApplication({
+          stage,
+          side,
+          oldValues,
+          proposal,
+          evidence,
+          evaluation,
+        })
+      );
+      productionRecovery.counters.applied += 1;
+    }
+  }
+
+  return {
+    stageScores: nextStageScores,
+    productionRecovery,
   };
 }
 

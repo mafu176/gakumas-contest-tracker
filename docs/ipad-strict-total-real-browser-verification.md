@@ -1,10 +1,10 @@
 # iPad Strict Total Real Browser Verification
 
-Status: diagnostic-only real-browser verification.
+Status: production-enabled real-browser verification.
 
 The browser automation uploads the real iPad fixtures into the local app with `ipadArithmeticDebug=1`, reads the browser-native strict total-selection diagnostics, and compares them with the runner/browser-equivalent parity artifacts from `tmp/ipad-strict-total-selection-parity`.
 
-No strict-total proposal is applied to visible OCR output or final parsed scores in this task.
+The strict-total proposal is applied to visible OCR output and final parsed scores only for the four previously verified exact cases.
 
 ## Coverage
 
@@ -13,15 +13,15 @@ No strict-total proposal is applied to visible OCR output or final parsed scores
 - browser runs: 2
 - images processed per run: 18 / 18
 - stage/sides compared per run: 108 / 108
-- production baseline preserved: yes
-- UI mutation audit: PASS
+- production baseline after strict-total: PASS
+- UI mutation/application audit: PASS
 
 ## Run Summary
 
-| run | images | stage/sides | browser wouldApply | accepted found | exact proposal matches | TP | FP | UI mutations |
+| run | images | stage/sides | browser wouldApply | accepted found | exact proposal matches | TP | FP | UI applications |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 1 | 18 | 108 | 4 | 4 | 4 | 4 | 0 | 0 |
-| 2 | 18 | 108 | 4 | 4 | 4 | 4 | 0 | 0 |
+| 1 | 18 | 108 | 4 | 4 | 4 | 4 | 0 | 4 |
+| 2 | 18 | 108 | 4 | 4 | 4 | 4 | 0 | 4 |
 
 ## Accepted Four-Case Audit
 
@@ -50,7 +50,7 @@ All accepted rows used directly observed browser total candidates from the produ
 | wouldApply | 0 |
 | proposedTotal | 0 |
 | blockReason | 0 |
-| provenance | 14 |
+| provenance | 0 |
 | missingEvidence | 0 |
 | safety | 0 |
 
@@ -74,12 +74,15 @@ The known S2/S4 false-positive shape remains rejected without filename-specific 
 
 Per run:
 
-- stage/side PASS: 40 / 108
+- stage/side PASS: 44 / 108
+- production applications: 28
 - Tier C production applications: 24
 - Tier C TP / FP: 24 / 0
+- strict-total production applications: 4
+- strict-total TP / FP: 4 / 0
 
-The strict-total diagnostic does not change production Tier C, T2 parsing, total candidate generation, ROI/preprocessing, ranking, smartphone OCR, current-PC OCR, legacy desktop OCR, or expected fixtures.
+The strict-total production path does not change production Tier C, T2 parsing, total candidate generation, ROI/preprocessing, ranking, smartphone OCR, current-PC OCR, legacy desktop OCR, or expected fixtures.
 
 ## Recommendation
 
-Production-readiness review is justified next. Do not productionize from this diagnostic task alone.
+Production strict-total behavior is verified for the four accepted rows with no extra applications.

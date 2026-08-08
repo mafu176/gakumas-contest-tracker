@@ -704,12 +704,12 @@ function buildCombinedSummary({ runs, references, baseUrl }) {
     stability,
     productionBaselinePreserved: runs.every(
       (run) =>
-        run.summary.production.stageSidePass === 40 &&
-        run.summary.production.productionApplications === 24 &&
-        run.summary.production.tp === 24 &&
+        run.summary.production.stageSidePass === 44 &&
+        run.summary.production.productionApplications === 28 &&
+        run.summary.production.tp === 28 &&
         run.summary.production.fp === 0
     ),
-    uiMutationAuditPass: runs.every((run) => run.summary.uiMutationCount === 0),
+    uiMutationAuditPass: runs.every((run) => run.summary.uiMutationCount === references.acceptedKeys.size),
     safetyMismatchCount: allComparisons.filter((entry) => entry.safetyRelevant).length,
     pass:
       runs.every(
@@ -723,18 +723,18 @@ function buildCombinedSummary({ runs, references, baseUrl }) {
           run.summary.fp === 0 &&
           run.summary.unexpectedWouldApply.length === 0 &&
           run.summary.falseNegativeAcceptedCases.length === 0 &&
-          run.summary.uiMutationCount === 0 &&
+          run.summary.uiMutationCount === references.acceptedKeys.size &&
           run.summary.disagreements.safety === 0 &&
-          run.summary.production.stageSidePass === 40 &&
-          run.summary.production.productionApplications === 24 &&
-          run.summary.production.tp === 24 &&
+          run.summary.production.stageSidePass === 44 &&
+          run.summary.production.productionApplications === 28 &&
+          run.summary.production.tp === 28 &&
           run.summary.production.fp === 0
       ) &&
       stability.stableAcceptedRows === references.acceptedKeys.size &&
       stability.unstableAcceptedRows.length === 0 &&
       negativeControls.every((entry) => entry.pass),
     recommendation:
-      "Productionization is justified for the next task only if this diagnostic remains unchanged under review; this script does not apply the selector.",
+      "Production strict-total behavior is verified when the four accepted rows apply through the UI path with no extra applications.",
   };
   return { summary, allComparisons, acceptedAudit, negativeControls, stability };
 }
@@ -764,11 +764,11 @@ function buildReport(summary) {
 
   return `# iPad Strict Total Real Browser Verification
 
-Status: diagnostic-only real-browser verification.
+Status: production-enabled real-browser verification.
 
 The browser automation uploads the real iPad fixtures into the local app with \`ipadArithmeticDebug=1\`, reads the browser-native strict total-selection diagnostics, and compares them with the runner/browser-equivalent parity artifacts from \`tmp/ipad-strict-total-selection-parity\`.
 
-No strict-total proposal is applied to visible OCR output or final parsed scores in this task.
+The strict-total proposal is applied to visible OCR output and final parsed scores only for the four previously verified exact cases.
 
 ## Coverage
 
@@ -777,12 +777,12 @@ No strict-total proposal is applied to visible OCR output or final parsed scores
 - browser runs: ${summary.runs.length}
 - images processed per run: ${summary.coverage.images} / 18
 - stage/sides compared per run: ${summary.coverage.stageSidesCompared} / 108
-- production baseline preserved: ${summary.productionBaselinePreserved ? "yes" : "no"}
-- UI mutation audit: ${summary.uiMutationAuditPass ? "PASS" : "FAIL"}
+- production baseline after strict-total: ${summary.productionBaselinePreserved ? "PASS" : "FAIL"}
+- UI mutation/application audit: ${summary.uiMutationAuditPass ? "PASS" : "FAIL"}
 
 ## Run Summary
 
-| run | images | stage/sides | browser wouldApply | accepted found | exact proposal matches | TP | FP | UI mutations |
+| run | images | stage/sides | browser wouldApply | accepted found | exact proposal matches | TP | FP | UI applications |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 ${runRows}
 
@@ -820,15 +820,18 @@ The known S2/S4 false-positive shape remains rejected without filename-specific 
 
 Per run:
 
-- stage/side PASS: 40 / 108
+- stage/side PASS: 44 / 108
+- production applications: 28
 - Tier C production applications: 24
 - Tier C TP / FP: 24 / 0
+- strict-total production applications: 4
+- strict-total TP / FP: 4 / 0
 
-The strict-total diagnostic does not change production Tier C, T2 parsing, total candidate generation, ROI/preprocessing, ranking, smartphone OCR, current-PC OCR, legacy desktop OCR, or expected fixtures.
+The strict-total production path does not change production Tier C, T2 parsing, total candidate generation, ROI/preprocessing, ranking, smartphone OCR, current-PC OCR, legacy desktop OCR, or expected fixtures.
 
 ## Recommendation
 
-${summary.pass ? "Production-readiness review is justified next. Do not productionize from this diagnostic task alone." : "Do not productionize. Resolve the mismatches above first."}
+${summary.pass ? "Production strict-total behavior is verified for the four accepted rows with no extra applications." : "Do not broaden production behavior. Resolve the mismatches above first."}
 `;
 }
 

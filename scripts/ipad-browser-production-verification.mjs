@@ -12,10 +12,17 @@ const rootDir = path.resolve(__dirname, "..");
 const ipadImageDir = path.join(rootDir, "regression-test", "ipad");
 const ipadExpectedDir = path.join(rootDir, "regression-test", "expected-ipad");
 const artifactDir = path.join(rootDir, "tmp", "ipad-browser-production-verification");
+const strictTotalBrowserVerificationDir = path.join(
+  rootDir,
+  "tmp",
+  "ipad-strict-total-real-browser-verification"
+);
 const requireFromHere = createRequire(import.meta.url);
 
 const stages = [1, 2, 3];
 const sides = ["self", "enemy"];
+const tierCRecoveryId = "ipad-tier-c-exactly-one-arithmetic";
+const strictTotalRecoveryId = "ipad-strict-total-selection";
 
 function parseArgs() {
   const runsIndex = process.argv.indexOf("--runs");
@@ -61,6 +68,51 @@ function toNumber(value) {
 
 async function loadJson(filePath) {
   return JSON.parse(await fs.readFile(filePath, "utf8"));
+}
+
+async function loadStrictTotalDiagnosticAcceptedCases() {
+  const acceptedPath = path.join(strictTotalBrowserVerificationDir, "accepted-four-audit.json");
+  try {
+    const rows = await loadJson(acceptedPath);
+    const seen = new Set();
+    return rows
+      .map((entry) => {
+        const proposedTotal = toNumber(entry.proposedTotal);
+        const observedTotalCandidate =
+          (entry.observedTotalCandidates || []).find(
+            (candidate) => toNumber(candidate.value) === proposedTotal
+          ) || null;
+        return {
+          image: entry.image,
+          stage: entry.stage,
+          side: entry.side,
+          oldValues: {
+            members: Array.isArray(entry.currentMembers)
+              ? entry.currentMembers.map(toNumber)
+              : [],
+            bonus: toNumber(entry.currentBonus),
+            total: toNumber(entry.currentSelectedTotal),
+          },
+          newValues: {
+            members: Array.isArray(entry.currentMembers)
+              ? entry.currentMembers.map(toNumber)
+              : [],
+            bonus: toNumber(entry.currentBonus),
+            total: proposedTotal,
+          },
+          changedFields: ["total"],
+          observedTotalCandidate,
+        };
+      })
+      .filter((entry) => {
+        const key = `${entry.image}|${entry.stage}|${entry.side}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+  } catch {
+    return [];
+  }
 }
 
 async function loadPlaywright() {
@@ -226,6 +278,15 @@ function displayedSide(diagnostics, stage, side) {
   };
 }
 
+function beforeStrictTotalSide(diagnostics, stage, side) {
+  const evidence =
+    diagnostics.strictTotalSelectionEvidence?.stages?.[`stage${stage}`]?.[side]?.evidence ||
+    diagnostics.stages?.[`stage${stage}`]?.[side]?.strictTotalSelectionEvidence ||
+    null;
+  if (!evidence?.selected) return displayedSide(diagnostics, stage, side);
+  return normalizeSide(evidence.selected);
+}
+
 function compactApplication(application = {}) {
   return {
     recoveryId: application.recoveryId || "",
@@ -237,7 +298,11 @@ function compactApplication(application = {}) {
     provenance: application.provenance || {},
     validTupleCount: Number(application.validTupleCount || 0),
     candidateCompleteness: application.candidateCompleteness || {},
+    totalCandidateCompleteness: application.totalCandidateCompleteness || {},
     defaultZeroUsage: Boolean(application.defaultZeroUsage),
+    observedTotalCandidateCount: Number(application.observedTotalCandidateCount || 0),
+    computedValidationTotal: Number(application.computedValidationTotal || 0),
+    uniqueMatchingObservedTotal: Number(application.uniqueMatchingObservedTotal || 0),
     equation: application.equation || "",
   };
 }
@@ -309,14 +374,26 @@ async function processImage({ browser, baseUrl, row, runDir, resume }) {
       let stagePass = true;
       for (const side of sides) {
         const comparison = compareSide(displayedSide(diagnostics, stage, side), expectedSide(row.expected[`stage${stage}`], side));
+        const beforeStrictComparison = compareSide(
+          beforeStrictTotalSide(diagnostics, stage, side),
+          expectedSide(row.expected[`stage${stage}`], side)
+        );
         stageSidePassCount += comparison.pass ? 1 : 0;
         stagePass &&= comparison.pass;
         perSide.push({
           stage,
           side,
           pass: comparison.pass,
+          beforeStrictPass: beforeStrictComparison.pass,
           actual: comparison.actual,
+          beforeStrictActual: beforeStrictComparison.actual,
           expected: comparison.expected,
+          fieldPass: {
+            members: comparison.membersPass,
+            bonus: comparison.bonusPass,
+            total: comparison.totalPass,
+            beforeStrictTotal: beforeStrictComparison.totalPass,
+          },
         });
       }
       stagePassCount += stagePass ? 1 : 0;
@@ -363,8 +440,10 @@ async function runOnce({ runIndex, browser, baseUrl, rows, expectedApplications,
       ...application,
     }))
   );
+  const tierCApplications = applications.filter((entry) => entry.recoveryId === tierCRecoveryId);
+  const strictTotalApplications = applications.filter((entry) => entry.recoveryId === strictTotalRecoveryId);
   const applicationComparisons = expectedApplications.length
-    ? applications.map((application) => {
+    ? strictTotalApplications.map((application) => {
         const expected = expectedByKey.get(`${application.image}|${application.stage}|${application.side}`);
         const expectedCompact = expected ? compactBaselineProposal(expected) : null;
         const actualCompact = {
@@ -396,14 +475,45 @@ async function runOnce({ runIndex, browser, baseUrl, rows, expectedApplications,
       acc.imagePass += result.imagePass ? 1 : 0;
       acc.stagePass += result.stagePassCount;
       acc.stageSidePass += result.stageSidePassCount;
+      for (const row of result.perSide || []) {
+        acc.totalPass += row.fieldPass?.total ? 1 : 0;
+        acc.beforeStrictTotalPass += row.fieldPass?.beforeStrictTotal ? 1 : 0;
+      }
       return acc;
     },
-    { imagePass: 0, stagePass: 0, stageSidePass: 0 }
+    { imagePass: 0, stagePass: 0, stageSidePass: 0, totalPass: 0, beforeStrictTotalPass: 0 }
   );
-  const applicationTp = applications.filter((application) => {
+  const isApplicationTp = (application) => {
     const row = rows.find((entry) => entry.filename === application.image);
     return compareSide(application.newValues, expectedSide(row.expected[`stage${application.stage}`], application.side)).pass;
-  }).length;
+  };
+  const applicationTp = applications.filter(isApplicationTp).length;
+  const tierCTp = tierCApplications.filter(isApplicationTp).length;
+  const strictTotalTp = strictTotalApplications.filter(isApplicationTp).length;
+  const expectedStrictByKey = new Map(
+    expectedApplications.map((entry) => [`${entry.image}|${entry.stage}|${entry.side}`, entry])
+  );
+  const strictTotalAgreement = strictTotalApplications.map((application) => {
+    const expected = expectedStrictByKey.get(`${application.image}|${application.stage}|${application.side}`);
+    const expectedProfileIds = expected?.observedTotalCandidate?.profileIds || [];
+    return {
+      image: application.image,
+      stage: application.stage,
+      side: application.side,
+      expectedKnown: Boolean(expected),
+      oldValuesExact:
+        Boolean(expected) && stableJson(application.oldValues) === stableJson(expected.oldValues),
+      newValuesExact:
+        Boolean(expected) && stableJson(application.newValues) === stableJson(expected.newValues),
+      observedTotalExact:
+        Boolean(expected) &&
+        toNumber(application.uniqueMatchingObservedTotal) === toNumber(expected.newValues.total) &&
+        stableJson(application.provenance?.observedTotal?.profileIds || []) ===
+          stableJson(expectedProfileIds),
+      actual: application,
+      expected,
+    };
+  });
   const summary = {
     runIndex,
     imagesProcessed: imageResults.length,
@@ -414,12 +524,30 @@ async function runOnce({ runIndex, browser, baseUrl, rows, expectedApplications,
     stageSidePass: passCounts.stageSidePass,
     stageSideFail: rows.length * stages.length * sides.length - passCounts.stageSidePass,
     stageSideAccuracy: percentage(passCounts.stageSidePass, rows.length * stages.length * sides.length),
+    totalFieldPassBeforeStrict: passCounts.beforeStrictTotalPass,
+    totalFieldPassAfterStrict: passCounts.totalPass,
     productionApplications: applications.length,
     tp: applicationTp,
     fp: applications.length - applicationTp,
+    tierCApplications: tierCApplications.length,
+    tierCTp,
+    tierCFp: tierCApplications.length - tierCTp,
+    strictTotalApplications: strictTotalApplications.length,
+    strictTotalTp,
+    strictTotalFp: strictTotalApplications.length - strictTotalTp,
     expectedApplicationCount: expectedApplications.length,
-    applicationComparisonExact: applicationComparisons.filter((entry) => entry.exact).length,
-    applicationComparisonMismatches: applicationComparisons.filter((entry) => !entry.exact).length,
+    strictTotalAgreementExact: strictTotalAgreement.filter(
+      (entry) => entry.oldValuesExact && entry.newValuesExact && entry.observedTotalExact
+    ).length,
+    strictTotalAgreementMismatches: strictTotalAgreement.filter(
+      (entry) => !(entry.oldValuesExact && entry.newValuesExact && entry.observedTotalExact)
+    ),
+    applicationComparisonExact: strictTotalAgreement.filter(
+      (entry) => entry.oldValuesExact && entry.newValuesExact && entry.observedTotalExact
+    ).length,
+    applicationComparisonMismatches: strictTotalAgreement.filter(
+      (entry) => !(entry.oldValuesExact && entry.newValuesExact && entry.observedTotalExact)
+    ).length,
     unexpectedApplications: expectedApplications.length
       ? applicationComparisons.filter((entry) => !entry.expectedKnown)
       : [],
@@ -443,6 +571,7 @@ async function runOnce({ runIndex, browser, baseUrl, rows, expectedApplications,
   };
   await fs.writeFile(path.join(runDir, "summary.json"), JSON.stringify(summary, null, 2));
   await fs.writeFile(path.join(runDir, "applications.json"), JSON.stringify(applications, null, 2));
+  await fs.writeFile(path.join(runDir, "strict-total-agreement.json"), JSON.stringify(strictTotalAgreement, null, 2));
   await fs.writeFile(path.join(runDir, "application-comparisons.json"), JSON.stringify(applicationComparisons, null, 2));
   return { runDir, summary, imageResults, applications, applicationComparisons };
 }
@@ -455,11 +584,15 @@ function buildStabilityReport(runs) {
       signaturesByKey.set(key, [
         ...(signaturesByKey.get(key) || []),
         stableJson({
+          recoveryId: application.recoveryId,
           oldValues: application.oldValues,
           newValues: application.newValues,
           changedFields: application.changedFields,
           provenance: application.provenance,
           validTupleCount: application.validTupleCount,
+          observedTotalCandidateCount: application.observedTotalCandidateCount,
+          computedValidationTotal: application.computedValidationTotal,
+          uniqueMatchingObservedTotal: application.uniqueMatchingObservedTotal,
           defaultZeroUsage: application.defaultZeroUsage,
           equation: application.equation,
         }),
@@ -486,7 +619,7 @@ async function main() {
   await fs.mkdir(artifactDir, { recursive: true });
 
   const rows = await collectIpadFixtures();
-  const expectedApplications = [];
+  const expectedApplications = await loadStrictTotalDiagnosticAcceptedCases();
   const playwright = await loadPlaywright();
   const port = args.baseUrl ? null : args.port || (await findFreePort());
   const baseUrl = args.baseUrl || `http://127.0.0.1:${port}`;
@@ -511,19 +644,31 @@ async function main() {
       stability,
       expected: {
         imagesProcessed: 18,
-        productionApplications: 24,
-        tp: 24,
+        productionApplications: 28,
+        tierCApplications: 24,
+        strictTotalApplications: 4,
+        tp: 28,
+        tierCTp: 24,
+        strictTotalTp: 4,
         fp: 0,
-        stageSidePass: 40,
+        stageSidePass: 44,
       },
       pass:
         runs.every(
           (run) =>
             run.summary.imagesProcessed === 18 &&
-            run.summary.productionApplications === 24 &&
-            run.summary.tp === 24 &&
+            run.summary.productionApplications === 28 &&
+            run.summary.tierCApplications === 24 &&
+            run.summary.strictTotalApplications === 4 &&
+            run.summary.tp === 28 &&
+            run.summary.tierCTp === 24 &&
+            run.summary.tierCFp === 0 &&
+            run.summary.strictTotalTp === 4 &&
+            run.summary.strictTotalFp === 0 &&
             run.summary.fp === 0 &&
-            run.summary.stageSidePass === 40
+            run.summary.stageSidePass === 44 &&
+            run.summary.strictTotalAgreementExact === 4 &&
+            run.summary.strictTotalAgreementMismatches.length === 0
         ) && stability.unstableApplicationRows.length === 0,
     };
     await fs.writeFile(path.join(artifactDir, "combined-summary.json"), JSON.stringify(summary, null, 2));

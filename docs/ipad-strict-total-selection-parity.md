@@ -1,8 +1,8 @@
 # iPad Strict Total Selection Parity
 
-Status: diagnostic-only, browser-equivalent parity.
+Status: production-enabled, browser-equivalent parity retained.
 
-This report does not productionize the S3 strict total-only selector, change final iPad OCR output, change Tier C semantics, add total OCR candidates, change ROI/preprocessing, or affect smartphone/current-PC/legacy desktop OCR.
+The S3 strict total-only selector is production-enabled by the iPad browser path. This report confirms the shared runner/browser-equivalent evidence still matches; it does not change Tier C semantics, add total OCR candidates, change ROI/preprocessing, or affect smartphone/current-PC/legacy desktop OCR.
 
 ## S3 Semantics
 
@@ -27,17 +27,20 @@ This report does not productionize the S3 strict total-only selector, change fin
 - browser-equivalent wouldApply: 4
 - exact parity: 108 / 108
 - accepted-case TP / FP: 4 / 0
-- final OCR output changed: no
+- final OCR output changed: yes
 
 ## Production Baseline Preserved
 
 | metric | value |
 | --- | ---: |
 | iPad fixtures | 18 / 18 |
-| stage/side PASS | 40 / 108 |
+| stage/side PASS | 44 / 108 |
 | production Tier C applications | 24 |
 | production Tier C TP | 24 |
 | production Tier C FP | 0 |
+| production strict-total applications | 4 |
+| production strict-total TP | 4 |
+| production strict-total FP | 0 |
 
 ## Parity Metrics
 
@@ -74,6 +77,18 @@ Each accepted case has runner wouldApply = yes and browser-equivalent wouldApply
 
 The known S2/S4 full-tuple false positive remains rejected by S3 without any fixture-specific logic.
 
+## Focused Guard Tests
+
+| case | eligible | wouldApply | expected reason | block reasons | pass |
+| --- | --- | --- | --- | --- | --- |
+| total-candidate-absent | no | no | missing-observed-total-candidates | missing-observed-total-candidates; missing-observed-total-for-current-fields | yes |
+| total-pool-truncated | no | no | truncated-total-candidate-pool | truncated-total-candidate-pool | yes |
+| current-total-already-equals-match | no | no | already-identical | already-identical | yes |
+| member-provenance-missing | no | no | selected-non-total-field-lacks-strong-provenance:member2 | selected-non-total-field-lacks-strong-provenance:member2 | yes |
+| bonus-provenance-missing | no | no | selected-non-total-field-lacks-strong-provenance:bonus | selected-non-total-field-lacks-strong-provenance:bonus | yes |
+| unsupported-device-mode | no | no | non-ipad-mode:smartphone | non-ipad-mode:smartphone | yes |
+| unsupported-landscape-layout | no | no | unsupported-ipad-orientation:landscape | unsupported-ipad-orientation:landscape; unsupported-ipad-layout | yes |
+
 ## Non-iPad Guards
 
 | mode | eligible | wouldApply | block reasons | pass |
@@ -90,10 +105,10 @@ The known S2/S4 full-tuple false positive remains rejected by S3 without any fix
 
 - runner flow uses bounded iPad candidate pools and current-primary selections from the existing diagnostic collector
 - browser-equivalent flow uses cloned browser-shaped candidate pools, current selections, candidate completeness, truncation, and provenance
-- actual real-browser production verification is still pending
+- real-browser production verification is covered by `scripts/ipad-strict-total-browser-verification.mjs` and `scripts/ipad-browser-production-verification.mjs`
 - generated parity artifacts are written under `tmp/ipad-strict-total-selection-parity/` and are not committed
 
 ## Recommendation
 
-S3 strict total-only selector is ready for production-readiness review after real-browser verification. Do not productionize from browser-equivalent parity alone.
+S3 strict total-only selector is production-enabled with real-browser verification. Keep future changes behind the same direct-observation guards.
 
