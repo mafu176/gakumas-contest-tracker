@@ -425,6 +425,12 @@ async function buildIpadArithmeticBrowserDiagnostics({ image, imageName, filter 
     fieldPools: [],
     stages: {},
     acceptedCases: [],
+    strictTotalSelectionEvidence: {
+      schema: "ipad-strict-total-selection-browser-evidence-v1",
+      note: "Diagnostic-only strict total-selection evidence. Proposals are not applied to displayed OCR output.",
+      stages: {},
+      acceptedCases: [],
+    },
   };
 
   if (!detection.detected) {
@@ -522,6 +528,7 @@ async function buildIpadArithmeticBrowserDiagnostics({ image, imageName, filter 
   for (const stage of stagesToEvaluate) {
     const stageKey = `stage${stage}`;
     diagnostics.stages[stageKey] = {};
+    diagnostics.strictTotalSelectionEvidence.stages[stageKey] = {};
     for (const side of sidesToEvaluate) {
       const fieldCandidatePools = Object.fromEntries(
         fieldSpecs.map((field) => [
@@ -558,6 +565,18 @@ async function buildIpadArithmeticBrowserDiagnostics({ image, imageName, filter 
         currentPrimary,
         tier: "tier-c",
       });
+      const strictTotalSelectionEvidence = buildIpadStrictTotalSelectionEvidence({
+        deviceMode: "ipad",
+        layout: detection,
+        stage,
+        side,
+        fieldCandidatePools,
+        currentPrimary,
+        currentSelections,
+      });
+      const strictTotalSelection = evaluateIpadStrictTotalSelection(
+        strictTotalSelectionEvidence
+      );
       const sideDiagnostics = {
         imageIdentifier: imageName || "",
         stage,
@@ -566,6 +585,8 @@ async function buildIpadArithmeticBrowserDiagnostics({ image, imageName, filter 
         currentPrimary,
         currentSelections,
         tierC,
+        strictTotalSelectionEvidence,
+        strictTotalSelection,
         eligibility: tierC.eligible,
         validTupleCount: tierC.validTupleCount,
         selectedTuple: tierC.selectedTuple,
@@ -578,6 +599,18 @@ async function buildIpadArithmeticBrowserDiagnostics({ image, imageName, filter 
         },
       };
       diagnostics.stages[stageKey][side] = sideDiagnostics;
+      diagnostics.strictTotalSelectionEvidence.stages[stageKey][side] = {
+        imageIdentifier: imageName || "",
+        stage,
+        side,
+        evidence: strictTotalSelectionEvidence,
+        evaluation: strictTotalSelection,
+      };
+      if (strictTotalSelection.wouldApply) {
+        diagnostics.strictTotalSelectionEvidence.acceptedCases.push(
+          diagnostics.strictTotalSelectionEvidence.stages[stageKey][side]
+        );
+      }
       if (tierC.wouldApply) diagnostics.acceptedCases.push(sideDiagnostics);
     }
   }
@@ -638,6 +671,8 @@ import {
   applySmartphoneStageWideSixMemberCandidateSolverRecovery,
   buildIpadArithmeticFieldCandidatePool,
   buildIpadArithmeticRoiTemplate,
+  buildIpadStrictTotalSelectionEvidence,
+  evaluateIpadStrictTotalSelection,
   evaluateIpadArithmeticSideSelectionTier,
   getIpadArithmeticFieldType,
   getIpadArithmeticPreprocessingProfiles,
@@ -2651,6 +2686,8 @@ export default function Home() {
           currentPcGroupedRawEvidence: null,
           smartphoneCrownStageWideEvidence: null,
           ipadArithmeticDiagnostics: finalIpadArithmeticDiagnostics,
+          ipadStrictTotalSelectionEvidence:
+            finalIpadArithmeticDiagnostics?.strictTotalSelectionEvidence || null,
         });
         setIpadArithmeticDiagnostics(ipadArithmeticDebug ? finalIpadArithmeticDiagnostics : null);
         setOcrProgress(100);
@@ -4599,6 +4636,8 @@ export default function Home() {
         currentPcGroupedRawEvidence,
         smartphoneCrownStageWideEvidence,
         ipadArithmeticDiagnostics: finalIpadArithmeticDiagnostics,
+        ipadStrictTotalSelectionEvidence:
+          finalIpadArithmeticDiagnostics?.strictTotalSelectionEvidence || null,
       });
       setIpadArithmeticDiagnostics(ipadArithmeticDebug ? finalIpadArithmeticDiagnostics : null);
       setOcrProgress(100);

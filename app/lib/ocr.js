@@ -1165,6 +1165,263 @@ export function evaluateIpadArithmeticSideSelectionTier({
   };
 }
 
+const ipadStrictTotalSelectionLabels = ["member1", "member2", "member3", "bonus", "total"];
+
+function summarizeIpadStrictTotalCandidate(candidate = {}) {
+  return {
+    value: normalizeIpadArithmeticNumber(candidate.value),
+    origin: candidate.origin || "observed",
+    profileIds: Array.isArray(candidate.profileIds) ? [...candidate.profileIds] : [],
+    sourceRank: Number.isFinite(Number(candidate.sourceRank)) ? Number(candidate.sourceRank) : 999,
+    rawText: String(candidate.rawText || ""),
+    normalizedText: String(candidate.normalizedText || ""),
+    confidenceSignals: { ...(candidate.confidenceSignals || {}) },
+    contributions: Array.isArray(candidate.contributions)
+      ? candidate.contributions.map((contribution) => ({
+          profileId: contribution.profileId,
+          candidateIndex: contribution.candidateIndex,
+          rawCandidate: contribution.rawCandidate,
+          normalizedText: contribution.normalizedText,
+          ocrConfidence: contribution.ocrConfidence,
+          plusLike: Boolean(contribution.plusLike),
+        }))
+      : [],
+  };
+}
+
+function summarizeIpadStrictTotalPool(pool = {}) {
+  const candidates = Array.isArray(pool.candidates)
+    ? pool.candidates
+        .map((candidate) => normalizeIpadArithmeticCandidate(candidate, "observed"))
+        .filter((candidate) => candidate.value > 0)
+    : [];
+  const byValue = new Map();
+  for (const candidate of candidates) {
+    if (!byValue.has(candidate.value)) byValue.set(candidate.value, candidate);
+  }
+  return {
+    key: pool.key || "",
+    fieldType: pool.fieldType || "",
+    candidateCap: Number(pool.candidateCap || 6),
+    rawDistinctCandidateCount: Number(
+      pool.rawDistinctCandidateCount || (Array.isArray(pool.candidates) ? pool.candidates.length : 0)
+    ),
+    truncated: Boolean(pool.truncated),
+    observedCandidates: [...byValue.values()].map(summarizeIpadStrictTotalCandidate),
+  };
+}
+
+function normalizeIpadStrictTotalCurrentSelection(selection = {}, label = "") {
+  const candidate = selection?.candidate
+    ? summarizeIpadStrictTotalCandidate(normalizeIpadArithmeticCandidate(selection.candidate, "observed"))
+    : null;
+  return {
+    label,
+    value: normalizeIpadArithmeticNumber(selection?.value),
+    hasCandidate: Boolean(candidate),
+    candidate,
+    score: Number.isFinite(Number(selection?.score)) ? Number(selection.score) : 0,
+    reason: selection?.reason || "",
+  };
+}
+
+export function buildIpadStrictTotalSelectionEvidence({
+  deviceMode = "ipad",
+  layout = {},
+  stage = 0,
+  side = "",
+  fieldCandidatePools = {},
+  currentPrimary = {},
+  currentSelections = {},
+} = {}) {
+  const current = {
+    members: Array.isArray(currentPrimary.members)
+      ? currentPrimary.members.slice(0, 3).map(normalizeIpadArithmeticNumber)
+      : [0, 0, 0],
+    bonus: normalizeIpadArithmeticNumber(currentPrimary.bonus),
+    total: normalizeIpadArithmeticNumber(currentPrimary.total),
+  };
+  while (current.members.length < 3) current.members.push(0);
+
+  const normalizedSelections = Object.fromEntries(
+    ipadStrictTotalSelectionLabels.map((label) => [
+      label,
+      normalizeIpadStrictTotalCurrentSelection(currentSelections[label], label),
+    ])
+  );
+  const poolSummary = Object.fromEntries(
+    ipadStrictTotalSelectionLabels.map((label) => [
+      label,
+      summarizeIpadStrictTotalPool(fieldCandidatePools[label] || {}),
+    ])
+  );
+  const totalPool = poolSummary.total;
+  const selectedNonTotalProvenance = {
+    member1: normalizedSelections.member1.hasCandidate,
+    member2: normalizedSelections.member2.hasCandidate,
+    member3: normalizedSelections.member3.hasCandidate,
+    bonus:
+      normalizedSelections.bonus.hasCandidate ||
+      (current.bonus === 0 && !normalizedSelections.bonus.hasCandidate),
+  };
+  const selectedBonusOrigin =
+    normalizedSelections.bonus.candidate?.origin ||
+    (current.bonus === 0 ? "schema-default-bonus-zero" : "missing-selected-bonus-candidate");
+  const computedValidationTotal =
+    current.members.reduce((sum, value) => sum + value, 0) + current.bonus;
+  const matchingObservedTotalCandidates = totalPool.observedCandidates.filter(
+    (candidate) => candidate.value === computedValidationTotal
+  );
+  const distinctMatchingObservedTotals = [
+    ...new Set(matchingObservedTotalCandidates.map((candidate) => candidate.value)),
+  ];
+  const matchingObservedTotalCandidate =
+    distinctMatchingObservedTotals.length === 1
+      ? matchingObservedTotalCandidates.find(
+          (candidate) => candidate.value === distinctMatchingObservedTotals[0]
+        )
+      : null;
+  const missingSelectedProvenanceLabels = Object.entries(selectedNonTotalProvenance)
+    .filter(([, present]) => !present)
+    .map(([label]) => label);
+
+  return {
+    schema: "ipad-strict-total-selection-evidence-v1",
+    deviceMode,
+    layout: {
+      detected: Boolean(layout.detected ?? deviceMode === "ipad"),
+      orientation: layout.orientation || "",
+      supported: layout.supported ?? true,
+    },
+    stage,
+    side,
+    selected: {
+      members: current.members,
+      bonus: current.bonus,
+      total: current.total,
+    },
+    selectedNonTotalProvenance,
+    selectedBonusOrigin,
+    selectedSelections: normalizedSelections,
+    observedTotalCandidates: totalPool.observedCandidates,
+    computedValidationTotal,
+    matchingObservedTotalCandidates,
+    uniqueMatchingObservedTotal: matchingObservedTotalCandidate
+      ? matchingObservedTotalCandidate.value
+      : null,
+    totalCandidateCompleteness: {
+      complete: totalPool.observedCandidates.length > 0 && !totalPool.truncated,
+      missing: totalPool.observedCandidates.length === 0,
+      truncated: totalPool.truncated,
+      candidateCap: totalPool.candidateCap,
+      rawDistinctCandidateCount: totalPool.rawDistinctCandidateCount,
+    },
+    candidateCompleteness: {
+      complete:
+        missingSelectedProvenanceLabels.length === 0 &&
+        totalPool.observedCandidates.length > 0 &&
+        !totalPool.truncated,
+      missingSelectedProvenanceLabels,
+      totalMissing: totalPool.observedCandidates.length === 0,
+      totalTruncated: totalPool.truncated,
+    },
+    provenanceSummary: {
+      selectedMemberProfileIds: {
+        member1: normalizedSelections.member1.candidate?.profileIds || [],
+        member2: normalizedSelections.member2.candidate?.profileIds || [],
+        member3: normalizedSelections.member3.candidate?.profileIds || [],
+      },
+      selectedBonusProfileIds: normalizedSelections.bonus.candidate?.profileIds || [],
+      selectedBonusOrigin,
+      matchingTotalProfileIds: matchingObservedTotalCandidate?.profileIds || [],
+      matchingTotalRawText: matchingObservedTotalCandidate?.rawText || "",
+      matchingTotalNormalizedText: matchingObservedTotalCandidate?.normalizedText || "",
+    },
+    poolSummary,
+  };
+}
+
+export function evaluateIpadStrictTotalSelection(evidence = {}) {
+  const blockReasons = [];
+  const deviceMode = evidence.deviceMode || "";
+  const layout = evidence.layout || {};
+  const selected = evidence.selected || {};
+  const selectedMembers = Array.isArray(selected.members)
+    ? selected.members.slice(0, 3).map(normalizeIpadArithmeticNumber)
+    : [0, 0, 0];
+  while (selectedMembers.length < 3) selectedMembers.push(0);
+  const selectedBonus = normalizeIpadArithmeticNumber(selected.bonus);
+  const selectedTotal = normalizeIpadArithmeticNumber(selected.total);
+  const computedValidationTotal = normalizeIpadArithmeticNumber(evidence.computedValidationTotal);
+  const matchingCandidates = Array.isArray(evidence.matchingObservedTotalCandidates)
+    ? evidence.matchingObservedTotalCandidates
+    : [];
+  const distinctMatchingValues = [...new Set(matchingCandidates.map((candidate) => candidate.value))];
+  const totalCompleteness = evidence.totalCandidateCompleteness || {};
+  const provenance = evidence.selectedNonTotalProvenance || {};
+  const missingSelectedProvenanceLabels = ["member1", "member2", "member3", "bonus"].filter(
+    (label) => !provenance[label]
+  );
+
+  if (deviceMode !== "ipad") blockReasons.push(`non-ipad-mode:${deviceMode || "unknown"}`);
+  if (layout.detected === false) blockReasons.push("ipad-layout-not-detected");
+  if (layout.orientation && layout.orientation !== "portrait") {
+    blockReasons.push(`unsupported-ipad-orientation:${layout.orientation}`);
+  }
+  if (layout.supported === false) blockReasons.push("unsupported-ipad-layout");
+  if (missingSelectedProvenanceLabels.length) {
+    blockReasons.push(`selected-non-total-field-lacks-strong-provenance:${missingSelectedProvenanceLabels.join(",")}`);
+  }
+  if (totalCompleteness.missing) blockReasons.push("missing-observed-total-candidates");
+  if (totalCompleteness.truncated) blockReasons.push("truncated-total-candidate-pool");
+  if (distinctMatchingValues.length === 0) {
+    blockReasons.push("missing-observed-total-for-current-fields");
+  } else if (distinctMatchingValues.length > 1) {
+    blockReasons.push("multiple-distinct-observed-total-matches");
+  }
+  if (selectedTotal === computedValidationTotal) blockReasons.push("already-identical");
+
+  const proposedTotal =
+    blockReasons.length === 0 && distinctMatchingValues.length === 1
+      ? distinctMatchingValues[0]
+      : null;
+  const proposal = proposedTotal
+    ? {
+        members: selectedMembers,
+        bonus: selectedBonus,
+        total: proposedTotal,
+      }
+    : null;
+  return {
+    schema: "ipad-strict-total-selection-evaluation-v1",
+    eligible: blockReasons.length === 0,
+    wouldApply: Boolean(proposal && selectedTotal !== proposedTotal),
+    computedValidationTotal,
+    matchingObservedTotalCandidates: matchingCandidates,
+    uniqueMatchingObservedTotal: proposedTotal,
+    proposedTotal,
+    proposal,
+    changedFields: proposal ? ["total"] : [],
+    blockReasons,
+    blockReason: blockReasons[0] || "",
+    candidateCompleteness: evidence.candidateCompleteness || {},
+    totalCandidateCompleteness: totalCompleteness,
+    provenanceSummary: evidence.provenanceSummary || {},
+  };
+}
+
+export function applyIpadStrictTotalSelectionRecovery(stageScores, evidenceByStageSide = {}) {
+  return {
+    stageScores,
+    productionRecovery: {
+      recovery: "ipadStrictTotalSelectionRecovery",
+      appliedCases: [],
+      note: "Diagnostic stub only; not connected to production output.",
+      evidenceByStageSide,
+    },
+  };
+}
+
 export function getFixedOcrZones(image, stage, mode) {
   mode = normalizeOcrMode(mode);
   const layout = getDeviceOcrLayout(mode);
