@@ -618,6 +618,124 @@ async function buildIpadArithmeticBrowserDiagnostics({ image, imageName, filter 
   return diagnostics;
 }
 
+function normalizeIpadDiagnosticNumber(value) {
+  const normalized = Number(String(value ?? "").replace(/[^\d-]/g, ""));
+  return Number.isFinite(normalized) ? normalized : 0;
+}
+
+function selectIpadDiagnosticCandidateByValue(pool, value) {
+  const normalizedValue = normalizeIpadDiagnosticNumber(value);
+  const candidates = Array.isArray(pool?.candidates) ? pool.candidates : [];
+  return (
+    candidates.find((candidate) => normalizeIpadDiagnosticNumber(candidate.value) === normalizedValue) ||
+    null
+  );
+}
+
+function buildIpadDiagnosticCurrentSelections(candidatePools, currentPrimary) {
+  return {
+    member1: {
+      value: currentPrimary.members[0] || 0,
+      candidate: selectIpadDiagnosticCandidateByValue(candidatePools.member1, currentPrimary.members[0] || 0),
+    },
+    member2: {
+      value: currentPrimary.members[1] || 0,
+      candidate: selectIpadDiagnosticCandidateByValue(candidatePools.member2, currentPrimary.members[1] || 0),
+    },
+    member3: {
+      value: currentPrimary.members[2] || 0,
+      candidate: selectIpadDiagnosticCandidateByValue(candidatePools.member3, currentPrimary.members[2] || 0),
+    },
+    bonus: {
+      value: currentPrimary.bonus || 0,
+      candidate:
+        normalizeIpadDiagnosticNumber(currentPrimary.bonus) === 0
+          ? null
+          : selectIpadDiagnosticCandidateByValue(candidatePools.bonus, currentPrimary.bonus || 0),
+    },
+    total: {
+      value: currentPrimary.total || 0,
+      candidate: selectIpadDiagnosticCandidateByValue(candidatePools.total, currentPrimary.total || 0),
+    },
+  };
+}
+
+function attachIpadStrictTotalSelectionEvidenceForDisplayedScores(diagnostics, displayedStageScores) {
+  if (!diagnostics?.stages || !displayedStageScores) return diagnostics;
+  const strictTotalSelectionEvidence = {
+    schema: "ipad-strict-total-selection-browser-evidence-v1",
+    note:
+      "Diagnostic-only strict total-selection evidence evaluated after iPad Tier C production recovery. Proposals are not applied to displayed OCR output.",
+    stages: {},
+    acceptedCases: [],
+  };
+  const nextDiagnostics = {
+    ...diagnostics,
+    strictTotalSelectionEvidence,
+  };
+  for (const stage of [1, 2, 3]) {
+    const stageKey = `stage${stage}`;
+    strictTotalSelectionEvidence.stages[stageKey] = {};
+    const displayedStage = displayedStageScores?.[stage] || displayedStageScores?.[stageKey] || {};
+    for (const side of ["self", "enemy"]) {
+      const sideDiagnostics = nextDiagnostics.stages?.[stageKey]?.[side];
+      if (!sideDiagnostics) continue;
+      const applied = (diagnostics.productionRecovery?.appliedCases || []).find(
+        (entry) => entry.stage === stage && entry.side === side
+      );
+      const members = Array.isArray(displayedStage[side])
+        ? displayedStage[side].slice(0, 3).map(normalizeIpadDiagnosticNumber)
+        : [0, 0, 0];
+      while (members.length < 3) members.push(0);
+      const currentPrimary = {
+        members,
+        bonus: applied
+          ? normalizeIpadDiagnosticNumber(applied.newValues?.bonus)
+          : normalizeIpadDiagnosticNumber(sideDiagnostics.currentPrimary?.bonus),
+        total: normalizeIpadDiagnosticNumber(
+          displayedStage[side === "self" ? "selfTotal" : "enemyTotal"]
+        ),
+      };
+      const currentSelections = buildIpadDiagnosticCurrentSelections(
+        sideDiagnostics.candidatePools || {},
+        currentPrimary
+      );
+      const evidence = buildIpadStrictTotalSelectionEvidence({
+        deviceMode: "ipad",
+        layout: diagnostics.detection || {},
+        stage,
+        side,
+        fieldCandidatePools: sideDiagnostics.candidatePools || {},
+        currentPrimary,
+        currentSelections,
+      });
+      const evaluation = evaluateIpadStrictTotalSelection(evidence);
+      const updatedSideDiagnostics = {
+        ...sideDiagnostics,
+        strictTotalSelectionEvidence: evidence,
+        strictTotalSelection: evaluation,
+      };
+      nextDiagnostics.stages[stageKey] = {
+        ...(nextDiagnostics.stages[stageKey] || {}),
+        [side]: updatedSideDiagnostics,
+      };
+      strictTotalSelectionEvidence.stages[stageKey][side] = {
+        imageIdentifier: diagnostics.imageIdentifier || "",
+        stage,
+        side,
+        evidence,
+        evaluation,
+      };
+      if (evaluation.wouldApply) {
+        strictTotalSelectionEvidence.acceptedCases.push(
+          strictTotalSelectionEvidence.stages[stageKey][side]
+        );
+      }
+    }
+  }
+  return nextDiagnostics;
+}
+
 import {
   API_URL,
   stages,
@@ -2648,7 +2766,7 @@ export default function Home() {
         const correctedStageScores = applyKnownOcrSetCorrections(
           ipadTierCProductionResult.stageScores
         );
-        const finalIpadArithmeticDiagnostics = {
+        let finalIpadArithmeticDiagnostics = {
           ...ipadArithmeticEvidenceData,
           note:
             "Browser-native iPad arithmetic evidence. Tier C proposals are applied only by the narrow production iPad recovery when strict guards pass.",
@@ -2664,6 +2782,11 @@ export default function Home() {
             correctedStageScores
           ),
         };
+        finalIpadArithmeticDiagnostics =
+          attachIpadStrictTotalSelectionEvidenceForDisplayedScores(
+            finalIpadArithmeticDiagnostics,
+            correctedStageScores
+          );
         if (ipadArithmeticDebug && typeof window !== "undefined") {
           window.__IPAD_ARITHMETIC_DIAGNOSTICS__ = finalIpadArithmeticDiagnostics;
         }
@@ -4597,7 +4720,7 @@ export default function Home() {
       const correctedStageScores = applyKnownOcrSetCorrections(
         ipadTierCProductionResult.stageScores
       );
-      const finalIpadArithmeticDiagnostics = ipadArithmeticEvidenceData
+      let finalIpadArithmeticDiagnostics = ipadArithmeticEvidenceData
         ? {
             ...ipadArithmeticEvidenceData,
             note:
@@ -4614,6 +4737,12 @@ export default function Home() {
               correctedStageScores
             ),
           }
+        : null;
+      finalIpadArithmeticDiagnostics = finalIpadArithmeticDiagnostics
+        ? attachIpadStrictTotalSelectionEvidenceForDisplayedScores(
+            finalIpadArithmeticDiagnostics,
+            correctedStageScores
+          )
         : null;
       if (ipadArithmeticDebug && typeof window !== "undefined") {
         window.__IPAD_ARITHMETIC_DIAGNOSTICS__ = finalIpadArithmeticDiagnostics;
