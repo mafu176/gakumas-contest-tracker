@@ -1624,6 +1624,309 @@ export function applyIpadStrictTotalSelectionRecovery(stageScores, evidenceBySta
   };
 }
 
+export const IPAD_STRICT_MEMBER2_SELECTION_RECOVERY_ID = "ipad-strict-member2-selection";
+
+const ipadStrictMember2ApprovedProfiles = new Set([
+  "baseline-score-preprocess-3x-psm7",
+  "invert-normalize-3x-psm7",
+  "white-mask-3x-psm7",
+  "ipad-grouped-number-token",
+]);
+
+function candidateHasIpadStrictMember2ApprovedProvenance(candidate = {}) {
+  const profileIds = Array.isArray(candidate.profileIds) ? candidate.profileIds : [];
+  return profileIds.some((profileId) => ipadStrictMember2ApprovedProfiles.has(profileId));
+}
+
+function summarizeIpadStrictMember2Pool(pool = {}) {
+  const candidates = Array.isArray(pool.candidates)
+    ? pool.candidates
+        .map((candidate) => normalizeIpadArithmeticCandidate(candidate, "observed"))
+        .map((candidate) => ({
+          ...summarizeIpadStrictTotalCandidate(candidate),
+          approvedProvenance: candidateHasIpadStrictMember2ApprovedProvenance(candidate),
+        }))
+    : [];
+  return {
+    key: pool.key || "",
+    fieldType: pool.fieldType || "",
+    candidateCap: Number(pool.candidateCap || 6),
+    rawDistinctCandidateCount: Number(
+      pool.rawDistinctCandidateCount ||
+        (Array.isArray(pool.candidates) ? pool.candidates.length : 0)
+    ),
+    truncated: Boolean(pool.truncated),
+    observedCandidates: candidates,
+  };
+}
+
+function selectedIpadStrictMember2FieldHasStrongProvenance({
+  label,
+  selectedValue,
+  selection,
+  pool,
+}) {
+  const value = normalizeIpadArithmeticNumber(selectedValue);
+  if (label === "bonus" && value === 0 && !selection?.candidate) {
+    return {
+      label,
+      value,
+      hasStrongProvenance: true,
+      origin: "schema-default-bonus-zero",
+      candidate: null,
+    };
+  }
+  const selectedCandidate = selection?.candidate
+    ? summarizeIpadStrictTotalCandidate(
+        normalizeIpadArithmeticCandidate(selection.candidate, "observed")
+      )
+    : null;
+  const observedCandidate =
+    selectedCandidate ||
+    summarizeIpadStrictMember2Pool(pool).observedCandidates.find(
+      (candidate) => candidate.value === value
+    ) ||
+    null;
+  return {
+    label,
+    value,
+    hasStrongProvenance: Boolean(observedCandidate),
+    origin: observedCandidate?.origin || "",
+    candidate: observedCandidate,
+  };
+}
+
+export function buildIpadStrictMember2SelectionEvidence({
+  deviceMode = "ipad",
+  layout = {},
+  stage = 0,
+  side = "",
+  fieldCandidatePools = {},
+  currentPrimary = {},
+  currentSelections = {},
+} = {}) {
+  const current = {
+    members: Array.isArray(currentPrimary.members)
+      ? currentPrimary.members.slice(0, 3).map(normalizeIpadArithmeticNumber)
+      : [0, 0, 0],
+    bonus: normalizeIpadArithmeticNumber(currentPrimary.bonus),
+    total: normalizeIpadArithmeticNumber(currentPrimary.total),
+  };
+  while (current.members.length < 3) current.members.push(0);
+
+  const member2Pool = summarizeIpadStrictMember2Pool(fieldCandidatePools.member2 || {});
+  const arithmeticComparisonMember2 =
+    current.total - current.bonus - current.members[0] - current.members[2];
+  const matchingObservedMember2Candidates = member2Pool.observedCandidates.filter(
+    (candidate) =>
+      candidate.value !== current.members[1] &&
+      candidate.value === arithmeticComparisonMember2
+  );
+  const distinctMatchingObservedMember2Values = [
+    ...new Set(matchingObservedMember2Candidates.map((candidate) => candidate.value)),
+  ];
+  const uniqueMatchingObservedMember2 =
+    distinctMatchingObservedMember2Values.length === 1
+      ? distinctMatchingObservedMember2Values[0]
+      : null;
+  const uniqueMatchingObservedMember2Candidate =
+    uniqueMatchingObservedMember2 === null
+      ? null
+      : matchingObservedMember2Candidates.find(
+          (candidate) => candidate.value === uniqueMatchingObservedMember2
+        ) || null;
+
+  const unchangedFieldProvenance = {
+    member1: selectedIpadStrictMember2FieldHasStrongProvenance({
+      label: "member1",
+      selectedValue: current.members[0],
+      selection: currentSelections.member1,
+      pool: fieldCandidatePools.member1,
+    }),
+    member3: selectedIpadStrictMember2FieldHasStrongProvenance({
+      label: "member3",
+      selectedValue: current.members[2],
+      selection: currentSelections.member3,
+      pool: fieldCandidatePools.member3,
+    }),
+    bonus: selectedIpadStrictMember2FieldHasStrongProvenance({
+      label: "bonus",
+      selectedValue: current.bonus,
+      selection: currentSelections.bonus,
+      pool: fieldCandidatePools.bonus,
+    }),
+    total: selectedIpadStrictMember2FieldHasStrongProvenance({
+      label: "total",
+      selectedValue: current.total,
+      selection: currentSelections.total,
+      pool: fieldCandidatePools.total,
+    }),
+  };
+  const missingUnchangedFieldProvenance = Object.entries(unchangedFieldProvenance)
+    .filter(([, item]) => !item.hasStrongProvenance)
+    .map(([label]) => label);
+  const member2CandidateCompleteness = {
+    complete:
+      member2Pool.observedCandidates.length > 0 &&
+      !member2Pool.truncated &&
+      member2Pool.rawDistinctCandidateCount <= member2Pool.observedCandidates.length,
+    missing: member2Pool.observedCandidates.length === 0,
+    truncated: member2Pool.truncated,
+    candidateCap: member2Pool.candidateCap,
+    rawDistinctCandidateCount: member2Pool.rawDistinctCandidateCount,
+    candidateCount: member2Pool.observedCandidates.length,
+  };
+
+  return {
+    schema: "ipad-strict-member2-selection-evidence-v1",
+    deviceMode,
+    layout: {
+      detected: Boolean(layout.detected ?? deviceMode === "ipad"),
+      orientation: layout.orientation || "",
+      supported: layout.supported ?? true,
+    },
+    stage,
+    side,
+    selected: {
+      members: current.members,
+      bonus: current.bonus,
+      total: current.total,
+    },
+    arithmeticComparisonMember2,
+    member2Pool,
+    matchingObservedMember2Candidates,
+    uniqueMatchingObservedMember2,
+    uniqueMatchingObservedMember2Candidate,
+    unchangedFieldProvenance,
+    missingUnchangedFieldProvenance,
+    member2CandidateCompleteness,
+    candidateCompleteness: {
+      complete:
+        member2CandidateCompleteness.complete &&
+        missingUnchangedFieldProvenance.length === 0,
+      member2Missing: member2CandidateCompleteness.missing,
+      member2Truncated: member2CandidateCompleteness.truncated,
+      missingUnchangedFieldProvenance,
+    },
+    provenanceSummary: {
+      unchangedFields: Object.fromEntries(
+        Object.entries(unchangedFieldProvenance).map(([label, item]) => [
+          label,
+          {
+            origin: item.origin,
+            profileIds: item.candidate?.profileIds || [],
+            rawText: item.candidate?.rawText || "",
+            normalizedText: item.candidate?.normalizedText || "",
+          },
+        ])
+      ),
+      proposedMember2ProfileIds: uniqueMatchingObservedMember2Candidate?.profileIds || [],
+      proposedMember2RawText: uniqueMatchingObservedMember2Candidate?.rawText || "",
+      proposedMember2NormalizedText:
+        uniqueMatchingObservedMember2Candidate?.normalizedText || "",
+    },
+  };
+}
+
+export function evaluateIpadStrictMember2Selection(evidence = {}) {
+  const blockReasons = [];
+  const deviceMode = evidence.deviceMode || "";
+  const layout = evidence.layout || {};
+  const selected = evidence.selected || {};
+  const selectedMembers = Array.isArray(selected.members)
+    ? selected.members.slice(0, 3).map(normalizeIpadArithmeticNumber)
+    : [0, 0, 0];
+  while (selectedMembers.length < 3) selectedMembers.push(0);
+  const selectedBonus = normalizeIpadArithmeticNumber(selected.bonus);
+  const selectedTotal = normalizeIpadArithmeticNumber(selected.total);
+  const arithmeticComparisonMember2 = normalizeIpadArithmeticNumber(
+    evidence.arithmeticComparisonMember2
+  );
+  const matchingCandidates = Array.isArray(evidence.matchingObservedMember2Candidates)
+    ? evidence.matchingObservedMember2Candidates
+    : [];
+  const distinctMatchingValues = [...new Set(matchingCandidates.map((candidate) => candidate.value))];
+  const member2Completeness = evidence.member2CandidateCompleteness || {};
+  const missingUnchanged = Array.isArray(evidence.missingUnchangedFieldProvenance)
+    ? evidence.missingUnchangedFieldProvenance
+    : [];
+  const uniqueCandidate = evidence.uniqueMatchingObservedMember2Candidate || null;
+
+  if (deviceMode !== "ipad") blockReasons.push(`non-ipad-mode:${deviceMode || "unknown"}`);
+  if (layout.detected === false) blockReasons.push("ipad-layout-not-detected");
+  if (layout.orientation && layout.orientation !== "portrait") {
+    blockReasons.push(`unsupported-ipad-orientation:${layout.orientation}`);
+  }
+  if (layout.supported === false) blockReasons.push("unsupported-ipad-layout");
+  if (missingUnchanged.length) {
+    blockReasons.push(`unchanged-field-lacks-strong-provenance:${missingUnchanged.join(",")}`);
+  }
+  if (member2Completeness.missing) blockReasons.push("missing-observed-member2-candidates");
+  if (member2Completeness.truncated || member2Completeness.complete === false) {
+    blockReasons.push("member2-pool-incomplete-or-truncated");
+  }
+  if (distinctMatchingValues.length === 0) {
+    blockReasons.push("no-observed-member2-candidate-makes-equation");
+  } else if (distinctMatchingValues.length > 1) {
+    blockReasons.push("multiple-observed-member2-candidates-make-equation");
+  }
+  if (uniqueCandidate && !uniqueCandidate.approvedProvenance) {
+    blockReasons.push("member2-candidate-provenance-not-approved");
+  }
+  if (selectedMembers[1] === arithmeticComparisonMember2) blockReasons.push("already-identical");
+
+  const proposedMember2 =
+    blockReasons.length === 0 && distinctMatchingValues.length === 1
+      ? distinctMatchingValues[0]
+      : null;
+  const proposal = proposedMember2
+    ? {
+        members: [selectedMembers[0], proposedMember2, selectedMembers[2]],
+        bonus: selectedBonus,
+        total: selectedTotal,
+      }
+    : null;
+  const assertionPass =
+    proposal &&
+    proposal.members[0] + proposal.members[1] + proposal.members[2] + proposal.bonus ===
+      proposal.total;
+
+  if (proposal && !assertionPass) blockReasons.push("assertion-equation-not-exact");
+
+  return {
+    schema: "ipad-strict-member2-selection-evaluation-v1",
+    eligible: blockReasons.length === 0,
+    wouldApply: Boolean(proposal && assertionPass && selectedMembers[1] !== proposedMember2),
+    arithmeticComparisonMember2,
+    matchingObservedMember2Candidates: matchingCandidates,
+    uniqueMatchingMember2: proposedMember2,
+    proposedMember2,
+    proposal: blockReasons.length === 0 && assertionPass ? proposal : null,
+    changedFields: blockReasons.length === 0 && assertionPass ? ["member2"] : [],
+    blockReasons,
+    blockReason: blockReasons[0] || "",
+    candidateCompleteness: evidence.candidateCompleteness || {},
+    member2CandidateCompleteness: member2Completeness,
+    unchangedFieldProvenance: evidence.unchangedFieldProvenance || {},
+    provenanceSummary: evidence.provenanceSummary || {},
+  };
+}
+
+export function applyIpadStrictMember2SelectionRecovery(stageScores, evidenceByStageSide = {}) {
+  return {
+    stageScores,
+    productionRecovery: {
+      recoveryId: IPAD_STRICT_MEMBER2_SELECTION_RECOVERY_ID,
+      enabled: false,
+      appliedCases: [],
+      rejectedCases: [],
+      evidenceByStageSide,
+      note:
+        "Diagnostic-only placeholder. Strict member2 selection is not production-enabled.",
+    },
+  };
+}
+
 export function getFixedOcrZones(image, stage, mode) {
   mode = normalizeOcrMode(mode);
   const layout = getDeviceOcrLayout(mode);

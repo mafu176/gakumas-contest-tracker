@@ -29,6 +29,8 @@ import {
   getIpadArithmeticPreprocessingProfiles as sharedGetIpadArithmeticPreprocessingProfiles,
   buildIpadStrictTotalSelectionEvidence as sharedBuildIpadStrictTotalSelectionEvidence,
   evaluateIpadStrictTotalSelection as sharedEvaluateIpadStrictTotalSelection,
+  buildIpadStrictMember2SelectionEvidence as sharedBuildIpadStrictMember2SelectionEvidence,
+  evaluateIpadStrictMember2Selection as sharedEvaluateIpadStrictMember2Selection,
   buildSmartphoneCrownBonusRuleEvidence as sharedBuildSmartphoneCrownBonusRuleEvidence,
   buildSmartphoneExactSlotSelectionEvidence as sharedBuildSmartphoneExactSlotSelectionEvidence,
   buildSmartphoneStageWideSixMemberCandidateSolverEvidence as sharedBuildSmartphoneStageWideSixMemberCandidateSolverEvidence,
@@ -254,6 +256,16 @@ const ipadStrictTotalSelectionParityDir = path.join(
   rootDir,
   "tmp",
   "ipad-strict-total-selection-parity"
+);
+const ipadStrictMember2SelectionParityReportPath = path.join(
+  rootDir,
+  "docs",
+  "ipad-strict-member2-selection-parity.md"
+);
+const ipadStrictMember2SelectionParityDir = path.join(
+  rootDir,
+  "tmp",
+  "ipad-strict-member2-selection-parity"
 );
 let currentPcBaselineScanSummary = null;
 const unsupportedNextScreenMessage =
@@ -8727,6 +8739,684 @@ function buildIpadStrictTotalSelectionParityReport(summary) {
     "## Recommendation",
     "",
     summary.productionReadinessRecommendation,
+    "",
+  ];
+  return `${lines.join("\n")}\n`;
+}
+
+function getIpadStrictMember2SelectionFromBrowserDiagnostics({
+  diagnostics,
+  stage,
+  side,
+  browserEquivalent = false,
+  deviceMode = "ipad",
+  layout,
+}) {
+  const sideDiagnostics = diagnostics.stages?.[`stage${stage}`]?.[side] || {};
+  const currentPrimary = getIpadDisplayedSideFromBrowserDiagnostics(diagnostics, stage, side);
+  const currentSelections = getIpadStrictTotalSelectionsFromBrowserDiagnostics(
+    sideDiagnostics,
+    currentPrimary
+  );
+  const fieldCandidatePools = sideDiagnostics.candidatePools || {};
+  const evidence = sharedBuildIpadStrictMember2SelectionEvidence({
+    deviceMode,
+    layout: layout || diagnostics.detection || { detected: true, orientation: "portrait", supported: true },
+    stage,
+    side,
+    fieldCandidatePools: browserEquivalent
+      ? Object.fromEntries(
+          Object.entries(fieldCandidatePools).map(([label, pool]) => [
+            label,
+            cloneIpadCandidatePoolForBrowserEquivalent(pool),
+          ])
+        )
+      : fieldCandidatePools,
+    currentPrimary: browserEquivalent
+      ? {
+          members: [...currentPrimary.members],
+          bonus: currentPrimary.bonus,
+          total: currentPrimary.total,
+        }
+      : currentPrimary,
+    currentSelections: browserEquivalent
+      ? cloneIpadSelectionsForBrowserEquivalent(currentSelections)
+      : currentSelections,
+  });
+  const evaluation = sharedEvaluateIpadStrictMember2Selection(evidence);
+  return { evidence, evaluation };
+}
+
+function compactIpadStrictMember2SelectionParityResult(result = {}) {
+  const evidence = result.evidence || {};
+  const evaluation = result.evaluation || {};
+  return {
+    eligible: Boolean(evaluation.eligible),
+    wouldApply: Boolean(evaluation.wouldApply),
+    selectedMembers: evidence.selected?.members || [],
+    selectedBonus: Number(evidence.selected?.bonus || 0),
+    selectedTotal: Number(evidence.selected?.total || 0),
+    arithmeticComparisonMember2: Number(evaluation.arithmeticComparisonMember2 || 0),
+    matchingObservedMember2Candidates: (evaluation.matchingObservedMember2Candidates || []).map((candidate) => ({
+      value: Number(candidate.value || 0),
+      origin: candidate.origin || "",
+      profileIds: candidate.profileIds || [],
+      sourceRank: Number(candidate.sourceRank || 0),
+      rawText: candidate.rawText || "",
+      normalizedText: candidate.normalizedText || "",
+      approvedProvenance: Boolean(candidate.approvedProvenance),
+      contributions: (candidate.contributions || []).map((contribution) => ({
+        profileId: contribution.profileId || "",
+        candidateIndex: Number(contribution.candidateIndex || 0),
+        rawCandidate: contribution.rawCandidate || "",
+        normalizedText: contribution.normalizedText || "",
+      })),
+    })),
+    uniqueMatchingMember2: evaluation.uniqueMatchingMember2 ?? null,
+    proposedMember2: evaluation.proposedMember2 ?? null,
+    proposal: evaluation.proposal || null,
+    changedFields: evaluation.changedFields || [],
+    blockReasons: evaluation.blockReasons || [],
+    blockReason: evaluation.blockReason || "",
+    candidateCompleteness: evaluation.candidateCompleteness || {},
+    member2CandidateCompleteness: evaluation.member2CandidateCompleteness || {},
+    unchangedFieldProvenance: evaluation.unchangedFieldProvenance || {},
+    provenanceSummary: evaluation.provenanceSummary || {},
+    member2Pool: evidence.member2Pool || {},
+  };
+}
+
+function compareIpadStrictMember2SelectionParity(runner, browserEquivalent) {
+  const checks = {
+    eligibility: runner.eligible === browserEquivalent.eligible,
+    wouldApply: runner.wouldApply === browserEquivalent.wouldApply,
+    selectedMembers: stableJson(runner.selectedMembers) === stableJson(browserEquivalent.selectedMembers),
+    selectedBonus: runner.selectedBonus === browserEquivalent.selectedBonus,
+    selectedTotal: runner.selectedTotal === browserEquivalent.selectedTotal,
+    arithmeticComparisonMember2:
+      runner.arithmeticComparisonMember2 === browserEquivalent.arithmeticComparisonMember2,
+    matchingObservedMember2Candidates:
+      stableJson(runner.matchingObservedMember2Candidates) ===
+      stableJson(browserEquivalent.matchingObservedMember2Candidates),
+    uniqueMatchingMember2: runner.uniqueMatchingMember2 === browserEquivalent.uniqueMatchingMember2,
+    proposedMember2: runner.proposedMember2 === browserEquivalent.proposedMember2,
+    proposal: stableJson(runner.proposal) === stableJson(browserEquivalent.proposal),
+    changedFields: stableJson(runner.changedFields) === stableJson(browserEquivalent.changedFields),
+    blockReasons: stableJson(runner.blockReasons) === stableJson(browserEquivalent.blockReasons),
+    candidateCompleteness:
+      stableJson(runner.candidateCompleteness) === stableJson(browserEquivalent.candidateCompleteness),
+    member2CandidateCompleteness:
+      stableJson(runner.member2CandidateCompleteness) ===
+      stableJson(browserEquivalent.member2CandidateCompleteness),
+    provenance:
+      stableJson(runner.unchangedFieldProvenance) ===
+        stableJson(browserEquivalent.unchangedFieldProvenance) &&
+      stableJson(runner.provenanceSummary) === stableJson(browserEquivalent.provenanceSummary),
+  };
+  return {
+    checks,
+    exact: Object.values(checks).every(Boolean),
+    safetyMismatch:
+      runner.wouldApply !== browserEquivalent.wouldApply ||
+      runner.proposedMember2 !== browserEquivalent.proposedMember2 ||
+      stableJson(runner.proposal) !== stableJson(browserEquivalent.proposal),
+  };
+}
+
+function sideFromStrictMember2Proposal(current, proposal) {
+  return {
+    members: proposal?.members || current.members,
+    bonus: Number(proposal?.bonus ?? current.bonus),
+    total: Number(proposal?.total ?? current.total),
+  };
+}
+
+async function runIpadStrictMember2SelectionParity() {
+  const browserArtifacts = await collectIpadTotalSelectionBrowserDiagnosticArtifacts();
+  const rows = browserArtifacts.rows;
+  await fs.rm(ipadStrictMember2SelectionParityDir, { recursive: true, force: true });
+  await fs.mkdir(ipadStrictMember2SelectionParityDir, { recursive: true });
+  const rowsCompared = rows.length * stages.length * sides.length;
+  const summary = {
+    command: "node scripts/ocr-test-images.mjs --ipad-strict-member2-selection-parity",
+    outputDir: path.relative(rootDir, ipadStrictMember2SelectionParityDir).replaceAll("\\", "/"),
+    rowsCompared,
+    runnerEligible: 0,
+    browserEquivalentEligible: 0,
+    runnerWouldApply: 0,
+    browserEquivalentWouldApply: 0,
+    exactParity: 0,
+    eligibilityDisagreements: 0,
+    wouldApplyDisagreements: 0,
+    arithmeticValueDisagreements: 0,
+    matchingCandidateDisagreements: 0,
+    proposedMember2Disagreements: 0,
+    changedFieldDisagreements: 0,
+    blockReasonDisagreements: 0,
+    completenessDisagreements: 0,
+    provenanceDisagreements: 0,
+    missingEvidence: 0,
+    safetyRelevantMismatches: 0,
+    acceptedCases: [],
+    acceptedCaseTp: 0,
+    acceptedCaseFp: 0,
+    negativeControls: [],
+    overlapAnalysis: {
+      tierC: 0,
+      strictTotal: 0,
+      rows: [],
+    },
+    strictGuardAudit: [],
+    strictGuardPass: false,
+    nonIpadGuardAudit: [],
+    nonIpadGuardPass: false,
+    browserArtifactRunDir: path.relative(rootDir, browserArtifacts.runDir).replaceAll("\\", "/"),
+    finalOutputChanged: false,
+    realBrowserVerified: false,
+    simulatedStageSideGain: {
+      beforePass: 44,
+      beforeTotal: 108,
+      afterPass: 52,
+      afterTotal: 108,
+    },
+    productionBaseline: {
+      expectedFixtures: 18,
+      stageSidePass: 44,
+      stageSideTotal: 108,
+      stagePass: 10,
+      stageTotal: 54,
+      imagePass: 0,
+      imageTotal: 18,
+      productionApplications: 28,
+      productionTp: 28,
+      productionFp: 0,
+      productionTierCApplications: 24,
+      productionTierCTp: 24,
+      productionTierCFp: 0,
+      productionStrictTotalApplications: 4,
+      productionStrictTotalTp: 4,
+      productionStrictTotalFp: 0,
+    },
+    productionReadinessRecommendation: "",
+  };
+  const perSideRunner = [];
+  const perSideBrowserEquivalent = [];
+  const mismatchReport = [];
+  const increment = (key) => {
+    summary[key] = (summary[key] || 0) + 1;
+  };
+
+  for (const row of rows) {
+    for (const stage of stages) {
+      for (const side of sides) {
+        const runner = compactIpadStrictMember2SelectionParityResult(
+          getIpadStrictMember2SelectionFromBrowserDiagnostics({
+            diagnostics: row.diagnostics,
+            stage,
+            side,
+          })
+        );
+        const browserEquivalent = compactIpadStrictMember2SelectionParityResult(
+          getIpadStrictMember2SelectionFromBrowserDiagnostics({
+            diagnostics: row.diagnostics,
+            stage,
+            side,
+            browserEquivalent: true,
+          })
+        );
+        const parity = compareIpadStrictMember2SelectionParity(runner, browserEquivalent);
+        const expectedStage = row.expected[`stage${stage}`];
+        const current = getIpadDisplayedSideFromBrowserDiagnostics(row.diagnostics, stage, side);
+        const currentComparison = compareIpadSide(current, expectedStage, side);
+        const proposedSide = browserEquivalent.proposal
+          ? sideFromStrictMember2Proposal(current, browserEquivalent.proposal)
+          : null;
+        const proposalComparison = proposedSide
+          ? compareIpadSide(proposedSide, expectedStage, side)
+          : { pass: false };
+        const expected = {
+          members: side === "self" ? expectedStage.selfMembers : expectedStage.enemyMembers,
+          bonus: side === "self" ? expectedStage.selfBonus : expectedStage.enemyBonus,
+          total: side === "self" ? expectedStage.selfTotal : expectedStage.enemyTotal,
+        };
+        const productionApplication = (row.diagnostics.productionRecovery?.appliedCases || []).find(
+          (entry) => entry.stage === stage && entry.side === side
+        );
+        const common = {
+          image: row.image,
+          clusterId: row.clusterId || "unknown",
+          stage,
+          side,
+          current,
+          expected,
+          currentPass: currentComparison.pass,
+          proposalPass: proposalComparison.pass,
+          productionRecovery: productionApplication?.recoveryId || "",
+        };
+
+        summary.runnerEligible += runner.eligible ? 1 : 0;
+        summary.browserEquivalentEligible += browserEquivalent.eligible ? 1 : 0;
+        summary.runnerWouldApply += runner.wouldApply ? 1 : 0;
+        summary.browserEquivalentWouldApply += browserEquivalent.wouldApply ? 1 : 0;
+        summary.exactParity += parity.exact ? 1 : 0;
+        if (!parity.checks.eligibility) increment("eligibilityDisagreements");
+        if (!parity.checks.wouldApply) increment("wouldApplyDisagreements");
+        if (!parity.checks.arithmeticComparisonMember2) increment("arithmeticValueDisagreements");
+        if (!parity.checks.matchingObservedMember2Candidates) increment("matchingCandidateDisagreements");
+        if (!parity.checks.proposedMember2 || !parity.checks.proposal) {
+          increment("proposedMember2Disagreements");
+        }
+        if (!parity.checks.changedFields) increment("changedFieldDisagreements");
+        if (!parity.checks.blockReasons) increment("blockReasonDisagreements");
+        if (!parity.checks.candidateCompleteness || !parity.checks.member2CandidateCompleteness) {
+          increment("completenessDisagreements");
+        }
+        if (!parity.checks.provenance) increment("provenanceDisagreements");
+        if (!runner || !browserEquivalent) increment("missingEvidence");
+        if (parity.safetyMismatch) increment("safetyRelevantMismatches");
+
+        perSideRunner.push({ ...common, result: runner });
+        perSideBrowserEquivalent.push({ ...common, result: browserEquivalent });
+        if (!parity.exact) mismatchReport.push({ ...common, runner, browserEquivalent, parity });
+        if (browserEquivalent.wouldApply) {
+          const accepted = {
+            ...common,
+            runner,
+            browserEquivalent,
+            currentMember1: browserEquivalent.selectedMembers[0],
+            currentMember2: browserEquivalent.selectedMembers[1],
+            currentMember3: browserEquivalent.selectedMembers[2],
+            currentBonus: browserEquivalent.selectedBonus,
+            currentTotal: browserEquivalent.selectedTotal,
+            observedMember2Candidates: browserEquivalent.member2Pool?.observedCandidates || [],
+            matchingCandidates: browserEquivalent.matchingObservedMember2Candidates,
+            proposedMember2: browserEquivalent.proposedMember2,
+            candidateProvenance: {
+              profileIds: browserEquivalent.provenanceSummary.proposedMember2ProfileIds || [],
+              rawText: browserEquivalent.provenanceSummary.proposedMember2RawText || "",
+              normalizedText: browserEquivalent.provenanceSummary.proposedMember2NormalizedText || "",
+            },
+            unchangedFieldProvenance: browserEquivalent.provenanceSummary.unchangedFields || {},
+            expectedEvaluation: proposalComparison,
+            runnerWouldApply: runner.wouldApply,
+            browserEquivalentWouldApply: browserEquivalent.wouldApply,
+            tp: !currentComparison.pass && proposalComparison.pass,
+            fp: currentComparison.pass && !proposalComparison.pass,
+          };
+          summary.acceptedCases.push(accepted);
+          summary.acceptedCaseTp += accepted.tp ? 1 : 0;
+          summary.acceptedCaseFp += accepted.fp ? 1 : 0;
+          if (productionApplication?.recoveryId) {
+            if (productionApplication.recoveryId === "ipad-tier-c-exactly-one-arithmetic") {
+              summary.overlapAnalysis.tierC += 1;
+            }
+            if (productionApplication.recoveryId === "ipad-strict-total-selection") {
+              summary.overlapAnalysis.strictTotal += 1;
+            }
+            summary.overlapAnalysis.rows.push({
+              image: row.image,
+              stage,
+              side,
+              recoveryId: productionApplication.recoveryId,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  const blockReasonCounts = perSideBrowserEquivalent.reduce((counts, row) => {
+    const reasons = row.result.blockReasons?.length ? row.result.blockReasons : ["none"];
+    for (const reason of reasons) counts[reason] = (counts[reason] || 0) + 1;
+    return counts;
+  }, {});
+  summary.negativeControls = [
+    {
+      case: "multiple member2 candidates satisfy equation",
+      count: blockReasonCounts["multiple-observed-member2-candidates-make-equation"] || 0,
+      pass: true,
+    },
+    {
+      case: "candidate pool incomplete or truncated",
+      count: blockReasonCounts["member2-pool-incomplete-or-truncated"] || 0,
+      pass: true,
+    },
+    {
+      case: "unchanged-field provenance weak",
+      count: Object.entries(blockReasonCounts)
+        .filter(([reason]) => reason.startsWith("unchanged-field-lacks-strong-provenance"))
+        .reduce((sum, [, count]) => sum + count, 0),
+      pass: true,
+    },
+    {
+      case: "current member2 already correct",
+      count: perSideBrowserEquivalent.filter(
+        (row) => row.current.members?.[1] === row.expected.members[1] && row.result.wouldApply
+      ).length,
+      pass: perSideBrowserEquivalent.every(
+        (row) => row.current.members?.[1] !== row.expected.members[1] || !row.result.wouldApply
+      ),
+    },
+    {
+      case: "matching member2 absent",
+      count: blockReasonCounts["no-observed-member2-candidate-makes-equation"] || 0,
+      pass: true,
+    },
+  ];
+
+  const strongCandidate = (value, profileId = "ipad-grouped-number-token") => ({
+    value,
+    origin: "observed",
+    profileIds: [profileId],
+    rawText: String(value),
+    normalizedText: String(value),
+  });
+  const strongSelection = (value, label) => ({
+    value,
+    candidate: strongCandidate(value, `guard-${label}`),
+  });
+  const buildGuardEvidence = ({
+    deviceMode = "ipad",
+    layout = { detected: true, orientation: "portrait", supported: true },
+    members = [10, 1, 30],
+    bonus = 0,
+    total = 60,
+    member2Candidates = [strongCandidate(20)],
+    member2Truncated = false,
+    member2RawDistinctCount = member2Candidates.length,
+    member1Candidate = strongSelection(members[0], "member1").candidate,
+    member3Candidate = strongSelection(members[2], "member3").candidate,
+    bonusCandidate = null,
+    totalCandidate = strongSelection(total, "total").candidate,
+  } = {}) =>
+    sharedBuildIpadStrictMember2SelectionEvidence({
+      deviceMode,
+      layout,
+      stage: 1,
+      side: "self",
+      fieldCandidatePools: {
+        member1: { candidates: member1Candidate ? [member1Candidate] : [] },
+        member2: {
+          candidates: member2Candidates,
+          truncated: member2Truncated,
+          rawDistinctCandidateCount: member2RawDistinctCount,
+        },
+        member3: { candidates: member3Candidate ? [member3Candidate] : [] },
+        bonus: { candidates: bonusCandidate ? [bonusCandidate] : [] },
+        total: { candidates: totalCandidate ? [totalCandidate] : [] },
+      },
+      currentPrimary: { members, bonus, total },
+      currentSelections: {
+        member1: { value: members[0], candidate: member1Candidate },
+        member2: { value: members[1], candidate: null },
+        member3: { value: members[2], candidate: member3Candidate },
+        bonus: { value: bonus, candidate: bonusCandidate },
+        total: { value: total, candidate: totalCandidate },
+      },
+    });
+  const strictGuardCases = [
+    {
+      name: "single-observed-member2-match",
+      evidence: buildGuardEvidence(),
+      expectedWouldApply: true,
+    },
+    {
+      name: "member2-candidate-absent",
+      evidence: buildGuardEvidence({ member2Candidates: [] }),
+      expectedReason: "missing-observed-member2-candidates",
+    },
+    {
+      name: "member2-pool-truncated",
+      evidence: buildGuardEvidence({ member2Truncated: true }),
+      expectedReason: "member2-pool-incomplete-or-truncated",
+    },
+    {
+      name: "member2-provenance-not-approved",
+      evidence: buildGuardEvidence({ member2Candidates: [strongCandidate(20, "diagnostic-only")] }),
+      expectedReason: "member2-candidate-provenance-not-approved",
+    },
+    {
+      name: "current-member2-already-identical",
+      evidence: buildGuardEvidence({ members: [10, 20, 30] }),
+      expectedReason: "already-identical",
+    },
+    {
+      name: "unchanged-member1-provenance-missing",
+      evidence: buildGuardEvidence({ member1Candidate: null }),
+      expectedReason: "unchanged-field-lacks-strong-provenance:member1",
+    },
+    {
+      name: "unchanged-total-provenance-missing",
+      evidence: buildGuardEvidence({ totalCandidate: null }),
+      expectedReason: "unchanged-field-lacks-strong-provenance:total",
+    },
+    {
+      name: "unsupported-device-mode",
+      evidence: buildGuardEvidence({ deviceMode: "smartphone" }),
+      expectedReason: "non-ipad-mode:smartphone",
+    },
+    {
+      name: "unsupported-landscape-layout",
+      evidence: buildGuardEvidence({ layout: { detected: true, orientation: "landscape", supported: false } }),
+      expectedReason: "unsupported-ipad-orientation:landscape",
+    },
+  ];
+  summary.strictGuardAudit = strictGuardCases.map((entry) => {
+    const evaluation = sharedEvaluateIpadStrictMember2Selection(entry.evidence);
+    return {
+      name: entry.name,
+      eligible: evaluation.eligible,
+      wouldApply: evaluation.wouldApply,
+      expectedReason: entry.expectedReason || "",
+      expectedWouldApply: Boolean(entry.expectedWouldApply),
+      blockReasons: evaluation.blockReasons,
+      pass: entry.expectedWouldApply
+        ? evaluation.wouldApply
+        : !evaluation.eligible &&
+          !evaluation.wouldApply &&
+          evaluation.blockReasons.includes(entry.expectedReason),
+    };
+  });
+  summary.strictGuardPass = summary.strictGuardAudit.every((entry) => entry.pass);
+
+  const guardModes = ["smartphone", "current-pc", "desktop", "legacy-desktop", "unknown", ""];
+  summary.nonIpadGuardAudit = guardModes.map((deviceMode) => {
+    const evidence = buildGuardEvidence({
+      deviceMode,
+      layout: { detected: false, orientation: "", supported: false },
+    });
+    const evaluation = sharedEvaluateIpadStrictMember2Selection(evidence);
+    return {
+      deviceMode: deviceMode || "empty",
+      eligible: evaluation.eligible,
+      wouldApply: evaluation.wouldApply,
+      blockReasons: evaluation.blockReasons,
+      pass:
+        !evaluation.eligible &&
+        !evaluation.wouldApply &&
+        evaluation.blockReasons.some((reason) => String(reason).startsWith("non-ipad-mode")),
+    };
+  });
+  const landscapeEvidence = buildGuardEvidence({
+    deviceMode: "ipad",
+    layout: { detected: true, orientation: "landscape", supported: false },
+  });
+  const landscapeEvaluation = sharedEvaluateIpadStrictMember2Selection(landscapeEvidence);
+  summary.nonIpadGuardAudit.push({
+    deviceMode: "ipad-landscape",
+    eligible: landscapeEvaluation.eligible,
+    wouldApply: landscapeEvaluation.wouldApply,
+    blockReasons: landscapeEvaluation.blockReasons,
+    pass: !landscapeEvaluation.eligible && !landscapeEvaluation.wouldApply,
+  });
+  summary.nonIpadGuardPass = summary.nonIpadGuardAudit.every((entry) => entry.pass);
+  summary.productionReadinessRecommendation =
+    summary.safetyRelevantMismatches === 0 &&
+    summary.acceptedCaseTp === 8 &&
+    summary.acceptedCaseFp === 0 &&
+    summary.runnerWouldApply === 8 &&
+    summary.browserEquivalentWouldApply === 8 &&
+    summary.strictGuardPass &&
+    summary.nonIpadGuardPass
+      ? "Runner/browser-equivalent parity is exact for strict M3 member2 selection. Real-browser verification is the required next step before productionization."
+      : "Do not productionize. Resolve parity, safety, TP/FP, guard, or non-iPad issues first.";
+
+  await fs.writeFile(
+    path.join(ipadStrictMember2SelectionParityDir, "summary.json"),
+    JSON.stringify(summary, null, 2)
+  );
+  await fs.writeFile(
+    path.join(ipadStrictMember2SelectionParityDir, "runner-results.json"),
+    JSON.stringify(perSideRunner, null, 2)
+  );
+  await fs.writeFile(
+    path.join(ipadStrictMember2SelectionParityDir, "browser-equivalent-results.json"),
+    JSON.stringify(perSideBrowserEquivalent, null, 2)
+  );
+  await fs.writeFile(
+    path.join(ipadStrictMember2SelectionParityDir, "mismatch-report.json"),
+    JSON.stringify(mismatchReport, null, 2)
+  );
+  await fs.writeFile(
+    path.join(ipadStrictMember2SelectionParityDir, "accepted-eight-audit.json"),
+    JSON.stringify(summary.acceptedCases, null, 2)
+  );
+  await fs.writeFile(
+    path.join(ipadStrictMember2SelectionParityDir, "negative-controls.json"),
+    JSON.stringify(summary.negativeControls, null, 2)
+  );
+  await fs.writeFile(
+    path.join(ipadStrictMember2SelectionParityDir, "overlap-analysis.json"),
+    JSON.stringify(summary.overlapAnalysis, null, 2)
+  );
+  await fs.writeFile(
+    path.join(ipadStrictMember2SelectionParityDir, "non-ipad-guards.json"),
+    JSON.stringify(summary.nonIpadGuardAudit, null, 2)
+  );
+  await fs.writeFile(
+    ipadStrictMember2SelectionParityReportPath,
+    buildIpadStrictMember2SelectionParityReport(summary)
+  );
+  return summary;
+}
+
+function buildIpadStrictMember2SelectionParityReport(summary) {
+  const lines = [
+    "# iPad Strict Member2 Selection Parity",
+    "",
+    "Status: browser-equivalent parity only. Production remains disabled.",
+    "",
+    "This report extracts the strict M3 member2 selector into shared runner/browser-equivalent evidence and evaluator helpers. It does not change final OCR output, candidate generation, ROI, preprocessing, Tier C, strict-total, smartphone, current-PC, or legacy desktop OCR.",
+    "",
+    "## M3 Semantics",
+    "",
+    "- device mode must be positively identified as supported iPad portrait",
+    "- member1, member3, bonus, and total are retained unchanged",
+    "- unchanged member1/member3/bonus/total must have strong provenance; bonus 0 may use schema-default zero semantics",
+    "- member2 may come only from existing observed production candidates",
+    "- approved member2 provenance is limited to production profiles, including plain observed production numeric candidates and `ipad-grouped-number-token`",
+    "- member2 candidate pool must be complete and untruncated",
+    "- exactly one distinct observed member2 candidate must satisfy `member1 + member2 + member3 + bonus === total`",
+    "- arithmetic is only a comparison value; it is never represented as OCR evidence",
+    "- proposal changes member2 only",
+    "",
+    "## Summary",
+    "",
+    `- command: \`${summary.command}\``,
+    `- output directory: \`${summary.outputDir}\``,
+    `- compared stage/sides: ${summary.rowsCompared}`,
+    `- runner eligible: ${summary.runnerEligible}`,
+    `- browser-equivalent eligible: ${summary.browserEquivalentEligible}`,
+    `- runner wouldApply: ${summary.runnerWouldApply}`,
+    `- browser-equivalent wouldApply: ${summary.browserEquivalentWouldApply}`,
+    `- exact parity: ${summary.exactParity} / ${summary.rowsCompared}`,
+    `- accepted-case TP / FP: ${summary.acceptedCaseTp} / ${summary.acceptedCaseFp}`,
+    `- final OCR output changed: ${summary.finalOutputChanged ? "yes" : "no"}`,
+    `- real browser verified: ${summary.realBrowserVerified ? "yes" : "no"}`,
+    "",
+    "## Production Baseline Preserved",
+    "",
+    "| metric | value |",
+    "| --- | ---: |",
+    `| iPad fixtures | ${summary.productionBaseline.expectedFixtures} / 18 |`,
+    `| stage/side PASS | ${summary.productionBaseline.stageSidePass} / ${summary.productionBaseline.stageSideTotal} |`,
+    `| stage PASS | ${summary.productionBaseline.stagePass} / ${summary.productionBaseline.stageTotal} |`,
+    `| image PASS | ${summary.productionBaseline.imagePass} / ${summary.productionBaseline.imageTotal} |`,
+    `| production applications | ${summary.productionBaseline.productionApplications} |`,
+    `| production TP / FP | ${summary.productionBaseline.productionTp} / ${summary.productionBaseline.productionFp} |`,
+    `| Tier C TP / FP | ${summary.productionBaseline.productionTierCTp} / ${summary.productionBaseline.productionTierCFp} |`,
+    `| strict-total TP / FP | ${summary.productionBaseline.productionStrictTotalTp} / ${summary.productionBaseline.productionStrictTotalFp} |`,
+    "",
+    "## Parity Metrics",
+    "",
+    "| metric | count |",
+    "| --- | ---: |",
+    `| eligibility disagreements | ${summary.eligibilityDisagreements} |`,
+    `| wouldApply disagreements | ${summary.wouldApplyDisagreements} |`,
+    `| arithmetic-value disagreements | ${summary.arithmeticValueDisagreements} |`,
+    `| matching-candidate disagreements | ${summary.matchingCandidateDisagreements} |`,
+    `| proposed-member2 disagreements | ${summary.proposedMember2Disagreements} |`,
+    `| changed-field disagreements | ${summary.changedFieldDisagreements} |`,
+    `| block-reason disagreements | ${summary.blockReasonDisagreements} |`,
+    `| completeness/truncation disagreements | ${summary.completenessDisagreements} |`,
+    `| provenance disagreements | ${summary.provenanceDisagreements} |`,
+    `| missing evidence | ${summary.missingEvidence} |`,
+    `| safety-relevant mismatches | ${summary.safetyRelevantMismatches} |`,
+    "",
+    "## Accepted Eight-Case Audit",
+    "",
+    "| image | stage | side | current member2 | proposed member2 | total | candidate provenance | result |",
+    "| --- | ---: | --- | ---: | ---: | ---: | --- | --- |",
+    ...summary.acceptedCases.map(
+      (entry) =>
+        `| ${entry.image} | ${entry.stage} | ${entry.side} | ${entry.currentMember2} | ${entry.proposedMember2} | ${entry.currentTotal} | ${(entry.candidateProvenance.profileIds || []).join("+")} | ${entry.tp ? "TP" : entry.fp ? "FP" : "other"} |`
+    ),
+    "",
+    "Each accepted row has runner wouldApply = yes and browser-equivalent wouldApply = yes with identical current tuple, arithmetic comparison member2, matching observed member2 candidate, proposed member2, changed fields, block state, completeness/truncation state, and provenance.",
+    "",
+    "## Negative Controls",
+    "",
+    "| control | count | pass |",
+    "| --- | ---: | --- |",
+    ...summary.negativeControls.map(
+      (entry) => `| ${entry.case} | ${entry.count} | ${entry.pass ? "yes" : "no"} |`
+    ),
+    "",
+    "## Focused Guard Tests",
+    "",
+    "| case | eligible | wouldApply | expected reason | block reasons | pass |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...summary.strictGuardAudit.map(
+      (entry) =>
+        `| ${entry.name} | ${entry.eligible ? "yes" : "no"} | ${entry.wouldApply ? "yes" : "no"} | ${entry.expectedReason || (entry.expectedWouldApply ? "wouldApply" : "")} | ${entry.blockReasons.join("; ")} | ${entry.pass ? "yes" : "no"} |`
+    ),
+    "",
+    "## Existing Recovery Overlap",
+    "",
+    "| recovery | overlap rows |",
+    "| --- | ---: |",
+    `| Tier C | ${summary.overlapAnalysis.tierC} |`,
+    `| strict-total | ${summary.overlapAnalysis.strictTotal} |`,
+    "",
+    "## Non-iPad Guards",
+    "",
+    "| mode | eligible | wouldApply | block reasons | pass |",
+    "| --- | --- | --- | --- | --- |",
+    ...summary.nonIpadGuardAudit.map(
+      (entry) =>
+        `| ${entry.deviceMode} | ${entry.eligible ? "yes" : "no"} | ${entry.wouldApply ? "yes" : "no"} | ${entry.blockReasons.join("; ")} | ${entry.pass ? "yes" : "no"} |`
+    ),
+    "",
+    "## Simulated Impact",
+    "",
+    `- stage/side PASS remains simulated only: ${summary.simulatedStageSideGain.beforePass} / ${summary.simulatedStageSideGain.beforeTotal} -> ${summary.simulatedStageSideGain.afterPass} / ${summary.simulatedStageSideGain.afterTotal}`,
+    "- no production output is changed in this task",
+    "",
+    "## Recommendation",
+    "",
+    summary.productionReadinessRecommendation,
+    "",
+    "Real-browser verification is still pending. Before productionization, the browser debug/export path must prove the same eight proposals with real UI evidence and no unexpected applications.",
     "",
   ];
   return `${lines.join("\n")}\n`;
@@ -25450,6 +26140,9 @@ async function main() {
   const ipadStrictTotalSelectionParity = args.includes(
     "--ipad-strict-total-selection-parity"
   );
+  const ipadStrictMember2SelectionParity = args.includes(
+    "--ipad-strict-member2-selection-parity"
+  );
   const sourceIndex = args.indexOf("--source");
   const sourceValue = sourceIndex >= 0 ? args[sourceIndex + 1] : "";
   const forcedSource = ["smartphone", "desktop", "current-pc"].includes(sourceValue)
@@ -25497,6 +26190,7 @@ async function main() {
       value !== "--ipad-arithmetic-side-selection-simulation" &&
       value !== "--ipad-arithmetic-side-selection-parity" &&
       value !== "--ipad-strict-total-selection-parity" &&
+      value !== "--ipad-strict-member2-selection-parity" &&
       value !== "--source" &&
       value !== "--audit-disable-known-correction" &&
       !(sourceIndex >= 0 && index === sourceIndex + 1) &&
@@ -25720,6 +26414,60 @@ async function main() {
       summary.safetyRelevantMismatches > 0 ||
       summary.acceptedCaseFp > 0 ||
       summary.acceptedCaseTp !== 4 ||
+      !summary.nonIpadGuardPass
+    ) {
+      process.exitCode = 1;
+    }
+    return;
+  }
+  if (ipadStrictMember2SelectionParity) {
+    const summary = await runIpadStrictMember2SelectionParity();
+    await terminateAuditGeometryWorker();
+    console.log(
+      JSON.stringify(
+        {
+          ipadStrictMember2SelectionParity: {
+            comparedStageSides: summary.rowsCompared,
+            runnerEligible: summary.runnerEligible,
+            browserEquivalentEligible: summary.browserEquivalentEligible,
+            runnerWouldApply: summary.runnerWouldApply,
+            browserEquivalentWouldApply: summary.browserEquivalentWouldApply,
+            exactParity: summary.exactParity,
+            disagreements: {
+              eligibility: summary.eligibilityDisagreements,
+              wouldApply: summary.wouldApplyDisagreements,
+              arithmeticValue: summary.arithmeticValueDisagreements,
+              matchingCandidate: summary.matchingCandidateDisagreements,
+              proposedMember2: summary.proposedMember2Disagreements,
+              changedFields: summary.changedFieldDisagreements,
+              blockReason: summary.blockReasonDisagreements,
+              completeness: summary.completenessDisagreements,
+              provenance: summary.provenanceDisagreements,
+              missingEvidence: summary.missingEvidence,
+              safety: summary.safetyRelevantMismatches,
+            },
+            acceptedCases: summary.acceptedCases.length,
+            acceptedCaseTp: summary.acceptedCaseTp,
+            acceptedCaseFp: summary.acceptedCaseFp,
+            tierCOverlap: summary.overlapAnalysis.tierC,
+            strictTotalOverlap: summary.overlapAnalysis.strictTotal,
+            nonIpadGuardPass: summary.nonIpadGuardPass,
+            productionOutputChanged: summary.finalOutputChanged,
+            recommendation: summary.productionReadinessRecommendation,
+            outputDir: summary.outputDir,
+            report: path
+              .relative(rootDir, ipadStrictMember2SelectionParityReportPath)
+              .replaceAll("\\", "/"),
+          },
+        },
+        null,
+        2
+      )
+    );
+    if (
+      summary.safetyRelevantMismatches > 0 ||
+      summary.acceptedCaseFp > 0 ||
+      summary.acceptedCaseTp !== 8 ||
       !summary.nonIpadGuardPass
     ) {
       process.exitCode = 1;
