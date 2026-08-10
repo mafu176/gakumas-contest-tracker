@@ -11,7 +11,7 @@ const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, "..");
 const ipadImageDir = path.join(rootDir, "regression-test", "ipad");
 const ipadExpectedDir = path.join(rootDir, "regression-test", "expected-ipad");
-const artifactDir = path.join(rootDir, "tmp", "ipad-browser-production-verification");
+const artifactDir = path.join(rootDir, "tmp", "ipad-expanded-baseline");
 const strictTotalBrowserVerificationDir = path.join(
   rootDir,
   "tmp",
@@ -29,31 +29,12 @@ const sides = ["self", "enemy"];
 const tierCRecoveryId = "ipad-tier-c-exactly-one-arithmetic";
 const strictTotalRecoveryId = "ipad-strict-total-selection";
 const strictMember2RecoveryId = "ipad-strict-member2-selection";
-const originalIpadFixtureFilenames = new Set([
-  "IMG_0264.png",
-  "IMG_0270.png",
-  "IMG_0278.png",
-  "IMG_0283.png",
-  "IMG_0287.png",
-  "IMG_0296.png",
-  "IMG_0300.png",
-  "IMG_0306.png",
-  "IMG_0317.png",
-  "IMG_0322.png",
-  "IMG_0326.png",
-  "IMG_0332.png",
-  "IMG_0337.png",
-  "IMG_0491.png",
-  "IMG_0497.png",
-  "IMG_0792.png",
-  "IMG_0796.png",
-  "IMG_0802.png",
-]);
 
 function parseArgs() {
   const runsIndex = process.argv.indexOf("--runs");
   const portIndex = process.argv.indexOf("--port");
   const baseUrlIndex = process.argv.indexOf("--base-url");
+  const onlyIndex = process.argv.indexOf("--only");
   return {
     runs: Math.max(
       1,
@@ -65,6 +46,15 @@ function parseArgs() {
         ? process.argv[baseUrlIndex + 1]
         : process.env.IPAD_PRODUCTION_VERIFICATION_BASE_URL || "",
     resume: process.argv.includes("--resume"),
+    only:
+      onlyIndex >= 0 && process.argv[onlyIndex + 1]
+        ? new Set(
+            process.argv[onlyIndex + 1]
+              .split(",")
+              .map((value) => value.trim())
+              .filter(Boolean)
+          )
+        : null,
   };
 }
 
@@ -282,7 +272,6 @@ async function collectIpadFixtures() {
   const manifest = await loadJson(path.join(ipadExpectedDir, "manifest.json"));
   const rows = [];
   for (const entry of manifest.images || []) {
-    if (!originalIpadFixtureFilenames.has(entry.filename)) continue;
     if (entry.expectedStatus !== "complete") continue;
     const filename = entry.filename;
     const expectedPath = path.join(ipadExpectedDir, entry.expectedFixture || filename.replace(/\.png$/i, ".json"));
@@ -296,7 +285,7 @@ async function collectIpadFixtures() {
       expected: await loadJson(expectedPath),
     });
   }
-  if (rows.length !== 18) throw new Error(`Expected exactly 18 iPad fixtures, found ${rows.length}`);
+  if (rows.length === 0) throw new Error("No complete iPad fixtures found in manifest.");
   return rows;
 }
 
@@ -578,7 +567,9 @@ async function runOnce({ runIndex, browser, baseUrl, rows, expectedApplications,
   const expectedStrictByKey = new Map(
     expectedApplications.map((entry) => [`${entry.image}|${entry.stage}|${entry.side}`, entry])
   );
-  const strictTotalAgreement = strictTotalApplications.map((application) => {
+  const strictTotalAgreement = strictTotalApplications
+    .filter((application) => expectedStrictByKey.has(`${application.image}|${application.stage}|${application.side}`))
+    .map((application) => {
     const expected = expectedStrictByKey.get(`${application.image}|${application.stage}|${application.side}`);
     const expectedProfileIds = expected?.observedTotalCandidate?.profileIds || [];
     return {
@@ -598,8 +589,10 @@ async function runOnce({ runIndex, browser, baseUrl, rows, expectedApplications,
       actual: application,
       expected,
     };
-  });
-  const strictMember2Agreement = strictMember2Applications.map((application) => {
+    });
+  const strictMember2Agreement = strictMember2Applications
+    .filter((application) => expectedStrictByKey.has(`${application.image}|${application.stage}|${application.side}`))
+    .map((application) => {
     const expected = expectedStrictByKey.get(`${application.image}|${application.stage}|${application.side}`);
     const expectedProfileIds = expected?.observedMember2Candidate?.profileIds || [];
     return {
@@ -620,7 +613,7 @@ async function runOnce({ runIndex, browser, baseUrl, rows, expectedApplications,
       actual: application,
       expected,
     };
-  });
+    });
   const summary = {
     runIndex,
     imagesProcessed: imageResults.length,
@@ -739,7 +732,13 @@ async function main() {
   }
   await fs.mkdir(artifactDir, { recursive: true });
 
-  const rows = await collectIpadFixtures();
+  const allRows = await collectIpadFixtures();
+  const rows = args.only
+    ? allRows.filter((row) => args.only.has(row.filename) || args.only.has(path.parse(row.filename).name))
+    : allRows;
+  if (args.only && rows.length === 0) {
+    throw new Error(`--only did not match any complete iPad fixtures: ${[...args.only].join(", ")}`);
+  }
   const expectedApplications = [
     ...(await loadStrictTotalDiagnosticAcceptedCases()),
     ...(await loadStrictMember2DiagnosticAcceptedCases()),
@@ -761,44 +760,23 @@ async function main() {
     }
     const stability = buildStabilityReport(runs);
     const summary = {
-      command: `node scripts/ipad-browser-production-verification.mjs --runs ${args.runs}`,
+      command: `node scripts/ipad-browser-expanded-baseline.mjs --runs ${args.runs}`,
       artifactDir: normalizePathForReport(artifactDir),
       baseUrl,
+      fixtureCount: rows.length,
+      totalCompleteFixtureCount: allRows.length,
+      subset: args.only ? [...args.only] : null,
       runs: runs.map((run) => run.summary),
       stability,
-      expected: {
-        imagesProcessed: 18,
-        productionApplications: 36,
-        tierCApplications: 24,
-        strictTotalApplications: 4,
-        strictMember2Applications: 8,
-        tp: 36,
-        tierCTp: 24,
-        strictTotalTp: 4,
-        strictMember2Tp: 8,
-        fp: 0,
-        stageSidePass: 52,
-      },
       pass:
         runs.every(
           (run) =>
-            run.summary.imagesProcessed === 18 &&
-            run.summary.productionApplications === 36 &&
-            run.summary.tierCApplications === 24 &&
-            run.summary.strictTotalApplications === 4 &&
-            run.summary.strictMember2Applications === 8 &&
-            run.summary.tp === 36 &&
-            run.summary.tierCTp === 24 &&
+            run.summary.imagesProcessed === rows.length &&
             run.summary.tierCFp === 0 &&
-            run.summary.strictTotalTp === 4 &&
             run.summary.strictTotalFp === 0 &&
-            run.summary.strictMember2Tp === 8 &&
             run.summary.strictMember2Fp === 0 &&
             run.summary.fp === 0 &&
-            run.summary.stageSidePass === 52 &&
-            run.summary.strictTotalAgreementExact === 4 &&
             run.summary.strictTotalAgreementMismatches.length === 0 &&
-            run.summary.strictMember2AgreementExact === 8 &&
             run.summary.strictMember2AgreementMismatches.length === 0
         ) && stability.unstableApplicationRows.length === 0,
     };

@@ -1,7 +1,8 @@
 {
   "schema": "ipad-expected-manifest-v1",
-  "status": "complete-manual-transcription-batch-1",
-  "note": "Expected values were manually transcribed from source screenshots and validated by arithmetic plus crown-bonus rule. Do not infer future values from OCR output.",
+  "status": "expanded-manual-transcription-batch-2",
+  "note": "Expected values are manually transcribed from source screenshots and validated by arithmetic plus crown-bonus rule. OCR output is not source truth.",
+  "sourceFolder": "C:/Users/gkhay/Pictures/DMMGamePlayer/ipad",
   "images": [
     {
       "filename": "IMG_0264.png",
@@ -10,76 +11,63 @@
       "height": 2420,
       "orientation": "portrait",
       "expectedStatus": "complete",
-      "notes": "cluster-start representative; manually transcribed from source screenshot; arithmetic and crown rule validated",
-      "requiredFields": [
-        {
-          "stage": 1,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        },
-        {
-          "stage": 2,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        },
-        {
-          "stage": 3,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        }
-      ],
       "manuallyVerified": true,
       "arithmeticVerified": true,
       "crownRuleVerified": true,
-      "expectedFixture": "IMG_0264.json"
+      "expectedFixture": "IMG_0264.json",
+      "notes": "cluster-start representative; manually transcribed from source screenshot; arithmetic and crown rule validated"
+    },
+    {
+      "filename": "IMG_0265.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0265.json",
+      "notes": "expanded batch 2; manually transcribed from source screenshot; arithmetic and crown rule validated"
+    },
+    {
+      "filename": "IMG_0267.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0267.json",
+      "notes": "expanded batch 2; manually transcribed from source screenshot; arithmetic and crown rule validated"
+    },
+    {
+      "filename": "IMG_0268.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0268.json",
+      "notes": "expanded batch 2; manually transcribed from source screenshot; arithmetic and crown rule validated"
+    },
+    {
+      "filename": "IMG_0269.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0269.json",
+      "notes": "expanded batch 2; manually transcribed from source screenshot; arithmetic and crown rule validated"
     },
     {
       "filename": "IMG_0270.png",
@@ -88,76 +76,50 @@
       "height": 2420,
       "orientation": "portrait",
       "expectedStatus": "complete",
-      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated",
-      "requiredFields": [
-        {
-          "stage": 1,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        },
-        {
-          "stage": 2,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        },
-        {
-          "stage": 3,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        }
-      ],
       "manuallyVerified": true,
       "arithmeticVerified": true,
       "crownRuleVerified": true,
-      "expectedFixture": "IMG_0270.json"
+      "expectedFixture": "IMG_0270.json",
+      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated"
+    },
+    {
+      "filename": "IMG_0271.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0271.json",
+      "notes": "expanded batch 2; manually transcribed from source screenshot; arithmetic and crown rule validated"
+    },
+    {
+      "filename": "IMG_0272.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0272.json",
+      "notes": "expanded batch 2; manually transcribed from source screenshot; arithmetic and crown rule validated"
+    },
+    {
+      "filename": "IMG_0273.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0273.json",
+      "notes": "expanded batch 2; manually transcribed from source screenshot; arithmetic and crown rule validated"
     },
     {
       "filename": "IMG_0278.png",
@@ -166,76 +128,63 @@
       "height": 2420,
       "orientation": "portrait",
       "expectedStatus": "complete",
-      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated",
-      "requiredFields": [
-        {
-          "stage": 1,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        },
-        {
-          "stage": 2,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        },
-        {
-          "stage": 3,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        }
-      ],
       "manuallyVerified": true,
       "arithmeticVerified": true,
       "crownRuleVerified": true,
-      "expectedFixture": "IMG_0278.json"
+      "expectedFixture": "IMG_0278.json",
+      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated"
+    },
+    {
+      "filename": "IMG_0279.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0279.json",
+      "notes": "expanded batch 2; manually transcribed from source screenshot; arithmetic and crown rule validated"
+    },
+    {
+      "filename": "IMG_0280.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0280.json",
+      "notes": "expanded batch 2; manually transcribed from source screenshot; arithmetic and crown rule validated"
+    },
+    {
+      "filename": "IMG_0281.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0281.json",
+      "notes": "expanded batch 2; manually transcribed from source screenshot; arithmetic and crown rule validated"
+    },
+    {
+      "filename": "IMG_0282.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
     },
     {
       "filename": "IMG_0283.png",
@@ -244,76 +193,50 @@
       "height": 2420,
       "orientation": "portrait",
       "expectedStatus": "complete",
-      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated",
-      "requiredFields": [
-        {
-          "stage": 1,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        },
-        {
-          "stage": 2,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        },
-        {
-          "stage": 3,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        }
-      ],
       "manuallyVerified": true,
       "arithmeticVerified": true,
       "crownRuleVerified": true,
-      "expectedFixture": "IMG_0283.json"
+      "expectedFixture": "IMG_0283.json",
+      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated"
+    },
+    {
+      "filename": "IMG_0284.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
+    },
+    {
+      "filename": "IMG_0285.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
+    },
+    {
+      "filename": "IMG_0286.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
     },
     {
       "filename": "IMG_0287.png",
@@ -322,76 +245,63 @@
       "height": 2420,
       "orientation": "portrait",
       "expectedStatus": "complete",
-      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated",
-      "requiredFields": [
-        {
-          "stage": 1,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        },
-        {
-          "stage": 2,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        },
-        {
-          "stage": 3,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        }
-      ],
       "manuallyVerified": true,
       "arithmeticVerified": true,
       "crownRuleVerified": true,
-      "expectedFixture": "IMG_0287.json"
+      "expectedFixture": "IMG_0287.json",
+      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated"
+    },
+    {
+      "filename": "IMG_0292.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
+    },
+    {
+      "filename": "IMG_0293.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
+    },
+    {
+      "filename": "IMG_0294.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
+    },
+    {
+      "filename": "IMG_0295.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
     },
     {
       "filename": "IMG_0296.png",
@@ -400,76 +310,50 @@
       "height": 2420,
       "orientation": "portrait",
       "expectedStatus": "complete",
-      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated",
-      "requiredFields": [
-        {
-          "stage": 1,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        },
-        {
-          "stage": 2,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        },
-        {
-          "stage": 3,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        }
-      ],
       "manuallyVerified": true,
       "arithmeticVerified": true,
       "crownRuleVerified": true,
-      "expectedFixture": "IMG_0296.json"
+      "expectedFixture": "IMG_0296.json",
+      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated"
+    },
+    {
+      "filename": "IMG_0297.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
+    },
+    {
+      "filename": "IMG_0298.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
+    },
+    {
+      "filename": "IMG_0299.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
     },
     {
       "filename": "IMG_0300.png",
@@ -478,76 +362,63 @@
       "height": 2420,
       "orientation": "portrait",
       "expectedStatus": "complete",
-      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated",
-      "requiredFields": [
-        {
-          "stage": 1,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        },
-        {
-          "stage": 2,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        },
-        {
-          "stage": 3,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        }
-      ],
       "manuallyVerified": true,
       "arithmeticVerified": true,
       "crownRuleVerified": true,
-      "expectedFixture": "IMG_0300.json"
+      "expectedFixture": "IMG_0300.json",
+      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated"
+    },
+    {
+      "filename": "IMG_0301.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
+    },
+    {
+      "filename": "IMG_0303.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
+    },
+    {
+      "filename": "IMG_0304.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
+    },
+    {
+      "filename": "IMG_0305.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
     },
     {
       "filename": "IMG_0306.png",
@@ -556,76 +427,50 @@
       "height": 2420,
       "orientation": "portrait",
       "expectedStatus": "complete",
-      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated",
-      "requiredFields": [
-        {
-          "stage": 1,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        },
-        {
-          "stage": 2,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        },
-        {
-          "stage": 3,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        }
-      ],
       "manuallyVerified": true,
       "arithmeticVerified": true,
       "crownRuleVerified": true,
-      "expectedFixture": "IMG_0306.json"
+      "expectedFixture": "IMG_0306.json",
+      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated"
+    },
+    {
+      "filename": "IMG_0307.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
+    },
+    {
+      "filename": "IMG_0308.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
+    },
+    {
+      "filename": "IMG_0316.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
     },
     {
       "filename": "IMG_0317.png",
@@ -634,76 +479,63 @@
       "height": 2420,
       "orientation": "portrait",
       "expectedStatus": "complete",
-      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated",
-      "requiredFields": [
-        {
-          "stage": 1,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        },
-        {
-          "stage": 2,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        },
-        {
-          "stage": 3,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        }
-      ],
       "manuallyVerified": true,
       "arithmeticVerified": true,
       "crownRuleVerified": true,
-      "expectedFixture": "IMG_0317.json"
+      "expectedFixture": "IMG_0317.json",
+      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated"
+    },
+    {
+      "filename": "IMG_0318.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
+    },
+    {
+      "filename": "IMG_0319.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
+    },
+    {
+      "filename": "IMG_0320.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
+    },
+    {
+      "filename": "IMG_0321.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
     },
     {
       "filename": "IMG_0322.png",
@@ -712,76 +544,50 @@
       "height": 2420,
       "orientation": "portrait",
       "expectedStatus": "complete",
-      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated",
-      "requiredFields": [
-        {
-          "stage": 1,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        },
-        {
-          "stage": 2,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        },
-        {
-          "stage": 3,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        }
-      ],
       "manuallyVerified": true,
       "arithmeticVerified": true,
       "crownRuleVerified": true,
-      "expectedFixture": "IMG_0322.json"
+      "expectedFixture": "IMG_0322.json",
+      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated"
+    },
+    {
+      "filename": "IMG_0323.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
+    },
+    {
+      "filename": "IMG_0324.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
+    },
+    {
+      "filename": "IMG_0325.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
     },
     {
       "filename": "IMG_0326.png",
@@ -790,76 +596,63 @@
       "height": 2420,
       "orientation": "portrait",
       "expectedStatus": "complete",
-      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated",
-      "requiredFields": [
-        {
-          "stage": 1,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        },
-        {
-          "stage": 2,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        },
-        {
-          "stage": 3,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        }
-      ],
       "manuallyVerified": true,
       "arithmeticVerified": true,
       "crownRuleVerified": true,
-      "expectedFixture": "IMG_0326.json"
+      "expectedFixture": "IMG_0326.json",
+      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated"
+    },
+    {
+      "filename": "IMG_0327.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
+    },
+    {
+      "filename": "IMG_0328.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
+    },
+    {
+      "filename": "IMG_0329.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
+    },
+    {
+      "filename": "IMG_0330.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
     },
     {
       "filename": "IMG_0332.png",
@@ -868,76 +661,50 @@
       "height": 2420,
       "orientation": "portrait",
       "expectedStatus": "complete",
-      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated",
-      "requiredFields": [
-        {
-          "stage": 1,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        },
-        {
-          "stage": 2,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        },
-        {
-          "stage": 3,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        }
-      ],
       "manuallyVerified": true,
       "arithmeticVerified": true,
       "crownRuleVerified": true,
-      "expectedFixture": "IMG_0332.json"
+      "expectedFixture": "IMG_0332.json",
+      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated"
+    },
+    {
+      "filename": "IMG_0333.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
+    },
+    {
+      "filename": "IMG_0334.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
+    },
+    {
+      "filename": "IMG_0335.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
     },
     {
       "filename": "IMG_0337.png",
@@ -946,76 +713,128 @@
       "height": 2420,
       "orientation": "portrait",
       "expectedStatus": "complete",
-      "notes": "cluster-end representative; manually transcribed from source screenshot; arithmetic and crown rule validated",
-      "requiredFields": [
-        {
-          "stage": 1,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        },
-        {
-          "stage": 2,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        },
-        {
-          "stage": 3,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        }
-      ],
       "manuallyVerified": true,
       "arithmeticVerified": true,
       "crownRuleVerified": true,
-      "expectedFixture": "IMG_0337.json"
+      "expectedFixture": "IMG_0337.json",
+      "notes": "cluster-end representative; manually transcribed from source screenshot; arithmetic and crown rule validated"
+    },
+    {
+      "filename": "IMG_0350.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
+    },
+    {
+      "filename": "IMG_0351.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
+    },
+    {
+      "filename": "IMG_0353.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
+    },
+    {
+      "filename": "IMG_0354.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
+    },
+    {
+      "filename": "IMG_0355.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
+    },
+    {
+      "filename": "IMG_0356.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
+    },
+    {
+      "filename": "IMG_0357.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
+    },
+    {
+      "filename": "IMG_0358.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
+    },
+    {
+      "filename": "IMG_0359.png",
+      "clusterId": "ipad-01",
+      "width": 1668,
+      "height": 2420,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
     },
     {
       "filename": "IMG_0491.png",
@@ -1024,76 +843,63 @@
       "height": 2360,
       "orientation": "portrait",
       "expectedStatus": "complete",
-      "notes": "cluster-start representative; manually transcribed from source screenshot; arithmetic and crown rule validated",
-      "requiredFields": [
-        {
-          "stage": 1,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        },
-        {
-          "stage": 2,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        },
-        {
-          "stage": 3,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        }
-      ],
       "manuallyVerified": true,
       "arithmeticVerified": true,
       "crownRuleVerified": true,
-      "expectedFixture": "IMG_0491.json"
+      "expectedFixture": "IMG_0491.json",
+      "notes": "cluster-start representative; manually transcribed from source screenshot; arithmetic and crown rule validated"
+    },
+    {
+      "filename": "IMG_0492.png",
+      "clusterId": "ipad-02",
+      "width": 1640,
+      "height": 2360,
+      "orientation": "portrait",
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0492.json",
+      "notes": "expanded batch 2; manually transcribed from source screenshot; arithmetic and crown rule validated"
+    },
+    {
+      "filename": "IMG_0493.png",
+      "clusterId": "ipad-02",
+      "width": 1640,
+      "height": 2360,
+      "orientation": "portrait",
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0493.json",
+      "notes": "expanded batch 2; manually transcribed from source screenshot; arithmetic and crown rule validated"
+    },
+    {
+      "filename": "IMG_0494.png",
+      "clusterId": "ipad-02",
+      "width": 1640,
+      "height": 2360,
+      "orientation": "portrait",
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0494.json",
+      "notes": "expanded batch 2; manually transcribed from source screenshot; arithmetic and crown rule validated"
+    },
+    {
+      "filename": "IMG_0495.png",
+      "clusterId": "ipad-02",
+      "width": 1640,
+      "height": 2360,
+      "orientation": "portrait",
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0495.json",
+      "notes": "expanded batch 2; manually transcribed from source screenshot; arithmetic and crown rule validated"
     },
     {
       "filename": "IMG_0497.png",
@@ -1102,76 +908,63 @@
       "height": 2360,
       "orientation": "portrait",
       "expectedStatus": "complete",
-      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated",
-      "requiredFields": [
-        {
-          "stage": 1,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        },
-        {
-          "stage": 2,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        },
-        {
-          "stage": 3,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        }
-      ],
       "manuallyVerified": true,
       "arithmeticVerified": true,
       "crownRuleVerified": true,
-      "expectedFixture": "IMG_0497.json"
+      "expectedFixture": "IMG_0497.json",
+      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated"
+    },
+    {
+      "filename": "IMG_0498.png",
+      "clusterId": "ipad-02",
+      "width": 1640,
+      "height": 2360,
+      "orientation": "portrait",
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0498.json",
+      "notes": "expanded batch 2; manually transcribed from source screenshot; arithmetic and crown rule validated"
+    },
+    {
+      "filename": "IMG_0499.png",
+      "clusterId": "ipad-02",
+      "width": 1640,
+      "height": 2360,
+      "orientation": "portrait",
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0499.json",
+      "notes": "expanded batch 2; manually transcribed from source screenshot; arithmetic and crown rule validated"
+    },
+    {
+      "filename": "IMG_0500.png",
+      "clusterId": "ipad-02",
+      "width": 1640,
+      "height": 2360,
+      "orientation": "portrait",
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0500.json",
+      "notes": "expanded batch 2; manually transcribed from source screenshot; arithmetic and crown rule validated"
+    },
+    {
+      "filename": "IMG_0501.png",
+      "clusterId": "ipad-02",
+      "width": 1640,
+      "height": 2360,
+      "orientation": "portrait",
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0501.json",
+      "notes": "expanded batch 2; manually transcribed from source screenshot; arithmetic and crown rule validated"
     },
     {
       "filename": "IMG_0792.png",
@@ -1180,76 +973,50 @@
       "height": 2360,
       "orientation": "portrait",
       "expectedStatus": "complete",
-      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated",
-      "requiredFields": [
-        {
-          "stage": 1,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        },
-        {
-          "stage": 2,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        },
-        {
-          "stage": 3,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        }
-      ],
       "manuallyVerified": true,
       "arithmeticVerified": true,
       "crownRuleVerified": true,
-      "expectedFixture": "IMG_0792.json"
+      "expectedFixture": "IMG_0792.json",
+      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated"
+    },
+    {
+      "filename": "IMG_0793.png",
+      "clusterId": "ipad-02",
+      "width": 1640,
+      "height": 2360,
+      "orientation": "portrait",
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0793.json",
+      "notes": "expanded batch 2; manually transcribed from source screenshot; arithmetic and crown rule validated"
+    },
+    {
+      "filename": "IMG_0794.png",
+      "clusterId": "ipad-02",
+      "width": 1640,
+      "height": 2360,
+      "orientation": "portrait",
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0794.json",
+      "notes": "expanded batch 2; manually transcribed from source screenshot; arithmetic and crown rule validated"
+    },
+    {
+      "filename": "IMG_0795.png",
+      "clusterId": "ipad-02",
+      "width": 1640,
+      "height": 2360,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
     },
     {
       "filename": "IMG_0796.png",
@@ -1258,76 +1025,63 @@
       "height": 2360,
       "orientation": "portrait",
       "expectedStatus": "complete",
-      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated",
-      "requiredFields": [
-        {
-          "stage": 1,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        },
-        {
-          "stage": 2,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        },
-        {
-          "stage": 3,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        }
-      ],
       "manuallyVerified": true,
       "arithmeticVerified": true,
       "crownRuleVerified": true,
-      "expectedFixture": "IMG_0796.json"
+      "expectedFixture": "IMG_0796.json",
+      "notes": "evenly spaced cluster representative; manually transcribed from source screenshot; arithmetic and crown rule validated"
+    },
+    {
+      "filename": "IMG_0798.png",
+      "clusterId": "ipad-02",
+      "width": 1640,
+      "height": 2360,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
+    },
+    {
+      "filename": "IMG_0799.png",
+      "clusterId": "ipad-02",
+      "width": 1640,
+      "height": 2360,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
+    },
+    {
+      "filename": "IMG_0800.png",
+      "clusterId": "ipad-02",
+      "width": 1640,
+      "height": 2360,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
+    },
+    {
+      "filename": "IMG_0801.png",
+      "clusterId": "ipad-02",
+      "width": 1640,
+      "height": 2360,
+      "orientation": "portrait",
+      "expectedStatus": "pending",
+      "manuallyVerified": false,
+      "arithmeticVerified": false,
+      "crownRuleVerified": false,
+      "expectedFixture": null,
+      "notes": "pending manual transcription"
     },
     {
       "filename": "IMG_0802.png",
@@ -1336,76 +1090,11 @@
       "height": 2360,
       "orientation": "portrait",
       "expectedStatus": "complete",
-      "notes": "cluster-end representative; manually transcribed from source screenshot; arithmetic and crown rule validated",
-      "requiredFields": [
-        {
-          "stage": 1,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        },
-        {
-          "stage": 2,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        },
-        {
-          "stage": 3,
-          "self": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          },
-          "enemy": {
-            "members": [
-              "member1",
-              "member2",
-              "member3"
-            ],
-            "bonus": "crownBonus",
-            "total": "total"
-          }
-        }
-      ],
       "manuallyVerified": true,
       "arithmeticVerified": true,
       "crownRuleVerified": true,
-      "expectedFixture": "IMG_0802.json"
+      "expectedFixture": "IMG_0802.json",
+      "notes": "cluster-end representative; manually transcribed from source screenshot; arithmetic and crown rule validated"
     }
   ]
 }
