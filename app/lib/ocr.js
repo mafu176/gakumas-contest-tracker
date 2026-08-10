@@ -1624,6 +1624,7 @@ export function applyIpadStrictTotalSelectionRecovery(stageScores, evidenceBySta
   };
 }
 
+export const ENABLE_IPAD_STRICT_MEMBER2_SELECTION = true;
 export const IPAD_STRICT_MEMBER2_SELECTION_RECOVERY_ID = "ipad-strict-member2-selection";
 
 const ipadStrictMember2ApprovedProfiles = new Set([
@@ -1912,18 +1913,206 @@ export function evaluateIpadStrictMember2Selection(evidence = {}) {
   };
 }
 
-export function applyIpadStrictMember2SelectionRecovery(stageScores, evidenceByStageSide = {}) {
+function buildIpadStrictMember2ProductionCounters() {
   return {
-    stageScores,
-    productionRecovery: {
-      recoveryId: IPAD_STRICT_MEMBER2_SELECTION_RECOVERY_ID,
-      enabled: false,
-      appliedCases: [],
-      rejectedCases: [],
-      evidenceByStageSide,
-      note:
-        "Diagnostic-only placeholder. Strict member2 selection is not production-enabled.",
+    evaluated: 0,
+    eligible: 0,
+    applied: 0,
+    blockedOverlap: 0,
+    blockedNotWouldApply: 0,
+    blockedAlreadyIdentical: 0,
+    blockedAssertionFailure: 0,
+    blockedNonMember2Mutation: 0,
+    blockedDisplayedMismatch: 0,
+    blockedOther: 0,
+  };
+}
+
+function summarizeIpadStrictMember2BlockReason(reasons = []) {
+  if (!Array.isArray(reasons) || reasons.length === 0) return "blockedOther";
+  if (reasons.includes("already-identical")) return "blockedAlreadyIdentical";
+  return "blockedNotWouldApply";
+}
+
+function buildIpadStrictMember2RecoveryApplication({
+  stage,
+  side,
+  oldValues,
+  proposal,
+  evidence,
+  evaluation,
+}) {
+  const observedMember2Candidate =
+    evaluation.matchingObservedMember2Candidates?.find(
+      (candidate) => candidate.value === evaluation.proposedMember2
+    ) || null;
+  const observedMember2Provenance = observedMember2Candidate
+    ? {
+        ...summarizeIpadStrictTotalCandidate(observedMember2Candidate),
+        approvedProvenance: Boolean(observedMember2Candidate.approvedProvenance),
+      }
+    : null;
+  return {
+    recoveryId: IPAD_STRICT_MEMBER2_SELECTION_RECOVERY_ID,
+    stage,
+    side,
+    oldValues,
+    newValues: {
+      members: normalizeIpadStrictTotalMembers(proposal.members),
+      bonus: normalizeIpadArithmeticNumber(proposal.bonus),
+      total: normalizeIpadArithmeticNumber(proposal.total),
     },
+    changedFields: ["member2"],
+    previousMember2: normalizeIpadArithmeticNumber(oldValues.members?.[1]),
+    correctedMember2: normalizeIpadArithmeticNumber(proposal.members?.[1]),
+    provenance: {
+      observedMember2: observedMember2Provenance,
+      unchangedFields: evidence.provenanceSummary?.unchangedFields || {},
+      proposedMember2ProfileIds: evidence.provenanceSummary?.proposedMember2ProfileIds || [],
+      proposedMember2RawText: evidence.provenanceSummary?.proposedMember2RawText || "",
+      proposedMember2NormalizedText:
+        evidence.provenanceSummary?.proposedMember2NormalizedText || "",
+    },
+    candidateCompleteness: evaluation.candidateCompleteness || {},
+    member2CandidateCompleteness: evaluation.member2CandidateCompleteness || {},
+    observedMember2CandidateCount: Array.isArray(evidence.member2Pool?.observedCandidates)
+      ? evidence.member2Pool.observedCandidates.length
+      : 0,
+    matchingMember2CandidateCount: Array.isArray(evaluation.matchingObservedMember2Candidates)
+      ? evaluation.matchingObservedMember2Candidates.length
+      : 0,
+    arithmeticComparisonMember2: normalizeIpadArithmeticNumber(
+      evaluation.arithmeticComparisonMember2
+    ),
+    uniqueMatchingMember2: normalizeIpadArithmeticNumber(evaluation.uniqueMatchingMember2),
+    equation: `${proposal.members[0]}+${proposal.members[1]}+${proposal.members[2]}+${normalizeIpadArithmeticNumber(
+      proposal.bonus
+    )}=${normalizeIpadArithmeticNumber(proposal.total)}`,
+  };
+}
+
+export function applyIpadStrictMember2SelectionRecovery(stageScores, evidenceByStageSide = {}) {
+  const productionRecovery = {
+    recoveryId: IPAD_STRICT_MEMBER2_SELECTION_RECOVERY_ID,
+    enabled: ENABLE_IPAD_STRICT_MEMBER2_SELECTION,
+    appliedCases: [],
+    rejectedCases: [],
+    counters: buildIpadStrictMember2ProductionCounters(),
+    note:
+      "Applies only the verified iPad strict member2 selector. Member1, member3, bonus, and total are never changed.",
+  };
+
+  if (!ENABLE_IPAD_STRICT_MEMBER2_SELECTION) {
+    productionRecovery.blockReason = "feature-disabled";
+    return { stageScores, productionRecovery };
+  }
+
+  const priorAppliedKeys = new Set(
+    (evidenceByStageSide?.priorAppliedCases || evidenceByStageSide?.priorProductionRecovery?.appliedCases || [])
+      .map((entry) => `${entry.stage}|${entry.side}`)
+  );
+  const nextStageScores = JSON.parse(JSON.stringify(stageScores || {}));
+  const stagesEvidence = evidenceByStageSide?.stages || evidenceByStageSide || {};
+  for (const stage of [1, 2, 3]) {
+    const stageKey = `stage${stage}`;
+    const stageEvidence = stagesEvidence[stageKey] || stagesEvidence[stage] || {};
+    for (const side of ["self", "enemy"]) {
+      const row = stageEvidence?.[side] || null;
+      const evidence = row?.evidence || row?.strictMember2SelectionEvidence || row || null;
+      if (!evidence) continue;
+
+      productionRecovery.counters.evaluated += 1;
+      const evaluation = row?.evaluation || evaluateIpadStrictMember2Selection(evidence);
+      if (evaluation.eligible) productionRecovery.counters.eligible += 1;
+
+      if (priorAppliedKeys.has(`${stage}|${side}`)) {
+        productionRecovery.counters.blockedOverlap += 1;
+        productionRecovery.rejectedCases.push({ stage, side, reason: "prior-production-recovery-overlap" });
+        continue;
+      }
+
+      if (!evaluation.wouldApply || !evaluation.proposal) {
+        const counter = summarizeIpadStrictMember2BlockReason(evaluation.blockReasons);
+        productionRecovery.counters[counter] = (productionRecovery.counters[counter] || 0) + 1;
+        productionRecovery.rejectedCases.push({
+          stage,
+          side,
+          reason: evaluation.blockReasons?.join(",") || evaluation.blockReason || "would-not-apply",
+        });
+        continue;
+      }
+
+      const selectedMembers = normalizeIpadStrictTotalMembers(evidence.selected?.members);
+      const selectedBonus = normalizeIpadArithmeticNumber(evidence.selected?.bonus);
+      const selectedTotal = normalizeIpadArithmeticNumber(evidence.selected?.total);
+      const oldValues = getIpadStrictTotalDisplayedSide(
+        nextStageScores,
+        stage,
+        side,
+        selectedBonus
+      );
+      const proposal = evaluation.proposal;
+      const proposedMembers = normalizeIpadStrictTotalMembers(proposal.members);
+      const proposedBonus = normalizeIpadArithmeticNumber(proposal.bonus);
+      const proposedTotal = normalizeIpadArithmeticNumber(proposal.total);
+      const assertionPass =
+        proposedMembers.reduce((sum, value) => sum + value, 0) + proposedBonus === proposedTotal;
+      const rejectionReasons = [];
+
+      if (!arraysEqualWithinTolerance(oldValues.members, selectedMembers, 0)) {
+        rejectionReasons.push("displayed-members-do-not-match-evidence");
+      }
+      if (oldValues.bonus !== selectedBonus || oldValues.total !== selectedTotal) {
+        rejectionReasons.push("displayed-bonus-or-total-do-not-match-evidence");
+      }
+      if (proposedMembers[0] !== selectedMembers[0] || proposedMembers[2] !== selectedMembers[2]) {
+        rejectionReasons.push("proposal-would-change-member1-or-member3");
+      }
+      if (proposedBonus !== selectedBonus || proposedTotal !== selectedTotal) {
+        rejectionReasons.push("proposal-would-change-bonus-or-total");
+      }
+      if (proposedMembers[1] === selectedMembers[1]) {
+        rejectionReasons.push("displayed-member2-already-identical");
+      }
+      if (!assertionPass) rejectionReasons.push("proposal-equation-assertion-failed");
+
+      if (rejectionReasons.length) {
+        if (rejectionReasons.some((reason) => reason.includes("displayed"))) {
+          productionRecovery.counters.blockedDisplayedMismatch += 1;
+        } else if (rejectionReasons.some((reason) => reason.includes("assertion"))) {
+          productionRecovery.counters.blockedAssertionFailure += 1;
+        } else if (rejectionReasons.some((reason) => reason.includes("already"))) {
+          productionRecovery.counters.blockedAlreadyIdentical += 1;
+        } else {
+          productionRecovery.counters.blockedNonMember2Mutation += 1;
+        }
+        productionRecovery.rejectedCases.push({
+          stage,
+          side,
+          reason: rejectionReasons.join(","),
+        });
+        continue;
+      }
+
+      nextStageScores[stage] ||= {};
+      nextStageScores[stage][side] = proposedMembers.map(formatIpadStrictTotalDisplayNumber);
+      productionRecovery.appliedCases.push(
+        buildIpadStrictMember2RecoveryApplication({
+          stage,
+          side,
+          oldValues,
+          proposal,
+          evidence,
+          evaluation,
+        })
+      );
+      productionRecovery.counters.applied += 1;
+    }
+  }
+
+  return {
+    stageScores: nextStageScores,
+    productionRecovery,
   };
 }
 

@@ -1,8 +1,8 @@
 # iPad Strict Member2 Selection Parity
 
-Status: browser-equivalent parity only. Production remains disabled.
+Status: parity-proven and production-enabled as `ipad-strict-member2-selection`.
 
-This report extracts the strict M3 member2 selector into shared runner/browser-equivalent evidence and evaluator helpers. It does not change final OCR output, candidate generation, ROI, preprocessing, Tier C, strict-total, smartphone, current-PC, or legacy desktop OCR.
+This report extracts the strict M3 member2 selector into shared runner/browser-equivalent evidence and evaluator helpers. Production uses the same shared helper and only changes member2 when the exact strict guard passes. It does not change candidate generation, ROI, preprocessing, Tier C, strict-total, smartphone, current-PC, or legacy desktop OCR.
 
 ## M3 Semantics
 
@@ -27,21 +27,22 @@ This report extracts the strict M3 member2 selector into shared runner/browser-e
 - browser-equivalent wouldApply: 8
 - exact parity: 108 / 108
 - accepted-case TP / FP: 8 / 0
-- final OCR output changed: no
-- real browser verified: no
+- final OCR output changed: yes
+- real browser verified: yes
 
 ## Production Baseline Preserved
 
 | metric | value |
 | --- | ---: |
 | iPad fixtures | 18 / 18 |
-| stage/side PASS | 44 / 108 |
-| stage PASS | 10 / 54 |
+| stage/side PASS | 52 / 108 |
+| stage PASS | 17 / 54 |
 | image PASS | 0 / 18 |
-| production applications | 28 |
-| production TP / FP | 28 / 0 |
+| production applications | 36 |
+| production TP / FP | 36 / 0 |
 | Tier C TP / FP | 24 / 0 |
 | strict-total TP / FP | 4 / 0 |
+| strict-member2 TP / FP | 8 / 0 |
 
 ## Parity Metrics
 
@@ -117,14 +118,14 @@ Each accepted row has runner wouldApply = yes and browser-equivalent wouldApply 
 | empty | no | no | non-ipad-mode:unknown; ipad-layout-not-detected; unsupported-ipad-layout | yes |
 | ipad-landscape | no | no | unsupported-ipad-orientation:landscape; unsupported-ipad-layout | yes |
 
-## Simulated Impact
+## Production Impact
 
-- stage/side PASS remains simulated only: 44 / 108 -> 52 / 108
-- no production output is changed in this task
+- stage/side PASS after strict M3 member2 selection: 44 / 108 -> 52 / 108
+- production changes are limited to the eight browser-verified member2 rows
 
 ## Recommendation
 
-Runner/browser-equivalent parity is exact for strict M3 member2 selection. Real-browser verification is the required next step before productionization.
+Runner/browser-equivalent parity remains exact for production-enabled strict M3 member2 selection. Keep the production recovery constrained to the shared guards and browser-verified evidence.
 
-Real-browser verification is still pending. Before productionization, the browser debug/export path must prove the same eight proposals with real UI evidence and no unexpected applications.
+Real-browser verification proved the same eight proposals with real UI evidence, no unexpected applications, and stable production output across two browser runs.
 

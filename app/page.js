@@ -105,6 +105,7 @@ const IPAD_TIER_C_EXACTLY_ONE_ARITHMETIC_RECOVERY_ENABLED = true;
 const IPAD_TIER_C_EXACTLY_ONE_ARITHMETIC_RECOVERY_ID =
   "ipad-tier-c-exactly-one-arithmetic";
 const IPAD_STRICT_TOTAL_SELECTION_RECOVERY_ID = "ipad-strict-total-selection";
+const IPAD_STRICT_MEMBER2_SELECTION_RECOVERY_ID = "ipad-strict-member2-selection";
 
 function formatIpadArithmeticScore(value) {
   const numeric = toIpadArithmeticNumber(value);
@@ -309,27 +310,29 @@ function applyIpadTierCExactlyOneArithmeticRecovery(stageScores, diagnostics) {
   return { stageScores: nextStageScores, productionRecovery };
 }
 
-function combineIpadProductionRecoveries(tierCProductionRecovery, strictTotalProductionRecovery) {
-  const tierCAppliedCases = Array.isArray(tierCProductionRecovery?.appliedCases)
-    ? tierCProductionRecovery.appliedCases
-    : [];
-  const strictTotalAppliedCases = Array.isArray(strictTotalProductionRecovery?.appliedCases)
-    ? strictTotalProductionRecovery.appliedCases
-    : [];
+function combineIpadProductionRecoveries(...recoveries) {
+  const appliedCases = recoveries.flatMap((recovery) =>
+    Array.isArray(recovery?.appliedCases) ? recovery.appliedCases : []
+  );
+  const [tierCProductionRecovery, strictTotalProductionRecovery, strictMember2ProductionRecovery] =
+    recoveries;
   return {
     recoveryId: "ipad-production-recoveries",
     deviceMode:
       tierCProductionRecovery?.deviceMode ||
       strictTotalProductionRecovery?.deviceMode ||
+      strictMember2ProductionRecovery?.deviceMode ||
       "ipad",
-    appliedCases: [...tierCAppliedCases, ...strictTotalAppliedCases],
+    appliedCases,
     subRecoveries: {
       tierC: tierCProductionRecovery || null,
       strictTotalSelection: strictTotalProductionRecovery || null,
+      strictMember2Selection: strictMember2ProductionRecovery || null,
     },
     counters: {
       tierC: tierCProductionRecovery?.counters || {},
       strictTotalSelection: strictTotalProductionRecovery?.counters || {},
+      strictMember2Selection: strictMember2ProductionRecovery?.counters || {},
     },
   };
 }
@@ -896,6 +899,7 @@ import {
   buildIpadStrictMember2SelectionEvidence,
   evaluateIpadStrictMember2Selection,
   applyIpadStrictTotalSelectionRecovery,
+  applyIpadStrictMember2SelectionRecovery,
   evaluateIpadArithmeticSideSelectionTier,
   getIpadArithmeticFieldType,
   getIpadArithmeticPreprocessingProfiles,
@@ -2897,8 +2901,8 @@ export default function Home() {
             correctedStageScores,
             finalIpadArithmeticDiagnostics.strictTotalSelectionEvidence
           );
-        const finalStageScores = ipadStrictTotalProductionResult.stageScores;
-        const combinedIpadProductionRecovery = combineIpadProductionRecoveries(
+        let finalStageScores = ipadStrictTotalProductionResult.stageScores;
+        let combinedIpadProductionRecovery = combineIpadProductionRecoveries(
           ipadTierCProductionResult.productionRecovery,
           ipadStrictTotalProductionResult.productionRecovery
         );
@@ -2923,6 +2927,36 @@ export default function Home() {
             finalIpadArithmeticDiagnostics,
             finalStageScores
           );
+        const ipadStrictMember2ProductionResult =
+          applyIpadStrictMember2SelectionRecovery(
+            finalStageScores,
+            {
+              ...(finalIpadArithmeticDiagnostics.strictMember2SelectionEvidence || {}),
+              priorAppliedCases: combinedIpadProductionRecovery.appliedCases,
+            }
+          );
+        finalStageScores = ipadStrictMember2ProductionResult.stageScores;
+        combinedIpadProductionRecovery = combineIpadProductionRecoveries(
+          ipadTierCProductionResult.productionRecovery,
+          ipadStrictTotalProductionResult.productionRecovery,
+          ipadStrictMember2ProductionResult.productionRecovery
+        );
+        finalIpadArithmeticDiagnostics = {
+          ...finalIpadArithmeticDiagnostics,
+          productionOutputChanged:
+            combinedIpadProductionRecovery.appliedCases.length > 0,
+          productionRecovery: combinedIpadProductionRecovery,
+          displayedOcrStages: finalStageScores,
+          strictMember2ProductionRecovery:
+            ipadStrictMember2ProductionResult.productionRecovery,
+          proposalApplicationAudit: buildIpadArithmeticProposalApplicationAudit(
+            {
+              ...finalIpadArithmeticDiagnostics,
+              productionRecovery: combinedIpadProductionRecovery,
+            },
+            finalStageScores
+          ),
+        };
         if (ipadArithmeticDebug && typeof window !== "undefined") {
           window.__IPAD_ARITHMETIC_DIAGNOSTICS__ = finalIpadArithmeticDiagnostics;
         }
@@ -2937,12 +2971,18 @@ export default function Home() {
             (application) =>
               `ipadStrictTotalSelectionRecovery applied recoveryId=${IPAD_STRICT_TOTAL_SELECTION_RECOVERY_ID} stage=${application.stage} side=${application.side} members=${application.newValues.members.join(",")} bonus=${application.newValues.bonus} previousTotal=${application.oldValues.total} correctedTotal=${application.newValues.total} observedTotalProvenance=${application.provenance?.observedTotal?.profileIds?.join("+") || "observed"} candidateCount=${application.observedTotalCandidateCount} uniqueMatch=${application.uniqueMatchingObservedTotal}`
           );
+        const ipadStrictMember2ProductionLogs =
+          ipadStrictMember2ProductionResult.productionRecovery.appliedCases.map(
+            (application) =>
+              `ipadStrictMember2SelectionRecovery applied recoveryId=${IPAD_STRICT_MEMBER2_SELECTION_RECOVERY_ID} stage=${application.stage} side=${application.side} member1=${application.newValues.members[0]} previousMember2=${application.previousMember2} correctedMember2=${application.correctedMember2} member3=${application.newValues.members[2]} bonus=${application.newValues.bonus} total=${application.newValues.total} member2Provenance=${application.provenance?.proposedMember2ProfileIds?.join("+") || "observed"} candidateCount=${application.observedMember2CandidateCount} uniqueMatch=${application.uniqueMatchingMember2}`
+          );
         setOcrText(
           [
             `[OCR_PARSER_VERSION] ${OCR_PARSER_VERSION}`,
             "[iPad OCR] browser-native primary path",
             ...ipadTierCProductionLogs,
             ...ipadStrictTotalProductionLogs,
+            ...ipadStrictMember2ProductionLogs,
           ].join("\n\n")
         );
         setParsedOcrScores({
@@ -4894,8 +4934,8 @@ export default function Home() {
             finalIpadArithmeticDiagnostics.strictTotalSelectionEvidence
           )
         : { stageScores: correctedStageScores, productionRecovery: null };
-      const finalStageScores = ipadStrictTotalProductionResult.stageScores;
-      const combinedIpadProductionRecovery = combineIpadProductionRecoveries(
+      let finalStageScores = ipadStrictTotalProductionResult.stageScores;
+      let combinedIpadProductionRecovery = combineIpadProductionRecoveries(
         ipadTierCProductionResult.productionRecovery,
         ipadStrictTotalProductionResult.productionRecovery
       );
@@ -4923,6 +4963,39 @@ export default function Home() {
             finalStageScores
           )
         : null;
+      const ipadStrictMember2ProductionResult = finalIpadArithmeticDiagnostics
+        ? applyIpadStrictMember2SelectionRecovery(
+            finalStageScores,
+            {
+              ...(finalIpadArithmeticDiagnostics.strictMember2SelectionEvidence || {}),
+              priorAppliedCases: combinedIpadProductionRecovery.appliedCases,
+            }
+          )
+        : { stageScores: finalStageScores, productionRecovery: null };
+      finalStageScores = ipadStrictMember2ProductionResult.stageScores;
+      combinedIpadProductionRecovery = combineIpadProductionRecoveries(
+        ipadTierCProductionResult.productionRecovery,
+        ipadStrictTotalProductionResult.productionRecovery,
+        ipadStrictMember2ProductionResult.productionRecovery
+      );
+      finalIpadArithmeticDiagnostics = finalIpadArithmeticDiagnostics
+        ? {
+            ...finalIpadArithmeticDiagnostics,
+            productionOutputChanged:
+              combinedIpadProductionRecovery.appliedCases.length > 0,
+            productionRecovery: combinedIpadProductionRecovery,
+            displayedOcrStages: finalStageScores,
+            strictMember2ProductionRecovery:
+              ipadStrictMember2ProductionResult.productionRecovery,
+            proposalApplicationAudit: buildIpadArithmeticProposalApplicationAudit(
+              {
+                ...finalIpadArithmeticDiagnostics,
+                productionRecovery: combinedIpadProductionRecovery,
+              },
+              finalStageScores
+            ),
+          }
+        : null;
       if (ipadArithmeticDebug && typeof window !== "undefined") {
         window.__IPAD_ARITHMETIC_DIAGNOSTICS__ = finalIpadArithmeticDiagnostics;
       }
@@ -4936,12 +5009,18 @@ export default function Home() {
           (application) =>
             `ipadStrictTotalSelectionRecovery applied recoveryId=${IPAD_STRICT_TOTAL_SELECTION_RECOVERY_ID} stage=${application.stage} side=${application.side} members=${application.newValues.members.join(",")} bonus=${application.newValues.bonus} previousTotal=${application.oldValues.total} correctedTotal=${application.newValues.total} observedTotalProvenance=${application.provenance?.observedTotal?.profileIds?.join("+") || "observed"} candidateCount=${application.observedTotalCandidateCount} uniqueMatch=${application.uniqueMatchingObservedTotal}`
         );
+      const ipadStrictMember2ProductionLogs =
+        (ipadStrictMember2ProductionResult.productionRecovery?.appliedCases || []).map(
+          (application) =>
+            `ipadStrictMember2SelectionRecovery applied recoveryId=${IPAD_STRICT_MEMBER2_SELECTION_RECOVERY_ID} stage=${application.stage} side=${application.side} member1=${application.newValues.members[0]} previousMember2=${application.previousMember2} correctedMember2=${application.correctedMember2} member3=${application.newValues.members[2]} bonus=${application.newValues.bonus} total=${application.newValues.total} member2Provenance=${application.provenance?.proposedMember2ProfileIds?.join("+") || "observed"} candidateCount=${application.observedMember2CandidateCount} uniqueMatch=${application.uniqueMatchingMember2}`
+        );
       setOcrText(
         [
           `[OCR_PARSER_VERSION] ${OCR_PARSER_VERSION}`,
           ...stageTexts,
           ...ipadTierCProductionLogs,
           ...ipadStrictTotalProductionLogs,
+          ...ipadStrictMember2ProductionLogs,
         ].join("\n\n")
       );
       setParsedOcrScores({

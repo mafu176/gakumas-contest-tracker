@@ -768,6 +768,17 @@ function buildCombinedSummary({ runs, references, baseUrl, rows }) {
       );
     })
   );
+  const strictMember2ProductionRows = runs.flatMap((run) =>
+    run.acceptedCases.filter((entry) => {
+      const imageResult = run.imageResults.find((result) => result.image === entry.image);
+      return (imageResult?.productionRecovery?.appliedCases || []).some(
+        (application) =>
+          application.recoveryId === "ipad-strict-member2-selection" &&
+          application.stage === entry.stage &&
+          application.side === entry.side
+      );
+    })
+  );
   const expectedImages = rows.length;
   const expectedStageSides = rows.length * stages.length * sides.length;
   const fullCoverage = rows.length === 18;
@@ -808,9 +819,14 @@ function buildCombinedSummary({ runs, references, baseUrl, rows }) {
         stage: entry.stage,
         side: entry.side,
       })),
+      strictMember2ProductionRows: strictMember2ProductionRows.map((entry) => ({
+        image: entry.image,
+        stage: entry.stage,
+        side: entry.side,
+      })),
     },
     productionBaselinePreserved: fullCoverage ? productionBaselinePreserved : null,
-    uiNonApplicationAuditPass: runs.every((run) => run.summary.uiMutationCount === 0),
+    uiApplicationAuditPass: runs.every((run) => run.summary.uiMutationCount === references.acceptedKeys.size),
     safetyMismatchCount: allComparisons.filter((entry) => entry.safetyRelevant).length,
     pass:
       runs.every(
@@ -824,7 +840,7 @@ function buildCombinedSummary({ runs, references, baseUrl, rows }) {
           run.summary.fp === 0 &&
           run.summary.unexpectedWouldApply.length === 0 &&
           run.summary.falseNegativeAcceptedCases.length === 0 &&
-          run.summary.uiMutationCount === 0 &&
+          run.summary.uiMutationCount === references.acceptedKeys.size &&
           run.summary.disagreements.safety === 0 &&
           (!fullCoverage ||
             (run.summary.production.stageSidePass === 44 &&
@@ -835,9 +851,10 @@ function buildCombinedSummary({ runs, references, baseUrl, rows }) {
       stability.stableAcceptedRows === references.acceptedKeys.size &&
       stability.unstableAcceptedRows.length === 0 &&
       negativeControls.every((entry) => entry.pass) &&
-      overlapRows.length === 0,
+      strictMember2ProductionRows.length === references.acceptedKeys.size * runs.length &&
+      overlapRows.length === strictMember2ProductionRows.length,
     recommendation:
-      "Productionization is justified next only after preserving the same strict helper and keeping final output disabled until that production task.",
+      "Production strict-member2 behavior is verified when the eight accepted rows apply through the UI path with no extra applications.",
   };
   return { summary, allComparisons, acceptedAudit, negativeControls, stability, overlapRows };
 }
@@ -867,11 +884,11 @@ function buildReport(summary) {
 
   return `# iPad Strict Member2 Real Browser Verification
 
-Status: diagnostic-only real-browser verification. Production remains disabled.
+Status: production-enabled real-browser verification.
 
 The browser automation uploads the real iPad fixtures into the local app with \`ipadArithmeticDebug=1\`, reads browser-native strict member2-selection diagnostics, and compares them with the runner/browser-equivalent parity artifacts from \`tmp/ipad-strict-member2-selection-parity\`.
 
-The M3 proposal is not applied to visible OCR output or final parsed scores.
+The M3 proposal is applied to visible OCR output and final parsed scores only for the eight previously verified exact cases.
 
 ## Coverage
 
@@ -888,7 +905,7 @@ The M3 proposal is not applied to visible OCR output or final parsed scores.
         ? "PASS"
         : "FAIL"
   }
-- UI non-application audit: ${summary.uiNonApplicationAuditPass ? "PASS" : "FAIL"}
+- UI application audit: ${summary.uiApplicationAuditPass ? "PASS" : "FAIL"}
 
 ## M3 Semantics
 
@@ -903,7 +920,7 @@ The M3 proposal is not applied to visible OCR output or final parsed scores.
 
 ## Run Summary
 
-| run | images | stage/sides | browser wouldApply | accepted found | exact proposal matches | TP | FP | UI mutations |
+| run | images | stage/sides | browser wouldApply | accepted found | exact proposal matches | TP | FP | UI applications |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 ${runRows}
 
@@ -913,7 +930,7 @@ ${runRows}
 | --- | ---: | --- | --- | ---: | ---: | ---: | --- | --- | --- |
 ${acceptedRows}
 
-All accepted rows have browser wouldApply = true, identical proposal to the runner/browser-equivalent artifact, directly observed member2 evidence, complete/untruncated pools, and no UI mutation.
+All accepted rows have browser wouldApply = true, identical proposal to the runner/browser-equivalent artifact, directly observed member2 evidence, complete/untruncated pools, and production UI application.
 
 ## Parity Disagreements
 
@@ -936,8 +953,9 @@ Unsupported non-iPad/device guard remains covered by the runner/browser-equivale
 - Tier C overlap in parity artifact: ${summary.overlapAnalysis.tierC}
 - strict-total overlap in parity artifact: ${summary.overlapAnalysis.strictTotal}
 - browser production overlap rows: ${summary.overlapAnalysis.browserProductionOverlapRows.length}
+- strict-member2 production rows: ${summary.overlapAnalysis.strictMember2ProductionRows.length}
 
-No M3 proposal targets a side already recovered by Tier C or strict-total production recovery.
+No M3 proposal targets a side already recovered by Tier C or strict-total production recovery. The only production overlap rows are the M3 production applications themselves.
 
 ## Two-Run Stability
 
@@ -947,19 +965,20 @@ No M3 proposal targets a side already recovered by Tier C or strict-total produc
 
 ## Production Baseline
 
-Per run:
+Per full production run:
 
-- stage/side PASS: 44 / 108
-- production applications: 28
-- production TP / FP: 28 / 0
+- stage/side PASS: 52 / 108
+- production applications: 36
+- production TP / FP: 36 / 0
 - Tier C applications: 24
 - strict-total applications: 4
+- strict-member2 applications: 8
 
-The diagnostic path does not change production Tier C, strict-total, T2 grouped-number parsing, iPad ROI/preprocessing, global candidate ranking, bonus/total OCR, expected fixtures, smartphone OCR, current-PC OCR, or legacy desktop OCR.
+The strict-member2 production path does not change production Tier C, strict-total, T2 grouped-number parsing, iPad ROI/preprocessing, global candidate ranking, bonus/total OCR, expected fixtures, smartphone OCR, current-PC OCR, or legacy desktop OCR.
 
 ## Recommendation
 
-${summary.pass ? "Productionization is justified next, provided the production task reuses the same strict helper and preserves these guards exactly." : "Do not productionize. Resolve the mismatches above first."}
+${summary.pass ? "Production strict-member2 behavior is verified for the eight accepted rows with no extra applications." : "Do not push production behavior. Resolve the mismatches above first."}
 `;
 }
 
