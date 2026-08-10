@@ -8505,12 +8505,84 @@ export async function recognizeOcrZone(image, zone, options = {}) {
   }
 
   const result = await Tesseract.recognize(blob, "eng", tesseractOptions);
+  const hierarchy = options.includeHierarchy
+    ? buildOcrHierarchyExport(result.data, zone, debugArtifacts)
+    : null;
 
   return {
     text: result.data.text || "",
     numbers: extractNumbersForZone(result.data.text || ""),
     confidence: Number(result.data.confidence || 0),
     debugArtifacts,
+    ...(options.includeHierarchy ? { hierarchy } : {}),
+  };
+}
+
+function mapOcrBboxToSource(bbox, zone, processedCrop) {
+  if (!bbox || !zone || !processedCrop?.width || !processedCrop?.height) return null;
+  const x0 = Number(bbox.x0 ?? bbox.left ?? bbox.x ?? 0);
+  const y0 = Number(bbox.y0 ?? bbox.top ?? bbox.y ?? 0);
+  const x1 = Number(bbox.x1 ?? (bbox.x ?? 0) + (bbox.width ?? 0));
+  const y1 = Number(bbox.y1 ?? (bbox.y ?? 0) + (bbox.height ?? 0));
+  const sourceX = Number(zone.x ?? zone.left ?? 0);
+  const sourceY = Number(zone.y ?? zone.top ?? 0);
+  const sourceWidth = Number(zone.width || 0);
+  const sourceHeight = Number(zone.height || 0);
+  const scaleX = sourceWidth / Number(processedCrop.width || sourceWidth || 1);
+  const scaleY = sourceHeight / Number(processedCrop.height || sourceHeight || 1);
+  return {
+    x0: Math.round(sourceX + x0 * scaleX),
+    y0: Math.round(sourceY + y0 * scaleY),
+    x1: Math.round(sourceX + x1 * scaleX),
+    y1: Math.round(sourceY + y1 * scaleY),
+    width: Math.round((x1 - x0) * scaleX),
+    height: Math.round((y1 - y0) * scaleY),
+  };
+}
+
+function serializeOcrHierarchyNode(node, zone, processedCrop) {
+  if (!node || typeof node !== "object") return null;
+  return {
+    text: node.text || "",
+    confidence: Number(node.confidence || 0),
+    bbox: node.bbox || null,
+    sourceBbox: mapOcrBboxToSource(node.bbox, zone, processedCrop),
+    baseline: node.baseline || null,
+  };
+}
+
+function serializeOcrHierarchyList(list, zone, processedCrop) {
+  if (!Array.isArray(list)) return [];
+  return list
+    .map((node) => serializeOcrHierarchyNode(node, zone, processedCrop))
+    .filter(Boolean);
+}
+
+function buildOcrHierarchyExport(data = {}, zone, debugArtifacts) {
+  const processedCrop = debugArtifacts?.processedCrop || null;
+  return {
+    availability: {
+      blocks: Array.isArray(data.blocks),
+      paragraphs: Array.isArray(data.paragraphs),
+      lines: Array.isArray(data.lines),
+      words: Array.isArray(data.words),
+      symbols: Array.isArray(data.symbols),
+      bbox: Boolean(
+        data.blocks?.some?.((node) => node?.bbox) ||
+          data.paragraphs?.some?.((node) => node?.bbox) ||
+          data.lines?.some?.((node) => node?.bbox) ||
+          data.words?.some?.((node) => node?.bbox) ||
+          data.symbols?.some?.((node) => node?.bbox)
+      ),
+      confidence: typeof data.confidence !== "undefined",
+    },
+    rawText: data.text || "",
+    confidence: Number(data.confidence || 0),
+    blocks: serializeOcrHierarchyList(data.blocks, zone, processedCrop),
+    paragraphs: serializeOcrHierarchyList(data.paragraphs, zone, processedCrop),
+    lines: serializeOcrHierarchyList(data.lines, zone, processedCrop),
+    words: serializeOcrHierarchyList(data.words, zone, processedCrop),
+    symbols: serializeOcrHierarchyList(data.symbols, zone, processedCrop),
   };
 }
 

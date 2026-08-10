@@ -96,6 +96,11 @@ function getIpadArithmeticDebugFilter() {
   };
 }
 
+function isIpadStage3FullsideDebugEnabled() {
+  if (typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).get("ipadStage3FullsideDebug") === "1";
+}
+
 function toIpadArithmeticNumber(value) {
   const normalized = Number(String(value ?? "").replace(/[^\d-]/g, ""));
   return Number.isFinite(normalized) ? normalized : 0;
@@ -645,6 +650,323 @@ async function buildIpadArithmeticBrowserDiagnostics({ image, imageName, filter 
   }
 
   return diagnostics;
+}
+
+function unionIpadStage3FullsideRects(rects) {
+  const valid = rects.filter(Boolean);
+  if (!valid.length) return null;
+  const left = Math.min(...valid.map((rect) => Number(rect.x || 0)));
+  const top = Math.min(...valid.map((rect) => Number(rect.y || 0)));
+  const right = Math.max(...valid.map((rect) => Number(rect.x || 0) + Number(rect.width || 0)));
+  const bottom = Math.max(...valid.map((rect) => Number(rect.y || 0) + Number(rect.height || 0)));
+  return { x: left, y: top, width: right - left, height: bottom - top };
+}
+
+function normalizeIpadStage3FullsideRect(rect, image) {
+  if (!rect || !image?.width || !image?.height) return null;
+  return {
+    left: Number((Number(rect.x || 0) / Number(image.width)).toFixed(6)),
+    top: Number((Number(rect.y || 0) / Number(image.height)).toFixed(6)),
+    width: Number((Number(rect.width || 0) / Number(image.width)).toFixed(6)),
+    height: Number((Number(rect.height || 0) / Number(image.height)).toFixed(6)),
+  };
+}
+
+function ipadStage3FullsideFieldRectangles(sideDiagnostics = {}) {
+  return {
+    member1: sideDiagnostics.candidatePools?.member1?.zone || null,
+    member2: sideDiagnostics.candidatePools?.member2?.zone || null,
+    member3: sideDiagnostics.candidatePools?.member3?.zone || null,
+    bonus: sideDiagnostics.candidatePools?.bonus?.zone || null,
+    total: sideDiagnostics.candidatePools?.total?.zone || null,
+  };
+}
+
+function buildIpadStage3FullsideArchitectureDefinitions(image, diagnostics) {
+  const stageKey = "stage3";
+  const definitions = [];
+  const stageRow =
+    diagnostics?.template?.stageRows?.find((row) => row.stage === 3)?.zone || null;
+  const sideZones = Object.fromEntries(
+    (diagnostics?.template?.stageSideZones || [])
+      .filter((row) => row.stage === 3)
+      .map((row) => [row.side, row.zone])
+  );
+  for (const side of ["self", "enemy"]) {
+    const fieldRects = ipadStage3FullsideFieldRectangles(
+      diagnostics?.stages?.[stageKey]?.[side] || {}
+    );
+    const memberRow = unionIpadStage3FullsideRects([
+      fieldRects.member1,
+      fieldRects.member2,
+      fieldRects.member3,
+    ]);
+    const fullSide =
+      unionIpadStage3FullsideRects([
+        fieldRects.member1,
+        fieldRects.member2,
+        fieldRects.member3,
+        fieldRects.bonus,
+        fieldRects.total,
+      ]) || sideZones[side] || null;
+    definitions.push({
+      architecture: "F1",
+      label: "Full Stage3 member row",
+      stage: 3,
+      side,
+      roi: memberRow,
+      normalizedRoi: normalizeIpadStage3FullsideRect(memberRow, image),
+      fieldRects: {
+        member1: fieldRects.member1,
+        member2: fieldRects.member2,
+        member3: fieldRects.member3,
+      },
+    });
+    definitions.push({
+      architecture: "F2",
+      label: "Full Stage3 side",
+      stage: 3,
+      side,
+      roi: fullSide,
+      normalizedRoi: normalizeIpadStage3FullsideRect(fullSide, image),
+      fieldRects,
+    });
+  }
+  definitions.push({
+    architecture: "F3",
+    label: "Full Stage3 result row",
+    stage: 3,
+    side: "both",
+    roi: stageRow,
+    normalizedRoi: normalizeIpadStage3FullsideRect(stageRow, image),
+    selfEnemySplit: sideZones,
+    fieldRects: Object.fromEntries(
+      ["self", "enemy"].map((side) => [
+        side,
+        ipadStage3FullsideFieldRectangles(diagnostics?.stages?.[stageKey]?.[side] || {}),
+      ])
+    ),
+  });
+  return definitions.filter((definition) => definition.roi);
+}
+
+function ipadStage3FullsideExtractNumericTokens(text = "") {
+  const tokens = [];
+  const patterns = [
+    { kind: "strict-grouped", regex: /\b\d{1,3}(?:[,.]\d{3})+\b/g },
+    { kind: "space-grouped", regex: /\b\d{1,3}(?:\s+\d{3})+\b/g },
+    { kind: "contiguous-digits", regex: /\b\d{2,8}\b/g },
+  ];
+  const seen = new Set();
+  for (const { kind, regex } of patterns) {
+    for (const match of text.matchAll(regex)) {
+      const raw = match[0];
+      const normalized = raw.replace(/\D/g, "");
+      if (!normalized) continue;
+      const key = `${kind}|${match.index}|${raw}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      tokens.push({
+        kind,
+        raw,
+        normalized,
+        value: toIpadArithmeticNumber(normalized),
+        start: match.index,
+        end: match.index + raw.length,
+      });
+    }
+  }
+  return tokens;
+}
+
+function ipadStage3FullsideRectMetrics(sourceBbox, fieldRect) {
+  if (!sourceBbox || !fieldRect) return { overlapRatio: 0, centerInside: false, inside: false };
+  const token = {
+    x0: Number(sourceBbox.x0 ?? sourceBbox.x ?? 0),
+    y0: Number(sourceBbox.y0 ?? sourceBbox.y ?? 0),
+    x1: Number(sourceBbox.x1 ?? (sourceBbox.x ?? 0) + (sourceBbox.width ?? 0)),
+    y1: Number(sourceBbox.y1 ?? (sourceBbox.y ?? 0) + (sourceBbox.height ?? 0)),
+  };
+  const field = {
+    x0: Number(fieldRect.x || 0),
+    y0: Number(fieldRect.y || 0),
+    x1: Number(fieldRect.x || 0) + Number(fieldRect.width || 0),
+    y1: Number(fieldRect.y || 0) + Number(fieldRect.height || 0),
+  };
+  const tokenWidth = Math.max(0, token.x1 - token.x0);
+  const tokenHeight = Math.max(0, token.y1 - token.y0);
+  const tokenArea = tokenWidth * tokenHeight;
+  const overlapWidth = Math.max(0, Math.min(token.x1, field.x1) - Math.max(token.x0, field.x0));
+  const overlapHeight = Math.max(0, Math.min(token.y1, field.y1) - Math.max(token.y0, field.y0));
+  const overlapRatio = tokenArea ? Number(((overlapWidth * overlapHeight) / tokenArea).toFixed(4)) : 0;
+  const centerX = token.x0 + tokenWidth / 2;
+  const centerY = token.y0 + tokenHeight / 2;
+  return {
+    overlapRatio,
+    centerInside: centerX >= field.x0 && centerX <= field.x1 && centerY >= field.y0 && centerY <= field.y1,
+    inside:
+      token.x0 >= field.x0 &&
+      token.x1 <= field.x1 &&
+      token.y0 >= field.y0 &&
+      token.y1 <= field.y1,
+  };
+}
+
+function assignIpadStage3FullsideToken(token, definition) {
+  const fieldsForDefinition =
+    definition.side === "both"
+      ? Object.fromEntries(
+          Object.entries(definition.fieldRects || {}).flatMap(([side, fieldRects]) =>
+            Object.entries(fieldRects || {}).map(([field, rect]) => [`${side}:${field}`, rect])
+          )
+        )
+      : Object.fromEntries(
+          Object.entries(definition.fieldRects || {}).map(([field, rect]) => [
+            `${definition.side}:${field}`,
+            rect,
+          ])
+        );
+  const sourceBbox = token.sourceBbox || null;
+  const fieldOverlaps = Object.fromEntries(
+    Object.entries(fieldsForDefinition).map(([field, rect]) => [
+      field,
+      ipadStage3FullsideRectMetrics(sourceBbox, rect),
+    ])
+  );
+  const inside = Object.entries(fieldOverlaps).filter(([, metrics]) => metrics.inside);
+  if (inside.length === 1) {
+    return {
+      assignedField: inside[0][0],
+      assignmentTier: "A1",
+      ambiguous: false,
+      fieldOverlaps,
+    };
+  }
+  const centerInside = Object.entries(fieldOverlaps)
+    .filter(([, metrics]) => metrics.centerInside)
+    .sort((a, b) => b[1].overlapRatio - a[1].overlapRatio);
+  if (
+    centerInside.length === 1 ||
+    (centerInside.length > 1 &&
+      centerInside[0][1].overlapRatio >= 0.55 &&
+      centerInside[0][1].overlapRatio >= centerInside[1][1].overlapRatio + 0.25)
+  ) {
+    return {
+      assignedField: centerInside[0][0],
+      assignmentTier: "A2",
+      ambiguous: false,
+      fieldOverlaps,
+    };
+  }
+  const overlapping = Object.entries(fieldOverlaps).filter(([, metrics]) => metrics.overlapRatio > 0);
+  return {
+    assignedField: null,
+    assignmentTier: overlapping.length > 1 ? "A4" : "unassigned",
+    ambiguous: overlapping.length > 1,
+    fieldOverlaps,
+  };
+}
+
+function buildIpadStage3FullsideTokensFromHierarchy(hierarchy, definition) {
+  const hierarchyWords = Array.isArray(hierarchy?.words) ? hierarchy.words : [];
+  const wordTokens = hierarchyWords.flatMap((word, wordIndex) =>
+    ipadStage3FullsideExtractNumericTokens(word.text || "").map((token) => ({
+      source: "word",
+      wordIndex,
+      text: word.text || "",
+      confidence: word.confidence,
+      bbox: word.bbox || null,
+      sourceBbox: word.sourceBbox || null,
+      ...token,
+    }))
+  );
+  const rawTextTokens = ipadStage3FullsideExtractNumericTokens(hierarchy?.rawText || "").map((token) => ({
+    source: "rawText",
+    text: token.raw,
+    confidence: hierarchy?.confidence || 0,
+    bbox: null,
+    sourceBbox: null,
+    ...token,
+  }));
+  const seen = new Set();
+  return [...wordTokens, ...rawTextTokens]
+    .filter((token) => {
+      const key = `${token.source}|${token.start}|${token.raw}|${JSON.stringify(token.sourceBbox || null)}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .map((token) => ({
+      ...token,
+      geometryAssignment: assignIpadStage3FullsideToken(token, definition),
+    }));
+}
+
+async function buildIpadStage3FullsideOcrExport({ image, imageName, diagnostics }) {
+  const detection = detectIpadOcrLayout(image);
+  const exportPayload = {
+    schema: "ipad-stage3-fullside-browser-ocr-export-v1",
+    debugFlag: "ipadStage3FullsideDebug=1",
+    imageIdentifier: imageName || "",
+    image: {
+      width: Number(image?.width || 0),
+      height: Number(image?.height || 0),
+    },
+    detection,
+    productionOutputChanged: false,
+    note: "Developer-only real-browser Stage3 F1/F2/F3 OCR export. Proposals are not applied to OCR output.",
+    architectures: [],
+    ocrConfigs: [
+      { id: "psm6", pageSegMode: "6", preset: "ipad-white-mask" },
+      { id: "psm7", pageSegMode: "7", preset: "ipad-white-mask" },
+    ],
+    results: [],
+    hierarchyAvailability: {},
+  };
+  if (!isProductionIpadArithmeticLayout(diagnostics)) {
+    exportPayload.blockReason = "missing-production-ipad-arithmetic-diagnostics";
+    return exportPayload;
+  }
+  const definitions = buildIpadStage3FullsideArchitectureDefinitions(image, diagnostics);
+  exportPayload.architectures = definitions;
+  for (const definition of definitions) {
+    for (const config of exportPayload.ocrConfigs) {
+      const startedAt = performance.now();
+      const result = await recognizeOcrZone(image, definition.roi, {
+        preset: config.preset,
+        pageSegMode: config.pageSegMode,
+        charWhitelist: "0123456789,. ",
+        includeDebugArtifacts: true,
+        includeHierarchy: true,
+      });
+      const elapsedMs = Math.round(performance.now() - startedAt);
+      const hierarchy = result.hierarchy || null;
+      const tokens = buildIpadStage3FullsideTokensFromHierarchy(hierarchy, definition);
+      const availability = hierarchy?.availability || {};
+      exportPayload.hierarchyAvailability[`${definition.architecture}|${definition.side}|${config.id}`] = availability;
+      exportPayload.results.push({
+        imageIdentifier: imageName || "",
+        cluster: detection.clusterId || detection.family || "",
+        architecture: definition.architecture,
+        architectureLabel: definition.label,
+        stage: 3,
+        side: definition.side,
+        naturalWidth: Number(image?.width || 0),
+        naturalHeight: Number(image?.height || 0),
+        normalizedRoi: definition.normalizedRoi,
+        roi: definition.roi,
+        crop: result.debugArtifacts?.crop || definition.roi,
+        processedInput: result.debugArtifacts?.processedCrop || null,
+        ocrConfig: config,
+        elapsedMs,
+        rawText: result.text || "",
+        confidence: Number(result.confidence || 0),
+        hierarchy,
+        tokens,
+      });
+    }
+  }
+  return exportPayload;
 }
 
 function normalizeIpadDiagnosticNumber(value) {
@@ -1199,6 +1521,7 @@ export default function Home() {
   const [ocrProgress, setOcrProgress] = useState(0);
   const [parsedOcrScores, setParsedOcrScores] = useState(null);
   const [ipadArithmeticDiagnostics, setIpadArithmeticDiagnostics] = useState(null);
+  const [ipadStage3FullsideOcrExport, setIpadStage3FullsideOcrExport] = useState(null);
   const [ocrMode, setOcrMode] = useState("smartphone");
   const [currentTime] = useState(() => Date.now());
 
@@ -1214,6 +1537,7 @@ export default function Home() {
     setOcrProgress(0);
     setParsedOcrScores(null);
     setIpadArithmeticDiagnostics(null);
+    setIpadStage3FullsideOcrExport(null);
   }, [screenshotPreview]);
 
   useEffect(() => {
@@ -1222,6 +1546,9 @@ export default function Home() {
     return () => {
       if (window.__IPAD_ARITHMETIC_SET_IMAGE_FILE__) {
         delete window.__IPAD_ARITHMETIC_SET_IMAGE_FILE__;
+      }
+      if (window.__IPAD_STAGE3_FULLSIDE_OCR_EXPORT__) {
+        delete window.__IPAD_STAGE3_FULLSIDE_OCR_EXPORT__;
       }
     };
   }, [setImageFile]);
@@ -2795,6 +3122,7 @@ export default function Home() {
     setOcrProgress(0);
     setParsedOcrScores(null);
     setIpadArithmeticDiagnostics(null);
+    setIpadStage3FullsideOcrExport(null);
   };
 
   const runOcr = async () => {
@@ -2807,6 +3135,7 @@ export default function Home() {
     setOcrProgress(0);
     setParsedOcrScores(null);
     setIpadArithmeticDiagnostics(null);
+    setIpadStage3FullsideOcrExport(null);
     setOcrStatus("合計値と個人スコア部分を切り抜き中...");
 
     try {
@@ -2820,9 +3149,11 @@ export default function Home() {
       });
 
       const ipadArithmeticDebug = isIpadArithmeticDebugEnabled();
+      const ipadStage3FullsideDebug = isIpadStage3FullsideDebugEnabled();
       const ipadLayoutDetection = detectIpadOcrLayout(image);
       const shouldBuildIpadArithmeticEvidence =
         ipadArithmeticDebug ||
+        ipadStage3FullsideDebug ||
         (IPAD_TIER_C_EXACTLY_ONE_ARITHMETIC_RECOVERY_ENABLED &&
           ipadLayoutDetection.detected === true &&
           ipadLayoutDetection.deviceMode === "ipad" &&
@@ -2957,8 +3288,18 @@ export default function Home() {
             finalStageScores
           ),
         };
+        const ipadStage3FullsideExport = ipadStage3FullsideDebug
+          ? await buildIpadStage3FullsideOcrExport({
+              image,
+              imageName: screenshotName || screenshotFile.name || "",
+              diagnostics: finalIpadArithmeticDiagnostics,
+            })
+          : null;
         if (ipadArithmeticDebug && typeof window !== "undefined") {
           window.__IPAD_ARITHMETIC_DIAGNOSTICS__ = finalIpadArithmeticDiagnostics;
+        }
+        if (ipadStage3FullsideDebug && typeof window !== "undefined") {
+          window.__IPAD_STAGE3_FULLSIDE_OCR_EXPORT__ = ipadStage3FullsideExport;
         }
         URL.revokeObjectURL(imageUrl);
         const ipadTierCProductionLogs =
@@ -2997,6 +3338,7 @@ export default function Home() {
             finalIpadArithmeticDiagnostics?.strictMember2SelectionEvidence || null,
         });
         setIpadArithmeticDiagnostics(ipadArithmeticDebug ? finalIpadArithmeticDiagnostics : null);
+        setIpadStage3FullsideOcrExport(ipadStage3FullsideDebug ? ipadStage3FullsideExport : null);
         setOcrProgress(100);
         setOcrStatus("OCR完了");
         return;
@@ -6125,6 +6467,7 @@ const metaStats = useMemo(() => {
             applyOcrScores={applyOcrScores}
             ocrText={ocrText}
             ipadArithmeticDiagnostics={ipadArithmeticDiagnostics}
+            ipadStage3FullsideOcrExport={ipadStage3FullsideOcrExport}
           />
         </section>
 
