@@ -1,0 +1,344 @@
+{
+  "schema": "ipad-stage3-rapidocr-safety-expansion-manifest-v1",
+  "sourceFolder": "C:/Users/gkhay/Pictures/DMMGamePlayer/ipad",
+  "selectionDate": "2026-08-12",
+  "selectionPolicy": "Fifteen pending iPad fixtures selected before RapidOCR rescoring to expand Stage3 safety coverage across ipad-01/ipad-02, high 7-digit Stage3 rows, self/enemy crown sides, and known near-FP neighborhood controls.",
+  "selectedCount": 15,
+  "selected": [
+    {
+      "filename": "IMG_0282.png",
+      "clusterId": "ipad-01",
+      "expectedFixture": "IMG_0282.json",
+      "reason": "early ipad-01 pending near known IMG_0283 suffix-fragment FP; mixed 6/7-digit Stage3 with enemy crown",
+      "stage3": {
+        "selfMembers": [
+          835404,
+          835996,
+          648980
+        ],
+        "selfBonus": 0,
+        "selfTotal": 2320380,
+        "enemyMembers": [
+          410671,
+          349464,
+          1221547
+        ],
+        "enemyBonus": 244309,
+        "enemyTotal": 2225991
+      }
+    },
+    {
+      "filename": "IMG_0284.png",
+      "clusterId": "ipad-01",
+      "expectedFixture": "IMG_0284.json",
+      "reason": "early ipad-01 pending after known FP; high Stage3 self total with 7-digit member and self crown",
+      "stage3": {
+        "selfMembers": [
+          1033971,
+          1191935,
+          883071
+        ],
+        "selfBonus": 238387,
+        "selfTotal": 3347364,
+        "enemyMembers": [
+          610336,
+          178601,
+          63221
+        ],
+        "enemyBonus": 0,
+        "enemyTotal": 852158
+      }
+    },
+    {
+      "filename": "IMG_0285.png",
+      "clusterId": "ipad-01",
+      "expectedFixture": "IMG_0285.json",
+      "reason": "mixed Stage2 enemy crown and Stage3 self crown; crowded Stage3 values but lower enemy total",
+      "stage3": {
+        "selfMembers": [
+          810180,
+          535044,
+          909283
+        ],
+        "selfBonus": 181856,
+        "selfTotal": 2436363,
+        "enemyMembers": [
+          121819,
+          148410,
+          526989
+        ],
+        "enemyBonus": 0,
+        "enemyTotal": 797218
+      }
+    },
+    {
+      "filename": "IMG_0286.png",
+      "clusterId": "ipad-01",
+      "expectedFixture": "IMG_0286.json",
+      "reason": "Stage3 self crown with three high 6-digit members; useful non-7-digit safety control",
+      "stage3": {
+        "selfMembers": [
+          945097,
+          700547,
+          886854
+        ],
+        "selfBonus": 189019,
+        "selfTotal": 2721517,
+        "enemyMembers": [
+          575645,
+          382738,
+          57451
+        ],
+        "enemyBonus": 0,
+        "enemyTotal": 1015834
+      }
+    },
+    {
+      "filename": "IMG_0292.png",
+      "clusterId": "ipad-01",
+      "expectedFixture": "IMG_0292.json",
+      "reason": "Stage3 self contains 1.39M member and self crown; enemy side has dense 6-digit row",
+      "stage3": {
+        "selfMembers": [
+          835922,
+          1392453,
+          826413
+        ],
+        "selfBonus": 278490,
+        "selfTotal": 3333278,
+        "enemyMembers": [
+          686707,
+          662075,
+          399656
+        ],
+        "enemyBonus": 0,
+        "enemyTotal": 1748438
+      }
+    },
+    {
+      "filename": "IMG_0293.png",
+      "clusterId": "ipad-01",
+      "expectedFixture": "IMG_0293.json",
+      "reason": "Stage1 enemy crown plus Stage3 self 7-digit value; checks concatenated Stage3 member text",
+      "stage3": {
+        "selfMembers": [
+          1043349,
+          632026,
+          552609
+        ],
+        "selfBonus": 208669,
+        "selfTotal": 2436653,
+        "enemyMembers": [
+          444420,
+          723291,
+          381534
+        ],
+        "enemyBonus": 0,
+        "enemyTotal": 1549245
+      }
+    },
+    {
+      "filename": "IMG_0294.png",
+      "clusterId": "ipad-01",
+      "expectedFixture": "IMG_0294.json",
+      "reason": "Stage3 self 7-digit member with self crown; medium enemy values",
+      "stage3": {
+        "selfMembers": [
+          1011663,
+          938246,
+          505356
+        ],
+        "selfBonus": 202332,
+        "selfTotal": 2657597,
+        "enemyMembers": [
+          826565,
+          339339,
+          257247
+        ],
+        "enemyBonus": 0,
+        "enemyTotal": 1423151
+      }
+    },
+    {
+      "filename": "IMG_0295.png",
+      "clusterId": "ipad-01",
+      "expectedFixture": "IMG_0295.json",
+      "reason": "Stage3 self has mixed 6/7-digit row and lower member1; exercises slot diversity",
+      "stage3": {
+        "selfMembers": [
+          195245,
+          1004964,
+          833982
+        ],
+        "selfBonus": 200992,
+        "selfTotal": 2235183,
+        "enemyMembers": [
+          619385,
+          689431,
+          269543
+        ],
+        "enemyBonus": 0,
+        "enemyTotal": 1578359
+      }
+    },
+    {
+      "filename": "IMG_0297.png",
+      "clusterId": "ipad-01",
+      "expectedFixture": "IMG_0297.json",
+      "reason": "Stage1 enemy crown and Stage3 self crown; includes repeated 166324 member value",
+      "stage3": {
+        "selfMembers": [
+          645012,
+          979934,
+          523494
+        ],
+        "selfBonus": 195986,
+        "selfTotal": 2344426,
+        "enemyMembers": [
+          861383,
+          347237,
+          295373
+        ],
+        "enemyBonus": 0,
+        "enemyTotal": 1503993
+      }
+    },
+    {
+      "filename": "IMG_0298.png",
+      "clusterId": "ipad-01",
+      "expectedFixture": "IMG_0298.json",
+      "reason": "Stage3 self includes 1.1M member and self crown; total around 2.5M",
+      "stage3": {
+        "selfMembers": [
+          381943,
+          1103040,
+          811714
+        ],
+        "selfBonus": 220608,
+        "selfTotal": 2517305,
+        "enemyMembers": [
+          599824,
+          532290,
+          702579
+        ],
+        "enemyBonus": 0,
+        "enemyTotal": 1834693
+      }
+    },
+    {
+      "filename": "IMG_0795.png",
+      "clusterId": "ipad-02",
+      "expectedFixture": "IMG_0795.json",
+      "reason": "ipad-02 pending; Stage3 self has multiple 7-digit values and high total",
+      "stage3": {
+        "selfMembers": [
+          1105952,
+          1220701,
+          985524
+        ],
+        "selfBonus": 244140,
+        "selfTotal": 3556317,
+        "enemyMembers": [
+          825799,
+          375168,
+          640120
+        ],
+        "enemyBonus": 0,
+        "enemyTotal": 1841087
+      }
+    },
+    {
+      "filename": "IMG_0798.png",
+      "clusterId": "ipad-02",
+      "expectedFixture": "IMG_0798.json",
+      "reason": "ipad-02 pending; very high Stage3 self total and 7-digit members",
+      "stage3": {
+        "selfMembers": [
+          1299295,
+          1047725,
+          1493352
+        ],
+        "selfBonus": 298670,
+        "selfTotal": 4139042,
+        "enemyMembers": [
+          1173812,
+          878366,
+          870197
+        ],
+        "enemyBonus": 0,
+        "enemyTotal": 2922375
+      }
+    },
+    {
+      "filename": "IMG_0799.png",
+      "clusterId": "ipad-02",
+      "expectedFixture": "IMG_0799.json",
+      "reason": "ipad-02 pending; high Stage3 self total with large 7-digit members",
+      "stage3": {
+        "selfMembers": [
+          1794707,
+          972824,
+          1636412
+        ],
+        "selfBonus": 358941,
+        "selfTotal": 4762884,
+        "enemyMembers": [
+          1001817,
+          831228,
+          981824
+        ],
+        "enemyBonus": 0,
+        "enemyTotal": 2814869
+      }
+    },
+    {
+      "filename": "IMG_0800.png",
+      "clusterId": "ipad-02",
+      "expectedFixture": "IMG_0800.json",
+      "reason": "ipad-02 pending; enemy crown in Stage1/2 and Stage3 self crown with 1.42M member",
+      "stage3": {
+        "selfMembers": [
+          959343,
+          951555,
+          1423231
+        ],
+        "selfBonus": 284646,
+        "selfTotal": 3618775,
+        "enemyMembers": [
+          1142005,
+          1043192,
+          888801
+        ],
+        "enemyBonus": 0,
+        "enemyTotal": 3073998
+      }
+    },
+    {
+      "filename": "IMG_0801.png",
+      "clusterId": "ipad-02",
+      "expectedFixture": "IMG_0801.json",
+      "reason": "ipad-02 pending; Stage3 enemy crown and high self total without bonus",
+      "stage3": {
+        "selfMembers": [
+          1470726,
+          894660,
+          1332227
+        ],
+        "selfBonus": 0,
+        "selfTotal": 3697613,
+        "enemyMembers": [
+          1514470,
+          996352,
+          696745
+        ],
+        "enemyBonus": 302894,
+        "enemyTotal": 3510461
+      }
+    }
+  ],
+  "validation": {
+    "arithmeticVerified": true,
+    "crownRuleVerified": true,
+    "sourceOfTruth": "manual visual transcription from source screenshots, not OCR output"
+  }
+}

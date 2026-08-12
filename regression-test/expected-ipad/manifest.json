@@ -1,6 +1,6 @@
 {
   "schema": "ipad-expected-manifest-v1",
-  "status": "expanded-manual-transcription-batch-2",
+  "status": "stage3-rapidocr-safety-expansion",
   "note": "Expected values are manually transcribed from source screenshots and validated by arithmetic plus crown-bonus rule. OCR output is not source truth.",
   "sourceFolder": "C:/Users/gkhay/Pictures/DMMGamePlayer/ipad",
   "images": [
@@ -179,12 +179,12 @@
       "width": 1668,
       "height": 2420,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "manuallyVerified": false,
-      "arithmeticVerified": false,
-      "crownRuleVerified": false,
-      "expectedFixture": null,
-      "notes": "pending manual transcription"
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0282.json",
+      "notes": "stage3 RapidOCR safety expansion; early ipad-01 pending near known IMG_0283 suffix-fragment FP; mixed 6/7-digit Stage3 with enemy crown; manually transcribed from source screenshot; arithmetic and crown rule validated"
     },
     {
       "filename": "IMG_0283.png",
@@ -205,12 +205,12 @@
       "width": 1668,
       "height": 2420,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "manuallyVerified": false,
-      "arithmeticVerified": false,
-      "crownRuleVerified": false,
-      "expectedFixture": null,
-      "notes": "pending manual transcription"
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0284.json",
+      "notes": "stage3 RapidOCR safety expansion; early ipad-01 pending after known FP; high Stage3 self total with 7-digit member and self crown; manually transcribed from source screenshot; arithmetic and crown rule validated"
     },
     {
       "filename": "IMG_0285.png",
@@ -218,12 +218,12 @@
       "width": 1668,
       "height": 2420,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "manuallyVerified": false,
-      "arithmeticVerified": false,
-      "crownRuleVerified": false,
-      "expectedFixture": null,
-      "notes": "pending manual transcription"
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0285.json",
+      "notes": "stage3 RapidOCR safety expansion; mixed Stage2 enemy crown and Stage3 self crown; crowded Stage3 values but lower enemy total; manually transcribed from source screenshot; arithmetic and crown rule validated"
     },
     {
       "filename": "IMG_0286.png",
@@ -231,12 +231,12 @@
       "width": 1668,
       "height": 2420,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "manuallyVerified": false,
-      "arithmeticVerified": false,
-      "crownRuleVerified": false,
-      "expectedFixture": null,
-      "notes": "pending manual transcription"
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0286.json",
+      "notes": "stage3 RapidOCR safety expansion; Stage3 self crown with three high 6-digit members; useful non-7-digit safety control; manually transcribed from source screenshot; arithmetic and crown rule validated"
     },
     {
       "filename": "IMG_0287.png",
@@ -257,12 +257,12 @@
       "width": 1668,
       "height": 2420,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "manuallyVerified": false,
-      "arithmeticVerified": false,
-      "crownRuleVerified": false,
-      "expectedFixture": null,
-      "notes": "pending manual transcription"
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0292.json",
+      "notes": "stage3 RapidOCR safety expansion; Stage3 self contains 1.39M member and self crown; enemy side has dense 6-digit row; manually transcribed from source screenshot; arithmetic and crown rule validated"
     },
     {
       "filename": "IMG_0293.png",
@@ -270,12 +270,12 @@
       "width": 1668,
       "height": 2420,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "manuallyVerified": false,
-      "arithmeticVerified": false,
-      "crownRuleVerified": false,
-      "expectedFixture": null,
-      "notes": "pending manual transcription"
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0293.json",
+      "notes": "stage3 RapidOCR safety expansion; Stage1 enemy crown plus Stage3 self 7-digit value; checks concatenated Stage3 member text; manually transcribed from source screenshot; arithmetic and crown rule validated"
     },
     {
       "filename": "IMG_0294.png",
@@ -283,12 +283,12 @@
       "width": 1668,
       "height": 2420,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "manuallyVerified": false,
-      "arithmeticVerified": false,
-      "crownRuleVerified": false,
-      "expectedFixture": null,
-      "notes": "pending manual transcription"
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0294.json",
+      "notes": "stage3 RapidOCR safety expansion; Stage3 self 7-digit member with self crown; medium enemy values; manually transcribed from source screenshot; arithmetic and crown rule validated"
     },
     {
       "filename": "IMG_0295.png",
@@ -296,12 +296,12 @@
       "width": 1668,
       "height": 2420,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "manuallyVerified": false,
-      "arithmeticVerified": false,
-      "crownRuleVerified": false,
-      "expectedFixture": null,
-      "notes": "pending manual transcription"
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0295.json",
+      "notes": "stage3 RapidOCR safety expansion; Stage3 self has mixed 6/7-digit row and lower member1; exercises slot diversity; manually transcribed from source screenshot; arithmetic and crown rule validated"
     },
     {
       "filename": "IMG_0296.png",
@@ -322,12 +322,12 @@
       "width": 1668,
       "height": 2420,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "manuallyVerified": false,
-      "arithmeticVerified": false,
-      "crownRuleVerified": false,
-      "expectedFixture": null,
-      "notes": "pending manual transcription"
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0297.json",
+      "notes": "stage3 RapidOCR safety expansion; Stage1 enemy crown and Stage3 self crown; includes repeated 166324 member value; manually transcribed from source screenshot; arithmetic and crown rule validated"
     },
     {
       "filename": "IMG_0298.png",
@@ -335,12 +335,12 @@
       "width": 1668,
       "height": 2420,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "manuallyVerified": false,
-      "arithmeticVerified": false,
-      "crownRuleVerified": false,
-      "expectedFixture": null,
-      "notes": "pending manual transcription"
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0298.json",
+      "notes": "stage3 RapidOCR safety expansion; Stage3 self includes 1.1M member and self crown; total around 2.5M; manually transcribed from source screenshot; arithmetic and crown rule validated"
     },
     {
       "filename": "IMG_0299.png",
@@ -1011,12 +1011,12 @@
       "width": 1640,
       "height": 2360,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "manuallyVerified": false,
-      "arithmeticVerified": false,
-      "crownRuleVerified": false,
-      "expectedFixture": null,
-      "notes": "pending manual transcription"
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0795.json",
+      "notes": "stage3 RapidOCR safety expansion; ipad-02 pending; Stage3 self has multiple 7-digit values and high total; manually transcribed from source screenshot; arithmetic and crown rule validated"
     },
     {
       "filename": "IMG_0796.png",
@@ -1037,12 +1037,12 @@
       "width": 1640,
       "height": 2360,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "manuallyVerified": false,
-      "arithmeticVerified": false,
-      "crownRuleVerified": false,
-      "expectedFixture": null,
-      "notes": "pending manual transcription"
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0798.json",
+      "notes": "stage3 RapidOCR safety expansion; ipad-02 pending; very high Stage3 self total and 7-digit members; manually transcribed from source screenshot; arithmetic and crown rule validated"
     },
     {
       "filename": "IMG_0799.png",
@@ -1050,12 +1050,12 @@
       "width": 1640,
       "height": 2360,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "manuallyVerified": false,
-      "arithmeticVerified": false,
-      "crownRuleVerified": false,
-      "expectedFixture": null,
-      "notes": "pending manual transcription"
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0799.json",
+      "notes": "stage3 RapidOCR safety expansion; ipad-02 pending; high Stage3 self total with large 7-digit members; manually transcribed from source screenshot; arithmetic and crown rule validated"
     },
     {
       "filename": "IMG_0800.png",
@@ -1063,12 +1063,12 @@
       "width": 1640,
       "height": 2360,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "manuallyVerified": false,
-      "arithmeticVerified": false,
-      "crownRuleVerified": false,
-      "expectedFixture": null,
-      "notes": "pending manual transcription"
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0800.json",
+      "notes": "stage3 RapidOCR safety expansion; ipad-02 pending; enemy crown in Stage1/2 and Stage3 self crown with 1.42M member; manually transcribed from source screenshot; arithmetic and crown rule validated"
     },
     {
       "filename": "IMG_0801.png",
@@ -1076,12 +1076,12 @@
       "width": 1640,
       "height": 2360,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "manuallyVerified": false,
-      "arithmeticVerified": false,
-      "crownRuleVerified": false,
-      "expectedFixture": null,
-      "notes": "pending manual transcription"
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0801.json",
+      "notes": "stage3 RapidOCR safety expansion; ipad-02 pending; Stage3 enemy crown and high self total without bonus; manually transcribed from source screenshot; arithmetic and crown rule validated"
     },
     {
       "filename": "IMG_0802.png",
