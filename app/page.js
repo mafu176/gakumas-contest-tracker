@@ -1013,6 +1013,24 @@ async function buildIpadStage3RapidOcrBrowserDiagnostic({ image, imageName, diag
     offlineParityRequiredBeforeProduction: true,
   };
 
+  try {
+    const { runIpadStage3RapidOcrBrowserDiagnostic } = await import(
+      "./lib/ipadStage3RapidOcrBrowser"
+    );
+    return await runIpadStage3RapidOcrBrowserDiagnostic({
+      image,
+      imageName,
+      diagnostics,
+    });
+  } catch (error) {
+    payload.status = "blocked-runtime-error";
+    payload.blockReason = error instanceof Error ? error.message : String(error);
+    payload.error = {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : null,
+    };
+  }
+
   if (!detection.detected) {
     payload.status = "blocked-not-ipad-layout";
     return payload;
@@ -1607,7 +1625,12 @@ export default function Home() {
   }, [screenshotPreview]);
 
   useEffect(() => {
-    if (!isIpadArithmeticDebugEnabled() || typeof window === "undefined") return undefined;
+    if (
+      (!isIpadArithmeticDebugEnabled() && !isIpadStage3RapidOcrDebugEnabled()) ||
+      typeof window === "undefined"
+    ) {
+      return undefined;
+    }
     window.__IPAD_ARITHMETIC_SET_IMAGE_FILE__ = (file, label) => setImageFile(file, label);
     return () => {
       if (window.__IPAD_ARITHMETIC_SET_IMAGE_FILE__) {

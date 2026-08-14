@@ -31,6 +31,8 @@ yarn-error.log*
 .pnpm-debug.log*
 /tmp/ocr-debug-artifacts/
 /tmp/ocr-roi-experiment/
+/tmp/ipad-stage3-rapidocr-browser-runtime/
+/tmp/rapidocr-python/_tmp_onnx_meta/
 
 # env files (can opt-in for committing if needed)
 .env*
