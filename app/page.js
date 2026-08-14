@@ -101,6 +101,11 @@ function isIpadStage3FullsideDebugEnabled() {
   return new URLSearchParams(window.location.search).get("ipadStage3FullsideDebug") === "1";
 }
 
+function isIpadStage3RapidOcrDebugEnabled() {
+  if (typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).get("ipadStage3RapidOcrDebug") === "1";
+}
+
 function toIpadArithmeticNumber(value) {
   const normalized = Number(String(value ?? "").replace(/[^\d-]/g, ""));
   return Number.isFinite(normalized) ? normalized : 0;
@@ -969,6 +974,65 @@ async function buildIpadStage3FullsideOcrExport({ image, imageName, diagnostics 
   return exportPayload;
 }
 
+async function buildIpadStage3RapidOcrBrowserDiagnostic({ image, imageName, diagnostics }) {
+  const detection = detectIpadOcrLayout(image);
+  const payload = {
+    schema: "ipad-stage3-rapidocr-browser-diagnostic-v1",
+    debugFlag: "ipadStage3RapidOcrDebug=1",
+    imageIdentifier: imageName || "",
+    generatedAt: new Date().toISOString(),
+    detection,
+    productionOutputChanged: false,
+    note:
+      "Developer-only RapidOCR browser-deployability diagnostic. It does not run production OCR recovery or alter displayed OCR output.",
+    status: "blocked-runtime-not-bundled",
+    blockReason:
+      "onnxruntime-web and RapidOCR model assets are not bundled in the browser application. Model weights currently live only under tmp/rapidocr-python for offline diagnostics.",
+    selectedArchitecture: {
+      runtime: "ONNX Runtime Web",
+      executionProvider: "wasm",
+      reason:
+        "Closest browser-deployable analogue to the offline Python ONNXRuntime RapidOCR stack; Safari/iPad feasibility still needs runtime and model bundling.",
+    },
+    modelAssets: [
+      "ch_PP-OCRv4_det_infer.onnx",
+      "ch_PP-OCRv4_rec_infer.onnx",
+      "ch_ppocr_mobile_v2.0_cls_infer.onnx",
+    ].map((name) => ({
+      name,
+      bundled: false,
+      expectedDiagnosticSource: "tmp/rapidocr-python/rapidocr_onnxruntime/models",
+    })),
+    stage3CropMetadata: [],
+    r6Policy: {
+      policyId: "R6-hybrid-safe-side",
+      productionEnabled: false,
+      summary:
+        "Frozen diagnostic policy only: exact observed RapidOCR candidates, strong total anchor, changed members >=5 digits and >=0.90 confidence, bounded multiplicity, no ambiguous bbox.",
+    },
+    offlineParityRequiredBeforeProduction: true,
+  };
+
+  if (!detection.detected) {
+    payload.status = "blocked-not-ipad-layout";
+    return payload;
+  }
+
+  const template = buildIpadArithmeticRoiTemplate(image);
+  const stage3Fields = (template.fields || []).filter((field) => field.stage === 3);
+  payload.stage3CropMetadata = stage3Fields.map((field) => ({
+    stage: field.stage,
+    side: field.side,
+    field: field.field,
+    slot: field.slot,
+    normalized: field.normalized,
+    zone: field.zone,
+  }));
+  payload.currentProductionDiagnosticsAvailable = Boolean(diagnostics);
+  payload.currentProductionRecoveries = diagnostics?.productionRecovery?.counters || null;
+  return payload;
+}
+
 function normalizeIpadDiagnosticNumber(value) {
   const normalized = Number(String(value ?? "").replace(/[^\d-]/g, ""));
   return Number.isFinite(normalized) ? normalized : 0;
@@ -1522,6 +1586,7 @@ export default function Home() {
   const [parsedOcrScores, setParsedOcrScores] = useState(null);
   const [ipadArithmeticDiagnostics, setIpadArithmeticDiagnostics] = useState(null);
   const [ipadStage3FullsideOcrExport, setIpadStage3FullsideOcrExport] = useState(null);
+  const [ipadStage3RapidOcrDiagnostic, setIpadStage3RapidOcrDiagnostic] = useState(null);
   const [ocrMode, setOcrMode] = useState("smartphone");
   const [currentTime] = useState(() => Date.now());
 
@@ -1538,6 +1603,7 @@ export default function Home() {
     setParsedOcrScores(null);
     setIpadArithmeticDiagnostics(null);
     setIpadStage3FullsideOcrExport(null);
+    setIpadStage3RapidOcrDiagnostic(null);
   }, [screenshotPreview]);
 
   useEffect(() => {
@@ -3123,6 +3189,7 @@ export default function Home() {
     setParsedOcrScores(null);
     setIpadArithmeticDiagnostics(null);
     setIpadStage3FullsideOcrExport(null);
+    setIpadStage3RapidOcrDiagnostic(null);
   };
 
   const runOcr = async () => {
@@ -3136,6 +3203,7 @@ export default function Home() {
     setParsedOcrScores(null);
     setIpadArithmeticDiagnostics(null);
     setIpadStage3FullsideOcrExport(null);
+    setIpadStage3RapidOcrDiagnostic(null);
     setOcrStatus("合計値と個人スコア部分を切り抜き中...");
 
     try {
@@ -3150,10 +3218,12 @@ export default function Home() {
 
       const ipadArithmeticDebug = isIpadArithmeticDebugEnabled();
       const ipadStage3FullsideDebug = isIpadStage3FullsideDebugEnabled();
+      const ipadStage3RapidOcrDebug = isIpadStage3RapidOcrDebugEnabled();
       const ipadLayoutDetection = detectIpadOcrLayout(image);
       const shouldBuildIpadArithmeticEvidence =
         ipadArithmeticDebug ||
         ipadStage3FullsideDebug ||
+        ipadStage3RapidOcrDebug ||
         (IPAD_TIER_C_EXACTLY_ONE_ARITHMETIC_RECOVERY_ENABLED &&
           ipadLayoutDetection.detected === true &&
           ipadLayoutDetection.deviceMode === "ipad" &&
@@ -3295,11 +3365,21 @@ export default function Home() {
               diagnostics: finalIpadArithmeticDiagnostics,
             })
           : null;
+        const ipadStage3RapidOcrExport = ipadStage3RapidOcrDebug
+          ? await buildIpadStage3RapidOcrBrowserDiagnostic({
+              image,
+              imageName: screenshotName || screenshotFile.name || "",
+              diagnostics: finalIpadArithmeticDiagnostics,
+            })
+          : null;
         if (ipadArithmeticDebug && typeof window !== "undefined") {
           window.__IPAD_ARITHMETIC_DIAGNOSTICS__ = finalIpadArithmeticDiagnostics;
         }
         if (ipadStage3FullsideDebug && typeof window !== "undefined") {
           window.__IPAD_STAGE3_FULLSIDE_OCR_EXPORT__ = ipadStage3FullsideExport;
+        }
+        if (ipadStage3RapidOcrDebug && typeof window !== "undefined") {
+          window.__IPAD_STAGE3_RAPIDOCR_DIAGNOSTIC__ = ipadStage3RapidOcrExport;
         }
         URL.revokeObjectURL(imageUrl);
         const ipadTierCProductionLogs =
@@ -3336,9 +3416,13 @@ export default function Home() {
             finalIpadArithmeticDiagnostics?.strictTotalSelectionEvidence || null,
           ipadStrictMember2SelectionEvidence:
             finalIpadArithmeticDiagnostics?.strictMember2SelectionEvidence || null,
+          ipadStage3RapidOcrDiagnostic: ipadStage3RapidOcrExport,
         });
-        setIpadArithmeticDiagnostics(ipadArithmeticDebug ? finalIpadArithmeticDiagnostics : null);
+        setIpadArithmeticDiagnostics(
+          ipadArithmeticDebug || ipadStage3RapidOcrDebug ? finalIpadArithmeticDiagnostics : null
+        );
         setIpadStage3FullsideOcrExport(ipadStage3FullsideDebug ? ipadStage3FullsideExport : null);
+        setIpadStage3RapidOcrDiagnostic(ipadStage3RapidOcrDebug ? ipadStage3RapidOcrExport : null);
         setOcrProgress(100);
         setOcrStatus("OCR完了");
         return;
@@ -6468,6 +6552,7 @@ const metaStats = useMemo(() => {
             ocrText={ocrText}
             ipadArithmeticDiagnostics={ipadArithmeticDiagnostics}
             ipadStage3FullsideOcrExport={ipadStage3FullsideOcrExport}
+            ipadStage3RapidOcrDiagnostic={ipadStage3RapidOcrDiagnostic}
           />
         </section>
 

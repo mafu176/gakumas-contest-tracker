@@ -19,6 +19,7 @@ export default function OcrImportPanel({
   ocrText,
   ipadArithmeticDiagnostics,
   ipadStage3FullsideOcrExport,
+  ipadStage3RapidOcrDiagnostic,
 }) {
   const debugOcrText = ocrText?.startsWith("[OCR_PARSER_VERSION]")
     ? ocrText
@@ -52,6 +53,23 @@ export default function OcrImportPanel({
       .slice(0, 80);
     a.href = url;
     a.download = `${safeName || "ipad"}-ipad-stage3-fullside-ocr-diagnostics.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+  const exportIpadStage3RapidOcrDiagnostic = () => {
+    if (!ipadStage3RapidOcrDiagnostic || typeof document === "undefined") return;
+    const blob = new Blob([JSON.stringify(ipadStage3RapidOcrDiagnostic, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const safeName = (ipadStage3RapidOcrDiagnostic.imageIdentifier || screenshotName || "ipad")
+      .replace(/[\\/:*?"<>|]/g, "_")
+      .slice(0, 80);
+    a.href = url;
+    a.download = `${safeName || "ipad"}-ipad-stage3-rapidocr-diagnostic.json`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -304,6 +322,15 @@ export default function OcrImportPanel({
                   Export Stage3 full-side OCR diagnostics
                 </button>
               )}
+              {ipadStage3RapidOcrDiagnostic && (
+                <button
+                  onClick={exportIpadStage3RapidOcrDiagnostic}
+                  data-testid="export-ipad-stage3-rapidocr-diagnostic"
+                  className="ml-2 rounded-xl bg-violet-900 px-4 py-2 text-sm font-semibold text-white"
+                >
+                  Export Stage3 RapidOCR diagnostic
+                </button>
+              )}
               <textarea
                 readOnly
                 data-testid="ipad-arithmetic-diagnostics-json"
@@ -315,6 +342,12 @@ export default function OcrImportPanel({
                 data-testid="ipad-stage3-fullside-ocr-diagnostics-json"
                 className="hidden"
                 value={JSON.stringify(ipadStage3FullsideOcrExport || null)}
+              />
+              <textarea
+                readOnly
+                data-testid="ipad-stage3-rapidocr-diagnostic-json"
+                className="hidden"
+                value={JSON.stringify(ipadStage3RapidOcrDiagnostic || null)}
               />
               {developerMode && (
                 <pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap rounded-xl bg-white p-3 text-xs text-zinc-700">

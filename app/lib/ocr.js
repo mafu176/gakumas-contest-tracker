@@ -8457,6 +8457,64 @@ export function applyCommonMemberCleanup(members, totals = []) {
   return cleaned.slice(0, 3);
 }
 
+export const IPAD_STAGE3_RAPIDOCR_R6_POLICY_ID = "R6-hybrid-safe-side";
+
+export function evaluateIpadStage3RapidOcrR6(evidence = {}) {
+  const changedSupports = Array.isArray(evidence.changedSupports)
+    ? evidence.changedSupports
+    : [];
+  const changedFields = Array.isArray(evidence.changedFields)
+    ? evidence.changedFields
+    : [];
+  const fieldSupports = evidence.fieldSupports || {};
+  const changedMembers = changedFields
+    .filter((field) => String(field).startsWith("member"))
+    .map((field) => fieldSupports[field])
+    .filter(Boolean);
+  const total = fieldSupports.total || {};
+  const featureSummary = evidence.featureSummary || {};
+  const blockReasons = [];
+
+  if (!changedSupports.every((support) => Number(support?.supportCount || 0) > 0)) {
+    blockReasons.push("changed-field-missing-rapidocr-support");
+  }
+  if (Number(total.supportCount || 0) <= 0) {
+    blockReasons.push("missing-total-anchor");
+  }
+  if (Number(total.confidence?.max || 0) < 0.9) {
+    blockReasons.push("total-confidence-below-0.90");
+  }
+  if (Number(total.digitCount || 0) < 5) {
+    blockReasons.push("total-anchor-too-short");
+  }
+  for (const support of changedMembers) {
+    const field = support.field || "member";
+    if (Number(support.digitCount || 0) < 5) {
+      blockReasons.push(`${field}-too-short`);
+    }
+    if (Number(support.confidence?.max || 0) < 0.9) {
+      blockReasons.push(`${field}-confidence-below-0.90`);
+    }
+    if (Number(support.distinctCandidateCount || 0) > 8) {
+      blockReasons.push(`${field}-candidate-pool-too-wide`);
+    }
+    if (Number(support.bbox?.ambiguousCount || 0) > 0) {
+      blockReasons.push(`${field}-ambiguous-bbox`);
+    }
+  }
+  if (Number(featureSummary.changedFieldsLowDigit || 0) > 0) {
+    blockReasons.push("changed-field-low-digit-fragment");
+  }
+
+  return {
+    policyId: IPAD_STAGE3_RAPIDOCR_R6_POLICY_ID,
+    wouldApply: blockReasons.length === 0,
+    blockReasons,
+    reason:
+      "R6 frozen side-local hybrid: observed total anchor >=5 digits and >=0.90 confidence; changed members >=5 digits, >=0.90 confidence, low multiplicity, no ambiguous bbox",
+  };
+}
+
 export async function recognizeOcrZone(image, zone, options = {}) {
   const blob = await createPreprocessedStageBlob(image, zone, options);
   let debugArtifacts = null;

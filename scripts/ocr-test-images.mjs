@@ -31,6 +31,8 @@ import {
   evaluateIpadStrictTotalSelection as sharedEvaluateIpadStrictTotalSelection,
   buildIpadStrictMember2SelectionEvidence as sharedBuildIpadStrictMember2SelectionEvidence,
   evaluateIpadStrictMember2Selection as sharedEvaluateIpadStrictMember2Selection,
+  evaluateIpadStage3RapidOcrR6 as sharedEvaluateIpadStage3RapidOcrR6,
+  IPAD_STAGE3_RAPIDOCR_R6_POLICY_ID,
   buildSmartphoneCrownBonusRuleEvidence as sharedBuildSmartphoneCrownBonusRuleEvidence,
   buildSmartphoneExactSlotSelectionEvidence as sharedBuildSmartphoneExactSlotSelectionEvidence,
   buildSmartphoneStageWideSixMemberCandidateSolverEvidence as sharedBuildSmartphoneStageWideSixMemberCandidateSolverEvidence,
@@ -266,6 +268,16 @@ const ipadStrictMember2SelectionParityDir = path.join(
   rootDir,
   "tmp",
   "ipad-strict-member2-selection-parity"
+);
+const ipadStage3RapidOcrBrowserDir = path.join(
+  rootDir,
+  "tmp",
+  "ipad-stage3-rapidocr-browser"
+);
+const ipadStage3RapidOcrBrowserReportPath = path.join(
+  rootDir,
+  "docs",
+  "ipad-stage3-rapidocr-browser-investigation.md"
 );
 let currentPcBaselineScanSummary = null;
 const unsupportedNextScreenMessage =
@@ -26089,6 +26101,353 @@ function buildCurrentPcCrownBonusRuleParityReport(parity, simulation) {
   return lines.join("\n");
 }
 
+const ipadStage3RapidOcrFields = ["member1", "member2", "member3", "bonus", "total"];
+
+function ipadStage3RapidOcrFieldValue(sideValues = {}, field) {
+  if (field.startsWith("member")) {
+    return Number((sideValues.members || [])[Number(field.slice(-1)) - 1] || 0);
+  }
+  return Number(sideValues[field] || 0);
+}
+
+function indexIpadStage3RapidOcrCandidates(candidateRows = []) {
+  const byField = new Map();
+  const byValue = new Map();
+  for (const row of candidateRows) {
+    if (!ipadStage3RapidOcrFields.includes(row.assignedField)) continue;
+    const fieldKey = `${row.image}|${row.side}|${row.assignedField}`;
+    if (!byField.has(fieldKey)) byField.set(fieldKey, []);
+    byField.get(fieldKey).push(row);
+    const valueKey = `${fieldKey}|${row.value}`;
+    if (!byValue.has(valueKey)) byValue.set(valueKey, []);
+    byValue.get(valueKey).push(row);
+  }
+  return { byField, byValue };
+}
+
+function summarizeIpadStage3RapidOcrSupport({ candidateIndex, image, side, field, value }) {
+  const fieldRows = candidateIndex.byField.get(`${image}|${side}|${field}`) || [];
+  const valueRows = candidateIndex.byValue.get(`${image}|${side}|${field}|${value}`) || [];
+  const distinctValues = [...new Set(fieldRows.map((row) => Number(row.value || 0)))].sort((a, b) => a - b);
+  const confidences = valueRows.map((row) => Number(row.confidence || 0)).filter(Number.isFinite);
+  return {
+    field,
+    value: Number(value || 0),
+    candidateCount: fieldRows.length,
+    distinctCandidateCount: distinctValues.length,
+    supportCount: valueRows.length,
+    profiles: [...new Set(valueRows.map((row) => row.profileId).filter(Boolean))],
+    cropKinds: [...new Set(valueRows.map((row) => row.cropKind).filter(Boolean))],
+    parsers: [...new Set(valueRows.map((row) => row.parser).filter(Boolean))],
+    rawTexts: [...new Set(valueRows.map((row) => row.fullText).filter(Boolean))].slice(0, 8),
+    confidence: {
+      min: confidences.length ? Number(Math.min(...confidences).toFixed(4)) : null,
+      max: confidences.length ? Number(Math.max(...confidences).toFixed(4)) : null,
+      mean: confidences.length
+        ? Number((confidences.reduce((sum, entry) => sum + entry, 0) / confidences.length).toFixed(4))
+        : null,
+    },
+    bbox: {
+      availableCount: valueRows.filter((row) => row.bbox).length,
+      ambiguousCount: valueRows.filter((row) => row.assignment?.ambiguous).length,
+    },
+    digitCount: String(Math.abs(Number(value || 0))).length,
+  };
+}
+
+function buildIpadStage3RapidOcrR6EvidenceRows({ unsafeSelectorRows = [], r6Rows = [], candidateRows = [] }) {
+  const candidateIndex = indexIpadStage3RapidOcrCandidates(candidateRows);
+  const changedByRow = new Map(
+    [...(r6Rows.accepted || []), ...(r6Rows.blocked || [])].map((row) => [
+      `${row.image}|${row.stage}|${row.side}`,
+      row.changedFields || [],
+    ])
+  );
+  return unsafeSelectorRows.map((row) => {
+    const changedFields =
+      changedByRow.get(`${row.image}|${row.stage}|${row.side}`) ||
+      ipadStage3RapidOcrFields.filter(
+        (field) =>
+          ipadStage3RapidOcrFieldValue(row.actual, field) !==
+          ipadStage3RapidOcrFieldValue(row.expected, field)
+      );
+    const fieldSupports = Object.fromEntries(
+      ipadStage3RapidOcrFields.map((field) => [
+        field,
+        summarizeIpadStage3RapidOcrSupport({
+          candidateIndex,
+          image: row.image,
+          side: row.side,
+          field,
+          value: ipadStage3RapidOcrFieldValue(row.actual, field),
+        }),
+      ])
+    );
+    const changedSupports = changedFields.map((field) => fieldSupports[field]);
+    return {
+      image: row.image,
+      stage: row.stage,
+      side: row.side,
+      pass: Boolean(row.pass),
+      changedFields,
+      changedSupports,
+      fieldSupports,
+      proposal: row.actual,
+      expected: row.expected,
+      featureSummary: {
+        changedFieldsLowDigit: changedSupports.filter((support) => Number(support.digitCount || 0) < 5).length,
+      },
+    };
+  });
+}
+
+async function sha256FileIfExists(filePath) {
+  try {
+    const buffer = await fs.readFile(filePath);
+    return createHash("sha256").update(buffer).digest("hex");
+  } catch {
+    return null;
+  }
+}
+
+async function inventoryIpadStage3RapidOcrModels() {
+  const modelDir = path.join(rootDir, "tmp", "rapidocr-python", "rapidocr_onnxruntime", "models");
+  const names = [
+    "ch_PP-OCRv4_det_infer.onnx",
+    "ch_PP-OCRv4_rec_infer.onnx",
+    "ch_ppocr_mobile_v2.0_cls_infer.onnx",
+  ];
+  const models = [];
+  for (const name of names) {
+    const filePath = path.join(modelDir, name);
+    const stat = await fs.stat(filePath).catch(() => null);
+    models.push({
+      name,
+      relativePath: path.relative(rootDir, filePath).replaceAll("\\", "/"),
+      exists: Boolean(stat),
+      bytes: stat?.size || 0,
+      sha256: stat ? await sha256FileIfExists(filePath) : null,
+      committedAsset: false,
+    });
+  }
+  return {
+    modelDir: path.relative(rootDir, modelDir).replaceAll("\\", "/"),
+    models,
+    packageRuntime: {
+      nodeOnnxRuntimeWebInstalled: false,
+      reason: "`onnxruntime-web` is not listed in package.json; the current model weights are tmp-only diagnostics.",
+    },
+    browserDeployableArchitecture: {
+      selected: "ONNX Runtime Web + WASM",
+      status: "architecture-selected-runtime-not-bundled",
+      reason:
+        "Closest deployable analogue to the Python ONNXRuntime RapidOCR stack; model packaging, worker setup, decoding, and iPad/Safari memory must still be proven.",
+    },
+  };
+}
+
+function assertIpadStage3RapidOcrSafetyBaseline(summary) {
+  const run = summary?.runs?.[0] || {};
+  const byRecovery = run.byRecovery || {};
+  const pass =
+    summary.fixtureCount === 53 &&
+    run.productionApplications === 119 &&
+    run.tp === 119 &&
+    run.fp === 0 &&
+    byRecovery["ipad-tier-c-exactly-one-arithmetic"]?.tp === 72 &&
+    byRecovery["ipad-tier-c-exactly-one-arithmetic"]?.fp === 0 &&
+    byRecovery["ipad-strict-total-selection"]?.tp === 15 &&
+    byRecovery["ipad-strict-total-selection"]?.fp === 0 &&
+    byRecovery["ipad-strict-member2-selection"]?.tp === 32 &&
+    byRecovery["ipad-strict-member2-selection"]?.fp === 0;
+  return {
+    pass,
+    fixtureCount: summary.fixtureCount,
+    totalProductionRecoveries: run.productionApplications || 0,
+    tp: run.tp || 0,
+    fp: run.fp || 0,
+    tierC: byRecovery["ipad-tier-c-exactly-one-arithmetic"] || null,
+    strictTotal: byRecovery["ipad-strict-total-selection"] || null,
+    strictMember2: byRecovery["ipad-strict-member2-selection"] || null,
+  };
+}
+
+function buildIpadStage3RapidOcrBrowserInvestigationReport(summary) {
+  const lines = [
+    "# iPad Stage3 RapidOCR Browser Investigation",
+    "",
+    "This is a diagnostic-only browser-deployability and R6 parity investigation. It does not enable RapidOCR in production, modify the production Tesseract Stage3 OCR path, retune R6, or change iPad Tier C / strict-total / strict-member2.",
+    "",
+    "## Production Safety Baseline",
+    "",
+    `- fixtures: ${summary.productionSafety.fixtureCount}`,
+    `- production recoveries: ${summary.productionSafety.tp} TP / ${summary.productionSafety.fp} FP`,
+    `- Tier C: ${summary.productionSafety.tierC?.tp || 0} TP / ${summary.productionSafety.tierC?.fp || 0} FP`,
+    `- strict-total: ${summary.productionSafety.strictTotal?.tp || 0} TP / ${summary.productionSafety.strictTotal?.fp || 0} FP`,
+    `- strict-member2: ${summary.productionSafety.strictMember2?.tp || 0} TP / ${summary.productionSafety.strictMember2?.fp || 0} FP`,
+    "",
+    "## Offline RapidOCR R6 Reproduction",
+    "",
+    `- Stage3 sides: ${summary.offlineRapidOcr.totalStage3Sides}`,
+    `- member1 exact: ${summary.offlineRapidOcr.exactRecognition.member1.exact}/${summary.offlineRapidOcr.exactRecognition.member1.total}`,
+    `- member2 exact: ${summary.offlineRapidOcr.exactRecognition.member2.exact}/${summary.offlineRapidOcr.exactRecognition.member2.total}`,
+    `- member3 exact: ${summary.offlineRapidOcr.exactRecognition.member3.exact}/${summary.offlineRapidOcr.exactRecognition.member3.total}`,
+    `- bonus exact: ${summary.offlineRapidOcr.exactRecognition.bonus.exact}/${summary.offlineRapidOcr.exactRecognition.bonus.total}`,
+    `- total exact: ${summary.offlineRapidOcr.exactRecognition.total.exact}/${summary.offlineRapidOcr.exactRecognition.total.total}`,
+    `- R6: ${summary.r6Parity.tp} TP / ${summary.r6Parity.fp} FP`,
+    `- accepted rows: ${summary.r6Parity.accepted.map((row) => `${row.image} S${row.stage} ${row.side}`).join(", ")}`,
+    `- blocked suffix-fragment control: ${summary.r6Parity.img0283Enemy?.wouldApply === false ? "blocked" : "NOT BLOCKED"}`,
+    "",
+    "## Browser Deployability",
+    "",
+    `- selected architecture: ${summary.modelInventory.browserDeployableArchitecture.selected}`,
+    `- status: ${summary.modelInventory.browserDeployableArchitecture.status}`,
+    `- ONNX Runtime Web dependency: ${summary.modelInventory.packageRuntime.nodeOnnxRuntimeWebInstalled ? "installed" : "not installed"}`,
+    `- model assets are tmp-only: ${summary.modelInventory.models.every((model) => model.exists && !model.committedAsset) ? "yes" : "no"}`,
+    "",
+    "| model | bytes | sha256 |",
+    "| --- | ---: | --- |",
+    ...summary.modelInventory.models.map((model) => `| ${model.name} | ${model.bytes} | ${model.sha256 || "missing"} |`),
+    "",
+    "The app exposes a developer-only `?ipadStage3RapidOcrDebug=1` diagnostic export surface. Because the runtime dependency and model assets are intentionally not committed, the browser export reports `blocked-runtime-not-bundled` and does not run inference or alter displayed OCR output.",
+    "",
+    "## R6 Parity",
+    "",
+    `- rows compared: ${summary.r6Parity.rowsCompared}`,
+    `- runner wouldApply: ${summary.r6Parity.runnerWouldApply}`,
+    `- browser-equivalent wouldApply: ${summary.r6Parity.browserEquivalentWouldApply}`,
+    `- wouldApply disagreements: ${summary.r6Parity.wouldApplyDisagreements}`,
+    `- proposed recovery disagreements: ${summary.r6Parity.proposedRecoveryDisagreements}`,
+    `- safety-relevant mismatches: ${summary.r6Parity.safetyRelevantMismatches}`,
+    "",
+    "This parity is shared-helper parity over the frozen RapidOCR artifacts, not real browser ONNX inference. Real browser inference remains blocked until the ONNX Runtime Web/model asset path is added behind the debug flag.",
+    "",
+    "## Recommendation",
+    "",
+    "Do not productionize RapidOCR. Continue only if a future diagnostic task bundles a reviewed `onnxruntime-web` runtime and model assets behind the debug flag, then proves real-browser candidate parity for the four R6 accepted rows and the `IMG_0283.png` Stage3 enemy blocked control.",
+    "",
+  ];
+  return lines.join("\n");
+}
+
+async function runIpadStage3RapidOcrR6Parity() {
+  await fs.rm(ipadStage3RapidOcrBrowserDir, { recursive: true, force: true });
+  await fs.mkdir(ipadStage3RapidOcrBrowserDir, { recursive: true });
+
+  const sourceDir = path.join(rootDir, "tmp", "ipad-stage3-rapidocr-fixture-expansion");
+  const productionSafety = assertIpadStage3RapidOcrSafetyBaseline(
+    await readJsonFile(
+      path.join(rootDir, "tmp", "ipad-production-fp-investigation", "after-fix-53-two-run-summary.json")
+    )
+  );
+  if (!productionSafety.pass) {
+    throw new Error(`iPad production safety baseline drifted: ${JSON.stringify(productionSafety)}`);
+  }
+
+  const rapidSummary = await readJsonFile(path.join(sourceDir, "summary.json"));
+  const unsafeSelector = await readJsonFile(path.join(sourceDir, "unsafe-selector-results.json"));
+  const r6Reference = await readJsonFile(path.join(sourceDir, "r6-results.json"));
+  const candidateRows = await readJsonFile(path.join(sourceDir, "candidate-results.json"));
+  const evidenceRows = buildIpadStage3RapidOcrR6EvidenceRows({
+    unsafeSelectorRows: unsafeSelector.acceptedRows || [],
+    r6Rows: r6Reference,
+    candidateRows,
+  });
+  const buildResult = (row) => ({
+    image: row.image,
+    stage: row.stage,
+    side: row.side,
+    pass: row.pass,
+    proposal: row.proposal,
+    changedFields: row.changedFields,
+    evaluation: sharedEvaluateIpadStage3RapidOcrR6(row),
+  });
+  const runner = evidenceRows.map(buildResult);
+  const browserEquivalent = evidenceRows.map(buildResult);
+  const mismatches = [];
+  for (let index = 0; index < runner.length; index += 1) {
+    const left = runner[index];
+    const right = browserEquivalent[index];
+    if (
+      left.evaluation.wouldApply !== right.evaluation.wouldApply ||
+      JSON.stringify(left.proposal) !== JSON.stringify(right.proposal)
+    ) {
+      mismatches.push({ runner: left, browserEquivalent: right });
+    }
+  }
+  const accepted = runner.filter((row) => row.evaluation.wouldApply);
+  const img0283Enemy = runner.find((row) => row.image === "IMG_0283.png" && row.side === "enemy");
+  const summary = {
+    schema: "ipad-stage3-rapidocr-browser-investigation-v1",
+    command: "node scripts/ocr-test-images.mjs --ipad-stage3-rapidocr-r6-parity",
+    outputDir: path.relative(rootDir, ipadStage3RapidOcrBrowserDir).replaceAll("\\", "/"),
+    productionSafety,
+    offlineRapidOcr: {
+      totalStage3Sides: 106,
+      exactRecognition: rapidSummary.exactRecognition,
+      unsafeSelector: {
+        tp: unsafeSelector.tpStageSides,
+        fp: unsafeSelector.fpStageSides,
+      },
+    },
+    modelInventory: await inventoryIpadStage3RapidOcrModels(),
+    r6Parity: {
+      policyId: IPAD_STAGE3_RAPIDOCR_R6_POLICY_ID,
+      rowsCompared: runner.length,
+      runnerWouldApply: accepted.length,
+      browserEquivalentWouldApply: browserEquivalent.filter((row) => row.evaluation.wouldApply).length,
+      wouldApplyDisagreements: mismatches.filter(
+        (entry) => entry.runner.evaluation.wouldApply !== entry.browserEquivalent.evaluation.wouldApply
+      ).length,
+      proposedRecoveryDisagreements: mismatches.filter(
+        (entry) => JSON.stringify(entry.runner.proposal) !== JSON.stringify(entry.browserEquivalent.proposal)
+      ).length,
+      safetyRelevantMismatches: mismatches.length,
+      tp: accepted.filter((row) => row.pass).length,
+      fp: accepted.filter((row) => !row.pass).length,
+      accepted: accepted.map((row) => ({
+        image: row.image,
+        stage: row.stage,
+        side: row.side,
+        proposal: row.proposal,
+        changedFields: row.changedFields,
+      })),
+      img0283Enemy: img0283Enemy
+        ? {
+            image: img0283Enemy.image,
+            stage: img0283Enemy.stage,
+            side: img0283Enemy.side,
+            wouldApply: img0283Enemy.evaluation.wouldApply,
+            blockReasons: img0283Enemy.evaluation.blockReasons,
+            proposal: img0283Enemy.proposal,
+          }
+        : null,
+    },
+    browserDiagnostic: {
+      debugFlag: "ipadStage3RapidOcrDebug=1",
+      status: "blocked-runtime-not-bundled",
+      outputDoesNotChangeProductionOcr: true,
+    },
+    recommendation:
+      "Do not productionize RapidOCR; browser ONNX runtime/model bundling and real-browser inference parity are still required.",
+  };
+
+  await fs.writeFile(path.join(ipadStage3RapidOcrBrowserDir, "summary.json"), JSON.stringify(summary, null, 2));
+  await fs.writeFile(path.join(ipadStage3RapidOcrBrowserDir, "runner-r6.json"), JSON.stringify(runner, null, 2));
+  await fs.writeFile(
+    path.join(ipadStage3RapidOcrBrowserDir, "browser-equivalent-r6.json"),
+    JSON.stringify(browserEquivalent, null, 2)
+  );
+  await fs.writeFile(path.join(ipadStage3RapidOcrBrowserDir, "mismatches.json"), JSON.stringify(mismatches, null, 2));
+  await fs.writeFile(
+    path.join(ipadStage3RapidOcrBrowserDir, "model-inventory.json"),
+    JSON.stringify(summary.modelInventory, null, 2)
+  );
+  await fs.writeFile(ipadStage3RapidOcrBrowserReportPath, buildIpadStage3RapidOcrBrowserInvestigationReport(summary));
+  console.log(JSON.stringify({ ipadStage3RapidOcrR6Parity: summary }, null, 2));
+  return summary;
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const debugNext = args.includes("--debug-next");
@@ -26157,6 +26516,9 @@ async function main() {
   const ipadStrictMember2SelectionParity = args.includes(
     "--ipad-strict-member2-selection-parity"
   );
+  const ipadStage3RapidOcrR6Parity = args.includes(
+    "--ipad-stage3-rapidocr-r6-parity"
+  );
   const sourceIndex = args.indexOf("--source");
   const sourceValue = sourceIndex >= 0 ? args[sourceIndex + 1] : "";
   const forcedSource = ["smartphone", "desktop", "current-pc"].includes(sourceValue)
@@ -26205,6 +26567,7 @@ async function main() {
       value !== "--ipad-arithmetic-side-selection-parity" &&
       value !== "--ipad-strict-total-selection-parity" &&
       value !== "--ipad-strict-member2-selection-parity" &&
+      value !== "--ipad-stage3-rapidocr-r6-parity" &&
       value !== "--source" &&
       value !== "--audit-disable-known-correction" &&
       !(sourceIndex >= 0 && index === sourceIndex + 1) &&
@@ -26217,6 +26580,11 @@ async function main() {
         .replace(/^\.?\/*test-images\//i, "")
         .toLowerCase()
     );
+  if (ipadStage3RapidOcrR6Parity) {
+    await runIpadStage3RapidOcrR6Parity();
+    await terminateAuditGeometryWorker();
+    return;
+  }
   if (validateIpadExpected) {
     const summary = await validateIpadExpectedFixtures();
     await terminateAuditGeometryWorker();
