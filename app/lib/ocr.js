@@ -1168,6 +1168,7 @@ export function evaluateIpadArithmeticSideSelectionTier({
 const ipadStrictTotalSelectionLabels = ["member1", "member2", "member3", "bonus", "total"];
 export const ENABLE_IPAD_STRICT_TOTAL_SELECTION = true;
 export const IPAD_STRICT_TOTAL_SELECTION_RECOVERY_ID = "ipad-strict-total-selection";
+const IPAD_STRICT_TOTAL_MIN_DISPLAY_TOTAL = 10000;
 
 function summarizeIpadStrictTotalCandidate(candidate = {}) {
   return {
@@ -1376,6 +1377,12 @@ export function evaluateIpadStrictTotalSelection(evidence = {}) {
   }
   if (totalCompleteness.missing) blockReasons.push("missing-observed-total-candidates");
   if (totalCompleteness.truncated) blockReasons.push("truncated-total-candidate-pool");
+  if (
+    computedValidationTotal > 0 &&
+    computedValidationTotal < IPAD_STRICT_TOTAL_MIN_DISPLAY_TOTAL
+  ) {
+    blockReasons.push("computed-total-below-strict-total-display-floor");
+  }
   if (distinctMatchingValues.length === 0) {
     blockReasons.push("missing-observed-total-for-current-fields");
   } else if (distinctMatchingValues.length > 1) {

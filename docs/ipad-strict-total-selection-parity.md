@@ -86,6 +86,7 @@ The known S2/S4 full-tuple false positive remains rejected by S3 without any fix
 | current-total-already-equals-match | no | no | already-identical | already-identical | yes |
 | member-provenance-missing | no | no | selected-non-total-field-lacks-strong-provenance:member2 | selected-non-total-field-lacks-strong-provenance:member2 | yes |
 | bonus-provenance-missing | no | no | selected-non-total-field-lacks-strong-provenance:bonus | selected-non-total-field-lacks-strong-provenance:bonus | yes |
+| computed-total-too-small | no | no | computed-total-below-strict-total-display-floor | computed-total-below-strict-total-display-floor | yes |
 | unsupported-device-mode | no | no | non-ipad-mode:smartphone | non-ipad-mode:smartphone | yes |
 | unsupported-landscape-layout | no | no | unsupported-ipad-orientation:landscape | unsupported-ipad-orientation:landscape; unsupported-ipad-layout | yes |
 
@@ -93,13 +94,13 @@ The known S2/S4 full-tuple false positive remains rejected by S3 without any fix
 
 | mode | eligible | wouldApply | block reasons | pass |
 | --- | --- | --- | --- | --- |
-| smartphone | no | no | non-ipad-mode:smartphone; ipad-layout-not-detected; unsupported-ipad-layout | yes |
-| current-pc | no | no | non-ipad-mode:current-pc; ipad-layout-not-detected; unsupported-ipad-layout | yes |
-| desktop | no | no | non-ipad-mode:desktop; ipad-layout-not-detected; unsupported-ipad-layout | yes |
-| legacy-desktop | no | no | non-ipad-mode:legacy-desktop; ipad-layout-not-detected; unsupported-ipad-layout | yes |
-| unknown | no | no | non-ipad-mode:unknown; ipad-layout-not-detected; unsupported-ipad-layout | yes |
-| empty | no | no | non-ipad-mode:unknown; ipad-layout-not-detected; unsupported-ipad-layout | yes |
-| ipad-landscape | no | no | unsupported-ipad-orientation:landscape; unsupported-ipad-layout | yes |
+| smartphone | no | no | non-ipad-mode:smartphone; ipad-layout-not-detected; unsupported-ipad-layout; computed-total-below-strict-total-display-floor | yes |
+| current-pc | no | no | non-ipad-mode:current-pc; ipad-layout-not-detected; unsupported-ipad-layout; computed-total-below-strict-total-display-floor | yes |
+| desktop | no | no | non-ipad-mode:desktop; ipad-layout-not-detected; unsupported-ipad-layout; computed-total-below-strict-total-display-floor | yes |
+| legacy-desktop | no | no | non-ipad-mode:legacy-desktop; ipad-layout-not-detected; unsupported-ipad-layout; computed-total-below-strict-total-display-floor | yes |
+| unknown | no | no | non-ipad-mode:unknown; ipad-layout-not-detected; unsupported-ipad-layout; computed-total-below-strict-total-display-floor | yes |
+| empty | no | no | non-ipad-mode:unknown; ipad-layout-not-detected; unsupported-ipad-layout; computed-total-below-strict-total-display-floor | yes |
+| ipad-landscape | no | no | unsupported-ipad-orientation:landscape; unsupported-ipad-layout; computed-total-below-strict-total-display-floor | yes |
 
 ## Evidence Boundary
 

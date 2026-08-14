@@ -561,6 +561,23 @@ async function runOnce({ runIndex, browser, baseUrl, rows, expectedApplications,
     return compareSide(application.newValues, expectedSide(row.expected[`stage${application.stage}`], application.side)).pass;
   };
   const applicationTp = applications.filter(isApplicationTp).length;
+  const falsePositiveApplications = applications
+    .filter((application) => !isApplicationTp(application))
+    .map((application) => {
+      const row = rows.find((entry) => entry.filename === application.image);
+      return {
+        image: application.image,
+        stage: application.stage,
+        side: application.side,
+        recoveryId: application.recoveryId,
+        oldValues: application.oldValues,
+        newValues: application.newValues,
+        expected: row ? expectedSide(row.expected[`stage${application.stage}`], application.side) : null,
+        changedFields: application.changedFields,
+        provenance: application.provenance,
+        equation: application.equation,
+      };
+    });
   const tierCTp = tierCApplications.filter(isApplicationTp).length;
   const strictTotalTp = strictTotalApplications.filter(isApplicationTp).length;
   const strictMember2Tp = strictMember2Applications.filter(isApplicationTp).length;
@@ -629,6 +646,7 @@ async function runOnce({ runIndex, browser, baseUrl, rows, expectedApplications,
     productionApplications: applications.length,
     tp: applicationTp,
     fp: applications.length - applicationTp,
+    falsePositiveApplications,
     tierCApplications: tierCApplications.length,
     tierCTp,
     tierCFp: tierCApplications.length - tierCTp,

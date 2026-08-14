@@ -8487,10 +8487,10 @@ async function runIpadStrictTotalSelectionParity() {
   const buildGuardEvidence = ({
     deviceMode = "ipad",
     layout = { detected: true, orientation: "portrait", supported: true },
-    members = [10, 20, 30],
+    members = [10000, 20000, 30000],
     bonus = 0,
     total = 1,
-    totalCandidates = [{ value: 60, profileIds: ["guard-total"], rawText: "60", normalizedText: "60" }],
+    totalCandidates = [{ value: 60000, profileIds: ["guard-total"], rawText: "60.000", normalizedText: "60000" }],
     totalTruncated = false,
     member2Candidate = strongSelection(20, "member2").candidate,
     bonusCandidate = null,
@@ -8533,7 +8533,7 @@ async function runIpadStrictTotalSelectionParity() {
     },
     {
       name: "current-total-already-equals-match",
-      evidence: buildGuardEvidence({ total: 60 }),
+      evidence: buildGuardEvidence({ total: 60000 }),
       expectedReason: "already-identical",
     },
     {
@@ -8543,8 +8543,18 @@ async function runIpadStrictTotalSelectionParity() {
     },
     {
       name: "bonus-provenance-missing",
-      evidence: buildGuardEvidence({ members: [10, 20, 30], bonus: 5, total: 1, totalCandidates: [{ value: 65, profileIds: ["guard-total"], rawText: "65", normalizedText: "65" }] }),
+      evidence: buildGuardEvidence({ members: [10000, 20000, 30000], bonus: 5000, total: 1, totalCandidates: [{ value: 65000, profileIds: ["guard-total"], rawText: "65.000", normalizedText: "65000" }] }),
       expectedReason: "selected-non-total-field-lacks-strong-provenance:bonus",
+    },
+    {
+      name: "computed-total-too-small",
+      evidence: buildGuardEvidence({
+        members: [1, 5, 1],
+        bonus: 0,
+        total: 2,
+        totalCandidates: [{ value: 7, profileIds: ["guard-total"], rawText: "7", normalizedText: "7" }],
+      }),
+      expectedReason: "computed-total-below-strict-total-display-floor",
     },
     {
       name: "unsupported-device-mode",
