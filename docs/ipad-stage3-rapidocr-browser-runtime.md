@@ -16,6 +16,8 @@ Useful options:
 - `--resume`
 - `--runs 2`
 - `--base-url http://localhost:3310`
+- `--detector-crop-kinds field,f1-member-row,f2-full-side`
+- `--detector-limit-side-len 736`
 
 Artifacts are written to:
 
@@ -35,6 +37,7 @@ Normal production use does not initialize ONNX Runtime Web, fetch RapidOCR model
 
 The app accepts only local diagnostic model URLs. The verification script serves them through Playwright route handlers:
 
+- `/diagnostic-models/rapidocr/ch_PP-OCRv4_det_infer.onnx`
 - `/diagnostic-models/rapidocr/ch_PP-OCRv4_rec_infer.onnx`
 - `/diagnostic-models/rapidocr/ch_PP-OCRv4_rec_character.txt`
 - `/diagnostic-models/ort/*`
@@ -63,6 +66,63 @@ Recognizer input/output:
 - dictionary: model metadata key `character`; the verification script extracts it to a tmp-only `ch_PP-OCRv4_rec_character.txt`
 
 The exact upstream source/license still needs to be confirmed before any model file is committed or deployed.
+
+## Detector Diagnostic Pipeline
+
+The developer-only browser runtime now loads both the detector and recognizer ONNX models when `?ipadStage3RapidOcrDebug=1` is enabled. This remains diagnostic-only and does not mutate displayed OCR output.
+
+Implemented browser candidate sources:
+
+- `browser-rapidocr-recognition-only` on Stage3 field crops.
+- `browser-rapidocr-detect-recognize` on Stage3 field crops.
+- `browser-rapidocr-detect-recognize` on F1 member-row crops.
+- `browser-rapidocr-detect-recognize` on F2 full-side crops.
+
+Detector preprocessing mirrors the RapidOCR Python detector at the tensor level:
+
+- limit type: `min`
+- default limit side length: `736`
+- resized dimensions rounded to multiples of 32
+- channel order: `BGR`
+- layout: `NCHW`
+- dtype: `float32`
+- normalization: `(channel / 255 - 0.5) / 0.5`
+
+The browser postprocess is not an exact OpenCV/pyclipper port. It uses a diagnostic DB bitmap approximation:
+
+- thresholded DB probability map at `0.3`
+- 2x2 dilation
+- connected components
+- mean component score threshold at `0.5`
+- axis-aligned expansion using `unclipRatio = 1.6`
+- bbox overlap assignment to Stage3 field ROIs
+
+The offline Python path still uses `cv2.findContours`, `cv2.minAreaRect`, polygon scoring, and `pyclipper` unclip. Because those exact geometry operations are not ported, detector parity is intentionally not claimed.
+
+The browser diagnostic JSON now includes:
+
+- detector model inventory and hash
+- detector preprocessing metadata and checksum
+- crop kind: `field`, `f1-member-row`, or `f2-full-side`
+- detected DB component boxes
+- assigned field / ambiguity metadata
+- recognizer text and confidence per detected box
+- parsed candidate rows with bbox provenance
+
+## Detector Runtime Controls
+
+The real-browser verification script can restrict detector work without touching production behavior:
+
+```bash
+node scripts/ipad-stage3-rapidocr-browser-verification.mjs --only IMG_0265 --detector-crop-kinds field --detector-limit-side-len 192
+```
+
+Equivalent query parameters:
+
+- `ipadStage3RapidOcrDetectorCropKinds=field,f1-member-row,f2-full-side`
+- `ipadStage3RapidOcrDetectorLimitSideLen=736`
+
+The default remains the offline detector limit (`736`) and all three crop kinds. Lower values are for runtime diagnostics only and are not parity claims.
 
 ## Preprocessing
 
@@ -153,23 +213,47 @@ Current browser status:
 
 - ONNX Runtime Web loads in the real browser.
 - The recognizer model runs against real Stage3 field crops.
+- The detector model is loaded by the developer-only browser runtime.
+- Detector preprocessing and diagnostic DB bitmap postprocess are implemented.
 - Candidate JSON export works.
 - Normal OCR output is unchanged.
-- Browser recognizer-only candidates do not reproduce the frozen offline R6 proposal set.
+- Browser detector/recognizer candidates are exported, but they do not yet reproduce the frozen offline R6 proposal set.
 
 ## Divergence
 
-The current divergence is layer B/C:
+The current divergence is layer B/C/D:
 
 - Browser preprocessing and recognizer inference are operational.
-- The browser diagnostic has not ported RapidOCR detector/classifier output or the offline unsafe selector that creates candidate side proposals.
+- Browser detector tensor inference and diagnostic postprocess are implemented.
+- Detector postprocess is approximate, not exact OpenCV/pyclipper parity.
+- The offline unsafe selector that creates candidate side proposals is not ported.
 - Because those proposal rows are absent, R6 has no browser-native proposal to score and remains blocked.
+
+## Current Browser Verification Blocker
+
+After adding detector support, the real-browser verification path was attempted against `IMG_0265.png`.
+
+Commands attempted:
+
+```bash
+node scripts/ipad-stage3-rapidocr-browser-verification.mjs --only IMG_0265 --runs 1 --base-url http://localhost:3321
+node scripts/ipad-stage3-rapidocr-browser-verification.mjs --only IMG_0265 --runs 1 --base-url http://localhost:3321 --detector-crop-kinds field --detector-limit-side-len 192
+```
+
+Both were stopped after exceeding practical local runtime. A previous warmup log also showed first-page compilation could take about 2.9 minutes, so runtime measurements must separate:
+
+- Next/Turbopack first compile
+- normal production OCR button execution
+- ONNX detector session/model initialization
+- detector inference per crop kind
+
+No production output changed during these attempts. The current state establishes browser detector plumbing, but not true real-browser R6 parity.
 
 ## Production Readiness
 
 Do not productionize RapidOCR from this state.
 
-The next useful experiment is a developer-only browser detector + recognizer export, or an explicit proof that recognizer-only fixed field crops can replace the offline detect-recognize sources without losing the 4 R6 TP rows or introducing the `IMG_0283` suffix-fragment FP.
+The next useful experiment is to make browser verification call the developer-only RapidOCR diagnostic directly, without waiting for the full production OCR button workflow, and then measure detector crop kinds one at a time. If exact detector geometry parity is still needed, an OpenCV/pyclipper-equivalent browser postprocess or a server-side diagnostic reference comparator will be required.
 
 Before production can be considered:
 

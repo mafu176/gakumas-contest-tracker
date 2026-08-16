@@ -12,12 +12,18 @@ import {
 const RAPIDOCR_DEBUG_SCHEMA = "ipad-stage3-rapidocr-browser-runtime-v1";
 const DEFAULT_MODEL_BASE = "/diagnostic-models/rapidocr/";
 const DEFAULT_WASM_BASE = "/diagnostic-models/ort/";
+const DET_MODEL_NAME = "ch_PP-OCRv4_det_infer.onnx";
 const REC_MODEL_NAME = "ch_PP-OCRv4_rec_infer.onnx";
 const REC_CHARACTER_NAME = "ch_PP-OCRv4_rec_character.txt";
+const DET_LIMIT_SIDE_LEN = 736;
+const DET_THRESH = 0.3;
+const DET_BOX_THRESH = 0.5;
+const DET_UNCLIP_RATIO = 1.6;
 const REC_INPUT_HEIGHT = 48;
 const REC_INPUT_WIDTH = 320;
 const REC_CHANNELS = 3;
 const STAGE3_FIELDS = ["member1", "member2", "member3", "bonus", "total"];
+const DETECTION_CROP_KINDS = ["field", "f1-member-row", "f2-full-side"];
 
 let runtimePromise = null;
 
@@ -31,10 +37,20 @@ function safeLocalBaseUrl(value, fallback) {
 function getRuntimeConfig() {
   const params =
     typeof window !== "undefined" ? new URLSearchParams(window.location.search) : new URLSearchParams();
+  const cropKinds = String(params.get("ipadStage3RapidOcrDetectorCropKinds") || DETECTION_CROP_KINDS.join(","))
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => DETECTION_CROP_KINDS.includes(entry));
+  const detLimitSideLen = Number(params.get("ipadStage3RapidOcrDetectorLimitSideLen") || DET_LIMIT_SIDE_LEN);
   return {
     modelBase: safeLocalBaseUrl(params.get("ipadStage3RapidOcrModelBase"), DEFAULT_MODEL_BASE),
     wasmBase: safeLocalBaseUrl(params.get("ipadStage3RapidOcrWasmBase"), DEFAULT_WASM_BASE),
     executionProvider: "wasm",
+    detectorCropKinds: cropKinds.length ? cropKinds : DETECTION_CROP_KINDS,
+    detectorLimitSideLen:
+      Number.isFinite(detLimitSideLen) && detLimitSideLen >= 96 && detLimitSideLen <= DET_LIMIT_SIDE_LEN
+        ? detLimitSideLen
+        : DET_LIMIT_SIDE_LEN,
   };
 }
 
@@ -74,13 +90,20 @@ async function loadRapidOcrRuntime() {
     ort.env.wasm.numThreads = 1;
     ort.env.wasm.proxy = false;
 
+    const detModelUrl = `${config.modelBase}${DET_MODEL_NAME}`;
     const recModelUrl = `${config.modelBase}${REC_MODEL_NAME}`;
     const characterUrl = `${config.modelBase}${REC_CHARACTER_NAME}`;
-    const [recModelBuffer, characterText] = await Promise.all([
+    const [detModelBuffer, recModelBuffer, characterText] = await Promise.all([
+      fetchArrayBuffer(detModelUrl),
       fetchArrayBuffer(recModelUrl),
       fetchText(characterUrl),
     ]);
+    const detModelSha256 = await sha256Hex(detModelBuffer);
     const recModelSha256 = await sha256Hex(recModelBuffer);
+    const detSession = await ort.InferenceSession.create(detModelBuffer, {
+      executionProviders: [config.executionProvider],
+      graphOptimizationLevel: "all",
+    });
     const recSession = await ort.InferenceSession.create(recModelBuffer, {
       executionProviders: [config.executionProvider],
       graphOptimizationLevel: "all",
@@ -88,9 +111,26 @@ async function loadRapidOcrRuntime() {
     return {
       ort,
       config,
+      detSession,
       recSession,
       characterList: buildCharacterList(characterText),
       modelInventory: {
+        detector: {
+          name: DET_MODEL_NAME,
+          url: detModelUrl,
+          sha256: detModelSha256,
+          bytes: detModelBuffer.byteLength,
+          inputNames: detSession.inputNames,
+          outputNames: detSession.outputNames,
+          postprocess: {
+            thresh: DET_THRESH,
+            boxThresh: DET_BOX_THRESH,
+            unclipRatio: DET_UNCLIP_RATIO,
+            useDilation: true,
+            approximation:
+              "browser diagnostic uses thresholded DB bitmap connected components and axis-aligned unclip; offline Python uses cv2.findContours/minAreaRect/pyclipper",
+          },
+        },
         recognizer: {
           name: REC_MODEL_NAME,
           url: recModelUrl,
@@ -179,6 +219,63 @@ function preprocessRecognitionInput(cropCanvas) {
   };
 }
 
+function roundToMultipleOf32(value) {
+  return Math.max(32, Math.round(value / 32) * 32);
+}
+
+function preprocessDetectionInput(cropCanvas, limitSideLen = DET_LIMIT_SIDE_LEN) {
+  const sourceWidth = cropCanvas.width;
+  const sourceHeight = cropCanvas.height;
+  const ratio =
+    Math.min(sourceWidth, sourceHeight) < limitSideLen
+      ? limitSideLen / Math.max(1, Math.min(sourceWidth, sourceHeight))
+      : 1;
+  const resizedWidth = roundToMultipleOf32(sourceWidth * ratio);
+  const resizedHeight = roundToMultipleOf32(sourceHeight * ratio);
+
+  const resized = document.createElement("canvas");
+  resized.width = resizedWidth;
+  resized.height = resizedHeight;
+  const resizedContext = resized.getContext("2d", { willReadFrequently: true });
+  resizedContext.imageSmoothingEnabled = true;
+  resizedContext.imageSmoothingQuality = "medium";
+  resizedContext.drawImage(cropCanvas, 0, 0, sourceWidth, sourceHeight, 0, 0, resizedWidth, resizedHeight);
+  const imageData = resizedContext.getImageData(0, 0, resizedWidth, resizedHeight).data;
+
+  const plane = resizedWidth * resizedHeight;
+  const data = new Float32Array(REC_CHANNELS * plane);
+  for (let y = 0; y < resizedHeight; y += 1) {
+    for (let x = 0; x < resizedWidth; x += 1) {
+      const rgbaOffset = (y * resizedWidth + x) * 4;
+      const target = y * resizedWidth + x;
+      const r = imageData[rgbaOffset] / 255;
+      const g = imageData[rgbaOffset + 1] / 255;
+      const b = imageData[rgbaOffset + 2] / 255;
+      data[target] = (b - 0.5) / 0.5;
+      data[plane + target] = (g - 0.5) / 0.5;
+      data[plane * 2 + target] = (r - 0.5) / 0.5;
+    }
+  }
+
+  return {
+    data,
+    shape: [1, REC_CHANNELS, resizedHeight, resizedWidth],
+    metadata: {
+      sourceWidth,
+      sourceHeight,
+      resizedWidth,
+      resizedHeight,
+      limitSideLen,
+      limitType: "min",
+      colorOrder: "BGR",
+      normalization: "(channel/255 - 0.5) / 0.5",
+      tensorLayout: "NCHW",
+      dtype: "float32",
+      interpolation: "browser-canvas-medium",
+    },
+  };
+}
+
 function decodeCtc(outputTensor, characterList) {
   const dims = outputTensor.dims || [];
   const data = outputTensor.data || [];
@@ -220,11 +317,94 @@ function toFieldName(field) {
   return field.field;
 }
 
-function buildCandidateRows({ imageName, side, fieldName, recognition, cropMetadata }) {
+function unionRects(rects, paddingRatio, image) {
+  const valid = rects.filter(Boolean);
+  if (!valid.length) return clampRect({ x: 0, y: 0, width: 1, height: 1 }, image);
+  const left = Math.min(...valid.map((rect) => rect.x));
+  const top = Math.min(...valid.map((rect) => rect.y));
+  const right = Math.max(...valid.map((rect) => rect.x + rect.width));
+  const bottom = Math.max(...valid.map((rect) => rect.y + rect.height));
+  const width = right - left;
+  const height = bottom - top;
+  const padX = Math.round(width * paddingRatio);
+  const padY = Math.round(height * paddingRatio);
+  return clampRect(
+    {
+      x: left - padX,
+      y: top - padY,
+      width: width + padX * 2,
+      height: height + padY * 2,
+    },
+    image
+  );
+}
+
+function relativeRect(rect, parentRect) {
+  return {
+    x: rect.x - parentRect.x,
+    y: rect.y - parentRect.y,
+    width: rect.width,
+    height: rect.height,
+  };
+}
+
+function absoluteRect(rect, parentRect) {
+  return {
+    x: parentRect.x + rect.x,
+    y: parentRect.y + rect.y,
+    width: rect.width,
+    height: rect.height,
+  };
+}
+
+function rectOverlapRatio(a, b) {
+  if (!a || !b) return 0;
+  const left = Math.max(a.x, b.x);
+  const top = Math.max(a.y, b.y);
+  const right = Math.min(a.x + a.width, b.x + b.width);
+  const bottom = Math.min(a.y + a.height, b.y + b.height);
+  const overlap = Math.max(0, right - left) * Math.max(0, bottom - top);
+  const area = Math.max(1, a.width * a.height);
+  return overlap / area;
+}
+
+function assignDetectionToField(absBbox, fieldRects = {}) {
+  const ranked = Object.entries(fieldRects)
+    .map(([field, rect]) => ({ field, overlap: rectOverlapRatio(absBbox, rect) }))
+    .filter((entry) => entry.overlap > 0.12)
+    .sort((a, b) => b.overlap - a.overlap);
+  if (ranked.length === 0) return { assignedField: null, ambiguous: false, candidates: [] };
+  const ambiguous = ranked.length > 1 && ranked[1].overlap > ranked[0].overlap * 0.75;
+  return { assignedField: ambiguous ? null : ranked[0].field, ambiguous, candidates: ranked };
+}
+
+function fieldSpecKey(field) {
+  return toFieldName(field);
+}
+
+function buildCandidateRows({
+  imageName,
+  side,
+  fieldName,
+  recognition,
+  cropMetadata,
+  cropKind = "field",
+  profileId = "browser-rapidocr-recognition-only",
+  sourceField = fieldName,
+  itemIndex = 0,
+  bbox = null,
+  assignment = null,
+}) {
   const parsed = parseIpadArithmeticOcrNumbers(recognition.text);
   const grouped = parseIpadGroupedNumberTokens(recognition.text);
   const seen = new Set();
   const rows = [];
+  const assignmentRecord =
+    assignment || {
+      assignedField: fieldName,
+      ambiguous: false,
+      candidates: [{ field: fieldName, overlap: 1 }],
+    };
   for (const [index, candidate] of parsed.entries()) {
     const key = `parsed|${candidate.value}|${candidate.raw}|${index}`;
     if (seen.has(key)) continue;
@@ -233,22 +413,18 @@ function buildCandidateRows({ imageName, side, fieldName, recognition, cropMetad
       image: imageName,
       stage: 3,
       side,
-      sourceField: fieldName,
+      sourceField,
       assignedField: fieldName,
-      cropKind: "field",
-      profileId: "browser-rapidocr-recognition-only",
+      cropKind,
+      profileId,
       value: candidate.value,
       raw: candidate.raw,
       fullText: recognition.text,
       parser: "literal-contiguous-digits",
       confidence: recognition.confidence,
-      itemIndex: 0,
-      bbox: null,
-      assignment: {
-        assignedField: fieldName,
-        ambiguous: false,
-        candidates: [{ field: fieldName, overlap: 1 }],
-      },
+      itemIndex,
+      bbox,
+      assignment: assignmentRecord,
       durationMs: recognition.durationMs,
       crop: cropMetadata,
     });
@@ -261,22 +437,18 @@ function buildCandidateRows({ imageName, side, fieldName, recognition, cropMetad
       image: imageName,
       stage: 3,
       side,
-      sourceField: fieldName,
+      sourceField,
       assignedField: fieldName,
-      cropKind: "field",
-      profileId: "browser-rapidocr-recognition-only",
+      cropKind,
+      profileId,
       value: token.value,
       raw: token.rawToken,
       fullText: recognition.text,
       parser: "ipad-grouped-number-token",
       confidence: recognition.confidence,
-      itemIndex: 0,
-      bbox: null,
-      assignment: {
-        assignedField: fieldName,
-        ambiguous: false,
-        candidates: [{ field: fieldName, overlap: 1 }],
-      },
+      itemIndex,
+      bbox,
+      assignment: assignmentRecord,
       durationMs: recognition.durationMs,
       crop: cropMetadata,
     });
@@ -284,11 +456,7 @@ function buildCandidateRows({ imageName, side, fieldName, recognition, cropMetad
   return rows;
 }
 
-async function recognizeField({ runtime, image, imageName, field }) {
-  const paddedRect = clampRect(padIpadArithmeticFieldZone(field, image, 0.12), image);
-  const cropCanvas = canvasForCrop(image, paddedRect);
-  const cropBlob = await new Promise((resolve) => cropCanvas.toBlob(resolve, "image/png"));
-  const cropBuffer = cropBlob ? await cropBlob.arrayBuffer() : new ArrayBuffer(0);
+async function recognizeCanvas({ runtime, cropCanvas }) {
   const input = preprocessRecognitionInput(cropCanvas);
   const inputChecksum = await sha256Hex(input.data.buffer.slice(0));
   const tensor = new runtime.ort.Tensor("float32", input.data, input.shape);
@@ -298,7 +466,7 @@ async function recognizeField({ runtime, image, imageName, field }) {
   const durationMs = Number((performance.now() - started).toFixed(3));
   const outputTensor = outputs[runtime.recSession.outputNames[0]];
   const decoded = decodeCtc(outputTensor, runtime.characterList);
-  const recognition = {
+  return {
     text: decoded.text,
     confidence: Number(decoded.confidence.toFixed(6)),
     decodedLength: decoded.decoded.length,
@@ -306,13 +474,32 @@ async function recognizeField({ runtime, image, imageName, field }) {
     outputShape: outputTensor.dims,
     parsedCandidates: parseIpadArithmeticOcrNumbers(decoded.text),
     groupedCandidates: parseIpadGroupedNumberTokens(decoded.text),
+    inputChecksum,
+    preprocessing: input.metadata,
+  };
+}
+
+async function recognizeField({ runtime, image, imageName, field }) {
+  const paddedRect = clampRect(padIpadArithmeticFieldZone(field, image, 0.12), image);
+  const cropCanvas = canvasForCrop(image, paddedRect);
+  const cropBlob = await new Promise((resolve) => cropCanvas.toBlob(resolve, "image/png"));
+  const cropBuffer = cropBlob ? await cropBlob.arrayBuffer() : new ArrayBuffer(0);
+  const decoded = await recognizeCanvas({ runtime, cropCanvas });
+  const recognition = {
+    text: decoded.text,
+    confidence: decoded.confidence,
+    decodedLength: decoded.decodedLength,
+    durationMs: decoded.durationMs,
+    outputShape: decoded.outputShape,
+    parsedCandidates: parseIpadArithmeticOcrNumbers(decoded.text),
+    groupedCandidates: parseIpadGroupedNumberTokens(decoded.text),
   };
   const fieldName = toFieldName(field);
   const cropMetadata = {
     rect: paddedRect,
     sha256: await sha256Hex(cropBuffer),
-    preprocessingChecksum: inputChecksum,
-    preprocessing: input.metadata,
+    preprocessingChecksum: decoded.inputChecksum,
+    preprocessing: decoded.preprocessing,
   };
   return {
     stage: 3,
@@ -329,6 +516,271 @@ async function recognizeField({ runtime, image, imageName, field }) {
       recognition,
       cropMetadata,
     }),
+  };
+}
+
+function dilateMask2x2(mask, width, height) {
+  const out = new Uint8Array(mask.length);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const index = y * width + x;
+      if (!mask[index]) continue;
+      out[index] = 1;
+      if (x + 1 < width) out[index + 1] = 1;
+      if (y + 1 < height) out[index + width] = 1;
+      if (x + 1 < width && y + 1 < height) out[index + width + 1] = 1;
+    }
+  }
+  return out;
+}
+
+function componentBoxesFromScoreMap({ scores, width, height, cropWidth, cropHeight }) {
+  const baseMask = new Uint8Array(width * height);
+  for (let index = 0; index < scores.length; index += 1) {
+    if (scores[index] > DET_THRESH) baseMask[index] = 1;
+  }
+  const mask = dilateMask2x2(baseMask, width, height);
+  const visited = new Uint8Array(mask.length);
+  const boxes = [];
+  const stack = [];
+  for (let start = 0; start < mask.length; start += 1) {
+    if (!mask[start] || visited[start]) continue;
+    let minX = width;
+    let minY = height;
+    let maxX = 0;
+    let maxY = 0;
+    let scoreSum = 0;
+    let scoreCount = 0;
+    stack.length = 0;
+    stack.push(start);
+    visited[start] = 1;
+    while (stack.length) {
+      const index = stack.pop();
+      const x = index % width;
+      const y = Math.floor(index / width);
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x > maxX) maxX = x;
+      if (y > maxY) maxY = y;
+      scoreSum += Number(scores[index] || 0);
+      scoreCount += 1;
+      const neighbors = [index - 1, index + 1, index - width, index + width];
+      for (const next of neighbors) {
+        if (next < 0 || next >= mask.length || visited[next] || !mask[next]) continue;
+        const nx = next % width;
+        const ny = Math.floor(next / width);
+        if (Math.abs(nx - x) + Math.abs(ny - y) !== 1) continue;
+        visited[next] = 1;
+        stack.push(next);
+      }
+    }
+    const score = scoreCount ? scoreSum / scoreCount : 0;
+    if (score < DET_BOX_THRESH) continue;
+    const boxWidthMap = Math.max(1, maxX - minX + 1);
+    const boxHeightMap = Math.max(1, maxY - minY + 1);
+    const expandX = (boxWidthMap * (DET_UNCLIP_RATIO - 1)) / 2;
+    const expandY = (boxHeightMap * (DET_UNCLIP_RATIO - 1)) / 2;
+    const sx = cropWidth / width;
+    const sy = cropHeight / height;
+    const x = Math.max(0, Math.round((minX - expandX) * sx));
+    const y = Math.max(0, Math.round((minY - expandY) * sy));
+    const right = Math.min(cropWidth, Math.round((maxX + 1 + expandX) * sx));
+    const bottom = Math.min(cropHeight, Math.round((maxY + 1 + expandY) * sy));
+    const rect = { x, y, width: Math.max(1, right - x), height: Math.max(1, bottom - y) };
+    if (rect.width <= 3 || rect.height <= 3) continue;
+    boxes.push({
+      rect,
+      score: Number(score.toFixed(6)),
+      componentPixels: scoreCount,
+      mapRect: { x: minX, y: minY, width: boxWidthMap, height: boxHeightMap },
+      polygon: [
+        [rect.x, rect.y],
+        [rect.x + rect.width, rect.y],
+        [rect.x + rect.width, rect.y + rect.height],
+        [rect.x, rect.y + rect.height],
+      ],
+    });
+  }
+  return boxes.sort((a, b) => a.rect.y - b.rect.y || a.rect.x - b.rect.x).slice(0, 1000);
+}
+
+async function detectTextBoxes({ runtime, cropCanvas }) {
+  const input = preprocessDetectionInput(cropCanvas, runtime.config.detectorLimitSideLen);
+  const checksum = await sha256Hex(input.data.buffer.slice(0));
+  const tensor = new runtime.ort.Tensor("float32", input.data, input.shape);
+  const feeds = { [runtime.detSession.inputNames[0]]: tensor };
+  const started = performance.now();
+  const outputs = await runtime.detSession.run(feeds);
+  const durationMs = Number((performance.now() - started).toFixed(3));
+  const outputTensor = outputs[runtime.detSession.outputNames[0]];
+  const dims = outputTensor.dims || [];
+  const mapHeight = Number(dims[2] || 0);
+  const mapWidth = Number(dims[3] || 0);
+  const boxes =
+    mapWidth > 0 && mapHeight > 0
+      ? componentBoxesFromScoreMap({
+          scores: outputTensor.data || [],
+          width: mapWidth,
+          height: mapHeight,
+          cropWidth: cropCanvas.width,
+          cropHeight: cropCanvas.height,
+        })
+      : [];
+  return {
+    boxes,
+    durationMs,
+    outputShape: dims,
+    preprocessingChecksum: checksum,
+    preprocessing: input.metadata,
+  };
+}
+
+function cropCanvasRect(sourceCanvas, rect) {
+  const clamped = {
+    x: Math.max(0, Math.min(sourceCanvas.width - 1, Math.round(rect.x))),
+    y: Math.max(0, Math.min(sourceCanvas.height - 1, Math.round(rect.y))),
+    width: Math.max(1, Math.round(rect.width)),
+    height: Math.max(1, Math.round(rect.height)),
+  };
+  clamped.width = Math.min(clamped.width, sourceCanvas.width - clamped.x);
+  clamped.height = Math.min(clamped.height, sourceCanvas.height - clamped.y);
+  const canvas = document.createElement("canvas");
+  canvas.width = clamped.width;
+  canvas.height = clamped.height;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  context.drawImage(sourceCanvas, clamped.x, clamped.y, clamped.width, clamped.height, 0, 0, clamped.width, clamped.height);
+  return canvas;
+}
+
+function buildDetectionCropRecords({ image, template }) {
+  const stage3Fields = (template.fields || []).filter((field) => field.stage === 3);
+  const records = [];
+  for (const side of ["self", "enemy"]) {
+    const sideFields = stage3Fields.filter((field) => field.side === side);
+    const fieldRects = Object.fromEntries(sideFields.map((field) => [fieldSpecKey(field), clampRect(field.zone, image)]));
+    for (const field of sideFields) {
+      const fieldName = fieldSpecKey(field);
+      const rect = clampRect(padIpadArithmeticFieldZone(field, image, 0.12), image);
+      records.push({
+        stage: 3,
+        side,
+        sourceField: fieldName,
+        cropKind: "field",
+        rect,
+        fieldRects: {
+          [fieldName]: rect,
+        },
+      });
+    }
+    const memberRects = sideFields
+      .filter((field) => field.field === "member")
+      .map((field) => clampRect(field.zone, image));
+    const f1Rect = unionRects(memberRects, 0.08, image);
+    records.push({
+      stage: 3,
+      side,
+      sourceField: "side",
+      cropKind: "f1-member-row",
+      rect: f1Rect,
+      fieldRects: Object.fromEntries(
+        sideFields
+          .filter((field) => field.field === "member")
+          .map((field) => [fieldSpecKey(field), clampRect(field.zone, image)])
+      ),
+    });
+    const sideZone = (template.stageSideZones || []).find((zone) => zone.stage === 3 && zone.side === side);
+    if (sideZone?.zone) {
+      const f2Rect = clampRect(sideZone.zone, image);
+      records.push({
+        stage: 3,
+        side,
+        sourceField: "side",
+        cropKind: "f2-full-side",
+        rect: f2Rect,
+        fieldRects,
+      });
+    }
+  }
+  return records;
+}
+
+async function detectAndRecognizeCrop({ runtime, image, imageName, record }) {
+  const cropCanvas = canvasForCrop(image, record.rect);
+  const cropBlob = await new Promise((resolve) => cropCanvas.toBlob(resolve, "image/png"));
+  const cropBuffer = cropBlob ? await cropBlob.arrayBuffer() : new ArrayBuffer(0);
+  const detection = await detectTextBoxes({ runtime, cropCanvas });
+  const items = [];
+  const candidateRows = [];
+  for (const [itemIndex, box] of detection.boxes.entries()) {
+    const boxCanvas = cropCanvasRect(cropCanvas, box.rect);
+    const recognition = await recognizeCanvas({ runtime, cropCanvas: boxCanvas });
+    const absBbox = absoluteRect(box.rect, record.rect);
+    const assignment = assignDetectionToField(absBbox, record.fieldRects || {});
+    const assignedField = assignment.assignedField;
+    const item = {
+      itemIndex,
+      bbox: absBbox,
+      localBbox: box.rect,
+      detectionScore: box.score,
+      componentPixels: box.componentPixels,
+      assignment,
+      recognition: {
+        text: recognition.text,
+        confidence: recognition.confidence,
+        decodedLength: recognition.decodedLength,
+        durationMs: recognition.durationMs,
+        outputShape: recognition.outputShape,
+        parsedCandidates: parseIpadArithmeticOcrNumbers(recognition.text),
+        groupedCandidates: parseIpadGroupedNumberTokens(recognition.text),
+      },
+    };
+    items.push(item);
+    if (!assignedField) continue;
+    candidateRows.push(
+      ...buildCandidateRows({
+        imageName,
+        side: record.side,
+        fieldName: assignedField,
+        recognition: item.recognition,
+        cropMetadata: {
+          rect: record.rect,
+          sourceCropSha256: await sha256Hex(cropBuffer),
+          detectedLocalBbox: box.rect,
+          detectedAbsBbox: absBbox,
+          detectionScore: box.score,
+          preprocessingChecksum: recognition.inputChecksum,
+          preprocessing: recognition.preprocessing,
+        },
+        cropKind: record.cropKind,
+        profileId: "browser-rapidocr-detect-recognize",
+        sourceField: record.sourceField,
+        itemIndex,
+        bbox: absBbox,
+        assignment,
+      })
+    );
+  }
+  return {
+    stage: 3,
+    side: record.side,
+    sourceField: record.sourceField,
+    cropKind: record.cropKind,
+    crop: {
+      rect: record.rect,
+      sha256: await sha256Hex(cropBuffer),
+      preprocessingChecksum: detection.preprocessingChecksum,
+      preprocessing: detection.preprocessing,
+    },
+    detection: {
+      durationMs: detection.durationMs,
+      outputShape: detection.outputShape,
+      boxCount: detection.boxes.length,
+      boxes: detection.boxes,
+      postprocessApproximation:
+        "connected-components axis-aligned approximation of offline cv2.findContours/minAreaRect/pyclipper DB postprocess",
+    },
+    items,
+    candidateRows,
   };
 }
 
@@ -394,10 +846,12 @@ export async function runIpadStage3RapidOcrBrowserDiagnostic({ image, imageName,
     runtime: {
       framework: "onnxruntime-web",
       executionProvider: "wasm",
-      recognizerOnly: true,
+      recognizerOnly: false,
+      detectorEnabled: true,
       productionEnabled: false,
     },
     fields: [],
+    detectionCrops: [],
     candidateRows: [],
     r6: {
       policyId: "R6-hybrid-safe-side",
@@ -417,20 +871,30 @@ export async function runIpadStage3RapidOcrBrowserDiagnostic({ image, imageName,
   }
 
   const runtime = await loadRapidOcrRuntime();
-  payload.status = "ran-recognizer-only";
+  payload.status = "ran-detector-recognizer-diagnostic";
   payload.modelInventory = runtime.modelInventory;
   payload.runtime = {
     ...payload.runtime,
     modelBase: runtime.config.modelBase,
     wasmBase: runtime.config.wasmBase,
+    detectorCropKinds: runtime.config.detectorCropKinds,
+    detectorLimitSideLen: runtime.config.detectorLimitSideLen,
   };
 
   const template = buildIpadArithmeticRoiTemplate(image);
   const stage3Fields = (template.fields || []).filter((field) => field.stage === 3);
+  const detectionCropRecords = buildDetectionCropRecords({ image, template }).filter((record) =>
+    runtime.config.detectorCropKinds.includes(record.cropKind)
+  );
   const started = performance.now();
   for (const field of stage3Fields) {
     const result = await recognizeField({ runtime, image, imageName: imageName || "", field });
     payload.fields.push(result);
+    payload.candidateRows.push(...result.candidateRows);
+  }
+  for (const record of detectionCropRecords) {
+    const result = await detectAndRecognizeCrop({ runtime, image, imageName: imageName || "", record });
+    payload.detectionCrops.push(result);
     payload.candidateRows.push(...result.candidateRows);
   }
   payload.elapsedMs = Number((performance.now() - started).toFixed(3));
@@ -445,12 +909,18 @@ export async function runIpadStage3RapidOcrBrowserDiagnostic({ image, imageName,
     fp: 0,
     blocked: payload.r6.rows.filter((row) => !row.evaluation?.wouldApply).length,
     note:
-      "Recognizer-only browser candidates are exported. Frozen R6 proposal scoring remains blocked until the browser detector/selector path is ported.",
+      "Browser detector/recognizer candidates are exported. Frozen R6 proposal scoring remains blocked until the RapidOCR arithmetic selector proposal stage is ported with exact shared-helper parity.",
   };
   payload.diagnosticsSummary = {
     fieldCount: payload.fields.length,
+    detectionCropCount: payload.detectionCrops.length,
+    detectedBoxCount: payload.detectionCrops.reduce((sum, crop) => sum + Number(crop.detection?.boxCount || 0), 0),
     candidateRowCount: payload.candidateRows.length,
     nonEmptyFields: payload.fields.filter((field) => field.recognition.text).length,
+    nonEmptyDetectedItems: payload.detectionCrops.reduce(
+      (sum, crop) => sum + crop.items.filter((item) => item.recognition?.text).length,
+      0
+    ),
     exactProductionMutation: false,
   };
   return payload;

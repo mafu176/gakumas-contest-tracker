@@ -73,6 +73,8 @@ function parseArgs() {
     port: Number(argValue("--port", "0") || 0),
     baseUrl: argValue("--base-url") || process.env.IPAD_RAPIDOCR_BROWSER_BASE_URL || "",
     runs: Math.max(1, Number(argValue("--runs", "1") || 1)),
+    detectorCropKinds: argValue("--detector-crop-kinds") || "",
+    detectorLimitSideLen: argValue("--detector-limit-side-len") || "",
   };
 }
 
@@ -308,7 +310,7 @@ async function loadOfflineCandidates() {
     const rows = await loadJson(offlineCandidatePath);
     const map = new Map();
     for (const row of rows) {
-      if (row.stage !== 3 || row.cropKind !== "field" || row.profileId !== "rapidocr-recognition-only") {
+      if (row.stage !== 3 || !fields.includes(row.assignedField || row.sourceField)) {
         continue;
       }
       const key = rowFieldKey(row);
@@ -328,6 +330,8 @@ function compareFieldCandidates({ image, side, field, browserRows, offlineRows, 
   const offlineValues = [...new Set(offlineRows.map((row) => Number(row.value)).filter(Number.isFinite))].sort(
     (a, b) => a - b
   );
+  const browserDetectRows = browserRows.filter((row) => row.profileId === "browser-rapidocr-detect-recognize");
+  const offlineDetectRows = offlineRows.filter((row) => row.profileId === "rapidocr-detect-recognize");
   return {
     image,
     stage: 3,
@@ -339,6 +343,12 @@ function compareFieldCandidates({ image, side, field, browserRows, offlineRows, 
     browserHasExpected: browserValues.includes(expectedValue),
     offlineHasExpected: offlineValues.includes(expectedValue),
     valuesMatchOffline: JSON.stringify(browserValues) === JSON.stringify(offlineValues),
+    browserDetectHasExpected: browserDetectRows.some((row) => Number(row.value) === expectedValue),
+    offlineDetectHasExpected: offlineDetectRows.some((row) => Number(row.value) === expectedValue),
+    browserProfiles: [...new Set(browserRows.map((row) => row.profileId).filter(Boolean))],
+    offlineProfiles: [...new Set(offlineRows.map((row) => row.profileId).filter(Boolean))],
+    browserCropKinds: [...new Set(browserRows.map((row) => row.cropKind).filter(Boolean))],
+    offlineCropKinds: [...new Set(offlineRows.map((row) => row.cropKind).filter(Boolean))],
     browserText: [...new Set(browserRows.map((row) => row.fullText || "").filter(Boolean))],
     offlineText: [...new Set(offlineRows.map((row) => row.fullText || "").filter(Boolean))],
   };
@@ -355,7 +365,10 @@ async function processImage({ context, baseUrl, row, runDir, resume, offlineCand
   page.on("console", (message) => consoleMessages.push({ type: message.type(), text: message.text() }));
   page.on("pageerror", (error) => pageErrors.push({ message: error.message, stack: error.stack }));
   try {
-    await page.goto(`${baseUrl}/?ipadStage3RapidOcrDebug=1`, {
+    const params = new URLSearchParams({ ipadStage3RapidOcrDebug: "1" });
+    if (row.detectorCropKinds) params.set("ipadStage3RapidOcrDetectorCropKinds", row.detectorCropKinds);
+    if (row.detectorLimitSideLen) params.set("ipadStage3RapidOcrDetectorLimitSideLen", row.detectorLimitSideLen);
+    await page.goto(`${baseUrl}/?${params.toString()}`, {
       waitUntil: "domcontentloaded",
       timeout: 300000,
     });
@@ -443,6 +456,8 @@ function summarizeResults(results) {
       ];
     })
   );
+  const browserDetectExactFields = comparisons.filter((row) => row.browserDetectHasExpected).length;
+  const offlineDetectExactFields = comparisons.filter((row) => row.offlineDetectHasExpected).length;
   return {
     schema: "ipad-stage3-rapidocr-browser-verification-summary-v1",
     generatedAt: new Date().toISOString(),
@@ -450,13 +465,15 @@ function summarizeResults(results) {
     stage3Sides: results.length * 2,
     fields: comparisons.length,
     browserExactFields: comparisons.filter((row) => row.browserHasExpected).length,
-    offlineRecognitionOnlyExactFields: comparisons.filter((row) => row.offlineHasExpected).length,
+    offlineExactFields: comparisons.filter((row) => row.offlineHasExpected).length,
+    browserDetectExactFields,
+    offlineDetectExactFields,
     parityExactValueFields: comparisons.filter((row) => row.valuesMatchOffline).length,
     byField,
     r6: {
       wouldApply: results.reduce((sum, result) => sum + Number(result.r6?.summary?.wouldApply || 0), 0),
       note:
-        "R6 production scoring is not claimed from recognizer-only browser output. Detector/selector parity remains the next blocker for full RapidOCR R6 parity.",
+        "R6 production scoring is not claimed from browser detector output yet. Detector candidates are diagnostic-only; the RapidOCR arithmetic selector proposal stage remains the next blocker for full R6 parity.",
     },
     statuses: Object.fromEntries(
       [...new Set(results.map((result) => result.status))].map((status) => [
@@ -494,7 +511,11 @@ async function main() {
           await processImage({
             context,
             baseUrl: server.baseUrl,
-            row,
+            row: {
+              ...row,
+              detectorCropKinds: args.detectorCropKinds,
+              detectorLimitSideLen: args.detectorLimitSideLen,
+            },
             runDir,
             resume: args.resume,
             offlineCandidateMap,
