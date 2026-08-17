@@ -1449,4 +1449,24 @@ export const idolDb = [
   "rarity": "SSR",
   "image": "/idols/145.png"
 },
+  {
+    "id": "十王_星南_ねぇ_いっちゃうよ",
+    "name": "ねぇ、いっちゃうよ 十王星南",
+    "short": "ねぇ、いっ…星南",
+    "character": "十王星南",
+    "title": "ねぇ、いっちゃうよ",
+    "plan": "センス",
+    "rarity": "SSR",
+    "image": "/idols/146.png"
+  },
+  {
+    "id": "月村_手毬_ねぇ_いっちゃうよ",
+    "name": "ねぇ、いっちゃうよ 月村手毬",
+    "short": "ねぇ、いっ…手毬",
+    "character": "月村手毬",
+    "title": "ねぇ、いっちゃうよ",
+    "plan": "アノマリー",
+    "rarity": "SSR",
+    "image": "/idols/147.png"
+  },
 ];
