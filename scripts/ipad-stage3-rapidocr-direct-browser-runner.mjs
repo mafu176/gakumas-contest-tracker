@@ -17,6 +17,7 @@ let artifactDir = path.join(rootDir, "tmp", "ipad-stage3-rapidocr-direct-runner"
 const bonusTotalArtifactDir = path.join(rootDir, "tmp", "ipad-stage3-rapidocr-bonus-total-roi");
 const member2ArtifactDir = path.join(rootDir, "tmp", "ipad-stage3-rapidocr-member2-roi");
 const member3ArtifactDir = path.join(rootDir, "tmp", "ipad-stage3-rapidocr-member3-roi");
+const nonZeroBonusArtifactDir = path.join(rootDir, "tmp", "ipad-stage3-rapidocr-nonzero-bonus");
 const rapidOcrModelDir = path.join(
   rootDir,
   "tmp",
@@ -73,6 +74,7 @@ const offlineR6Path = path.join(rootDir, "tmp", "ipad-stage3-rapidocr-fixture-ex
 const bonusTotalPolicyIds = ["P0", "P1", "P2", "P3", "P4", "P5"];
 const member2PolicyIds = ["Q0", "Q1", "Q2", "Q3"];
 const member3PolicyIds = ["R0", "R1", "R2", "R3"];
+const nonZeroBonusPolicyIds = ["S0", "S1", "S2", "S3", "S4"];
 
 function parseArgs() {
   const argValue = (name, fallback = "") => {
@@ -100,6 +102,7 @@ function parseArgs() {
     bonusTotalRoi: process.argv.includes("--bonus-total-roi"),
     member2Roi: process.argv.includes("--member2-roi"),
     member3Roi: process.argv.includes("--member3-roi"),
+    nonZeroBonus: process.argv.includes("--nonzero-bonus"),
   };
 }
 
@@ -358,7 +361,7 @@ function isBestTotalCandidate(row) {
 
 function isMember2CandidateForPolicy(row, policyId) {
   if (policyId === "Q1" || policyId === "Q2" || policyId === "Q3") return true;
-  if (policyId.startsWith("R")) {
+  if (policyId.startsWith("R") || policyId === "S0" || policyId === "S4") {
     return ["baseline-12pct-padding", "member2-vertical-expand-8pct"].includes(row.crop?.variantId);
   }
   return isBaselineCandidate(row);
@@ -366,12 +369,46 @@ function isMember2CandidateForPolicy(row, policyId) {
 
 function isMember3CandidateForPolicy(row, policyId) {
   if (policyId === "R1" || policyId === "R2" || policyId === "R3") return true;
+  if (policyId === "S0" || policyId === "S4") {
+    return [
+      "baseline-12pct-padding",
+      "member3-left-expand-right-trim-8pct",
+      "member3-vertical-expand-8pct",
+    ].includes(row.crop?.variantId);
+  }
   return isBaselineCandidate(row);
+}
+
+function isCurrentProfileCandidate(row) {
+  return !row.crop?.preprocessingProfileId || row.crop.preprocessingProfileId === "recognizer-current";
+}
+
+function isBaselineCurrentBonusCandidate(row) {
+  return isBaselineCandidate(row) && isCurrentProfileCandidate(row);
+}
+
+function isNonZeroBonusRoiCandidate(row) {
+  return isCurrentProfileCandidate(row);
 }
 
 function rowsForPolicy(candidateRows, policyId) {
   return candidateRows.filter((row) => {
     const field = row.assignedField || row.sourceField;
+    if (policyId.startsWith("S")) {
+      if (field === "member1") return isBaselineCandidate(row);
+      if (field === "member2") return isMember2CandidateForPolicy(row, policyId);
+      if (field === "member3") return isMember3CandidateForPolicy(row, policyId);
+      if (field === "bonus") {
+        if (policyId === "S0") return isBaselineCurrentBonusCandidate(row);
+        if (policyId === "S1") return isNonZeroBonusRoiCandidate(row);
+        if (policyId === "S2" || policyId === "S3" || policyId === "S4") return true;
+      }
+      if (field === "total") {
+        if (policyId === "S0" || policyId === "S3" || policyId === "S4") return isBestTotalCandidate(row);
+        return isBaselineCandidate(row);
+      }
+      return isBaselineCandidate(row);
+    }
     if (policyId.startsWith("R")) {
       if (field === "member1") return isBaselineCandidate(row);
       if (field === "member2") return isMember2CandidateForPolicy(row, policyId);
@@ -407,6 +444,7 @@ function rowsForPolicy(candidateRows, policyId) {
 }
 
 function policyIdsForArgs(args = {}) {
+  if (args.nonZeroBonus) return nonZeroBonusPolicyIds;
   if (args.member3Roi) return member3PolicyIds;
   if (args.member2Roi) return member2PolicyIds;
   if (args.bonusTotalRoi) return bonusTotalPolicyIds;
@@ -711,6 +749,62 @@ function buildOfflineBrowserDiffForField(results, offlineCandidateMap, fieldName
   return { categories, rows: details };
 }
 
+function buildZeroVsNonZeroBonus(results) {
+  const rows = [];
+  const summary = {
+    zero: { count: 0, exactObservedZero: 0, pollutedByNonZero: 0, noCandidate: 0, wrongNonZeroCandidates: 0 },
+    nonZero: { count: 0, exactPresent: 0, exactAbsent: 0, empty: 0, wrongOcr: 0, fragmentOcr: 0, lowConfidenceExact: 0 },
+  };
+  for (const result of results) {
+    for (const side of sides) {
+      const expected = Number(result.expected?.[side]?.bonus || 0);
+      const candidates = (result.candidateRows || []).filter((row) => row.side === side && row.assignedField === "bonus");
+      const values = [...new Set(candidates.map((row) => Number(row.value)).filter(Number.isFinite))];
+      const exactRows = candidates.filter((row) => Number(row.value) === expected);
+      const wrongNonZero = values.filter((value) => value !== expected && value !== 0);
+      const expectedText = String(expected);
+      const fragment = expected > 0 && values.some((value) => {
+        const text = String(value);
+        return text.length >= 2 && text.length < expectedText.length && expectedText.includes(text);
+      });
+      const lowConfidenceExact = exactRows.some((row) => Number(row.confidence) > 0 && Number(row.confidence) < 0.9);
+      const record = {
+        image: result.image,
+        stage: 3,
+        side,
+        expectedBonus: expected,
+        values,
+        hasExact: values.includes(expected),
+        exactSupportCount: exactRows.length,
+        exactConfidences: exactRows.map((row) => Number(row.confidence)).filter(Number.isFinite),
+        wrongNonZero,
+        empty: values.length === 0,
+        fragment,
+        variantIds: [...new Set(candidates.map((row) => row.crop?.variantId).filter(Boolean))],
+        preprocessingProfileIds: [...new Set(candidates.map((row) => row.crop?.preprocessingProfileId).filter(Boolean))],
+        rawTexts: [...new Set(candidates.map((row) => row.fullText).filter(Boolean))].slice(0, 8),
+      };
+      rows.push(record);
+      if (expected === 0) {
+        summary.zero.count += 1;
+        if (values.includes(0)) summary.zero.exactObservedZero += 1;
+        if (values.length === 0) summary.zero.noCandidate += 1;
+        if (wrongNonZero.length) summary.zero.pollutedByNonZero += 1;
+        summary.zero.wrongNonZeroCandidates += wrongNonZero.length;
+      } else {
+        summary.nonZero.count += 1;
+        if (record.hasExact) summary.nonZero.exactPresent += 1;
+        else summary.nonZero.exactAbsent += 1;
+        if (values.length === 0) summary.nonZero.empty += 1;
+        if (wrongNonZero.length) summary.nonZero.wrongOcr += 1;
+        if (fragment) summary.nonZero.fragmentOcr += 1;
+        if (lowConfidenceExact) summary.nonZero.lowConfidenceExact += 1;
+      }
+    }
+  }
+  return { summary, rows };
+}
+
 function buildCandidateUnion(results, field = "member2") {
   return results.flatMap((result) =>
     sides.map((side) => {
@@ -807,8 +901,10 @@ function buildRoiDefinitions(results, fieldName = "member2") {
       if (!id || examples[id]) continue;
       examples[id] = {
         variantId: id,
+        baseVariantId: row.crop?.baseVariantId,
         architecture: row.crop?.architecture,
         description: row.crop?.variantDescription,
+        preprocessingProfileId: row.crop?.preprocessingProfileId,
         exampleImage: result.image,
         pixelRect: row.crop?.rect,
       };
@@ -819,6 +915,23 @@ function buildRoiDefinitions(results, fieldName = "member2") {
     field: fieldName,
     variants: Object.values(examples).sort((a, b) => a.variantId.localeCompare(b.variantId)),
   };
+}
+
+function buildPreprocessingDefinitions(results, fieldName = "bonus") {
+  const profiles = {};
+  for (const result of results) {
+    for (const row of result.candidateRows || []) {
+      if (row.assignedField !== fieldName) continue;
+      const id = row.crop?.preprocessingProfileId || row.crop?.preprocessing?.recognitionProfileId || "recognizer-current";
+      if (profiles[id]) continue;
+      profiles[id] = {
+        id,
+        description: row.crop?.preprocessing?.recognitionProfileDescription || "current browser recognizer input",
+        preprocessing: row.crop?.preprocessing || null,
+      };
+    }
+  }
+  return Object.values(profiles).sort((a, b) => a.id.localeCompare(b.id));
 }
 
 function buildClusterResults(results, candidateUnion) {
@@ -858,8 +971,11 @@ function summarizeResults(results, offlineCandidateMap = new Map(), offlinePropo
   const policyIds = policyIdsForArgs(args);
   const member2CandidateUnion = buildCandidateUnion(results, "member2");
   const member3CandidateUnion = buildCandidateUnion(results, "member3");
+  const bonusCandidateUnion = buildCandidateUnion(results, "bonus");
   const member2FragmentAudit = buildFragmentAudit(member2CandidateUnion);
   const member3FragmentAudit = buildFragmentAudit(member3CandidateUnion);
+  const bonusFragmentAudit = buildFragmentAudit(bonusCandidateUnion);
+  const zeroVsNonZeroBonus = buildZeroVsNonZeroBonus(results);
   const byField = Object.fromEntries(
     fields.map((field) => {
       const rows = comparisons.filter((comparison) => comparison.field === field);
@@ -949,6 +1065,15 @@ function summarizeResults(results, offlineCandidateMap = new Map(), offlinePropo
       roiDefinitions: buildRoiDefinitions(results, "member3"),
       clusterResults: buildClusterResults(results, member3CandidateUnion),
     },
+    bonus: {
+      offlineBrowserDiff: buildOfflineBrowserDiffForField(results, offlineCandidateMap, "bonus"),
+      candidateUnion: bonusCandidateUnion,
+      fragmentAudit: bonusFragmentAudit,
+      roiDefinitions: buildRoiDefinitions(results, "bonus"),
+      preprocessingDefinitions: buildPreprocessingDefinitions(results, "bonus"),
+      clusterResults: buildClusterResults(results, bonusCandidateUnion),
+      zeroVsNonZero: zeroVsNonZeroBonus,
+    },
     statuses: Object.fromEntries(
       [...new Set(results.map((result) => result.status))].map((status) => [
         status,
@@ -1010,6 +1135,7 @@ function compactRunSummary(summary) {
 }
 
 function outputSummaryName(args, rows) {
+  if (args.nonZeroBonus) return "nonzero-bonus-results.json";
   if (args.member3Roi) return "member3-roi-results.json";
   if (args.member2Roi) return "member2-roi-results.json";
   if (args.bonusTotalRoi) return "bonus-total-roi-results.json";
@@ -1042,6 +1168,110 @@ function buildAcceptedFourAudit(results) {
   });
 }
 
+function buildMember2GapAudit(results) {
+  const targets = [
+    { image: "IMG_0265.png", side: "enemy" },
+    { image: "IMG_0792.png", side: "self" },
+  ];
+  return targets.map((target) => {
+    const result = results.find((entry) => entry.image === target.image);
+    const comparison = (result?.rawComparisons || []).find(
+      (entry) => entry.side === target.side && entry.field === "member2"
+    );
+    const r6Row = (result?.r6?.rows || []).find((entry) => entry.side === target.side);
+    return {
+      ...target,
+      expectedMember2: comparison?.expectedValue,
+      exactMember2Observed: Boolean(comparison?.hasExpected),
+      candidates: comparison?.candidates || [],
+      r6WouldApply: Boolean(r6Row?.evaluation?.wouldApply),
+      blockReasons: r6Row?.evaluation?.blockReasons || [],
+    };
+  });
+}
+
+function buildConfidenceAudit(results) {
+  return results.flatMap((result) =>
+    (result.r6?.rows || [])
+      .filter((row) =>
+        (row.evaluation?.blockReasons || []).some((reason) => String(reason).toLowerCase().includes("confidence"))
+      )
+      .map((row) => ({
+        image: result.image,
+        stage: 3,
+        side: row.side,
+        wouldApply: Boolean(row.evaluation?.wouldApply),
+        blockReasons: row.evaluation?.blockReasons || [],
+        proposal: row.proposal || null,
+        candidateConfidence: fields.reduce((acc, field) => {
+          const exactRows = (result.candidateRows || []).filter(
+            (candidate) =>
+              candidate.side === row.side &&
+              candidate.assignedField === field &&
+              Number(candidate.value) === Number(result.expected?.[row.side]?.[field] || 0)
+          );
+          acc[field] = exactRows.map((candidate) => ({
+            value: Number(candidate.value),
+            confidence: candidate.confidence,
+            variantId: candidate.crop?.variantId,
+            preprocessingProfileId: candidate.crop?.preprocessingProfileId,
+          }));
+          return acc;
+        }, {}),
+      }))
+  );
+}
+
+function buildCombinedSideEvidence(results) {
+  const rows = [];
+  for (const result of results) {
+    for (const side of sides) {
+      const comparisons = fields.map((field) =>
+        (result.rawComparisons || []).find((entry) => entry.side === side && entry.field === field)
+      );
+      const exactFields = comparisons.filter((entry) => entry?.hasExpected).map((entry) => entry.field);
+      const memberFields = comparisons.filter((entry) => entry?.field?.startsWith("member"));
+      const r6Row = (result.r6?.rows || []).find((entry) => entry.side === side);
+      rows.push({
+        image: result.image,
+        stage: 3,
+        side,
+        exactFields,
+        allMembersExact: memberFields.length === 3 && memberFields.every((entry) => entry.hasExpected),
+        allFieldsExact: comparisons.length === fields.length && comparisons.every((entry) => entry?.hasExpected),
+        r6WouldApply: Boolean(r6Row?.evaluation?.wouldApply),
+        blockReasons: r6Row?.evaluation?.blockReasons || [],
+      });
+    }
+  }
+  return {
+    summary: {
+      rows: rows.length,
+      allMembersExact: rows.filter((row) => row.allMembersExact).length,
+      allFieldsExact: rows.filter((row) => row.allFieldsExact).length,
+      r6WouldApply: rows.filter((row) => row.r6WouldApply).length,
+    },
+    rows,
+  };
+}
+
+function buildRecommendation(summary, args) {
+  if (!args.nonZeroBonus) return null;
+  const policyEntries = Object.entries(summary.policies || {});
+  const safePolicies = policyEntries
+    .filter(([, policy]) => Number(policy.tp || 0) > 0 && Number(policy.fp || 0) === 0)
+    .map(([policyId, policy]) => ({ policyId, tp: policy.tp, fp: policy.fp, wouldApply: policy.wouldApply }));
+  return {
+    recommendedForProduction: false,
+    recommendedNextStep: safePolicies.length
+      ? "Run a focused browser parity review before considering any production integration."
+      : "Do not productionize; continue evidence capture investigation on the dominant blocker.",
+    safeDiagnosticPolicies: safePolicies,
+    rationale:
+      "This command is diagnostic-only. It measures whether bonus evidence can unlock frozen R6 without changing production OCR or R6 guards.",
+  };
+}
+
 async function processImage({ page, row, runDir, resume, imageTimeoutMs }) {
   const imageDir = path.join(runDir, safeArtifactName(row.filename));
   const resultPath = path.join(imageDir, "direct-rapidocr-result.json");
@@ -1060,11 +1290,13 @@ async function processImage({ page, row, runDir, resume, imageTimeoutMs }) {
       imageTimeoutMs,
       row.filename
     );
-    const rawPolicyId = diagnostic?.runtime?.member3RoiVariantsEnabled
-      ? "R3"
-      : diagnostic?.runtime?.member2RoiVariantsEnabled
-        ? "Q3"
-        : "P5";
+    const rawPolicyId = diagnostic?.runtime?.nonZeroBonusRoiVariantsEnabled
+      ? "S4"
+      : diagnostic?.runtime?.member3RoiVariantsEnabled
+        ? "R3"
+        : diagnostic?.runtime?.member2RoiVariantsEnabled
+          ? "Q3"
+          : "P5";
     const rawComparisons = scoreDiagnostic({ row, diagnostic, policyId: rawPolicyId }).map((comparison) => {
       const baselineCandidates = rowsForField(diagnostic?.candidateRows || [], comparison.side, comparison.field).filter(
         isBaselineCandidate
@@ -1121,6 +1353,7 @@ async function processImage({ page, row, runDir, resume, imageTimeoutMs }) {
 
 async function main() {
   const args = parseArgs();
+  if (args.nonZeroBonus) artifactDir = nonZeroBonusArtifactDir;
   if (args.member3Roi) artifactDir = member3ArtifactDir;
   if (args.member2Roi) artifactDir = member2ArtifactDir;
   if (args.bonusTotalRoi) artifactDir = bonusTotalArtifactDir;
@@ -1148,6 +1381,7 @@ async function main() {
     bonusTotalRoi: args.bonusTotalRoi,
     member2Roi: args.member2Roi,
     member3Roi: args.member3Roi,
+    nonZeroBonus: args.nonZeroBonus,
   };
   await fs.writeFile(path.join(artifactDir, "runner-config.json"), JSON.stringify(runnerConfig, null, 2));
   const server = await startServer(args);
@@ -1178,6 +1412,12 @@ async function main() {
         params.set("ipadStage3RapidOcrMember2Roi", "1");
         params.set("ipadStage3RapidOcrMember3Roi", "1");
         params.set("ipadStage3RapidOcrBonusTotalRoi", "1");
+      }
+      if (args.nonZeroBonus) {
+        params.set("ipadStage3RapidOcrMember2Roi", "1");
+        params.set("ipadStage3RapidOcrMember3Roi", "1");
+        params.set("ipadStage3RapidOcrBonusTotalRoi", "1");
+        params.set("ipadStage3RapidOcrNonZeroBonus", "1");
       }
       await page.goto(`${server.baseUrl}/?${params.toString()}`, {
         waitUntil: "domcontentloaded",
@@ -1216,7 +1456,25 @@ async function main() {
         path.join(runDir, "offline-browser-member3-diff.json"),
         JSON.stringify(summary.member3.offlineBrowserDiff, null, 2)
       );
-      const focusedField = args.member3Roi ? "member3" : "member2";
+      if (args.nonZeroBonus) {
+        await fs.writeFile(
+          path.join(runDir, "offline-browser-bonus-diff.json"),
+          JSON.stringify(summary.bonus.offlineBrowserDiff, null, 2)
+        );
+        await fs.writeFile(path.join(runDir, "zero-vs-nonzero.json"), JSON.stringify(summary.bonus.zeroVsNonZero, null, 2));
+        await fs.writeFile(
+          path.join(runDir, "preprocessing-definitions.json"),
+          JSON.stringify(summary.bonus.preprocessingDefinitions, null, 2)
+        );
+        await fs.writeFile(path.join(runDir, "s-policy-results.json"), JSON.stringify(summary.policies, null, 2));
+        await fs.writeFile(path.join(runDir, "confidence-audit.json"), JSON.stringify(buildConfidenceAudit(results), null, 2));
+        await fs.writeFile(path.join(runDir, "member2-gap-audit.json"), JSON.stringify(buildMember2GapAudit(results), null, 2));
+        await fs.writeFile(
+          path.join(runDir, "combined-side-evidence.json"),
+          JSON.stringify(buildCombinedSideEvidence(results), null, 2)
+        );
+      }
+      const focusedField = args.nonZeroBonus ? "bonus" : args.member3Roi ? "member3" : "member2";
       const focusedSummary = summary[focusedField];
       await fs.writeFile(path.join(runDir, "roi-definitions.json"), JSON.stringify(focusedSummary.roiDefinitions, null, 2));
       await fs.writeFile(path.join(runDir, "variant-results.json"), JSON.stringify(summary.variantGains[focusedField], null, 2));
@@ -1236,6 +1494,7 @@ async function main() {
       if (img0283) {
         await fs.writeFile(path.join(runDir, "img0283-audit.json"), JSON.stringify(img0283, null, 2));
       }
+      await fs.writeFile(path.join(runDir, "recommendation.json"), JSON.stringify(buildRecommendation(summary, args), null, 2));
       runSummaries.push(summary);
     }
   } finally {

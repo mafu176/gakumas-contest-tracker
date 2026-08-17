@@ -46,6 +46,7 @@ function getRuntimeConfig() {
   const bonusTotalRoiVariantsEnabled = params.get("ipadStage3RapidOcrBonusTotalRoi") === "1";
   const member2RoiVariantsEnabled = params.get("ipadStage3RapidOcrMember2Roi") === "1";
   const member3RoiVariantsEnabled = params.get("ipadStage3RapidOcrMember3Roi") === "1";
+  const nonZeroBonusRoiVariantsEnabled = params.get("ipadStage3RapidOcrNonZeroBonus") === "1";
   const cropKinds = String(params.get("ipadStage3RapidOcrDetectorCropKinds") || DETECTION_CROP_KINDS.join(","))
     .split(",")
     .map((entry) => entry.trim())
@@ -60,6 +61,7 @@ function getRuntimeConfig() {
     bonusTotalRoiVariantsEnabled,
     member2RoiVariantsEnabled,
     member3RoiVariantsEnabled,
+    nonZeroBonusRoiVariantsEnabled,
     detectorCropKinds: cropKinds.length ? cropKinds : DETECTION_CROP_KINDS,
     detectorLimitSideLen:
       Number.isFinite(detLimitSideLen) && detLimitSideLen >= 96 && detLimitSideLen <= DET_LIMIT_SIDE_LEN
@@ -206,9 +208,38 @@ function canvasForCrop(image, rect) {
   return crop;
 }
 
-function preprocessRecognitionInput(cropCanvas) {
-  const sourceWidth = cropCanvas.width;
-  const sourceHeight = cropCanvas.height;
+function canvasForBlueBonusMask(cropCanvas) {
+  const output = document.createElement("canvas");
+  output.width = cropCanvas.width;
+  output.height = cropCanvas.height;
+  const sourceContext = cropCanvas.getContext("2d", { willReadFrequently: true });
+  const outputContext = output.getContext("2d", { willReadFrequently: true });
+  const imageData = sourceContext.getImageData(0, 0, cropCanvas.width, cropCanvas.height);
+  const data = imageData.data;
+  for (let offset = 0; offset < data.length; offset += 4) {
+    const r = data[offset];
+    const g = data[offset + 1];
+    const b = data[offset + 2];
+    const blueDominant = b > r + 12 && b > g + 4;
+    const brightBlue = b > 90 && g > 45;
+    const ink = blueDominant && brightBlue;
+    data[offset] = ink ? 0 : 255;
+    data[offset + 1] = ink ? 0 : 255;
+    data[offset + 2] = ink ? 0 : 255;
+  }
+  outputContext.putImageData(imageData, 0, 0);
+  return output;
+}
+
+function canvasForRecognitionProfile(cropCanvas, profileId = "recognizer-current") {
+  if (profileId === "bonus-blue-mask") return canvasForBlueBonusMask(cropCanvas);
+  return cropCanvas;
+}
+
+function preprocessRecognitionInput(cropCanvas, profileId = "recognizer-current") {
+  const profileCanvas = canvasForRecognitionProfile(cropCanvas, profileId);
+  const sourceWidth = profileCanvas.width;
+  const sourceHeight = profileCanvas.height;
   const ratio = sourceWidth / Math.max(1, sourceHeight);
   const resizedWidth = Math.min(REC_INPUT_WIDTH, Math.max(1, Math.ceil(REC_INPUT_HEIGHT * ratio)));
 
@@ -218,7 +249,7 @@ function preprocessRecognitionInput(cropCanvas) {
   const resizedContext = resized.getContext("2d", { willReadFrequently: true });
   resizedContext.imageSmoothingEnabled = true;
   resizedContext.imageSmoothingQuality = "medium";
-  resizedContext.drawImage(cropCanvas, 0, 0, sourceWidth, sourceHeight, 0, 0, resizedWidth, REC_INPUT_HEIGHT);
+  resizedContext.drawImage(profileCanvas, 0, 0, sourceWidth, sourceHeight, 0, 0, resizedWidth, REC_INPUT_HEIGHT);
   const imageData = resizedContext.getImageData(0, 0, resizedWidth, REC_INPUT_HEIGHT).data;
 
   const plane = REC_INPUT_HEIGHT * REC_INPUT_WIDTH;
@@ -250,6 +281,11 @@ function preprocessRecognitionInput(cropCanvas) {
       tensorLayout: "NCHW",
       dtype: "float32",
       interpolation: "browser-canvas-medium",
+      recognitionProfileId: profileId,
+      recognitionProfileDescription:
+        profileId === "bonus-blue-mask"
+          ? "deterministic blue-dominant pixel isolation rendered as black text on white background"
+          : "current browser canvas recognizer input",
     },
   };
 }
@@ -576,13 +612,62 @@ function buildMember3RecognitionVariants(field, image, baseline) {
   ];
 }
 
+function withRecognitionProfiles(variants, profileIds) {
+  return variants.flatMap((variant) =>
+    profileIds.map((profileId) => ({
+      ...variant,
+      id: profileId === "recognizer-current" ? variant.id : `${variant.id}__${profileId}`,
+      baseVariantId: variant.id,
+      preprocessingProfileId: profileId,
+      description:
+        profileId === "recognizer-current"
+          ? variant.description
+          : `${variant.description}; deterministic blue-mask recognizer input`,
+    }))
+  );
+}
+
+function buildNonZeroBonusRecognitionVariants(field, image, baseline) {
+  const fieldName = toFieldName(field);
+  if (fieldName !== "bonus") return [baseline];
+  const roiVariants = [
+    baseline,
+    {
+      id: "bonus-horizontal-expand-12pct",
+      architecture: "I-detectorless-nonzero-bonus-roi",
+      rect: scaledRectFromRect(baseline.rect, image, { dwRatio: 0.12 }),
+      description: "bonus-only horizontal expansion from the fixed baseline crop",
+    },
+    {
+      id: "bonus-vertical-expand-12pct",
+      architecture: "I-detectorless-nonzero-bonus-roi",
+      rect: scaledRectFromRect(baseline.rect, image, { dhRatio: 0.12 }),
+      description: "bonus-only vertical expansion from the fixed baseline crop",
+    },
+    {
+      id: "bonus-up-shift-8pct",
+      architecture: "I-detectorless-nonzero-bonus-roi",
+      rect: scaledRectFromRect(baseline.rect, image, { dyRatio: -0.08 }),
+      description: "bonus-only upward shift to test visible blue bonus baseline alignment",
+    },
+    {
+      id: "bonus-left-expand-right-trim-8pct",
+      architecture: "I-detectorless-nonzero-bonus-roi",
+      rect: scaledRectFromRect(baseline.rect, image, { dxRatio: -0.04, dwRatio: 0.08 }),
+      description: "bonus-only asymmetric expansion away from following member/label text",
+    },
+  ];
+  return withRecognitionProfiles(roiVariants, ["recognizer-current", "bonus-blue-mask"]);
+}
+
 function buildFieldRecognitionVariants(
   field,
   image,
   enabled,
   bonusTotalOnlyEnabled = false,
   member2OnlyEnabled = false,
-  member3OnlyEnabled = false
+  member3OnlyEnabled = false,
+  nonZeroBonusOnlyEnabled = false
 ) {
   const baseline = {
     id: "baseline-12pct-padding",
@@ -595,6 +680,9 @@ function buildFieldRecognitionVariants(
   }
   if (member3OnlyEnabled && toFieldName(field) === "member3") {
     return buildMember3RecognitionVariants(field, image, baseline);
+  }
+  if (nonZeroBonusOnlyEnabled && toFieldName(field) === "bonus") {
+    return buildNonZeroBonusRecognitionVariants(field, image, baseline);
   }
   if (bonusTotalOnlyEnabled) return buildBonusTotalRecognitionVariants(field, image, baseline);
   if (!enabled) return [baseline];
@@ -701,10 +789,10 @@ function buildCandidateRows({
   return rows;
 }
 
-async function recognizeCanvas({ runtime, cropCanvas }) {
+async function recognizeCanvas({ runtime, cropCanvas, profileId = "recognizer-current" }) {
   const totalStarted = nowMs();
   const preprocessStarted = nowMs();
-  const input = preprocessRecognitionInput(cropCanvas);
+  const input = preprocessRecognitionInput(cropCanvas, profileId);
   const preprocessMs = Number((nowMs() - preprocessStarted).toFixed(3));
   const checksumStarted = nowMs();
   const inputChecksum = await sha256Hex(input.data.buffer.slice(0));
@@ -747,7 +835,11 @@ async function recognizeFieldVariant({ runtime, image, imageName, field, variant
   const cropBlob = await new Promise((resolve) => cropCanvas.toBlob(resolve, "image/png"));
   const cropBuffer = cropBlob ? await cropBlob.arrayBuffer() : new ArrayBuffer(0);
   const cropEncodeMs = Number((nowMs() - cropBlobStarted).toFixed(3));
-  const decoded = await recognizeCanvas({ runtime, cropCanvas });
+  const decoded = await recognizeCanvas({
+    runtime,
+    cropCanvas,
+    profileId: variant.preprocessingProfileId || "recognizer-current",
+  });
   const recognition = {
     text: decoded.text,
     confidence: decoded.confidence,
@@ -762,8 +854,10 @@ async function recognizeFieldVariant({ runtime, image, imageName, field, variant
   const cropMetadata = {
     rect: variant.rect,
     variantId: variant.id,
+    baseVariantId: variant.baseVariantId || variant.id,
     architecture: variant.architecture,
     variantDescription: variant.description,
+    preprocessingProfileId: variant.preprocessingProfileId || "recognizer-current",
     sha256: await sha256Hex(cropBuffer),
     preprocessingChecksum: decoded.inputChecksum,
     preprocessing: decoded.preprocessing,
@@ -808,7 +902,8 @@ async function recognizeField({ runtime, image, imageName, field }) {
     runtime.config.roiVariantsEnabled,
     runtime.config.bonusTotalRoiVariantsEnabled,
     runtime.config.member2RoiVariantsEnabled,
-    runtime.config.member3RoiVariantsEnabled
+    runtime.config.member3RoiVariantsEnabled,
+    runtime.config.nonZeroBonusRoiVariantsEnabled
   );
   const results = [];
   for (const variant of variants) {
@@ -1198,6 +1293,7 @@ export async function runIpadStage3RapidOcrBrowserDiagnostic({ image, imageName,
     bonusTotalRoiVariantsEnabled: runtime.config.bonusTotalRoiVariantsEnabled,
     member2RoiVariantsEnabled: runtime.config.member2RoiVariantsEnabled,
     member3RoiVariantsEnabled: runtime.config.member3RoiVariantsEnabled,
+    nonZeroBonusRoiVariantsEnabled: runtime.config.nonZeroBonusRoiVariantsEnabled,
     detectorCropKinds: runtime.config.detectorCropKinds,
     detectorLimitSideLen: runtime.config.detectorLimitSideLen,
   };
