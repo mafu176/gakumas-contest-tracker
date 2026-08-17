@@ -9,6 +9,7 @@ import net from "node:net";
 
 const rootDir = process.cwd();
 const outputDir = path.join(rootDir, "tmp", "ipad-stage3-rapidocr-frozen-replay");
+const opencvOutputDir = path.join(rootDir, "tmp", "ipad-stage3-rapidocr-opencv-preprocessing");
 const fixtureExpansionDir = path.join(rootDir, "tmp", "ipad-stage3-rapidocr-fixture-expansion");
 const confidenceDir = path.join(rootDir, "tmp", "ipad-stage3-rapidocr-confidence-parity");
 const rapidOcrTargetDir = path.join(rootDir, "tmp", "rapidocr-python");
@@ -27,6 +28,7 @@ const requireFromBundledNode = createRequire(path.join(bundledNodeModules, "pack
 
 const fields = ["member1", "member2", "member3", "bonus", "total"];
 const tensorSampleIndices = [0, 1, 2, 17, 31, 32, 47, 48, 319, 320, 1535, 1536, 4096, 8192, 46079];
+const stageSampleIndices = [0, 1, 2, 3, 4, 5, 31, 32, 127, 128, 1024, 2048, 4096, 8192, 12000];
 
 function parseArgs() {
   const argValue = (name, fallback = "") => {
@@ -53,6 +55,11 @@ async function readJson(filePath) {
 async function writeJson(filename, value) {
   await fs.mkdir(outputDir, { recursive: true });
   await fs.writeFile(path.join(outputDir, filename), `${JSON.stringify(value, null, 2)}\n`);
+}
+
+async function writeOpenCvJson(filename, value) {
+  await fs.mkdir(opencvOutputDir, { recursive: true });
+  await fs.writeFile(path.join(opencvOutputDir, filename), `${JSON.stringify(value, null, 2)}\n`);
 }
 
 function normalizePathForReport(filePath) {
@@ -102,6 +109,7 @@ function localBboxForCandidate(candidate, manifestRecord) {
 function buildObservationRecords({ candidateResults, r6Results, unsafeResults, manifest, sampleLimit }) {
   const manifestByKey = new Map(manifest.records.map((record) => [cropKey(record), record]));
   const selected = new Map();
+  let nextObservationId = 1;
   const addCandidate = (candidate, purpose) => {
     if (!candidate) return;
     const manifestRecord = manifestByKey.get(
@@ -109,7 +117,7 @@ function buildObservationRecords({ candidateResults, r6Results, unsafeResults, m
     );
     if (!manifestRecord) return;
     selected.set(candidateKey(candidate), {
-      id: `obs-${selected.size + 1}`,
+      id: `obs-${nextObservationId++}`,
       purpose,
       image: candidate.image,
       stage: candidate.stage,
@@ -212,9 +220,29 @@ CROP_DIR = Path(os.environ["FROZEN_REPLAY_CROP_DIR"])
 REC_MODEL = os.environ["RAPIDOCR_REC_MODEL"]
 
 SAMPLES = [0, 1, 2, 17, 31, 32, 47, 48, 319, 320, 1535, 1536, 4096, 8192, 46079]
+STAGE_SAMPLES = [0, 1, 2, 3, 4, 5, 31, 32, 127, 128, 1024, 2048, 4096, 8192, 12000]
 
 def sha256_bytes(data):
     return hashlib.sha256(data).hexdigest()
+
+def stage_metadata(stage_id, array, samples=STAGE_SAMPLES):
+    flat = array.reshape(-1)
+    return {
+        "id": stage_id,
+        "shape": list(array.shape),
+        "dtype": str(array.dtype),
+        "byteLength": int(array.nbytes),
+        "sha256": sha256_bytes(array.tobytes()),
+        "length": int(flat.size),
+        "min": round(float(flat.min()), 8) if flat.size else None,
+        "max": round(float(flat.max()), 8) if flat.size else None,
+        "mean": round(float(flat.mean()), 8) if flat.size else None,
+        "samples": [
+            {"index": int(index), "value": round(float(flat[index]), 8)}
+            for index in samples
+            if index < flat.size
+        ],
+    }
 
 def decode_ctc(preds, chars):
     if len(preds.shape) == 3:
@@ -244,14 +272,29 @@ def preprocess_recognition(img):
     max_wh_ratio = max(max_wh_ratio, wh_ratio)
     img_w = int(img_h * max_wh_ratio)
     resized_w = img_w if math.ceil(img_h * wh_ratio) > img_w else int(math.ceil(img_h * wh_ratio))
-    resized_image = cv2.resize(img, (resized_w, img_h))
-    resized_image = resized_image.astype("float32")
+    resized_uint8 = cv2.resize(img, (resized_w, img_h))
+    padded_uint8 = np.zeros((img_h, img_w, img_c), dtype=np.uint8)
+    padded_uint8[:, 0:resized_w, :] = resized_uint8
+    normalized_hwc = padded_uint8.astype("float32") / 255
+    normalized_hwc -= 0.5
+    normalized_hwc /= 0.5
+    resized_image = resized_uint8.astype("float32")
     resized_image = resized_image.transpose((2, 0, 1)) / 255
     resized_image -= 0.5
     resized_image /= 0.5
     padding_im = np.zeros((img_c, img_h, img_w), dtype=np.float32)
     padding_im[:, :, 0:resized_w] = resized_image
-    return padding_im[np.newaxis, :], {
+    tensor = padding_im[np.newaxis, :]
+    stages = [
+        stage_metadata("A0-raw-bgr", img),
+        stage_metadata("A1-bgr-before-resize", img),
+        stage_metadata("A2-resized-uint8", resized_uint8),
+        stage_metadata("A3-padded-uint8", padded_uint8),
+        stage_metadata("A4-normalized-float-hwc", normalized_hwc),
+        stage_metadata("A5-transposed-float-chw", padding_im),
+        stage_metadata("A6-final-batched-tensor", tensor),
+    ]
+    return tensor, {
         "sourceWidth": int(w),
         "sourceHeight": int(h),
         "resizedWidth": int(resized_w),
@@ -262,7 +305,8 @@ def preprocess_recognition(img):
         "tensorLayout": "NCHW",
         "dtype": "float32",
         "interpolation": "cv2.resize default INTER_LINEAR",
-    }
+        "actualSource": "rapidocr_onnxruntime/ch_ppocr_rec/text_recognize.py TextRecognizer.resize_norm_img",
+    }, stages
 
 with open(INPUT, "r", encoding="utf-8") as handle:
     observations = json.load(handle)
@@ -290,13 +334,15 @@ for obs in observations:
         img = img[y:y+h, x:x+w]
     crop_path = CROP_DIR / f'{obs["id"]}.png'
     cv2.imwrite(str(crop_path), img)
-    tensor, preprocessing = preprocess_recognition(img)
+    tensor, preprocessing, pipeline_a_stages = preprocess_recognition(img)
     started = time.time()
     outputs = session.run([output_name], {input_name: tensor})
     duration_ms = round((time.time() - started) * 1000, 3)
     output = outputs[0]
     tensor_path = TENSOR_DIR / f'{obs["id"]}.bin'
     tensor.astype(np.float32).tofile(str(tensor_path))
+    raw_bgr_path = TENSOR_DIR / f'{obs["id"]}-raw-bgr.bin'
+    img.astype(np.uint8).tofile(str(raw_bgr_path))
     output_path = TENSOR_DIR / f'{obs["id"]}-output.bin'
     output.astype(np.float32).tofile(str(output_path))
     decoded = decode_ctc(output, chars)
@@ -316,6 +362,12 @@ for obs in observations:
         "shape": list(tensor.shape),
         "inputSamples": samples,
         "preprocessing": preprocessing,
+        "sourceWidth": preprocessing["sourceWidth"],
+        "sourceHeight": preprocessing["sourceHeight"],
+        "rawBgrPath": str(raw_bgr_path.relative_to(ROOT)).replace("\\\\", "/"),
+        "rawBgrSha256": sha256_bytes(raw_bgr_path.read_bytes()),
+        "pipelineAStages": pipeline_a_stages,
+        "stageSampleIndices": STAGE_SAMPLES,
         "offlineReplay": {
             "text": decoded["text"],
             "confidence": round(decoded["confidence"], 6),
@@ -532,6 +584,7 @@ async function runBrowserReplay({ frozenResults, args }) {
     for (const observation of frozenResults.observations) {
       const tensor = new Float32Array(await fs.readFile(path.join(rootDir, observation.tensorPath)).then((buffer) => buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)));
       const cropBuffer = await fs.readFile(path.join(rootDir, observation.targetCropPath));
+      const rawBgrBuffer = observation.rawBgrPath ? await fs.readFile(path.join(rootDir, observation.rawBgrPath)) : null;
       observations.push({
         id: observation.id,
         image: observation.image,
@@ -546,6 +599,11 @@ async function runBrowserReplay({ frozenResults, args }) {
         inputSamples: observation.inputSamples,
         cropDataUrl: `data:image/png;base64,${cropBuffer.toString("base64")}`,
         profileId: "recognizer-current",
+        sourceWidth: observation.sourceWidth,
+        sourceHeight: observation.sourceHeight,
+        rawBgrBytes: rawBgrBuffer ? Array.from(rawBgrBuffer) : null,
+        pipelineAStages: observation.pipelineAStages,
+        stageSampleIndices: observation.stageSampleIndices,
       });
     }
     const result = await page.evaluate((payload) => window.__IPAD_STAGE3_RAPIDOCR_FROZEN_REPLAY__(payload), {
@@ -576,6 +634,14 @@ function summarize({ observations, browserReplay, confidenceSummary, r6Results }
     0
   );
   const level2ChecksumMatches = level1Rows.filter((row) => row.level2MatchesFrozenTensor).length;
+  const parityRows = level1Rows.filter((row) => row.parity);
+  const parityTensorMatches = parityRows.filter((row) => row.parity.finalTensorMatchesPipelineA).length;
+  const parityTextMatches = parityRows.filter((row) => row.parity.textMatchesPipelineA).length;
+  const firstDivergenceCounts = {};
+  for (const row of parityRows) {
+    const key = row.parity.firstDifference?.stage || "all-stages-match";
+    firstDivergenceCounts[key] = (firstDivergenceCounts[key] || 0) + 1;
+  }
   const supportRows = observations.filter((row) => row.purpose === "r6-accepted-support");
   const supportLevel1Matches = level1Rows.filter(
     (row) =>
@@ -616,6 +682,11 @@ function summarize({ observations, browserReplay, confidenceSummary, r6Results }
       ran: Boolean(browserReplay),
       compared: level1Rows.filter((row) => row.level2).length,
       browserInputChecksumMatchesFrozenTensor: level2ChecksumMatches,
+      oldCanvasInputChecksumMatchesFrozenTensor: level2ChecksumMatches,
+      parityPreprocessingCompared: parityRows.length,
+      parityInputChecksumMatchesFrozenTensor: parityTensorMatches,
+      parityDecodedTextMatchesPipelineA: parityTextMatches,
+      firstDivergenceCounts,
       result:
         level1Rows.length > 0 && level2ChecksumMatches === level1Rows.filter((row) => row.level2).length
           ? "pass"
@@ -632,6 +703,60 @@ function summarize({ observations, browserReplay, confidenceSummary, r6Results }
     },
     productionOutputChanged: false,
   };
+}
+
+function stageProjectionFromOffline(observations) {
+  return observations.map((observation) => ({
+    observationId: observation.id,
+    image: observation.image,
+    stage: observation.stage,
+    side: observation.side,
+    field: observation.field,
+    preprocessing: observation.preprocessing,
+    stages: observation.pipelineAStages,
+  }));
+}
+
+function stageProjectionFromBrowser(browserReplay) {
+  return (browserReplay?.observations || []).map((row) => ({
+    observationId: row.observationId,
+    image: row.image,
+    stage: row.stage,
+    side: row.side,
+    field: row.field,
+    oldCanvas: row.level2
+      ? {
+          inputChecksum: row.level2.inputChecksum,
+          preprocessing: row.level2.preprocessing,
+          sampleComparison: row.level2.sampleComparison,
+        }
+      : null,
+    parity: row.parity
+      ? {
+          preprocessing: row.parity.preprocessing,
+          firstDifference: row.parity.firstDifference,
+          finalTensorMatchesPipelineA: row.parity.finalTensorMatchesPipelineA,
+          textMatchesPipelineA: row.parity.textMatchesPipelineA,
+          recognition: row.parity.recognition,
+          stages: row.parity.stages,
+          elapsedMs: row.parity.elapsedMs,
+        }
+      : null,
+  }));
+}
+
+function firstDivergenceReport(browserReplay) {
+  return (browserReplay?.observations || []).map((row) => ({
+    observationId: row.observationId,
+    image: row.image,
+    stage: row.stage,
+    side: row.side,
+    field: row.field,
+    firstDifference: row.parity?.firstDifference || null,
+    oldCanvasTensorMatches: Boolean(row.level2MatchesFrozenTensor),
+    parityTensorMatches: Boolean(row.parity?.finalTensorMatchesPipelineA),
+    parityTextMatches: Boolean(row.parity?.textMatchesPipelineA),
+  }));
 }
 
 async function main() {
@@ -653,12 +778,29 @@ async function main() {
   });
   await writeJson("selected-observations.json", { observations });
   const frozenResults = await runPythonTensorExport(observations);
+  await writeOpenCvJson("pipeline-a-stage-metadata.json", stageProjectionFromOffline(frozenResults.observations));
   let browserReplay = null;
   if (!args.skipBrowser) {
     browserReplay = await runBrowserReplay({ frozenResults, args });
+    await writeOpenCvJson("browser-old-and-parity-stage-metadata.json", stageProjectionFromBrowser(browserReplay));
+    await writeOpenCvJson("first-divergence.json", firstDivergenceReport(browserReplay));
   }
   const summary = summarize({ observations: frozenResults.observations, browserReplay, confidenceSummary, r6Results });
   await writeJson("summary.json", summary);
+  await writeOpenCvJson("summary.json", summary);
+  await writeOpenCvJson("recommendation.json", {
+    schema: "ipad-stage3-rapidocr-opencv-preprocessing-recommendation-v1",
+    generatedAt: new Date().toISOString(),
+    level2ParitySolved:
+      summary.level2.parityPreprocessingCompared > 0 &&
+      summary.level2.parityInputChecksumMatchesFrozenTensor === summary.level2.parityPreprocessingCompared,
+    level3Justified: false,
+    reason:
+      summary.level2.parityInputChecksumMatchesFrozenTensor >= 2
+        ? "Level 2 recovered at least two exact tensors; Level 3 may be considered in a separate task after R6 scoring is recreated."
+        : "Level 2 tensor parity remains below the threshold for Level 3.",
+    productionOutputChanged: false,
+  });
   console.log(JSON.stringify(summary, null, 2));
 }
 

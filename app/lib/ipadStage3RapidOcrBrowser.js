@@ -1004,6 +1004,228 @@ function compareTensorSamples(a = [], b = []) {
   };
 }
 
+function summarizeNumericArray(values, sampleIndices = []) {
+  let min = Number.POSITIVE_INFINITY;
+  let max = Number.NEGATIVE_INFINITY;
+  let sum = 0;
+  for (const value of values) {
+    const number = Number(value);
+    if (number < min) min = number;
+    if (number > max) max = number;
+    sum += number;
+  }
+  return {
+    length: values.length,
+    min: values.length ? Number(min.toFixed(8)) : null,
+    max: values.length ? Number(max.toFixed(8)) : null,
+    mean: values.length ? Number((sum / values.length).toFixed(8)) : null,
+    samples: sampleIndices
+      .filter((index) => index >= 0 && index < values.length)
+      .map((index) => ({ index, value: Number(Number(values[index]).toFixed(8)) })),
+  };
+}
+
+function stageMetadata({ id, data, shape, dtype, sampleIndices }) {
+  return {
+    id,
+    shape,
+    dtype,
+    byteLength: data.byteLength,
+    sha256: null,
+    ...summarizeNumericArray(data, sampleIndices),
+  };
+}
+
+function clampOpenCvSourceIndex(index, limit) {
+  if (index < 0) return 0;
+  if (index >= limit) return limit - 1;
+  return index;
+}
+
+function resizeOpenCvLinearUint8({ data, sourceWidth, sourceHeight, channels, targetWidth, targetHeight }) {
+  const output = new Uint8Array(targetWidth * targetHeight * channels);
+  const scaleX = sourceWidth / targetWidth;
+  const scaleY = sourceHeight / targetHeight;
+  for (let dy = 0; dy < targetHeight; dy += 1) {
+    const fy = (dy + 0.5) * scaleY - 0.5;
+    const sy0Raw = Math.floor(fy);
+    const beta = fy - sy0Raw;
+    const sy0 = clampOpenCvSourceIndex(sy0Raw, sourceHeight);
+    const sy1 = clampOpenCvSourceIndex(sy0Raw + 1, sourceHeight);
+    const beta0 = sy0Raw < 0 || sy0Raw >= sourceHeight - 1 ? 1 : 1 - beta;
+    const beta1 = sy0Raw < 0 || sy0Raw >= sourceHeight - 1 ? 0 : beta;
+    for (let dx = 0; dx < targetWidth; dx += 1) {
+      const fx = (dx + 0.5) * scaleX - 0.5;
+      const sx0Raw = Math.floor(fx);
+      const alpha = fx - sx0Raw;
+      const sx0 = clampOpenCvSourceIndex(sx0Raw, sourceWidth);
+      const sx1 = clampOpenCvSourceIndex(sx0Raw + 1, sourceWidth);
+      const alpha0 = sx0Raw < 0 || sx0Raw >= sourceWidth - 1 ? 1 : 1 - alpha;
+      const alpha1 = sx0Raw < 0 || sx0Raw >= sourceWidth - 1 ? 0 : alpha;
+      const targetOffset = (dy * targetWidth + dx) * channels;
+      const source00 = (sy0 * sourceWidth + sx0) * channels;
+      const source01 = (sy0 * sourceWidth + sx1) * channels;
+      const source10 = (sy1 * sourceWidth + sx0) * channels;
+      const source11 = (sy1 * sourceWidth + sx1) * channels;
+      for (let channel = 0; channel < channels; channel += 1) {
+        const value =
+          data[source00 + channel] * alpha0 * beta0 +
+          data[source01 + channel] * alpha1 * beta0 +
+          data[source10 + channel] * alpha0 * beta1 +
+          data[source11 + channel] * alpha1 * beta1;
+        output[targetOffset + channel] = Math.max(0, Math.min(255, Math.round(value)));
+      }
+    }
+  }
+  return output;
+}
+
+async function preprocessRecognitionInputOpenCvCompatibleFromBgrBytes({
+  rawBgrBytes,
+  sourceWidth,
+  sourceHeight,
+  sampleIndices = [],
+}) {
+  const raw = rawBgrBytes instanceof Uint8Array ? rawBgrBytes : new Uint8Array(rawBgrBytes || []);
+  const channels = REC_CHANNELS;
+  const maxWhRatio = REC_INPUT_WIDTH / REC_INPUT_HEIGHT;
+  const whRatio = sourceWidth / Math.max(1, sourceHeight);
+  const paddedWidth = Math.trunc(REC_INPUT_HEIGHT * Math.max(maxWhRatio, whRatio));
+  const resizedWidth =
+    Math.ceil(REC_INPUT_HEIGHT * whRatio) > paddedWidth
+      ? paddedWidth
+      : Math.ceil(REC_INPUT_HEIGHT * whRatio);
+  const resized = resizeOpenCvLinearUint8({
+    data: raw,
+    sourceWidth,
+    sourceHeight,
+    channels,
+    targetWidth: resizedWidth,
+    targetHeight: REC_INPUT_HEIGHT,
+  });
+  const padded = new Uint8Array(REC_INPUT_HEIGHT * paddedWidth * channels);
+  for (let y = 0; y < REC_INPUT_HEIGHT; y += 1) {
+    const sourceRow = y * resizedWidth * channels;
+    const targetRow = y * paddedWidth * channels;
+    padded.set(resized.subarray(sourceRow, sourceRow + resizedWidth * channels), targetRow);
+  }
+  const floatHwc = new Float32Array(padded.length);
+  for (let index = 0; index < padded.length; index += 1) {
+    floatHwc[index] = (padded[index] / 255 - 0.5) / 0.5;
+  }
+  const plane = REC_INPUT_HEIGHT * paddedWidth;
+  const chw = new Float32Array(channels * plane);
+  for (let y = 0; y < REC_INPUT_HEIGHT; y += 1) {
+    for (let x = 0; x < paddedWidth; x += 1) {
+      const hwcOffset = (y * paddedWidth + x) * channels;
+      const target = y * paddedWidth + x;
+      for (let channel = 0; channel < channels; channel += 1) {
+        chw[channel * plane + target] = floatHwc[hwcOffset + channel];
+      }
+    }
+  }
+  const batched = new Float32Array(chw);
+  const metadata = {
+    sourceWidth,
+    sourceHeight,
+    resizedWidth,
+    resizedHeight: REC_INPUT_HEIGHT,
+    paddedWidth,
+    paddedHeight: REC_INPUT_HEIGHT,
+    colorOrder: "BGR",
+    normalization: "(channel/255 - 0.5) / 0.5",
+    tensorLayout: "NCHW",
+    dtype: "float32",
+    interpolation: "browser-js-opencv-compatible-linear",
+  };
+  const stages = [
+    stageMetadata({ id: "C0-raw-bgr", data: raw, shape: [sourceHeight, sourceWidth, channels], dtype: "uint8", sampleIndices }),
+    stageMetadata({ id: "C1-bgr-before-resize", data: raw, shape: [sourceHeight, sourceWidth, channels], dtype: "uint8", sampleIndices }),
+    stageMetadata({
+      id: "C2-resized-uint8",
+      data: resized,
+      shape: [REC_INPUT_HEIGHT, resizedWidth, channels],
+      dtype: "uint8",
+      sampleIndices,
+    }),
+    stageMetadata({
+      id: "C3-padded-uint8",
+      data: padded,
+      shape: [REC_INPUT_HEIGHT, paddedWidth, channels],
+      dtype: "uint8",
+      sampleIndices,
+    }),
+    stageMetadata({
+      id: "C4-normalized-float-hwc",
+      data: floatHwc,
+      shape: [REC_INPUT_HEIGHT, paddedWidth, channels],
+      dtype: "float32",
+      sampleIndices,
+    }),
+    stageMetadata({
+      id: "C5-transposed-float-chw",
+      data: chw,
+      shape: [channels, REC_INPUT_HEIGHT, paddedWidth],
+      dtype: "float32",
+      sampleIndices,
+    }),
+    stageMetadata({
+      id: "C6-final-batched-tensor",
+      data: batched,
+      shape: [1, channels, REC_INPUT_HEIGHT, paddedWidth],
+      dtype: "float32",
+      sampleIndices,
+    }),
+  ];
+  for (const stage of stages) {
+    const source =
+      stage.id === "C0-raw-bgr" || stage.id === "C1-bgr-before-resize"
+        ? raw
+        : stage.id === "C2-resized-uint8"
+          ? resized
+          : stage.id === "C3-padded-uint8"
+            ? padded
+            : stage.id === "C4-normalized-float-hwc"
+              ? floatHwc
+              : stage.id === "C5-transposed-float-chw"
+                ? chw
+                : batched;
+    stage.sha256 = await sha256Hex(source.buffer.slice(source.byteOffset, source.byteOffset + source.byteLength));
+  }
+  return {
+    data: batched,
+    shape: [1, channels, REC_INPUT_HEIGHT, paddedWidth],
+    metadata,
+    stages,
+  };
+}
+
+function firstStageDifference(aStages = [], cStages = []) {
+  const normalizedPairs = [
+    ["A0", "C0"],
+    ["A1", "C1"],
+    ["A2", "C2"],
+    ["A3", "C3"],
+    ["A4", "C4"],
+    ["A5", "C5"],
+    ["A6", "C6"],
+  ];
+  for (const [aPrefix, cPrefix] of normalizedPairs) {
+    const a = aStages.find((stage) => String(stage.id || "").startsWith(aPrefix));
+    const c = cStages.find((stage) => String(stage.id || "").startsWith(cPrefix));
+    if (!a || !c) return { stage: `${aPrefix}/${cPrefix}`, reason: "missing-stage", a: a || null, c: c || null };
+    if (a.sha256 !== c.sha256) {
+      return {
+        stage: `${aPrefix}/${cPrefix}`,
+        reason: "sha256-mismatch",
+        a: { id: a.id, sha256: a.sha256, shape: a.shape, dtype: a.dtype },
+        c: { id: c.id, sha256: c.sha256, shape: c.shape, dtype: c.dtype },
+      };
+    }
+  }
+  return null;
+}
+
 export async function runIpadStage3RapidOcrFrozenTensorReplay({ observations = [] } = {}) {
   const runtime = await loadRapidOcrRuntime();
   const generatedAt = new Date().toISOString();
@@ -1034,6 +1256,30 @@ export async function runIpadStage3RapidOcrFrozenTensorReplay({ observations = [
         outputTopSummary: browserRecognition.outputTopSummary,
       };
     }
+    let parity = null;
+    if (observation.rawBgrBytes && observation.sourceWidth && observation.sourceHeight) {
+      const started = nowMs();
+      const parityInput = await preprocessRecognitionInputOpenCvCompatibleFromBgrBytes({
+        rawBgrBytes: observation.rawBgrBytes,
+        sourceWidth: observation.sourceWidth,
+        sourceHeight: observation.sourceHeight,
+        sampleIndices: observation.stageSampleIndices || [],
+      });
+      const parityRecognition = await recognizeFrozenTensor({
+        runtime,
+        tensorData: parityInput.data,
+        shape: parityInput.shape,
+      });
+      parity = {
+        preprocessing: parityInput.metadata,
+        stages: parityInput.stages,
+        firstDifference: firstStageDifference(observation.pipelineAStages || [], parityInput.stages),
+        finalTensorMatchesPipelineA: parityInput.stages.at(-1)?.sha256 === observation.inputChecksum,
+        recognition: parityRecognition,
+        textMatchesPipelineA: parityRecognition.text === observation.pipelineAText,
+        elapsedMs: Number((nowMs() - started).toFixed(3)),
+      };
+    }
     results.push({
       observationId: observation.id,
       image: observation.image,
@@ -1044,6 +1290,7 @@ export async function runIpadStage3RapidOcrFrozenTensorReplay({ observations = [
       expectedPipelineAConfidence: observation.pipelineAConfidence,
       level1,
       level2,
+      parity,
       level1MatchesPipelineA:
         String(level1.text || "") === String(observation.pipelineAText || "") &&
         Math.abs(Number(level1.confidence || 0) - Number(observation.pipelineAConfidence || 0)) < 0.00001,
