@@ -383,6 +383,102 @@ function decodeCtc(outputTensor, characterList) {
   return { text, confidence, decoded };
 }
 
+function decodeRapidOcrRecognizerOutput(outputTensor, characterList) {
+  const dims = outputTensor.dims || [];
+  const data = outputTensor.data || [];
+  const timeSteps = Number(dims[1] || 0);
+  const classCount = Number(dims[2] || 0);
+  let previous = -1;
+  let text = "";
+  const retained = [];
+  const topSummary = [];
+
+  for (let t = 0; t < timeSteps; t += 1) {
+    const offset = t * classCount;
+    let top1Index = 0;
+    let top1Probability = Number.NEGATIVE_INFINITY;
+    let top2Index = 0;
+    let top2Probability = Number.NEGATIVE_INFINITY;
+    for (let c = 0; c < classCount; c += 1) {
+      const probability = Number(data[offset + c]);
+      if (probability > top1Probability) {
+        top2Index = top1Index;
+        top2Probability = top1Probability;
+        top1Index = c;
+        top1Probability = probability;
+      } else if (probability > top2Probability) {
+        top2Index = c;
+        top2Probability = probability;
+      }
+    }
+
+    const char = characterList[top1Index] || "";
+    const keep = top1Index !== 0 && top1Index !== previous;
+    if (keep) {
+      text += char;
+      retained.push({
+        timestep: t,
+        index: top1Index,
+        char,
+        confidence: Number(top1Probability.toFixed(8)),
+      });
+    }
+    topSummary.push({
+      timestep: t,
+      top1: {
+        index: top1Index,
+        char,
+        probability: Number(top1Probability.toFixed(8)),
+      },
+      top2: {
+        index: top2Index,
+        char: characterList[top2Index] || "",
+        probability: Number(top2Probability.toFixed(8)),
+      },
+      blankProbability: Number(Number(data[offset] || 0).toFixed(8)),
+      retained: keep,
+    });
+    previous = top1Index;
+  }
+
+  const confidence = retained.length
+    ? retained.reduce((sum, value) => sum + value.confidence, 0) / retained.length
+    : 0;
+  return {
+    text,
+    confidence,
+    retained,
+    topSummary,
+    semantics: {
+      blankIndex: 0,
+      duplicateCollapse: "remove repeated adjacent class indices before blank removal",
+      ignoredTokens: [0],
+      confidence: "arithmetic mean of max probabilities at retained decoded timesteps",
+    },
+  };
+}
+
+function sampleFloatArray(data) {
+  const indices = [
+    0,
+    1,
+    2,
+    17,
+    31,
+    32,
+    47,
+    48,
+    319,
+    320,
+    1535,
+    1536,
+    4096,
+    8192,
+    data.length - 1,
+  ].filter((index, offset, values) => index >= 0 && index < data.length && values.indexOf(index) === offset);
+  return indices.map((index) => ({ index, value: Number(Number(data[index]).toFixed(8)) }));
+}
+
 function toFieldName(field) {
   if (field.field === "member") return `member${field.slot}`;
   return field.field;
@@ -755,6 +851,12 @@ function buildCandidateRows({
       fullText: recognition.text,
       parser: "literal-contiguous-digits",
       confidence: recognition.confidence,
+      rapidOcrCompatibleConfidence: recognition.rapidOcrCompatibleConfidence,
+      decoderSemantics: recognition.decoderSemantics,
+      decodedTrace: recognition.decodedTrace,
+      outputShape: recognition.outputShape,
+      outputChecksum: recognition.outputChecksum,
+      outputTopSummary: recognition.outputTopSummary,
       itemIndex,
       bbox,
       assignment: assignmentRecord,
@@ -779,6 +881,12 @@ function buildCandidateRows({
       fullText: recognition.text,
       parser: "ipad-grouped-number-token",
       confidence: recognition.confidence,
+      rapidOcrCompatibleConfidence: recognition.rapidOcrCompatibleConfidence,
+      decoderSemantics: recognition.decoderSemantics,
+      decodedTrace: recognition.decodedTrace,
+      outputShape: recognition.outputShape,
+      outputChecksum: recognition.outputChecksum,
+      outputTopSummary: recognition.outputTopSummary,
       itemIndex,
       bbox,
       assignment: assignmentRecord,
@@ -805,16 +913,24 @@ async function recognizeCanvas({ runtime, cropCanvas, profileId = "recognizer-cu
   const outputTensor = outputs[runtime.recSession.outputNames[0]];
   const decodeStarted = nowMs();
   const decoded = decodeCtc(outputTensor, runtime.characterList);
+  const rapidOcrDecoded = decodeRapidOcrRecognizerOutput(outputTensor, runtime.characterList);
   const decodeMs = Number((nowMs() - decodeStarted).toFixed(3));
+  const outputChecksum = await sha256Hex(outputTensor.data.buffer.slice(0));
   return {
     text: decoded.text,
     confidence: Number(decoded.confidence.toFixed(6)),
+    rapidOcrCompatibleConfidence: Number(rapidOcrDecoded.confidence.toFixed(6)),
     decodedLength: decoded.decoded.length,
+    decoderSemantics: rapidOcrDecoded.semantics,
+    decodedTrace: rapidOcrDecoded.retained,
+    outputTopSummary: rapidOcrDecoded.topSummary,
     durationMs,
     outputShape: outputTensor.dims,
+    outputChecksum,
     parsedCandidates: parseIpadArithmeticOcrNumbers(decoded.text),
     groupedCandidates: parseIpadGroupedNumberTokens(decoded.text),
     inputChecksum,
+    inputSamples: sampleFloatArray(input.data),
     preprocessing: input.metadata,
     phaseTimings: {
       preprocessMs,
@@ -843,9 +959,14 @@ async function recognizeFieldVariant({ runtime, image, imageName, field, variant
   const recognition = {
     text: decoded.text,
     confidence: decoded.confidence,
+    rapidOcrCompatibleConfidence: decoded.rapidOcrCompatibleConfidence,
     decodedLength: decoded.decodedLength,
+    decoderSemantics: decoded.decoderSemantics,
+    decodedTrace: decoded.decodedTrace,
     durationMs: decoded.durationMs,
     outputShape: decoded.outputShape,
+    outputChecksum: decoded.outputChecksum,
+    outputTopSummary: decoded.outputTopSummary,
     parsedCandidates: parseIpadArithmeticOcrNumbers(decoded.text),
     groupedCandidates: parseIpadGroupedNumberTokens(decoded.text),
     phaseTimings: decoded.phaseTimings,
@@ -860,6 +981,7 @@ async function recognizeFieldVariant({ runtime, image, imageName, field, variant
     preprocessingProfileId: variant.preprocessingProfileId || "recognizer-current",
     sha256: await sha256Hex(cropBuffer),
     preprocessingChecksum: decoded.inputChecksum,
+    inputSamples: decoded.inputSamples,
     preprocessing: decoded.preprocessing,
     timings: {
       cropCanvasMs,
