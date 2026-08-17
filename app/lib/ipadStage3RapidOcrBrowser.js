@@ -43,6 +43,7 @@ function getRuntimeConfig() {
     typeof window !== "undefined" ? new URLSearchParams(window.location.search) : new URLSearchParams();
   const detectorEnabled = params.get("ipadStage3RapidOcrDetectorEnabled") !== "0";
   const roiVariantsEnabled = params.get("ipadStage3RapidOcrRoiVariants") === "1";
+  const bonusTotalRoiVariantsEnabled = params.get("ipadStage3RapidOcrBonusTotalRoi") === "1";
   const cropKinds = String(params.get("ipadStage3RapidOcrDetectorCropKinds") || DETECTION_CROP_KINDS.join(","))
     .split(",")
     .map((entry) => entry.trim())
@@ -54,6 +55,7 @@ function getRuntimeConfig() {
     executionProvider: "wasm",
     detectorEnabled,
     roiVariantsEnabled,
+    bonusTotalRoiVariantsEnabled,
     detectorCropKinds: cropKinds.length ? cropKinds : DETECTION_CROP_KINDS,
     detectorLimitSideLen:
       Number.isFinite(detLimitSideLen) && detLimitSideLen >= 96 && detLimitSideLen <= DET_LIMIT_SIDE_LEN
@@ -433,13 +435,87 @@ function scaledRectFromZone(zone, image, adjustments = {}) {
   );
 }
 
-function buildFieldRecognitionVariants(field, image, enabled) {
+function scaledRectFromRect(rect, image, adjustments = {}) {
+  const base = {
+    x: Number(rect?.x || 0),
+    y: Number(rect?.y || 0),
+    width: Number(rect?.width || 1),
+    height: Number(rect?.height || 1),
+  };
+  const dx = Math.round(base.width * Number(adjustments.dxRatio || 0));
+  const dy = Math.round(base.height * Number(adjustments.dyRatio || 0));
+  const dw = Math.round(base.width * Number(adjustments.dwRatio || 0));
+  const dh = Math.round(base.height * Number(adjustments.dhRatio || 0));
+  return clampRect(
+    {
+      x: base.x + dx - Math.floor(dw / 2),
+      y: base.y + dy - Math.floor(dh / 2),
+      width: base.width + dw,
+      height: base.height + dh,
+    },
+    image
+  );
+}
+
+function buildBonusTotalRecognitionVariants(field, image, baseline) {
+  const fieldName = toFieldName(field);
+  if (fieldName === "bonus") {
+    return [
+      baseline,
+      {
+        id: "bonus-horizontal-expand-12pct",
+        architecture: "F-detectorless-bonus-total-roi",
+        rect: scaledRectFromRect(baseline.rect, image, { dwRatio: 0.12 }),
+        description: "bonus-only horizontal expansion from the fixed baseline crop",
+      },
+      {
+        id: "bonus-vertical-expand-12pct",
+        architecture: "F-detectorless-bonus-total-roi",
+        rect: scaledRectFromRect(baseline.rect, image, { dhRatio: 0.12 }),
+        description: "bonus-only vertical expansion from the fixed baseline crop",
+      },
+      {
+        id: "bonus-up-left-expand-8pct",
+        architecture: "F-detectorless-bonus-total-roi",
+        rect: scaledRectFromRect(baseline.rect, image, { dxRatio: -0.04, dyRatio: -0.04, dwRatio: 0.08, dhRatio: 0.08 }),
+        description: "bonus-only small up-left shift/expansion toward the visible blue bonus digits",
+      },
+    ];
+  }
+  if (fieldName === "total") {
+    return [
+      baseline,
+      {
+        id: "total-horizontal-expand-8pct",
+        architecture: "F-detectorless-bonus-total-roi",
+        rect: scaledRectFromRect(baseline.rect, image, { dwRatio: 0.08 }),
+        description: "total-only horizontal expansion from the fixed baseline crop",
+      },
+      {
+        id: "total-vertical-expand-10pct",
+        architecture: "F-detectorless-bonus-total-roi",
+        rect: scaledRectFromRect(baseline.rect, image, { dhRatio: 0.1 }),
+        description: "total-only vertical expansion from the fixed baseline crop",
+      },
+      {
+        id: "total-down-trim-8pct",
+        architecture: "F-detectorless-bonus-total-roi",
+        rect: scaledRectFromRect(baseline.rect, image, { dyRatio: 0.03, dhRatio: -0.08 }),
+        description: "total-only small downward trim to reduce title/neighboring text bleed",
+      },
+    ];
+  }
+  return [baseline];
+}
+
+function buildFieldRecognitionVariants(field, image, enabled, bonusTotalOnlyEnabled = false) {
   const baseline = {
     id: "baseline-12pct-padding",
     architecture: "D-detectorless-fixed-roi",
     rect: clampRect(padIpadArithmeticFieldZone(field, image, 0.12), image),
     description: "existing Stage3 field ROI with 12% padding",
   };
+  if (bonusTotalOnlyEnabled) return buildBonusTotalRecognitionVariants(field, image, baseline);
   if (!enabled) return [baseline];
   return [
     baseline,
@@ -645,7 +721,12 @@ async function recognizeFieldVariant({ runtime, image, imageName, field, variant
 }
 
 async function recognizeField({ runtime, image, imageName, field }) {
-  const variants = buildFieldRecognitionVariants(field, image, runtime.config.roiVariantsEnabled);
+  const variants = buildFieldRecognitionVariants(
+    field,
+    image,
+    runtime.config.roiVariantsEnabled,
+    runtime.config.bonusTotalRoiVariantsEnabled
+  );
   const results = [];
   for (const variant of variants) {
     results.push(await recognizeFieldVariant({ runtime, image, imageName, field, variant }));
@@ -1031,6 +1112,7 @@ export async function runIpadStage3RapidOcrBrowserDiagnostic({ image, imageName,
     phaseTimings: runtime.phaseTimings,
     detectorEnabled: runtime.config.detectorEnabled,
     roiVariantsEnabled: runtime.config.roiVariantsEnabled,
+    bonusTotalRoiVariantsEnabled: runtime.config.bonusTotalRoiVariantsEnabled,
     detectorCropKinds: runtime.config.detectorCropKinds,
     detectorLimitSideLen: runtime.config.detectorLimitSideLen,
   };

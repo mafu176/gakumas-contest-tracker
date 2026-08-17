@@ -6,13 +6,15 @@ import { spawn, spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import net from "node:net";
+import { evaluateIpadStage3RapidOcrR6 } from "../app/lib/ocr.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, "..");
 const ipadImageDir = path.join(rootDir, "regression-test", "ipad");
 const ipadExpectedDir = path.join(rootDir, "regression-test", "expected-ipad");
-const artifactDir = path.join(rootDir, "tmp", "ipad-stage3-rapidocr-direct-runner");
+let artifactDir = path.join(rootDir, "tmp", "ipad-stage3-rapidocr-direct-runner");
+const bonusTotalArtifactDir = path.join(rootDir, "tmp", "ipad-stage3-rapidocr-bonus-total-roi");
 const rapidOcrModelDir = path.join(
   rootDir,
   "tmp",
@@ -53,6 +55,20 @@ const acceptedFourAuditTargets = [
   { image: "IMG_0283.png", side: "self" },
   { image: "IMG_0491.png", side: "self" },
 ];
+const offlineCandidatePath = path.join(
+  rootDir,
+  "tmp",
+  "ipad-stage3-rapidocr-fixture-expansion",
+  "candidate-results.json"
+);
+const offlineUnsafeSelectorPath = path.join(
+  rootDir,
+  "tmp",
+  "ipad-stage3-rapidocr-fixture-expansion",
+  "unsafe-selector-results.json"
+);
+const offlineR6Path = path.join(rootDir, "tmp", "ipad-stage3-rapidocr-fixture-expansion", "r6-results.json");
+const policyIds = ["P0", "P1", "P2", "P3", "P4", "P5"];
 
 function parseArgs() {
   const argValue = (name, fallback = "") => {
@@ -77,6 +93,7 @@ function parseArgs() {
     runs: Math.max(1, Number(argValue("--runs", "1") || 1)),
     imageTimeoutMs: Math.max(30000, Number(argValue("--image-timeout-ms", "240000") || 240000)),
     roiVariants: process.argv.includes("--roi-variants"),
+    bonusTotalRoi: process.argv.includes("--bonus-total-roi"),
   };
 }
 
@@ -323,8 +340,158 @@ function rowsForField(candidateRows, side, field) {
   return candidateRows.filter((row) => row.stage === 3 && row.side === side && row.assignedField === field);
 }
 
-function scoreDiagnostic({ row, diagnostic }) {
-  const candidateRows = diagnostic?.candidateRows || [];
+function isBaselineCandidate(row) {
+  return row.crop?.variantId === "baseline-12pct-padding";
+}
+
+function rowsForPolicy(candidateRows, policyId) {
+  return candidateRows.filter((row) => {
+    const field = row.assignedField || row.sourceField;
+    if (field === "member1" || field === "member2" || field === "member3") return isBaselineCandidate(row);
+    if (policyId === "P0") return isBaselineCandidate(row);
+    if (policyId === "P1" || policyId === "P3") return field === "bonus" ? true : isBaselineCandidate(row);
+    if (policyId === "P2" || policyId === "P4") return field === "total" ? true : isBaselineCandidate(row);
+    if (policyId === "P5") return field === "bonus" || field === "total" ? true : isBaselineCandidate(row);
+    return isBaselineCandidate(row);
+  });
+}
+
+function summarizeSupport({ candidateRows, image, side, field, value }) {
+  const valueRows = candidateRows.filter(
+    (row) =>
+      row.image === image &&
+      row.stage === 3 &&
+      row.side === side &&
+      row.assignedField === field &&
+      Number(row.value) === Number(value)
+  );
+  const confidences = valueRows.map((row) => Number(row.confidence)).filter(Number.isFinite);
+  return {
+    field,
+    value,
+    supportCount: valueRows.length,
+    distinctCandidateCount: new Set(
+      candidateRows
+        .filter((row) => row.image === image && row.stage === 3 && row.side === side && row.assignedField === field)
+        .map((row) => Number(row.value))
+        .filter(Number.isFinite)
+    ).size,
+    variants: [...new Set(valueRows.map((row) => row.crop?.variantId).filter(Boolean))],
+    parsers: [...new Set(valueRows.map((row) => row.parser).filter(Boolean))],
+    rawTexts: [...new Set(valueRows.map((row) => row.fullText).filter(Boolean))].slice(0, 8),
+    confidence: {
+      min: confidences.length ? Number(Math.min(...confidences).toFixed(4)) : null,
+      max: confidences.length ? Number(Math.max(...confidences).toFixed(4)) : null,
+      mean: confidences.length
+        ? Number((confidences.reduce((sum, entry) => sum + entry, 0) / confidences.length).toFixed(4))
+        : null,
+    },
+    bbox: {
+      availableCount: valueRows.filter((row) => row.bbox).length,
+      ambiguousCount: valueRows.filter((row) => row.assignment?.ambiguous).length,
+    },
+    digitCount: String(Math.abs(Number(value || 0))).length,
+  };
+}
+
+function fieldValue(proposal, field) {
+  if (field === "member1") return Number(proposal.members?.[0] || 0);
+  if (field === "member2") return Number(proposal.members?.[1] || 0);
+  if (field === "member3") return Number(proposal.members?.[2] || 0);
+  return Number(proposal[field] || 0);
+}
+
+async function loadOfflineProposalEvidenceRows() {
+  try {
+    const unsafeSelector = await loadJson(offlineUnsafeSelectorPath);
+    const r6Rows = await loadJson(offlineR6Path);
+    const changedByRow = new Map(
+      [...(r6Rows.accepted || []), ...(r6Rows.blocked || [])].map((row) => [
+        `${row.image}|${row.stage}|${row.side}`,
+        row.changedFields || [],
+      ])
+    );
+    return (unsafeSelector.acceptedRows || []).map((row) => ({
+      image: row.image,
+      stage: row.stage,
+      side: row.side,
+      pass: Boolean(row.pass),
+      proposal: row.actual,
+      expected: row.expected,
+      changedFields:
+        changedByRow.get(`${row.image}|${row.stage}|${row.side}`) ||
+        fields.filter((field) => fieldValue(row.actual, field) !== fieldValue(row.expected, field)),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+async function loadOfflineCandidateMap() {
+  try {
+    const rows = await loadJson(offlineCandidatePath);
+    const map = new Map();
+    for (const row of rows) {
+      if (row.stage !== 3) continue;
+      const key = `${row.image}|${row.stage}|${row.side}|${row.assignedField || row.sourceField}`;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(row);
+    }
+    return map;
+  } catch {
+    return new Map();
+  }
+}
+
+function evaluatePolicyR6({ candidateRows, offlineProposalRows, policyId }) {
+  const policyRows = rowsForPolicy(candidateRows, policyId);
+  const rows = offlineProposalRows.map((proposalRow) => {
+    const fieldSupports = Object.fromEntries(
+      fields.map((field) => [
+        field,
+        summarizeSupport({
+          candidateRows: policyRows,
+          image: proposalRow.image,
+          side: proposalRow.side,
+          field,
+          value: fieldValue(proposalRow.proposal, field),
+        }),
+      ])
+    );
+    const changedSupports = proposalRow.changedFields.map((field) => fieldSupports[field]);
+    const evidence = {
+      ...proposalRow,
+      fieldSupports,
+      changedSupports,
+      featureSummary: {
+        changedFieldsLowDigit: changedSupports.filter((support) => Number(support.digitCount || 0) < 5).length,
+      },
+    };
+    return {
+      ...evidence,
+      evaluation: evaluateIpadStage3RapidOcrR6(evidence),
+    };
+  });
+  const accepted = rows.filter((row) => row.evaluation.wouldApply);
+  return {
+    policyId,
+    eligibleRows: rows.length,
+    wouldApply: accepted.length,
+    tp: accepted.filter((row) => row.pass).length,
+    fp: accepted.filter((row) => !row.pass).length,
+    accepted: accepted.map((row) => ({
+      image: row.image,
+      stage: row.stage,
+      side: row.side,
+      proposal: row.proposal,
+      changedFields: row.changedFields,
+    })),
+    rows,
+  };
+}
+
+function scoreDiagnostic({ row, diagnostic, policyId = "P5" }) {
+  const candidateRows = rowsForPolicy(diagnostic?.candidateRows || [], policyId);
   const comparisons = [];
   for (const side of sides) {
     const expected = expectedSide(row.expected.stage3, side);
@@ -345,6 +512,7 @@ function scoreDiagnostic({ row, diagnostic }) {
         candidateCount: candidates.length,
         texts: [...new Set(candidates.map((candidate) => candidate.fullText || "").filter(Boolean))],
         profileIds: [...new Set(candidates.map((candidate) => candidate.profileId).filter(Boolean))],
+        variantIds: [...new Set(candidates.map((candidate) => candidate.crop?.variantId).filter(Boolean))],
       });
     }
   }
@@ -368,8 +536,76 @@ function summarizeR6(diagnostic, row) {
   };
 }
 
-function summarizeResults(results) {
+function summarizeVariantGains(results, field) {
+  const rows = results.flatMap((result) => result.rawComparisons || []);
+  const fieldRows = rows.filter((row) => row.field === field);
+  const baselineExact = fieldRows.filter((row) => row.baselineHasExpected).length;
+  const unionExact = fieldRows.filter((row) => row.hasExpected).length;
+  const byVariant = {};
+  for (const result of results) {
+    const diagnosticRows = result.candidateRows || [];
+    for (const side of sides) {
+      const expected = result.expected?.[side]?.[field];
+      for (const variantId of [
+        ...new Set(
+          diagnosticRows
+            .filter((row) => row.side === side && row.assignedField === field)
+            .map((row) => row.crop?.variantId)
+            .filter(Boolean)
+        ),
+      ]) {
+        const candidates = diagnosticRows.filter(
+          (row) => row.side === side && row.assignedField === field && row.crop?.variantId === variantId
+        );
+        if (!byVariant[variantId]) {
+          byVariant[variantId] = { fields: 0, exact: 0, candidates: 0, wrongCandidates: 0, nonEmptyFields: 0 };
+        }
+        byVariant[variantId].fields += 1;
+        const values = candidates.map((row) => Number(row.value)).filter(Number.isFinite);
+        byVariant[variantId].candidates += values.length;
+        byVariant[variantId].wrongCandidates += values.filter((value) => value !== expected).length;
+        if (candidates.some((row) => row.fullText)) byVariant[variantId].nonEmptyFields += 1;
+        if (values.includes(expected)) byVariant[variantId].exact += 1;
+      }
+    }
+  }
+  return {
+    field,
+    baselineExact,
+    unionExact,
+    gain: unionExact - baselineExact,
+    byVariant,
+  };
+}
+
+function buildFieldDeficits(results, offlineCandidateMap) {
+  const rows = [];
+  for (const result of results) {
+    for (const comparison of result.rawComparisons || []) {
+      const offlineRows =
+        offlineCandidateMap.get(`${result.image}|3|${comparison.side}|${comparison.field}`) || [];
+      const offlineValues = [...new Set(offlineRows.map((row) => Number(row.value)).filter(Number.isFinite))];
+      rows.push({
+        ...comparison,
+        offlineHasExpected: offlineValues.includes(comparison.expectedValue),
+        offlineValues,
+        browserDeficit: !comparison.hasExpected && offlineValues.includes(comparison.expectedValue),
+      });
+    }
+  }
+  return rows;
+}
+
+function buildPolicyResults({ results, offlineProposalRows }) {
+  const candidateRows = results.flatMap((result) => result.candidateRows || []);
+  return Object.fromEntries(
+    policyIds.map((policyId) => [policyId, evaluatePolicyR6({ candidateRows, offlineProposalRows, policyId })])
+  );
+}
+
+function summarizeResults(results, offlineCandidateMap = new Map(), offlineProposalRows = []) {
   const comparisons = results.flatMap((result) => result.comparisons || []);
+  const rawComparisons = results.flatMap((result) => result.rawComparisons || []);
   const byField = Object.fromEntries(
     fields.map((field) => {
       const rows = comparisons.filter((comparison) => comparison.field === field);
@@ -421,6 +657,28 @@ function summarizeResults(results) {
       fp: results.reduce((sum, result) => sum + Number(result.r6?.fp || 0), 0),
       accepted: acceptedRows,
     },
+    policies: buildPolicyResults({ results, offlineProposalRows }),
+    fieldDeficits: {
+      offlineReference: {
+        member1: "70 / 106",
+        member2: "52 / 106",
+        member3: "79 / 106",
+        bonus: "53 / 106",
+        total: "106 / 106",
+      },
+      browserVsOffline: buildFieldDeficits(results, offlineCandidateMap).reduce((acc, row) => {
+        if (!acc[row.field]) acc[row.field] = { browserExact: 0, offlineExact: 0, browserDeficit: 0, total: 0 };
+        acc[row.field].total += 1;
+        if (row.hasExpected) acc[row.field].browserExact += 1;
+        if (row.offlineHasExpected) acc[row.field].offlineExact += 1;
+        if (row.browserDeficit) acc[row.field].browserDeficit += 1;
+        return acc;
+      }, {}),
+    },
+    variantGains: {
+      bonus: summarizeVariantGains(results, "bonus"),
+      total: summarizeVariantGains(results, "total"),
+    },
     statuses: Object.fromEntries(
       [...new Set(results.map((result) => result.status))].map((status) => [
         status,
@@ -441,7 +699,48 @@ function summarizeResults(results) {
   };
 }
 
+function compactPolicySummary(policies = {}) {
+  return Object.fromEntries(
+    Object.entries(policies).map(([policyId, policy]) => [
+      policyId,
+      {
+        wouldApply: policy.wouldApply || 0,
+        tp: policy.tp || 0,
+        fp: policy.fp || 0,
+        rows: Array.isArray(policy.rows) ? policy.rows.length : 0,
+      },
+    ])
+  );
+}
+
+function compactRunSummary(summary) {
+  return {
+    imageCount: summary.imageCount,
+    stage3Sides: summary.stage3Sides,
+    fields: summary.fields,
+    exactFields: summary.exactFields,
+    byField: summary.byField,
+    byCluster: summary.byCluster,
+    r6: {
+      wouldApply: summary.r6?.wouldApply || 0,
+      tp: summary.r6?.tp || 0,
+      fp: summary.r6?.fp || 0,
+    },
+    policies: compactPolicySummary(summary.policies),
+    fieldDeficits: summary.fieldDeficits,
+    variantGains: summary.variantGains,
+    statuses: summary.statuses,
+    timing: summary.timing
+      ? {
+          totalElapsedMs: summary.timing.totalElapsedMs,
+          averageElapsedMs: summary.timing.averageElapsedMs,
+        }
+      : null,
+  };
+}
+
 function outputSummaryName(args, rows) {
+  if (args.bonusTotalRoi) return "bonus-total-roi-results.json";
   if (args.roiVariants) return "variant-comparison.json";
   if (rows.length === 1 && rows[0]?.filename === "IMG_0265.png") return "img0265-baseline.json";
   if (args.all) return "full-results.json";
@@ -461,6 +760,12 @@ function buildAcceptedFourAudit(results) {
       r6WouldApply: Boolean(r6Row?.evaluation?.wouldApply),
       blockReasons: r6Row?.evaluation?.blockReasons || [],
       proposal: r6Row?.proposal || null,
+      candidates: Object.fromEntries(
+        fields.map((field) => [
+          field,
+          (result?.rawComparisons || []).find((entry) => entry.side === target.side && entry.field === field) || null,
+        ])
+      ),
     };
   });
 }
@@ -483,8 +788,25 @@ async function processImage({ page, row, runDir, resume, imageTimeoutMs }) {
       imageTimeoutMs,
       row.filename
     );
-    const comparisons = scoreDiagnostic({ row, diagnostic });
+    const rawComparisons = scoreDiagnostic({ row, diagnostic, policyId: "P5" }).map((comparison) => {
+      const baselineCandidates = rowsForField(diagnostic?.candidateRows || [], comparison.side, comparison.field).filter(
+        isBaselineCandidate
+      );
+      const baselineValues = [
+        ...new Set(baselineCandidates.map((candidate) => Number(candidate.value)).filter(Number.isFinite)),
+      ].sort((a, b) => a - b);
+      return {
+        ...comparison,
+        baselineValues,
+        baselineHasExpected: baselineValues.includes(comparison.expectedValue),
+      };
+    });
+    const comparisons = scoreDiagnostic({ row, diagnostic, policyId: "P0" });
     const r6 = summarizeR6(diagnostic, row);
+    const expectedStage3 = {
+      self: expectedSide(row.expected.stage3, "self"),
+      enemy: expectedSide(row.expected.stage3, "enemy"),
+    };
     const result = {
       image: row.filename,
       imagePath: normalizePathForReport(row.imagePath),
@@ -495,6 +817,9 @@ async function processImage({ page, row, runDir, resume, imageTimeoutMs }) {
       modelInventory: diagnostic?.modelInventory || null,
       phaseTimings: diagnostic?.runtime?.phaseTimings || {},
       diagnosticsSummary: diagnostic?.diagnosticsSummary || {},
+      expected: expectedStage3,
+      candidateRows: diagnostic?.candidateRows || [],
+      rawComparisons,
       comparisons,
       r6,
     };
@@ -519,8 +844,11 @@ async function processImage({ page, row, runDir, resume, imageTimeoutMs }) {
 
 async function main() {
   const args = parseArgs();
+  if (args.bonusTotalRoi) artifactDir = bonusTotalArtifactDir;
   await fs.mkdir(artifactDir, { recursive: true });
   const rows = await listRows(args);
+  const offlineCandidateMap = await loadOfflineCandidateMap();
+  const offlineProposalRows = await loadOfflineProposalEvidenceRows();
   const characterPath = await ensureRapidOcrCharacterFile();
   let chromium;
   try {
@@ -538,6 +866,7 @@ async function main() {
     modelDir: normalizePathForReport(rapidOcrModelDir),
     architecture: "D-detectorless-fixed-roi",
     productionOcrBypassed: true,
+    bonusTotalRoi: args.bonusTotalRoi,
   };
   await fs.writeFile(path.join(artifactDir, "runner-config.json"), JSON.stringify(runnerConfig, null, 2));
   const server = await startServer(args);
@@ -559,6 +888,7 @@ async function main() {
         ipadStage3RapidOcrDetectorEnabled: "0",
       });
       if (args.roiVariants) params.set("ipadStage3RapidOcrRoiVariants", "1");
+      if (args.bonusTotalRoi) params.set("ipadStage3RapidOcrBonusTotalRoi", "1");
       await page.goto(`${server.baseUrl}/?${params.toString()}`, {
         waitUntil: "domcontentloaded",
         timeout: 300000,
@@ -582,10 +912,14 @@ async function main() {
       await fs.writeFile(path.join(runDir, "page-errors.json"), JSON.stringify(pageErrors, null, 2));
       await page.close().catch(() => {});
       await context.close();
-      const summary = summarizeResults(results);
+      const summary = summarizeResults(results, offlineCandidateMap, offlineProposalRows);
       await fs.writeFile(path.join(runDir, "results.json"), JSON.stringify(results, null, 2));
       await fs.writeFile(path.join(runDir, "summary.json"), JSON.stringify(summary, null, 2));
       await fs.writeFile(path.join(runDir, "field-accuracy.json"), JSON.stringify(summary.byField, null, 2));
+      await fs.writeFile(path.join(runDir, "field-deficits.json"), JSON.stringify(summary.fieldDeficits, null, 2));
+      await fs.writeFile(path.join(runDir, "bonus-variant-results.json"), JSON.stringify(summary.variantGains.bonus, null, 2));
+      await fs.writeFile(path.join(runDir, "total-variant-results.json"), JSON.stringify(summary.variantGains.total, null, 2));
+      await fs.writeFile(path.join(runDir, "policy-results.json"), JSON.stringify(summary.policies, null, 2));
       await fs.writeFile(path.join(runDir, "r6-results.json"), JSON.stringify(summary.r6, null, 2));
       await fs.writeFile(path.join(runDir, "accepted-four-audit.json"), JSON.stringify(buildAcceptedFourAudit(results), null, 2));
       const img0283 = results.find((result) => result.image === "IMG_0283.png");
@@ -605,9 +939,13 @@ async function main() {
     imageCount: rows.length,
     runs: runSummaries,
   };
+  const consoleSummary = {
+    ...summary,
+    runs: runSummaries.map(compactRunSummary),
+  };
   await fs.writeFile(path.join(artifactDir, "summary.json"), JSON.stringify(summary, null, 2));
   await fs.writeFile(path.join(artifactDir, outputSummaryName(args, rows)), JSON.stringify(summary, null, 2));
-  console.log(JSON.stringify(summary, null, 2));
+  console.log(JSON.stringify(consoleSummary, null, 2));
 }
 
 main()
