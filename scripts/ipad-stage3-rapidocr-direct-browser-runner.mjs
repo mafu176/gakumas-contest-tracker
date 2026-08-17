@@ -15,6 +15,7 @@ const ipadImageDir = path.join(rootDir, "regression-test", "ipad");
 const ipadExpectedDir = path.join(rootDir, "regression-test", "expected-ipad");
 let artifactDir = path.join(rootDir, "tmp", "ipad-stage3-rapidocr-direct-runner");
 const bonusTotalArtifactDir = path.join(rootDir, "tmp", "ipad-stage3-rapidocr-bonus-total-roi");
+const member2ArtifactDir = path.join(rootDir, "tmp", "ipad-stage3-rapidocr-member2-roi");
 const rapidOcrModelDir = path.join(
   rootDir,
   "tmp",
@@ -68,7 +69,8 @@ const offlineUnsafeSelectorPath = path.join(
   "unsafe-selector-results.json"
 );
 const offlineR6Path = path.join(rootDir, "tmp", "ipad-stage3-rapidocr-fixture-expansion", "r6-results.json");
-const policyIds = ["P0", "P1", "P2", "P3", "P4", "P5"];
+const bonusTotalPolicyIds = ["P0", "P1", "P2", "P3", "P4", "P5"];
+const member2PolicyIds = ["Q0", "Q1", "Q2", "Q3"];
 
 function parseArgs() {
   const argValue = (name, fallback = "") => {
@@ -94,6 +96,7 @@ function parseArgs() {
     imageTimeoutMs: Math.max(30000, Number(argValue("--image-timeout-ms", "240000") || 240000)),
     roiVariants: process.argv.includes("--roi-variants"),
     bonusTotalRoi: process.argv.includes("--bonus-total-roi"),
+    member2Roi: process.argv.includes("--member2-roi"),
   };
 }
 
@@ -344,9 +347,30 @@ function isBaselineCandidate(row) {
   return row.crop?.variantId === "baseline-12pct-padding";
 }
 
+function isBestTotalCandidate(row) {
+  return ["baseline-12pct-padding", "total-horizontal-expand-8pct", "total-vertical-expand-10pct"].includes(
+    row.crop?.variantId
+  );
+}
+
+function isMember2CandidateForPolicy(row, policyId) {
+  if (policyId === "Q1" || policyId === "Q2" || policyId === "Q3") return true;
+  return isBaselineCandidate(row);
+}
+
 function rowsForPolicy(candidateRows, policyId) {
   return candidateRows.filter((row) => {
     const field = row.assignedField || row.sourceField;
+    if (policyId.startsWith("Q")) {
+      if (field === "member1" || field === "member3") return isBaselineCandidate(row);
+      if (field === "member2") return isMember2CandidateForPolicy(row, policyId);
+      if (policyId === "Q2") return field === "total" ? isBestTotalCandidate(row) : isBaselineCandidate(row);
+      if (policyId === "Q3") {
+        if (field === "bonus") return true;
+        if (field === "total") return isBestTotalCandidate(row);
+      }
+      return isBaselineCandidate(row);
+    }
     if (field === "member1" || field === "member2" || field === "member3") return isBaselineCandidate(row);
     if (policyId === "P0") return isBaselineCandidate(row);
     if (policyId === "P1" || policyId === "P3") return field === "bonus" ? true : isBaselineCandidate(row);
@@ -354,6 +378,12 @@ function rowsForPolicy(candidateRows, policyId) {
     if (policyId === "P5") return field === "bonus" || field === "total" ? true : isBaselineCandidate(row);
     return isBaselineCandidate(row);
   });
+}
+
+function policyIdsForArgs(args = {}) {
+  if (args.member2Roi) return member2PolicyIds;
+  if (args.bonusTotalRoi) return bonusTotalPolicyIds;
+  return [...bonusTotalPolicyIds, ...member2PolicyIds];
 }
 
 function summarizeSupport({ candidateRows, image, side, field, value }) {
@@ -596,16 +626,210 @@ function buildFieldDeficits(results, offlineCandidateMap) {
   return rows;
 }
 
-function buildPolicyResults({ results, offlineProposalRows }) {
+function buildPolicyResults({ results, offlineProposalRows, policyIds = bonusTotalPolicyIds }) {
   const candidateRows = results.flatMap((result) => result.candidateRows || []);
   return Object.fromEntries(
     policyIds.map((policyId) => [policyId, evaluatePolicyR6({ candidateRows, offlineProposalRows, policyId })])
   );
 }
 
-function summarizeResults(results, offlineCandidateMap = new Map(), offlineProposalRows = []) {
+function buildMember2OfflineBrowserDiff(results, offlineCandidateMap) {
+  const rows = buildFieldDeficits(results, offlineCandidateMap).filter((row) => row.field === "member2");
+  const categories = {
+    offlineExactBrowserExact: 0,
+    offlineExactBrowserWrong: 0,
+    offlineExactBrowserEmpty: 0,
+    offlineWrongBrowserExact: 0,
+    bothWrong: 0,
+    browserFragmentOfOfflineFullValue: 0,
+    browserPrefixSuffixContamination: 0,
+  };
+  const details = rows.map((row) => {
+    const browserValues = row.values || [];
+    const offlineValues = row.offlineValues || [];
+    const offlineExact = row.offlineHasExpected;
+    const browserExact = row.hasExpected;
+    const browserEmpty = browserValues.length === 0;
+    const expectedText = String(row.expectedValue);
+    const fragment = browserValues.some((value) => {
+      const text = String(value);
+      return text.length >= 2 && text.length < expectedText.length && expectedText.includes(text);
+    });
+    const contamination = browserValues.some((value) => {
+      const text = String(value);
+      return text.length > expectedText.length && text.includes(expectedText);
+    });
+    if (offlineExact && browserExact) categories.offlineExactBrowserExact += 1;
+    else if (offlineExact && browserEmpty) categories.offlineExactBrowserEmpty += 1;
+    else if (offlineExact) categories.offlineExactBrowserWrong += 1;
+    else if (browserExact) categories.offlineWrongBrowserExact += 1;
+    else categories.bothWrong += 1;
+    if (fragment) categories.browserFragmentOfOfflineFullValue += 1;
+    if (contamination) categories.browserPrefixSuffixContamination += 1;
+    return {
+      image: row.image,
+      side: row.side,
+      expectedValue: row.expectedValue,
+      offlineExact,
+      browserExact,
+      browserEmpty,
+      browserValues,
+      offlineValues,
+      fragment,
+      contamination,
+      texts: row.texts,
+      variantIds: row.variantIds,
+    };
+  });
+  return { categories, rows: details };
+}
+
+function buildCandidateUnion(results, field = "member2") {
+  return results.flatMap((result) =>
+    sides.map((side) => {
+      const rows = (result.candidateRows || []).filter((row) => row.side === side && row.assignedField === field);
+      const values = new Map();
+      for (const row of rows) {
+        const value = Number(row.value);
+        if (!Number.isFinite(value)) continue;
+        if (!values.has(value)) {
+          values.set(value, {
+            value,
+            supportCount: 0,
+            variants: new Set(),
+            rawTexts: new Set(),
+            confidences: [],
+          });
+        }
+        const entry = values.get(value);
+        entry.supportCount += 1;
+        if (row.crop?.variantId) entry.variants.add(row.crop.variantId);
+        if (row.fullText) entry.rawTexts.add(row.fullText);
+        if (Number.isFinite(Number(row.confidence))) entry.confidences.push(Number(row.confidence));
+      }
+      return {
+        image: result.image,
+        side,
+        field,
+        expectedValue: result.expected?.[side]?.[field],
+        candidates: [...values.values()]
+          .map((entry) => ({
+            value: entry.value,
+            supportCount: entry.supportCount,
+            variants: [...entry.variants].sort(),
+            rawTexts: [...entry.rawTexts].slice(0, 8),
+            confidence: {
+              min: entry.confidences.length ? Number(Math.min(...entry.confidences).toFixed(4)) : null,
+              max: entry.confidences.length ? Number(Math.max(...entry.confidences).toFixed(4)) : null,
+            },
+          }))
+          .sort((a, b) => a.value - b.value),
+      };
+    })
+  );
+}
+
+function buildFragmentAudit(candidateUnion) {
+  const rows = candidateUnion.map((row) => {
+    const values = row.candidates.map((candidate) => candidate.value);
+    const relations = [];
+    for (const value of values) {
+      const text = String(value);
+      for (const other of values) {
+        if (value === other) continue;
+        const otherText = String(other);
+        if (text.length < otherText.length && otherText.startsWith(text)) {
+          relations.push({ value, other, relation: "prefix-of" });
+        } else if (text.length < otherText.length && otherText.endsWith(text)) {
+          relations.push({ value, other, relation: "suffix-of" });
+        } else if (text.length < otherText.length && otherText.includes(text)) {
+          relations.push({ value, other, relation: "contained-in" });
+        }
+      }
+    }
+    return {
+      image: row.image,
+      side: row.side,
+      expectedValue: row.expectedValue,
+      candidateCount: row.candidates.length,
+      hasExpected: row.candidates.some((candidate) => candidate.value === row.expectedValue),
+      relations,
+      conflictingValues: row.candidates.length > 1,
+    };
+  });
+  return {
+    rows,
+    summary: {
+      noCandidate: rows.filter((row) => row.candidateCount === 0).length,
+      exactlyOneCandidate: rows.filter((row) => row.candidateCount === 1).length,
+      multipleCandidates: rows.filter((row) => row.candidateCount > 1).length,
+      fragmentConflicts: rows.filter((row) => row.relations.length > 0).length,
+      averageCandidateCount: rows.length
+        ? Number((rows.reduce((sum, row) => sum + row.candidateCount, 0) / rows.length).toFixed(3))
+        : 0,
+    },
+  };
+}
+
+function buildRoiDefinitions(results) {
+  const examples = {};
+  for (const result of results) {
+    for (const row of result.candidateRows || []) {
+      if (row.assignedField !== "member2") continue;
+      const id = row.crop?.variantId;
+      if (!id || examples[id]) continue;
+      examples[id] = {
+        variantId: id,
+        architecture: row.crop?.architecture,
+        description: row.crop?.variantDescription,
+        exampleImage: result.image,
+        pixelRect: row.crop?.rect,
+      };
+    }
+  }
+  return {
+    coordinateSystem: "source image pixels after direct-browser image decode",
+    variants: Object.values(examples).sort((a, b) => a.variantId.localeCompare(b.variantId)),
+  };
+}
+
+function buildClusterResults(results, candidateUnion) {
+  const fixtureExpansion = new Map([
+    ["IMG_0282.png", "ipad-01"],
+    ["IMG_0284.png", "ipad-01"],
+    ["IMG_0285.png", "ipad-01"],
+    ["IMG_0286.png", "ipad-01"],
+    ["IMG_0292.png", "ipad-01"],
+    ["IMG_0293.png", "ipad-01"],
+    ["IMG_0294.png", "ipad-01"],
+    ["IMG_0295.png", "ipad-01"],
+    ["IMG_0297.png", "ipad-01"],
+    ["IMG_0298.png", "ipad-01"],
+    ["IMG_0795.png", "ipad-02"],
+    ["IMG_0798.png", "ipad-02"],
+    ["IMG_0799.png", "ipad-02"],
+    ["IMG_0800.png", "ipad-02"],
+    ["IMG_0801.png", "ipad-02"],
+  ]);
+  const byImage = new Map(results.map((result) => [result.image, result.detection?.cluster || fixtureExpansion.get(result.image) || "unknown"]));
+  const summary = {};
+  for (const row of candidateUnion) {
+    const cluster = byImage.get(row.image) || "unknown";
+    if (!summary[cluster]) summary[cluster] = { fields: 0, exact: 0, noCandidate: 0, multipleCandidates: 0 };
+    summary[cluster].fields += 1;
+    if (row.candidates.some((candidate) => candidate.value === row.expectedValue)) summary[cluster].exact += 1;
+    if (row.candidates.length === 0) summary[cluster].noCandidate += 1;
+    if (row.candidates.length > 1) summary[cluster].multipleCandidates += 1;
+  }
+  return summary;
+}
+
+function summarizeResults(results, offlineCandidateMap = new Map(), offlineProposalRows = [], args = {}) {
   const comparisons = results.flatMap((result) => result.comparisons || []);
   const rawComparisons = results.flatMap((result) => result.rawComparisons || []);
+  const policyIds = policyIdsForArgs(args);
+  const member2CandidateUnion = buildCandidateUnion(results, "member2");
+  const fragmentAudit = buildFragmentAudit(member2CandidateUnion);
   const byField = Object.fromEntries(
     fields.map((field) => {
       const rows = comparisons.filter((comparison) => comparison.field === field);
@@ -657,7 +881,7 @@ function summarizeResults(results, offlineCandidateMap = new Map(), offlinePropo
       fp: results.reduce((sum, result) => sum + Number(result.r6?.fp || 0), 0),
       accepted: acceptedRows,
     },
-    policies: buildPolicyResults({ results, offlineProposalRows }),
+    policies: buildPolicyResults({ results, offlineProposalRows, policyIds }),
     fieldDeficits: {
       offlineReference: {
         member1: "70 / 106",
@@ -676,8 +900,16 @@ function summarizeResults(results, offlineCandidateMap = new Map(), offlinePropo
       }, {}),
     },
     variantGains: {
+      member2: summarizeVariantGains(results, "member2"),
       bonus: summarizeVariantGains(results, "bonus"),
       total: summarizeVariantGains(results, "total"),
+    },
+    member2: {
+      offlineBrowserDiff: buildMember2OfflineBrowserDiff(results, offlineCandidateMap),
+      candidateUnion: member2CandidateUnion,
+      fragmentAudit,
+      roiDefinitions: buildRoiDefinitions(results),
+      clusterResults: buildClusterResults(results, member2CandidateUnion),
     },
     statuses: Object.fromEntries(
       [...new Set(results.map((result) => result.status))].map((status) => [
@@ -740,6 +972,7 @@ function compactRunSummary(summary) {
 }
 
 function outputSummaryName(args, rows) {
+  if (args.member2Roi) return "member2-roi-results.json";
   if (args.bonusTotalRoi) return "bonus-total-roi-results.json";
   if (args.roiVariants) return "variant-comparison.json";
   if (rows.length === 1 && rows[0]?.filename === "IMG_0265.png") return "img0265-baseline.json";
@@ -788,7 +1021,8 @@ async function processImage({ page, row, runDir, resume, imageTimeoutMs }) {
       imageTimeoutMs,
       row.filename
     );
-    const rawComparisons = scoreDiagnostic({ row, diagnostic, policyId: "P5" }).map((comparison) => {
+    const rawPolicyId = diagnostic?.runtime?.member2RoiVariantsEnabled ? "Q3" : "P5";
+    const rawComparisons = scoreDiagnostic({ row, diagnostic, policyId: rawPolicyId }).map((comparison) => {
       const baselineCandidates = rowsForField(diagnostic?.candidateRows || [], comparison.side, comparison.field).filter(
         isBaselineCandidate
       );
@@ -844,6 +1078,7 @@ async function processImage({ page, row, runDir, resume, imageTimeoutMs }) {
 
 async function main() {
   const args = parseArgs();
+  if (args.member2Roi) artifactDir = member2ArtifactDir;
   if (args.bonusTotalRoi) artifactDir = bonusTotalArtifactDir;
   await fs.mkdir(artifactDir, { recursive: true });
   const rows = await listRows(args);
@@ -867,6 +1102,7 @@ async function main() {
     architecture: "D-detectorless-fixed-roi",
     productionOcrBypassed: true,
     bonusTotalRoi: args.bonusTotalRoi,
+    member2Roi: args.member2Roi,
   };
   await fs.writeFile(path.join(artifactDir, "runner-config.json"), JSON.stringify(runnerConfig, null, 2));
   const server = await startServer(args);
@@ -889,6 +1125,10 @@ async function main() {
       });
       if (args.roiVariants) params.set("ipadStage3RapidOcrRoiVariants", "1");
       if (args.bonusTotalRoi) params.set("ipadStage3RapidOcrBonusTotalRoi", "1");
+      if (args.member2Roi) {
+        params.set("ipadStage3RapidOcrMember2Roi", "1");
+        params.set("ipadStage3RapidOcrBonusTotalRoi", "1");
+      }
       await page.goto(`${server.baseUrl}/?${params.toString()}`, {
         waitUntil: "domcontentloaded",
         timeout: 300000,
@@ -912,11 +1152,23 @@ async function main() {
       await fs.writeFile(path.join(runDir, "page-errors.json"), JSON.stringify(pageErrors, null, 2));
       await page.close().catch(() => {});
       await context.close();
-      const summary = summarizeResults(results, offlineCandidateMap, offlineProposalRows);
+      const summary = summarizeResults(results, offlineCandidateMap, offlineProposalRows, args);
       await fs.writeFile(path.join(runDir, "results.json"), JSON.stringify(results, null, 2));
       await fs.writeFile(path.join(runDir, "summary.json"), JSON.stringify(summary, null, 2));
+      await fs.writeFile(path.join(runDir, "baseline.json"), JSON.stringify(summary.byField, null, 2));
       await fs.writeFile(path.join(runDir, "field-accuracy.json"), JSON.stringify(summary.byField, null, 2));
       await fs.writeFile(path.join(runDir, "field-deficits.json"), JSON.stringify(summary.fieldDeficits, null, 2));
+      await fs.writeFile(
+        path.join(runDir, "offline-browser-member2-diff.json"),
+        JSON.stringify(summary.member2.offlineBrowserDiff, null, 2)
+      );
+      await fs.writeFile(path.join(runDir, "roi-definitions.json"), JSON.stringify(summary.member2.roiDefinitions, null, 2));
+      await fs.writeFile(path.join(runDir, "variant-results.json"), JSON.stringify(summary.variantGains.member2, null, 2));
+      await fs.writeFile(path.join(runDir, "candidate-union.json"), JSON.stringify(summary.member2.candidateUnion, null, 2));
+      await fs.writeFile(path.join(runDir, "fragment-audit.json"), JSON.stringify(summary.member2.fragmentAudit, null, 2));
+      await fs.writeFile(path.join(runDir, "q-policy-results.json"), JSON.stringify(summary.policies, null, 2));
+      await fs.writeFile(path.join(runDir, "runtime.json"), JSON.stringify(summary.timing, null, 2));
+      await fs.writeFile(path.join(runDir, "cluster-results.json"), JSON.stringify(summary.member2.clusterResults, null, 2));
       await fs.writeFile(path.join(runDir, "bonus-variant-results.json"), JSON.stringify(summary.variantGains.bonus, null, 2));
       await fs.writeFile(path.join(runDir, "total-variant-results.json"), JSON.stringify(summary.variantGains.total, null, 2));
       await fs.writeFile(path.join(runDir, "policy-results.json"), JSON.stringify(summary.policies, null, 2));
