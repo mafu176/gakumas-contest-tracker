@@ -16,6 +16,8 @@ Useful options:
 - `--resume`
 - `--runs 2`
 - `--base-url http://localhost:3310`
+- `--detector-enabled 0`
+- `--roi-variants`
 - `--detector-crop-kinds field,f1-member-row,f2-full-side`
 - `--detector-limit-side-len 736`
 
@@ -108,6 +110,50 @@ The browser diagnostic JSON now includes:
 - assigned field / ambiguity metadata
 - recognizer text and confidence per detected box
 - parsed candidate rows with bbox provenance
+
+## Detectorless Diagnostic Path
+
+The detector can be disabled for developer-only runtime comparisons:
+
+```bash
+node scripts/ipad-stage3-rapidocr-browser-verification.mjs --only IMG_0265 --detector-enabled 0
+```
+
+Equivalent query parameter:
+
+```text
+ipadStage3RapidOcrDetectorEnabled=0
+```
+
+When disabled:
+
+- `ch_PP-OCRv4_det_infer.onnx` is not fetched
+- the detector session is not created
+- detector crops are skipped
+- fixed Stage3 field ROIs are still recognized
+- production OCR output remains untouched
+
+Deterministic fixed-ROI variants can also be enabled:
+
+```bash
+node scripts/ipad-stage3-rapidocr-browser-verification.mjs --only IMG_0265 --detector-enabled 0 --roi-variants
+```
+
+Equivalent query parameter:
+
+```text
+ipadStage3RapidOcrRoiVariants=1
+```
+
+The frozen variant set is:
+
+- `baseline-12pct-padding`
+- `left-trim-6pct`
+- `right-trim-6pct`
+- `horizontal-expand-10pct`
+- `vertical-trim-8pct`
+
+The variants are geometry-only, expected-blind, and diagnostic-only.
 
 ## Detector Runtime Controls
 

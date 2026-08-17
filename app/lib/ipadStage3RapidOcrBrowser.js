@@ -37,6 +37,8 @@ function safeLocalBaseUrl(value, fallback) {
 function getRuntimeConfig() {
   const params =
     typeof window !== "undefined" ? new URLSearchParams(window.location.search) : new URLSearchParams();
+  const detectorEnabled = params.get("ipadStage3RapidOcrDetectorEnabled") !== "0";
+  const roiVariantsEnabled = params.get("ipadStage3RapidOcrRoiVariants") === "1";
   const cropKinds = String(params.get("ipadStage3RapidOcrDetectorCropKinds") || DETECTION_CROP_KINDS.join(","))
     .split(",")
     .map((entry) => entry.trim())
@@ -46,6 +48,8 @@ function getRuntimeConfig() {
     modelBase: safeLocalBaseUrl(params.get("ipadStage3RapidOcrModelBase"), DEFAULT_MODEL_BASE),
     wasmBase: safeLocalBaseUrl(params.get("ipadStage3RapidOcrWasmBase"), DEFAULT_WASM_BASE),
     executionProvider: "wasm",
+    detectorEnabled,
+    roiVariantsEnabled,
     detectorCropKinds: cropKinds.length ? cropKinds : DETECTION_CROP_KINDS,
     detectorLimitSideLen:
       Number.isFinite(detLimitSideLen) && detLimitSideLen >= 96 && detLimitSideLen <= DET_LIMIT_SIDE_LEN
@@ -93,21 +97,29 @@ async function loadRapidOcrRuntime() {
     const detModelUrl = `${config.modelBase}${DET_MODEL_NAME}`;
     const recModelUrl = `${config.modelBase}${REC_MODEL_NAME}`;
     const characterUrl = `${config.modelBase}${REC_CHARACTER_NAME}`;
+    const fetchStarted = performance.now();
     const [detModelBuffer, recModelBuffer, characterText] = await Promise.all([
-      fetchArrayBuffer(detModelUrl),
+      config.detectorEnabled ? fetchArrayBuffer(detModelUrl) : Promise.resolve(null),
       fetchArrayBuffer(recModelUrl),
       fetchText(characterUrl),
     ]);
-    const detModelSha256 = await sha256Hex(detModelBuffer);
+    const modelFetchMs = Number((performance.now() - fetchStarted).toFixed(3));
+    const detModelSha256 = detModelBuffer ? await sha256Hex(detModelBuffer) : null;
     const recModelSha256 = await sha256Hex(recModelBuffer);
-    const detSession = await ort.InferenceSession.create(detModelBuffer, {
-      executionProviders: [config.executionProvider],
-      graphOptimizationLevel: "all",
-    });
+    const detStarted = performance.now();
+    const detSession = detModelBuffer
+      ? await ort.InferenceSession.create(detModelBuffer, {
+          executionProviders: [config.executionProvider],
+          graphOptimizationLevel: "all",
+        })
+      : null;
+    const detSessionCreateMs = Number((performance.now() - detStarted).toFixed(3));
+    const recStarted = performance.now();
     const recSession = await ort.InferenceSession.create(recModelBuffer, {
       executionProviders: [config.executionProvider],
       graphOptimizationLevel: "all",
     });
+    const recSessionCreateMs = Number((performance.now() - recStarted).toFixed(3));
     return {
       ort,
       config,
@@ -115,22 +127,28 @@ async function loadRapidOcrRuntime() {
       recSession,
       characterList: buildCharacterList(characterText),
       modelInventory: {
-        detector: {
-          name: DET_MODEL_NAME,
-          url: detModelUrl,
-          sha256: detModelSha256,
-          bytes: detModelBuffer.byteLength,
-          inputNames: detSession.inputNames,
-          outputNames: detSession.outputNames,
-          postprocess: {
-            thresh: DET_THRESH,
-            boxThresh: DET_BOX_THRESH,
-            unclipRatio: DET_UNCLIP_RATIO,
-            useDilation: true,
-            approximation:
-              "browser diagnostic uses thresholded DB bitmap connected components and axis-aligned unclip; offline Python uses cv2.findContours/minAreaRect/pyclipper",
-          },
-        },
+        detector: detModelBuffer
+          ? {
+              name: DET_MODEL_NAME,
+              url: detModelUrl,
+              sha256: detModelSha256,
+              bytes: detModelBuffer.byteLength,
+              inputNames: detSession.inputNames,
+              outputNames: detSession.outputNames,
+              postprocess: {
+                thresh: DET_THRESH,
+                boxThresh: DET_BOX_THRESH,
+                unclipRatio: DET_UNCLIP_RATIO,
+                useDilation: true,
+                approximation:
+                  "browser diagnostic uses thresholded DB bitmap connected components and axis-aligned unclip; offline Python uses cv2.findContours/minAreaRect/pyclipper",
+              },
+            }
+          : {
+              name: DET_MODEL_NAME,
+              loaded: false,
+              reason: "detector disabled by developer-only query parameter",
+            },
         recognizer: {
           name: REC_MODEL_NAME,
           url: recModelUrl,
@@ -146,6 +164,11 @@ async function loadRapidOcrRuntime() {
           sha256: await sha256Hex(new TextEncoder().encode(characterText).buffer),
           characterCountWithCtcSpecials: buildCharacterList(characterText).length,
         },
+      },
+      phaseTimings: {
+        modelFetchMs,
+        detSessionCreateMs,
+        recSessionCreateMs,
       },
     };
   })();
@@ -382,6 +405,65 @@ function fieldSpecKey(field) {
   return toFieldName(field);
 }
 
+function scaledRectFromZone(zone, image, adjustments = {}) {
+  const base = {
+    x: Number(zone?.x || 0),
+    y: Number(zone?.y || 0),
+    width: Number(zone?.width || 1),
+    height: Number(zone?.height || 1),
+  };
+  const dx = Math.round(base.width * Number(adjustments.dxRatio || 0));
+  const dy = Math.round(base.height * Number(adjustments.dyRatio || 0));
+  const dw = Math.round(base.width * Number(adjustments.dwRatio || 0));
+  const dh = Math.round(base.height * Number(adjustments.dhRatio || 0));
+  return clampRect(
+    {
+      x: base.x + dx - Math.floor(dw / 2),
+      y: base.y + dy - Math.floor(dh / 2),
+      width: base.width + dw,
+      height: base.height + dh,
+    },
+    image
+  );
+}
+
+function buildFieldRecognitionVariants(field, image, enabled) {
+  const baseline = {
+    id: "baseline-12pct-padding",
+    architecture: "D-detectorless-fixed-roi",
+    rect: clampRect(padIpadArithmeticFieldZone(field, image, 0.12), image),
+    description: "existing Stage3 field ROI with 12% padding",
+  };
+  if (!enabled) return [baseline];
+  return [
+    baseline,
+    {
+      id: "left-trim-6pct",
+      architecture: "E-detectorless-deterministic-variants",
+      rect: scaledRectFromZone(field.zone, image, { dxRatio: 0.03, dwRatio: -0.06 }),
+      description: "general left-edge trim to reduce preceding-symbol bleed",
+    },
+    {
+      id: "right-trim-6pct",
+      architecture: "E-detectorless-deterministic-variants",
+      rect: scaledRectFromZone(field.zone, image, { dxRatio: -0.03, dwRatio: -0.06 }),
+      description: "general right-edge trim to reduce following-symbol bleed",
+    },
+    {
+      id: "horizontal-expand-10pct",
+      architecture: "E-detectorless-deterministic-variants",
+      rect: scaledRectFromZone(field.zone, image, { dwRatio: 0.1 }),
+      description: "general horizontal expansion for clipped 7-digit values",
+    },
+    {
+      id: "vertical-trim-8pct",
+      architecture: "E-detectorless-deterministic-variants",
+      rect: scaledRectFromZone(field.zone, image, { dhRatio: -0.08 }),
+      description: "general vertical trim to reduce row-neighbor bleed",
+    },
+  ];
+}
+
 function buildCandidateRows({
   imageName,
   side,
@@ -479,9 +561,8 @@ async function recognizeCanvas({ runtime, cropCanvas }) {
   };
 }
 
-async function recognizeField({ runtime, image, imageName, field }) {
-  const paddedRect = clampRect(padIpadArithmeticFieldZone(field, image, 0.12), image);
-  const cropCanvas = canvasForCrop(image, paddedRect);
+async function recognizeFieldVariant({ runtime, image, imageName, field, variant }) {
+  const cropCanvas = canvasForCrop(image, variant.rect);
   const cropBlob = await new Promise((resolve) => cropCanvas.toBlob(resolve, "image/png"));
   const cropBuffer = cropBlob ? await cropBlob.arrayBuffer() : new ArrayBuffer(0);
   const decoded = await recognizeCanvas({ runtime, cropCanvas });
@@ -496,7 +577,10 @@ async function recognizeField({ runtime, image, imageName, field }) {
   };
   const fieldName = toFieldName(field);
   const cropMetadata = {
-    rect: paddedRect,
+    rect: variant.rect,
+    variantId: variant.id,
+    architecture: variant.architecture,
+    variantDescription: variant.description,
     sha256: await sha256Hex(cropBuffer),
     preprocessingChecksum: decoded.inputChecksum,
     preprocessing: decoded.preprocessing,
@@ -508,6 +592,11 @@ async function recognizeField({ runtime, image, imageName, field }) {
     slot: field.slot,
     roi: field.zone,
     crop: cropMetadata,
+    variant: {
+      id: variant.id,
+      architecture: variant.architecture,
+      description: variant.description,
+    },
     recognition,
     candidateRows: buildCandidateRows({
       imageName,
@@ -515,8 +604,21 @@ async function recognizeField({ runtime, image, imageName, field }) {
       fieldName,
       recognition,
       cropMetadata,
+      profileId:
+        variant.architecture === "E-detectorless-deterministic-variants"
+          ? "browser-rapidocr-detectorless-variant"
+          : "browser-rapidocr-detectorless-fixed-roi",
     }),
   };
+}
+
+async function recognizeField({ runtime, image, imageName, field }) {
+  const variants = buildFieldRecognitionVariants(field, image, runtime.config.roiVariantsEnabled);
+  const results = [];
+  for (const variant of variants) {
+    results.push(await recognizeFieldVariant({ runtime, image, imageName, field, variant }));
+  }
+  return results;
 }
 
 function dilateMask2x2(mask, width, height) {
@@ -605,6 +707,17 @@ function componentBoxesFromScoreMap({ scores, width, height, cropWidth, cropHeig
 }
 
 async function detectTextBoxes({ runtime, cropCanvas }) {
+  if (!runtime.detSession) {
+    return {
+      boxes: [],
+      durationMs: 0,
+      outputShape: [],
+      preprocessingChecksum: null,
+      preprocessing: null,
+      skipped: true,
+      reason: "detector disabled",
+    };
+  }
   const input = preprocessDetectionInput(cropCanvas, runtime.config.detectorLimitSideLen);
   const checksum = await sha256Hex(input.data.buffer.slice(0));
   const tensor = new runtime.ort.Tensor("float32", input.data, input.shape);
@@ -877,20 +990,25 @@ export async function runIpadStage3RapidOcrBrowserDiagnostic({ image, imageName,
     ...payload.runtime,
     modelBase: runtime.config.modelBase,
     wasmBase: runtime.config.wasmBase,
+    phaseTimings: runtime.phaseTimings,
+    detectorEnabled: runtime.config.detectorEnabled,
+    roiVariantsEnabled: runtime.config.roiVariantsEnabled,
     detectorCropKinds: runtime.config.detectorCropKinds,
     detectorLimitSideLen: runtime.config.detectorLimitSideLen,
   };
 
   const template = buildIpadArithmeticRoiTemplate(image);
   const stage3Fields = (template.fields || []).filter((field) => field.stage === 3);
-  const detectionCropRecords = buildDetectionCropRecords({ image, template }).filter((record) =>
-    runtime.config.detectorCropKinds.includes(record.cropKind)
-  );
+  const detectionCropRecords = runtime.config.detectorEnabled
+    ? buildDetectionCropRecords({ image, template }).filter((record) => runtime.config.detectorCropKinds.includes(record.cropKind))
+    : [];
   const started = performance.now();
   for (const field of stage3Fields) {
-    const result = await recognizeField({ runtime, image, imageName: imageName || "", field });
-    payload.fields.push(result);
-    payload.candidateRows.push(...result.candidateRows);
+    const results = await recognizeField({ runtime, image, imageName: imageName || "", field });
+    for (const result of results) {
+      payload.fields.push(result);
+      payload.candidateRows.push(...result.candidateRows);
+    }
   }
   for (const record of detectionCropRecords) {
     const result = await detectAndRecognizeCrop({ runtime, image, imageName: imageName || "", record });
@@ -913,6 +1031,7 @@ export async function runIpadStage3RapidOcrBrowserDiagnostic({ image, imageName,
   };
   payload.diagnosticsSummary = {
     fieldCount: payload.fields.length,
+    fieldVariantCount: payload.fields.length,
     detectionCropCount: payload.detectionCrops.length,
     detectedBoxCount: payload.detectionCrops.reduce((sum, crop) => sum + Number(crop.detection?.boxCount || 0), 0),
     candidateRowCount: payload.candidateRows.length,

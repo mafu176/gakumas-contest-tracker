@@ -73,6 +73,8 @@ function parseArgs() {
     port: Number(argValue("--port", "0") || 0),
     baseUrl: argValue("--base-url") || process.env.IPAD_RAPIDOCR_BROWSER_BASE_URL || "",
     runs: Math.max(1, Number(argValue("--runs", "1") || 1)),
+    detectorEnabled: argValue("--detector-enabled") || "",
+    roiVariants: process.argv.includes("--roi-variants"),
     detectorCropKinds: argValue("--detector-crop-kinds") || "",
     detectorLimitSideLen: argValue("--detector-limit-side-len") || "",
   };
@@ -366,6 +368,8 @@ async function processImage({ context, baseUrl, row, runDir, resume, offlineCand
   page.on("pageerror", (error) => pageErrors.push({ message: error.message, stack: error.stack }));
   try {
     const params = new URLSearchParams({ ipadStage3RapidOcrDebug: "1" });
+    if (row.detectorEnabled) params.set("ipadStage3RapidOcrDetectorEnabled", row.detectorEnabled);
+    if (row.roiVariants) params.set("ipadStage3RapidOcrRoiVariants", "1");
     if (row.detectorCropKinds) params.set("ipadStage3RapidOcrDetectorCropKinds", row.detectorCropKinds);
     if (row.detectorLimitSideLen) params.set("ipadStage3RapidOcrDetectorLimitSideLen", row.detectorLimitSideLen);
     await page.goto(`${baseUrl}/?${params.toString()}`, {
@@ -513,6 +517,8 @@ async function main() {
             baseUrl: server.baseUrl,
             row: {
               ...row,
+              detectorEnabled: args.detectorEnabled,
+              roiVariants: args.roiVariants,
               detectorCropKinds: args.detectorCropKinds,
               detectorLimitSideLen: args.detectorLimitSideLen,
             },
