@@ -27,6 +27,10 @@ const DETECTION_CROP_KINDS = ["field", "f1-member-row", "f2-full-side"];
 
 let runtimePromise = null;
 
+function nowMs() {
+  return typeof performance !== "undefined" ? performance.now() : Date.now();
+}
+
 function safeLocalBaseUrl(value, fallback) {
   const text = String(value || "").trim();
   if (!text) return fallback;
@@ -88,6 +92,7 @@ function buildCharacterList(characterText) {
 async function loadRapidOcrRuntime() {
   if (runtimePromise) return runtimePromise;
   runtimePromise = (async () => {
+    const totalStarted = nowMs();
     const config = getRuntimeConfig();
     const ort = await import("onnxruntime-web");
     ort.env.wasm.wasmPaths = config.wasmBase;
@@ -97,29 +102,29 @@ async function loadRapidOcrRuntime() {
     const detModelUrl = `${config.modelBase}${DET_MODEL_NAME}`;
     const recModelUrl = `${config.modelBase}${REC_MODEL_NAME}`;
     const characterUrl = `${config.modelBase}${REC_CHARACTER_NAME}`;
-    const fetchStarted = performance.now();
+    const fetchStarted = nowMs();
     const [detModelBuffer, recModelBuffer, characterText] = await Promise.all([
       config.detectorEnabled ? fetchArrayBuffer(detModelUrl) : Promise.resolve(null),
       fetchArrayBuffer(recModelUrl),
       fetchText(characterUrl),
     ]);
-    const modelFetchMs = Number((performance.now() - fetchStarted).toFixed(3));
+    const modelFetchMs = Number((nowMs() - fetchStarted).toFixed(3));
     const detModelSha256 = detModelBuffer ? await sha256Hex(detModelBuffer) : null;
     const recModelSha256 = await sha256Hex(recModelBuffer);
-    const detStarted = performance.now();
+    const detStarted = nowMs();
     const detSession = detModelBuffer
       ? await ort.InferenceSession.create(detModelBuffer, {
           executionProviders: [config.executionProvider],
           graphOptimizationLevel: "all",
         })
       : null;
-    const detSessionCreateMs = Number((performance.now() - detStarted).toFixed(3));
-    const recStarted = performance.now();
+    const detSessionCreateMs = Number((nowMs() - detStarted).toFixed(3));
+    const recStarted = nowMs();
     const recSession = await ort.InferenceSession.create(recModelBuffer, {
       executionProviders: [config.executionProvider],
       graphOptimizationLevel: "all",
     });
-    const recSessionCreateMs = Number((performance.now() - recStarted).toFixed(3));
+    const recSessionCreateMs = Number((nowMs() - recStarted).toFixed(3));
     return {
       ort,
       config,
@@ -169,6 +174,7 @@ async function loadRapidOcrRuntime() {
         modelFetchMs,
         detSessionCreateMs,
         recSessionCreateMs,
+        totalModelLoadMs: Number((nowMs() - totalStarted).toFixed(3)),
       },
     };
   })();
@@ -539,15 +545,22 @@ function buildCandidateRows({
 }
 
 async function recognizeCanvas({ runtime, cropCanvas }) {
+  const totalStarted = nowMs();
+  const preprocessStarted = nowMs();
   const input = preprocessRecognitionInput(cropCanvas);
+  const preprocessMs = Number((nowMs() - preprocessStarted).toFixed(3));
+  const checksumStarted = nowMs();
   const inputChecksum = await sha256Hex(input.data.buffer.slice(0));
+  const checksumMs = Number((nowMs() - checksumStarted).toFixed(3));
   const tensor = new runtime.ort.Tensor("float32", input.data, input.shape);
   const feeds = { [runtime.recSession.inputNames[0]]: tensor };
-  const started = performance.now();
+  const started = nowMs();
   const outputs = await runtime.recSession.run(feeds);
-  const durationMs = Number((performance.now() - started).toFixed(3));
+  const durationMs = Number((nowMs() - started).toFixed(3));
   const outputTensor = outputs[runtime.recSession.outputNames[0]];
+  const decodeStarted = nowMs();
   const decoded = decodeCtc(outputTensor, runtime.characterList);
+  const decodeMs = Number((nowMs() - decodeStarted).toFixed(3));
   return {
     text: decoded.text,
     confidence: Number(decoded.confidence.toFixed(6)),
@@ -558,13 +571,25 @@ async function recognizeCanvas({ runtime, cropCanvas }) {
     groupedCandidates: parseIpadGroupedNumberTokens(decoded.text),
     inputChecksum,
     preprocessing: input.metadata,
+    phaseTimings: {
+      preprocessMs,
+      checksumMs,
+      sessionRunMs: durationMs,
+      decodeMs,
+      totalMs: Number((nowMs() - totalStarted).toFixed(3)),
+    },
   };
 }
 
 async function recognizeFieldVariant({ runtime, image, imageName, field, variant }) {
+  const fieldStarted = nowMs();
+  const cropStarted = nowMs();
   const cropCanvas = canvasForCrop(image, variant.rect);
+  const cropCanvasMs = Number((nowMs() - cropStarted).toFixed(3));
+  const cropBlobStarted = nowMs();
   const cropBlob = await new Promise((resolve) => cropCanvas.toBlob(resolve, "image/png"));
   const cropBuffer = cropBlob ? await cropBlob.arrayBuffer() : new ArrayBuffer(0);
+  const cropEncodeMs = Number((nowMs() - cropBlobStarted).toFixed(3));
   const decoded = await recognizeCanvas({ runtime, cropCanvas });
   const recognition = {
     text: decoded.text,
@@ -574,6 +599,7 @@ async function recognizeFieldVariant({ runtime, image, imageName, field, variant
     outputShape: decoded.outputShape,
     parsedCandidates: parseIpadArithmeticOcrNumbers(decoded.text),
     groupedCandidates: parseIpadGroupedNumberTokens(decoded.text),
+    phaseTimings: decoded.phaseTimings,
   };
   const fieldName = toFieldName(field);
   const cropMetadata = {
@@ -584,6 +610,12 @@ async function recognizeFieldVariant({ runtime, image, imageName, field, variant
     sha256: await sha256Hex(cropBuffer),
     preprocessingChecksum: decoded.inputChecksum,
     preprocessing: decoded.preprocessing,
+    timings: {
+      cropCanvasMs,
+      cropEncodeMs,
+      recognitionTotalMs: decoded.phaseTimings?.totalMs || decoded.durationMs,
+      totalFieldVariantMs: Number((nowMs() - fieldStarted).toFixed(3)),
+    },
   };
   return {
     stage: 3,
@@ -722,9 +754,9 @@ async function detectTextBoxes({ runtime, cropCanvas }) {
   const checksum = await sha256Hex(input.data.buffer.slice(0));
   const tensor = new runtime.ort.Tensor("float32", input.data, input.shape);
   const feeds = { [runtime.detSession.inputNames[0]]: tensor };
-  const started = performance.now();
+  const started = nowMs();
   const outputs = await runtime.detSession.run(feeds);
-  const durationMs = Number((performance.now() - started).toFixed(3));
+  const durationMs = Number((nowMs() - started).toFixed(3));
   const outputTensor = outputs[runtime.detSession.outputNames[0]];
   const dims = outputTensor.dims || [];
   const mapHeight = Number(dims[2] || 0);
@@ -947,7 +979,10 @@ function buildR6EvidenceRows({ imageName, diagnostics, candidateRows }) {
 
 export async function runIpadStage3RapidOcrBrowserDiagnostic({ image, imageName, diagnostics }) {
   const generatedAt = new Date().toISOString();
+  const totalStarted = nowMs();
+  const decodeStarted = nowMs();
   const detection = detectIpadOcrLayout(image);
+  const imageDecodeAndLayoutMs = Number((nowMs() - decodeStarted).toFixed(3));
   const payload = {
     schema: RAPIDOCR_DEBUG_SCHEMA,
     debugFlag: "ipadStage3RapidOcrDebug=1",
@@ -962,6 +997,9 @@ export async function runIpadStage3RapidOcrBrowserDiagnostic({ image, imageName,
       recognizerOnly: false,
       detectorEnabled: true,
       productionEnabled: false,
+      phaseTimings: {
+        imageDecodeAndLayoutMs,
+      },
     },
     fields: [],
     detectionCrops: [],
@@ -1002,9 +1040,25 @@ export async function runIpadStage3RapidOcrBrowserDiagnostic({ image, imageName,
   const detectionCropRecords = runtime.config.detectorEnabled
     ? buildDetectionCropRecords({ image, template }).filter((record) => runtime.config.detectorCropKinds.includes(record.cropKind))
     : [];
-  const started = performance.now();
+  const started = nowMs();
+  const roiStarted = nowMs();
+  const fieldWorkItems = [...stage3Fields];
+  payload.runtime.phaseTimings.roiFieldCount = fieldWorkItems.length;
+  payload.runtime.phaseTimings.roiCropPlanMs = Number((nowMs() - roiStarted).toFixed(3));
+  const recognitionStarted = nowMs();
+  let firstRecognizerCallMs = null;
+  let remainingRecognizerCallsMs = 0;
   for (const field of stage3Fields) {
     const results = await recognizeField({ runtime, image, imageName: imageName || "", field });
+    const fieldRecognitionMs = results.reduce(
+      (sum, result) => sum + Number(result.recognition?.phaseTimings?.totalMs || result.recognition?.durationMs || 0),
+      0
+    );
+    if (firstRecognizerCallMs === null) {
+      firstRecognizerCallMs = Number(fieldRecognitionMs.toFixed(3));
+    } else {
+      remainingRecognizerCallsMs += fieldRecognitionMs;
+    }
     for (const result of results) {
       payload.fields.push(result);
       payload.candidateRows.push(...result.candidateRows);
@@ -1015,12 +1069,20 @@ export async function runIpadStage3RapidOcrBrowserDiagnostic({ image, imageName,
     payload.detectionCrops.push(result);
     payload.candidateRows.push(...result.candidateRows);
   }
-  payload.elapsedMs = Number((performance.now() - started).toFixed(3));
+  payload.elapsedMs = Number((nowMs() - started).toFixed(3));
+  payload.runtime.phaseTimings.firstRecognizerCallMs = Number((firstRecognizerCallMs || 0).toFixed(3));
+  payload.runtime.phaseTimings.remainingRecognizerCallsMs = Number(remainingRecognizerCallsMs.toFixed(3));
+  payload.runtime.phaseTimings.totalRecognizerFieldInferenceMs = Number(
+    (nowMs() - recognitionStarted).toFixed(3)
+  );
+  const r6Started = nowMs();
   payload.r6.rows = buildR6EvidenceRows({
     imageName: imageName || "",
     diagnostics,
     candidateRows: payload.candidateRows,
   });
+  payload.runtime.phaseTimings.r6EvaluationMs = Number((nowMs() - r6Started).toFixed(3));
+  payload.runtime.phaseTimings.totalElapsedMs = Number((nowMs() - totalStarted).toFixed(3));
   payload.r6.summary = {
     wouldApply: payload.r6.rows.filter((row) => row.evaluation?.wouldApply).length,
     tp: 0,

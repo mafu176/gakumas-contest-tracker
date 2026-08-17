@@ -106,6 +106,20 @@ function isIpadStage3RapidOcrDebugEnabled() {
   return new URLSearchParams(window.location.search).get("ipadStage3RapidOcrDebug") === "1";
 }
 
+function isIpadStage3RapidOcrDirectEnabled() {
+  if (typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).get("ipadStage3RapidOcrDirect") === "1";
+}
+
+function loadImageElementFromDataUrl(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Failed to decode iPad Stage3 RapidOCR direct image."));
+    image.src = dataUrl;
+  });
+}
+
 function toIpadArithmeticNumber(value) {
   const normalized = Number(String(value ?? "").replace(/[^\d-]/g, ""));
   return Number.isFinite(normalized) ? normalized : 0;
@@ -1641,6 +1655,33 @@ export default function Home() {
       }
     };
   }, [setImageFile]);
+
+  useEffect(() => {
+    if (!isIpadStage3RapidOcrDirectEnabled() || typeof window === "undefined") {
+      return undefined;
+    }
+    window.__IPAD_STAGE3_RAPIDOCR_DIRECT_RUN__ = async ({ dataUrl, imageName }) => {
+      if (!dataUrl) throw new Error("iPad Stage3 RapidOCR direct runner requires a dataUrl.");
+      const image = await loadImageElementFromDataUrl(dataUrl);
+      const { runIpadStage3RapidOcrDirectRunner } = await import(
+        "./lib/ipadStage3RapidOcrDirectRunner"
+      );
+      const result = await runIpadStage3RapidOcrDirectRunner({
+        image,
+        imageName: imageName || "",
+      });
+      window.__IPAD_STAGE3_RAPIDOCR_DIRECT_RESULT__ = result;
+      return result;
+    };
+    return () => {
+      if (window.__IPAD_STAGE3_RAPIDOCR_DIRECT_RUN__) {
+        delete window.__IPAD_STAGE3_RAPIDOCR_DIRECT_RUN__;
+      }
+      if (window.__IPAD_STAGE3_RAPIDOCR_DIRECT_RESULT__) {
+        delete window.__IPAD_STAGE3_RAPIDOCR_DIRECT_RESULT__;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     queueMicrotask(() => {
