@@ -111,6 +111,11 @@ function isIpadStage3RapidOcrDirectEnabled() {
   return new URLSearchParams(window.location.search).get("ipadStage3RapidOcrDirect") === "1";
 }
 
+function isIpadStage3RapidOcrFrozenReplayEnabled() {
+  if (typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).get("ipadStage3RapidOcrFrozenReplay") === "1";
+}
+
 function loadImageElementFromDataUrl(dataUrl) {
   return new Promise((resolve, reject) => {
     const image = new Image();
@@ -1679,6 +1684,28 @@ export default function Home() {
       }
       if (window.__IPAD_STAGE3_RAPIDOCR_DIRECT_RESULT__) {
         delete window.__IPAD_STAGE3_RAPIDOCR_DIRECT_RESULT__;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isIpadStage3RapidOcrFrozenReplayEnabled() || typeof window === "undefined") {
+      return undefined;
+    }
+    window.__IPAD_STAGE3_RAPIDOCR_FROZEN_REPLAY__ = async ({ observations }) => {
+      const { runIpadStage3RapidOcrFrozenTensorReplay } = await import(
+        "./lib/ipadStage3RapidOcrBrowser"
+      );
+      const result = await runIpadStage3RapidOcrFrozenTensorReplay({ observations });
+      window.__IPAD_STAGE3_RAPIDOCR_FROZEN_REPLAY_RESULT__ = result;
+      return result;
+    };
+    return () => {
+      if (window.__IPAD_STAGE3_RAPIDOCR_FROZEN_REPLAY__) {
+        delete window.__IPAD_STAGE3_RAPIDOCR_FROZEN_REPLAY__;
+      }
+      if (window.__IPAD_STAGE3_RAPIDOCR_FROZEN_REPLAY_RESULT__) {
+        delete window.__IPAD_STAGE3_RAPIDOCR_FROZEN_REPLAY_RESULT__;
       }
     };
   }, []);

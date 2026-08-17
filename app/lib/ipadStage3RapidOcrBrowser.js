@@ -942,6 +942,128 @@ async function recognizeCanvas({ runtime, cropCanvas, profileId = "recognizer-cu
   };
 }
 
+async function recognizeFrozenTensor({ runtime, tensorData, shape }) {
+  const started = nowMs();
+  const data = tensorData instanceof Float32Array ? tensorData : new Float32Array(tensorData || []);
+  const dims = Array.isArray(shape) && shape.length ? shape.map((value) => Number(value)) : [1, 3, 48, 320];
+  const inputChecksum = await sha256Hex(data.buffer.slice(0));
+  const tensor = new runtime.ort.Tensor("float32", data, dims);
+  const outputs = await runtime.recSession.run({ [runtime.recSession.inputNames[0]]: tensor });
+  const outputTensor = outputs[runtime.recSession.outputNames[0]];
+  const rapidOcrDecoded = decodeRapidOcrRecognizerOutput(outputTensor, runtime.characterList);
+  return {
+    text: rapidOcrDecoded.text,
+    confidence: Number(rapidOcrDecoded.confidence.toFixed(6)),
+    decoderSemantics: rapidOcrDecoded.semantics,
+    decodedTrace: rapidOcrDecoded.retained,
+    outputTopSummary: rapidOcrDecoded.topSummary,
+    outputShape: outputTensor.dims,
+    outputChecksum: await sha256Hex(outputTensor.data.buffer.slice(0)),
+    inputChecksum,
+    inputSamples: sampleFloatArray(data),
+    durationMs: Number((nowMs() - started).toFixed(3)),
+  };
+}
+
+function loadImageFromDataUrl(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Failed to decode frozen RapidOCR crop image."));
+    image.src = dataUrl;
+  });
+}
+
+async function canvasFromDataUrl(dataUrl) {
+  const image = await loadImageFromDataUrl(dataUrl);
+  const canvas = document.createElement("canvas");
+  canvas.width = image.naturalWidth || image.width;
+  canvas.height = image.naturalHeight || image.height;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  context.drawImage(image, 0, 0);
+  return canvas;
+}
+
+function compareTensorSamples(a = [], b = []) {
+  const bByIndex = new Map(b.map((entry) => [entry.index, Number(entry.value)]));
+  const rows = [];
+  for (const sample of a) {
+    if (!bByIndex.has(sample.index)) continue;
+    const browserValue = bByIndex.get(sample.index);
+    rows.push({
+      index: sample.index,
+      frozen: Number(sample.value),
+      browser: browserValue,
+      delta: Number(Math.abs(Number(sample.value) - browserValue).toFixed(8)),
+    });
+  }
+  return {
+    compared: rows.length,
+    maxDelta: rows.reduce((max, row) => Math.max(max, row.delta), 0),
+    rows,
+  };
+}
+
+export async function runIpadStage3RapidOcrFrozenTensorReplay({ observations = [] } = {}) {
+  const runtime = await loadRapidOcrRuntime();
+  const generatedAt = new Date().toISOString();
+  const results = [];
+  for (const observation of observations) {
+    const level1 = await recognizeFrozenTensor({
+      runtime,
+      tensorData: observation.tensorData,
+      shape: observation.shape,
+    });
+    let level2 = null;
+    if (observation.cropDataUrl) {
+      const cropCanvas = await canvasFromDataUrl(observation.cropDataUrl);
+      const browserRecognition = await recognizeCanvas({
+        runtime,
+        cropCanvas,
+        profileId: observation.profileId || "recognizer-current",
+      });
+      level2 = {
+        text: browserRecognition.text,
+        confidence: browserRecognition.rapidOcrCompatibleConfidence,
+        inputChecksum: browserRecognition.inputChecksum,
+        inputSamples: browserRecognition.inputSamples,
+        preprocessing: browserRecognition.preprocessing,
+        sampleComparison: compareTensorSamples(observation.inputSamples || [], browserRecognition.inputSamples || []),
+        outputChecksum: browserRecognition.outputChecksum,
+        outputShape: browserRecognition.outputShape,
+        outputTopSummary: browserRecognition.outputTopSummary,
+      };
+    }
+    results.push({
+      observationId: observation.id,
+      image: observation.image,
+      stage: observation.stage,
+      side: observation.side,
+      field: observation.field,
+      expectedPipelineAText: observation.pipelineAText,
+      expectedPipelineAConfidence: observation.pipelineAConfidence,
+      level1,
+      level2,
+      level1MatchesPipelineA:
+        String(level1.text || "") === String(observation.pipelineAText || "") &&
+        Math.abs(Number(level1.confidence || 0) - Number(observation.pipelineAConfidence || 0)) < 0.00001,
+      level2MatchesFrozenTensor: level2 ? level2.inputChecksum === observation.inputChecksum : false,
+    });
+  }
+  return {
+    schema: "ipad-stage3-rapidocr-frozen-tensor-replay-v1",
+    debugFlag: "ipadStage3RapidOcrFrozenReplay=1",
+    productionOutputChanged: false,
+    generatedAt,
+    runtime: {
+      framework: "onnxruntime-web",
+      executionProvider: runtime.config.executionProvider,
+      modelInventory: runtime.modelInventory,
+    },
+    observations: results,
+  };
+}
+
 async function recognizeFieldVariant({ runtime, image, imageName, field, variant }) {
   const fieldStarted = nowMs();
   const cropStarted = nowMs();
