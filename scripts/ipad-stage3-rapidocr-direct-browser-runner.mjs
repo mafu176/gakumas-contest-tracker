@@ -16,6 +16,7 @@ const ipadExpectedDir = path.join(rootDir, "regression-test", "expected-ipad");
 let artifactDir = path.join(rootDir, "tmp", "ipad-stage3-rapidocr-direct-runner");
 const bonusTotalArtifactDir = path.join(rootDir, "tmp", "ipad-stage3-rapidocr-bonus-total-roi");
 const member2ArtifactDir = path.join(rootDir, "tmp", "ipad-stage3-rapidocr-member2-roi");
+const member3ArtifactDir = path.join(rootDir, "tmp", "ipad-stage3-rapidocr-member3-roi");
 const rapidOcrModelDir = path.join(
   rootDir,
   "tmp",
@@ -71,6 +72,7 @@ const offlineUnsafeSelectorPath = path.join(
 const offlineR6Path = path.join(rootDir, "tmp", "ipad-stage3-rapidocr-fixture-expansion", "r6-results.json");
 const bonusTotalPolicyIds = ["P0", "P1", "P2", "P3", "P4", "P5"];
 const member2PolicyIds = ["Q0", "Q1", "Q2", "Q3"];
+const member3PolicyIds = ["R0", "R1", "R2", "R3"];
 
 function parseArgs() {
   const argValue = (name, fallback = "") => {
@@ -97,6 +99,7 @@ function parseArgs() {
     roiVariants: process.argv.includes("--roi-variants"),
     bonusTotalRoi: process.argv.includes("--bonus-total-roi"),
     member2Roi: process.argv.includes("--member2-roi"),
+    member3Roi: process.argv.includes("--member3-roi"),
   };
 }
 
@@ -355,12 +358,35 @@ function isBestTotalCandidate(row) {
 
 function isMember2CandidateForPolicy(row, policyId) {
   if (policyId === "Q1" || policyId === "Q2" || policyId === "Q3") return true;
+  if (policyId.startsWith("R")) {
+    return ["baseline-12pct-padding", "member2-vertical-expand-8pct"].includes(row.crop?.variantId);
+  }
+  return isBaselineCandidate(row);
+}
+
+function isMember3CandidateForPolicy(row, policyId) {
+  if (policyId === "R1" || policyId === "R2" || policyId === "R3") return true;
   return isBaselineCandidate(row);
 }
 
 function rowsForPolicy(candidateRows, policyId) {
   return candidateRows.filter((row) => {
     const field = row.assignedField || row.sourceField;
+    if (policyId.startsWith("R")) {
+      if (field === "member1") return isBaselineCandidate(row);
+      if (field === "member2") return isMember2CandidateForPolicy(row, policyId);
+      if (field === "member3") return isMember3CandidateForPolicy(row, policyId);
+      if (policyId === "R0") {
+        if (field === "bonus") return true;
+        if (field === "total") return isBestTotalCandidate(row);
+      }
+      if (policyId === "R2") return field === "total" ? isBestTotalCandidate(row) : isBaselineCandidate(row);
+      if (policyId === "R3") {
+        if (field === "bonus") return true;
+        if (field === "total") return isBestTotalCandidate(row);
+      }
+      return isBaselineCandidate(row);
+    }
     if (policyId.startsWith("Q")) {
       if (field === "member1" || field === "member3") return isBaselineCandidate(row);
       if (field === "member2") return isMember2CandidateForPolicy(row, policyId);
@@ -381,9 +407,10 @@ function rowsForPolicy(candidateRows, policyId) {
 }
 
 function policyIdsForArgs(args = {}) {
+  if (args.member3Roi) return member3PolicyIds;
   if (args.member2Roi) return member2PolicyIds;
   if (args.bonusTotalRoi) return bonusTotalPolicyIds;
-  return [...bonusTotalPolicyIds, ...member2PolicyIds];
+  return [...bonusTotalPolicyIds, ...member2PolicyIds, ...member3PolicyIds];
 }
 
 function summarizeSupport({ candidateRows, image, side, field, value }) {
@@ -633,8 +660,8 @@ function buildPolicyResults({ results, offlineProposalRows, policyIds = bonusTot
   );
 }
 
-function buildMember2OfflineBrowserDiff(results, offlineCandidateMap) {
-  const rows = buildFieldDeficits(results, offlineCandidateMap).filter((row) => row.field === "member2");
+function buildOfflineBrowserDiffForField(results, offlineCandidateMap, fieldName) {
+  const rows = buildFieldDeficits(results, offlineCandidateMap).filter((row) => row.field === fieldName);
   const categories = {
     offlineExactBrowserExact: 0,
     offlineExactBrowserWrong: 0,
@@ -771,11 +798,11 @@ function buildFragmentAudit(candidateUnion) {
   };
 }
 
-function buildRoiDefinitions(results) {
+function buildRoiDefinitions(results, fieldName = "member2") {
   const examples = {};
   for (const result of results) {
     for (const row of result.candidateRows || []) {
-      if (row.assignedField !== "member2") continue;
+      if (row.assignedField !== fieldName) continue;
       const id = row.crop?.variantId;
       if (!id || examples[id]) continue;
       examples[id] = {
@@ -789,6 +816,7 @@ function buildRoiDefinitions(results) {
   }
   return {
     coordinateSystem: "source image pixels after direct-browser image decode",
+    field: fieldName,
     variants: Object.values(examples).sort((a, b) => a.variantId.localeCompare(b.variantId)),
   };
 }
@@ -829,7 +857,9 @@ function summarizeResults(results, offlineCandidateMap = new Map(), offlinePropo
   const rawComparisons = results.flatMap((result) => result.rawComparisons || []);
   const policyIds = policyIdsForArgs(args);
   const member2CandidateUnion = buildCandidateUnion(results, "member2");
-  const fragmentAudit = buildFragmentAudit(member2CandidateUnion);
+  const member3CandidateUnion = buildCandidateUnion(results, "member3");
+  const member2FragmentAudit = buildFragmentAudit(member2CandidateUnion);
+  const member3FragmentAudit = buildFragmentAudit(member3CandidateUnion);
   const byField = Object.fromEntries(
     fields.map((field) => {
       const rows = comparisons.filter((comparison) => comparison.field === field);
@@ -903,13 +933,21 @@ function summarizeResults(results, offlineCandidateMap = new Map(), offlinePropo
       member2: summarizeVariantGains(results, "member2"),
       bonus: summarizeVariantGains(results, "bonus"),
       total: summarizeVariantGains(results, "total"),
+      member3: summarizeVariantGains(results, "member3"),
     },
     member2: {
-      offlineBrowserDiff: buildMember2OfflineBrowserDiff(results, offlineCandidateMap),
+      offlineBrowserDiff: buildOfflineBrowserDiffForField(results, offlineCandidateMap, "member2"),
       candidateUnion: member2CandidateUnion,
-      fragmentAudit,
-      roiDefinitions: buildRoiDefinitions(results),
+      fragmentAudit: member2FragmentAudit,
+      roiDefinitions: buildRoiDefinitions(results, "member2"),
       clusterResults: buildClusterResults(results, member2CandidateUnion),
+    },
+    member3: {
+      offlineBrowserDiff: buildOfflineBrowserDiffForField(results, offlineCandidateMap, "member3"),
+      candidateUnion: member3CandidateUnion,
+      fragmentAudit: member3FragmentAudit,
+      roiDefinitions: buildRoiDefinitions(results, "member3"),
+      clusterResults: buildClusterResults(results, member3CandidateUnion),
     },
     statuses: Object.fromEntries(
       [...new Set(results.map((result) => result.status))].map((status) => [
@@ -972,6 +1010,7 @@ function compactRunSummary(summary) {
 }
 
 function outputSummaryName(args, rows) {
+  if (args.member3Roi) return "member3-roi-results.json";
   if (args.member2Roi) return "member2-roi-results.json";
   if (args.bonusTotalRoi) return "bonus-total-roi-results.json";
   if (args.roiVariants) return "variant-comparison.json";
@@ -1021,7 +1060,11 @@ async function processImage({ page, row, runDir, resume, imageTimeoutMs }) {
       imageTimeoutMs,
       row.filename
     );
-    const rawPolicyId = diagnostic?.runtime?.member2RoiVariantsEnabled ? "Q3" : "P5";
+    const rawPolicyId = diagnostic?.runtime?.member3RoiVariantsEnabled
+      ? "R3"
+      : diagnostic?.runtime?.member2RoiVariantsEnabled
+        ? "Q3"
+        : "P5";
     const rawComparisons = scoreDiagnostic({ row, diagnostic, policyId: rawPolicyId }).map((comparison) => {
       const baselineCandidates = rowsForField(diagnostic?.candidateRows || [], comparison.side, comparison.field).filter(
         isBaselineCandidate
@@ -1078,6 +1121,7 @@ async function processImage({ page, row, runDir, resume, imageTimeoutMs }) {
 
 async function main() {
   const args = parseArgs();
+  if (args.member3Roi) artifactDir = member3ArtifactDir;
   if (args.member2Roi) artifactDir = member2ArtifactDir;
   if (args.bonusTotalRoi) artifactDir = bonusTotalArtifactDir;
   await fs.mkdir(artifactDir, { recursive: true });
@@ -1103,6 +1147,7 @@ async function main() {
     productionOcrBypassed: true,
     bonusTotalRoi: args.bonusTotalRoi,
     member2Roi: args.member2Roi,
+    member3Roi: args.member3Roi,
   };
   await fs.writeFile(path.join(artifactDir, "runner-config.json"), JSON.stringify(runnerConfig, null, 2));
   const server = await startServer(args);
@@ -1127,6 +1172,11 @@ async function main() {
       if (args.bonusTotalRoi) params.set("ipadStage3RapidOcrBonusTotalRoi", "1");
       if (args.member2Roi) {
         params.set("ipadStage3RapidOcrMember2Roi", "1");
+        params.set("ipadStage3RapidOcrBonusTotalRoi", "1");
+      }
+      if (args.member3Roi) {
+        params.set("ipadStage3RapidOcrMember2Roi", "1");
+        params.set("ipadStage3RapidOcrMember3Roi", "1");
         params.set("ipadStage3RapidOcrBonusTotalRoi", "1");
       }
       await page.goto(`${server.baseUrl}/?${params.toString()}`, {
@@ -1162,14 +1212,22 @@ async function main() {
         path.join(runDir, "offline-browser-member2-diff.json"),
         JSON.stringify(summary.member2.offlineBrowserDiff, null, 2)
       );
-      await fs.writeFile(path.join(runDir, "roi-definitions.json"), JSON.stringify(summary.member2.roiDefinitions, null, 2));
-      await fs.writeFile(path.join(runDir, "variant-results.json"), JSON.stringify(summary.variantGains.member2, null, 2));
-      await fs.writeFile(path.join(runDir, "candidate-union.json"), JSON.stringify(summary.member2.candidateUnion, null, 2));
-      await fs.writeFile(path.join(runDir, "fragment-audit.json"), JSON.stringify(summary.member2.fragmentAudit, null, 2));
+      await fs.writeFile(
+        path.join(runDir, "offline-browser-member3-diff.json"),
+        JSON.stringify(summary.member3.offlineBrowserDiff, null, 2)
+      );
+      const focusedField = args.member3Roi ? "member3" : "member2";
+      const focusedSummary = summary[focusedField];
+      await fs.writeFile(path.join(runDir, "roi-definitions.json"), JSON.stringify(focusedSummary.roiDefinitions, null, 2));
+      await fs.writeFile(path.join(runDir, "variant-results.json"), JSON.stringify(summary.variantGains[focusedField], null, 2));
+      await fs.writeFile(path.join(runDir, "candidate-union.json"), JSON.stringify(focusedSummary.candidateUnion, null, 2));
+      await fs.writeFile(path.join(runDir, "fragment-audit.json"), JSON.stringify(focusedSummary.fragmentAudit, null, 2));
       await fs.writeFile(path.join(runDir, "q-policy-results.json"), JSON.stringify(summary.policies, null, 2));
+      await fs.writeFile(path.join(runDir, "r-policy-results.json"), JSON.stringify(summary.policies, null, 2));
       await fs.writeFile(path.join(runDir, "runtime.json"), JSON.stringify(summary.timing, null, 2));
-      await fs.writeFile(path.join(runDir, "cluster-results.json"), JSON.stringify(summary.member2.clusterResults, null, 2));
+      await fs.writeFile(path.join(runDir, "cluster-results.json"), JSON.stringify(focusedSummary.clusterResults, null, 2));
       await fs.writeFile(path.join(runDir, "bonus-variant-results.json"), JSON.stringify(summary.variantGains.bonus, null, 2));
+      await fs.writeFile(path.join(runDir, "member3-variant-results.json"), JSON.stringify(summary.variantGains.member3, null, 2));
       await fs.writeFile(path.join(runDir, "total-variant-results.json"), JSON.stringify(summary.variantGains.total, null, 2));
       await fs.writeFile(path.join(runDir, "policy-results.json"), JSON.stringify(summary.policies, null, 2));
       await fs.writeFile(path.join(runDir, "r6-results.json"), JSON.stringify(summary.r6, null, 2));

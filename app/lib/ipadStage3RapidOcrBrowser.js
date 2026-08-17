@@ -45,6 +45,7 @@ function getRuntimeConfig() {
   const roiVariantsEnabled = params.get("ipadStage3RapidOcrRoiVariants") === "1";
   const bonusTotalRoiVariantsEnabled = params.get("ipadStage3RapidOcrBonusTotalRoi") === "1";
   const member2RoiVariantsEnabled = params.get("ipadStage3RapidOcrMember2Roi") === "1";
+  const member3RoiVariantsEnabled = params.get("ipadStage3RapidOcrMember3Roi") === "1";
   const cropKinds = String(params.get("ipadStage3RapidOcrDetectorCropKinds") || DETECTION_CROP_KINDS.join(","))
     .split(",")
     .map((entry) => entry.trim())
@@ -58,6 +59,7 @@ function getRuntimeConfig() {
     roiVariantsEnabled,
     bonusTotalRoiVariantsEnabled,
     member2RoiVariantsEnabled,
+    member3RoiVariantsEnabled,
     detectorCropKinds: cropKinds.length ? cropKinds : DETECTION_CROP_KINDS,
     detectorLimitSideLen:
       Number.isFinite(detLimitSideLen) && detLimitSideLen >= 96 && detLimitSideLen <= DET_LIMIT_SIDE_LEN
@@ -542,12 +544,45 @@ function buildMember2RecognitionVariants(field, image, baseline) {
   ];
 }
 
+function buildMember3RecognitionVariants(field, image, baseline) {
+  const fieldName = toFieldName(field);
+  if (fieldName !== "member3") return [baseline];
+  return [
+    baseline,
+    {
+      id: "member3-horizontal-expand-10pct",
+      architecture: "H-detectorless-member3-roi",
+      rect: scaledRectFromRect(baseline.rect, image, { dwRatio: 0.1 }),
+      description: "member3-only horizontal expansion from the fixed baseline crop",
+    },
+    {
+      id: "member3-left-expand-right-trim-8pct",
+      architecture: "H-detectorless-member3-roi",
+      rect: scaledRectFromRect(baseline.rect, image, { dxRatio: -0.04, dwRatio: 0.08 }),
+      description: "member3-only slight left shift/expansion to test clipped leading digits",
+    },
+    {
+      id: "member3-right-expand-left-trim-8pct",
+      architecture: "H-detectorless-member3-roi",
+      rect: scaledRectFromRect(baseline.rect, image, { dxRatio: 0.04, dwRatio: 0.08 }),
+      description: "member3-only slight right shift/expansion to test trailing digit or neighbor bleed",
+    },
+    {
+      id: "member3-vertical-expand-8pct",
+      architecture: "H-detectorless-member3-roi",
+      rect: scaledRectFromRect(baseline.rect, image, { dhRatio: 0.08 }),
+      description: "member3-only modest vertical expansion from the fixed baseline crop",
+    },
+  ];
+}
+
 function buildFieldRecognitionVariants(
   field,
   image,
   enabled,
   bonusTotalOnlyEnabled = false,
-  member2OnlyEnabled = false
+  member2OnlyEnabled = false,
+  member3OnlyEnabled = false
 ) {
   const baseline = {
     id: "baseline-12pct-padding",
@@ -557,6 +592,9 @@ function buildFieldRecognitionVariants(
   };
   if (member2OnlyEnabled && toFieldName(field) === "member2") {
     return buildMember2RecognitionVariants(field, image, baseline);
+  }
+  if (member3OnlyEnabled && toFieldName(field) === "member3") {
+    return buildMember3RecognitionVariants(field, image, baseline);
   }
   if (bonusTotalOnlyEnabled) return buildBonusTotalRecognitionVariants(field, image, baseline);
   if (!enabled) return [baseline];
@@ -769,7 +807,8 @@ async function recognizeField({ runtime, image, imageName, field }) {
     image,
     runtime.config.roiVariantsEnabled,
     runtime.config.bonusTotalRoiVariantsEnabled,
-    runtime.config.member2RoiVariantsEnabled
+    runtime.config.member2RoiVariantsEnabled,
+    runtime.config.member3RoiVariantsEnabled
   );
   const results = [];
   for (const variant of variants) {
@@ -1158,6 +1197,7 @@ export async function runIpadStage3RapidOcrBrowserDiagnostic({ image, imageName,
     roiVariantsEnabled: runtime.config.roiVariantsEnabled,
     bonusTotalRoiVariantsEnabled: runtime.config.bonusTotalRoiVariantsEnabled,
     member2RoiVariantsEnabled: runtime.config.member2RoiVariantsEnabled,
+    member3RoiVariantsEnabled: runtime.config.member3RoiVariantsEnabled,
     detectorCropKinds: runtime.config.detectorCropKinds,
     detectorLimitSideLen: runtime.config.detectorLimitSideLen,
   };
