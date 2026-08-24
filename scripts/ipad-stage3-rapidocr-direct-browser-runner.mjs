@@ -18,6 +18,11 @@ const bonusTotalArtifactDir = path.join(rootDir, "tmp", "ipad-stage3-rapidocr-bo
 const member2ArtifactDir = path.join(rootDir, "tmp", "ipad-stage3-rapidocr-member2-roi");
 const member3ArtifactDir = path.join(rootDir, "tmp", "ipad-stage3-rapidocr-member3-roi");
 const nonZeroBonusArtifactDir = path.join(rootDir, "tmp", "ipad-stage3-rapidocr-nonzero-bonus");
+const productionReadinessArtifactDir = path.join(
+  rootDir,
+  "tmp",
+  "ipad-stage3-rapidocr-production-readiness"
+);
 const rapidOcrModelDir = path.join(
   rootDir,
   "tmp",
@@ -88,8 +93,10 @@ function parseArgs() {
     .map((entry) => (/\.(png|jpg|jpeg)$/i.test(entry) ? entry : `${entry}.png`));
   const from = argValue("--from");
   const limit = Number(argValue("--limit", "0") || 0);
+  const productionReadiness = process.argv.includes("--production-readiness");
   return {
     all: process.argv.includes("--all"),
+    productionReadiness,
     resume: process.argv.includes("--resume"),
     only,
     from: from ? (/\.(png|jpg|jpeg)$/i.test(from) ? from : `${from}.png`) : "",
@@ -102,7 +109,7 @@ function parseArgs() {
     bonusTotalRoi: process.argv.includes("--bonus-total-roi"),
     member2Roi: process.argv.includes("--member2-roi"),
     member3Roi: process.argv.includes("--member3-roi"),
-    nonZeroBonus: process.argv.includes("--nonzero-bonus"),
+    nonZeroBonus: process.argv.includes("--nonzero-bonus") || productionReadiness,
   };
 }
 
@@ -1135,6 +1142,7 @@ function compactRunSummary(summary) {
 }
 
 function outputSummaryName(args, rows) {
+  if (args.productionReadiness) return "production-readiness-results.json";
   if (args.nonZeroBonus) return "nonzero-bonus-results.json";
   if (args.member3Roi) return "member3-roi-results.json";
   if (args.member2Roi) return "member2-roi-results.json";
@@ -1353,7 +1361,9 @@ async function processImage({ page, row, runDir, resume, imageTimeoutMs }) {
 
 async function main() {
   const args = parseArgs();
+  if (args.productionReadiness) artifactDir = productionReadinessArtifactDir;
   if (args.nonZeroBonus) artifactDir = nonZeroBonusArtifactDir;
+  if (args.productionReadiness) artifactDir = productionReadinessArtifactDir;
   if (args.member3Roi) artifactDir = member3ArtifactDir;
   if (args.member2Roi) artifactDir = member2ArtifactDir;
   if (args.bonusTotalRoi) artifactDir = bonusTotalArtifactDir;
@@ -1376,7 +1386,41 @@ async function main() {
     imageDir: normalizePathForReport(ipadImageDir),
     expectedDir: normalizePathForReport(ipadExpectedDir),
     modelDir: normalizePathForReport(rapidOcrModelDir),
-    architecture: "D-detectorless-fixed-roi",
+    architecture: args.productionReadiness
+      ? "IPAD_STAGE3_RAPIDOCR_V2_CANDIDATE"
+      : "D-detectorless-fixed-roi",
+    architectureDetails: args.productionReadiness
+      ? {
+          id: "IPAD_STAGE3_RAPIDOCR_V2_CANDIDATE",
+          productionEnabled: false,
+          detectorless: true,
+          recognizer: "ONNX Runtime Web WASM recognizer only",
+          r6Policy: "R6-hybrid-safe-side",
+          member1Policy: ["baseline deterministic ROI"],
+          member2Policy: ["baseline-12pct-padding", "member2-vertical-expand-8pct"],
+          member3Policy: [
+            "baseline-12pct-padding",
+            "member3-left-expand-right-trim-8pct",
+            "member3-vertical-expand-8pct",
+          ],
+          bonusPolicy: [
+            "baseline-12pct-padding",
+            "bonus-horizontal-expand-12pct",
+            "bonus-vertical-expand-12pct",
+            "bonus-up-shift-8pct",
+            "bonus-left-expand-right-trim-8pct",
+            "recognizer-current",
+            "bonus-blue-mask",
+          ],
+          totalPolicy: [
+            "baseline-12pct-padding",
+            "total-horizontal-expand-8pct",
+            "total-vertical-expand-10pct",
+          ],
+          expectedValuesUsedDuringCandidateGeneration: false,
+          normalProductionOcrMutated: false,
+        }
+      : null,
     productionOcrBypassed: true,
     bonusTotalRoi: args.bonusTotalRoi,
     member2Roi: args.member2Roi,
