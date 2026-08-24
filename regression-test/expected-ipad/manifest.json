@@ -1,6 +1,6 @@
 {
   "schema": "ipad-expected-manifest-v1",
-  "status": "stage3-rapidocr-safety-expansion",
+  "status": "ipad-fixture-expansion-batch2",
   "note": "Expected values are manually transcribed from source screenshots and validated by arithmetic plus crown-bonus rule. OCR output is not source truth.",
   "sourceFolder": "C:/Users/gkhay/Pictures/DMMGamePlayer/ipad",
   "images": [
@@ -517,12 +517,12 @@
       "width": 1668,
       "height": 2420,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "manuallyVerified": false,
-      "arithmeticVerified": false,
-      "crownRuleVerified": false,
-      "expectedFixture": null,
-      "notes": "pending manual transcription"
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0320.json",
+      "notes": "expanded pending batch; manually transcribed from source screenshot; arithmetic and crown rule validated"
     },
     {
       "filename": "IMG_0321.png",
@@ -535,7 +535,7 @@
       "arithmeticVerified": false,
       "crownRuleVerified": false,
       "expectedFixture": null,
-      "notes": "pending manual transcription"
+      "notes": "pending manual transcription; visually duplicate-like with IMG_0320 but not an exact file hash duplicate, left unfixture-backed for separate review"
     },
     {
       "filename": "IMG_0322.png",
@@ -556,12 +556,12 @@
       "width": 1668,
       "height": 2420,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "manuallyVerified": false,
-      "arithmeticVerified": false,
-      "crownRuleVerified": false,
-      "expectedFixture": null,
-      "notes": "pending manual transcription"
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0323.json",
+      "notes": "expanded pending batch; manually transcribed from source screenshot; arithmetic and crown rule validated"
     },
     {
       "filename": "IMG_0324.png",
@@ -569,12 +569,12 @@
       "width": 1668,
       "height": 2420,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "manuallyVerified": false,
-      "arithmeticVerified": false,
-      "crownRuleVerified": false,
-      "expectedFixture": null,
-      "notes": "pending manual transcription"
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0324.json",
+      "notes": "expanded pending batch; manually transcribed from source screenshot; arithmetic and crown rule validated"
     },
     {
       "filename": "IMG_0325.png",
@@ -582,12 +582,12 @@
       "width": 1668,
       "height": 2420,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "manuallyVerified": false,
-      "arithmeticVerified": false,
-      "crownRuleVerified": false,
-      "expectedFixture": null,
-      "notes": "pending manual transcription"
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0325.json",
+      "notes": "expanded pending batch; manually transcribed from source screenshot; arithmetic and crown rule validated"
     },
     {
       "filename": "IMG_0326.png",
@@ -608,12 +608,12 @@
       "width": 1668,
       "height": 2420,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "manuallyVerified": false,
-      "arithmeticVerified": false,
-      "crownRuleVerified": false,
-      "expectedFixture": null,
-      "notes": "pending manual transcription"
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0327.json",
+      "notes": "expanded pending batch; manually transcribed from source screenshot; arithmetic and crown rule validated"
     },
     {
       "filename": "IMG_0328.png",
@@ -621,12 +621,12 @@
       "width": 1668,
       "height": 2420,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "manuallyVerified": false,
-      "arithmeticVerified": false,
-      "crownRuleVerified": false,
-      "expectedFixture": null,
-      "notes": "pending manual transcription"
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0328.json",
+      "notes": "expanded pending batch; manually transcribed from source screenshot; arithmetic and crown rule validated"
     },
     {
       "filename": "IMG_0329.png",
@@ -634,12 +634,12 @@
       "width": 1668,
       "height": 2420,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "manuallyVerified": false,
-      "arithmeticVerified": false,
-      "crownRuleVerified": false,
-      "expectedFixture": null,
-      "notes": "pending manual transcription"
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0329.json",
+      "notes": "expanded pending batch; manually transcribed from source screenshot; arithmetic and crown rule validated"
     },
     {
       "filename": "IMG_0330.png",
@@ -647,12 +647,12 @@
       "width": 1668,
       "height": 2420,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "manuallyVerified": false,
-      "arithmeticVerified": false,
-      "crownRuleVerified": false,
-      "expectedFixture": null,
-      "notes": "pending manual transcription"
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0330.json",
+      "notes": "expanded pending batch; manually transcribed from source screenshot; arithmetic and crown rule validated"
     },
     {
       "filename": "IMG_0332.png",
@@ -673,12 +673,12 @@
       "width": 1668,
       "height": 2420,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "manuallyVerified": false,
-      "arithmeticVerified": false,
-      "crownRuleVerified": false,
-      "expectedFixture": null,
-      "notes": "pending manual transcription"
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0333.json",
+      "notes": "expanded pending batch; manually transcribed from source screenshot; arithmetic and crown rule validated"
     },
     {
       "filename": "IMG_0334.png",
@@ -686,12 +686,12 @@
       "width": 1668,
       "height": 2420,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "manuallyVerified": false,
-      "arithmeticVerified": false,
-      "crownRuleVerified": false,
-      "expectedFixture": null,
-      "notes": "pending manual transcription"
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0334.json",
+      "notes": "expanded pending batch; manually transcribed from source screenshot; arithmetic and crown rule validated"
     },
     {
       "filename": "IMG_0335.png",
@@ -699,12 +699,12 @@
       "width": 1668,
       "height": 2420,
       "orientation": "portrait",
-      "expectedStatus": "pending",
-      "manuallyVerified": false,
-      "arithmeticVerified": false,
-      "crownRuleVerified": false,
-      "expectedFixture": null,
-      "notes": "pending manual transcription"
+      "expectedStatus": "complete",
+      "manuallyVerified": true,
+      "arithmeticVerified": true,
+      "crownRuleVerified": true,
+      "expectedFixture": "IMG_0335.json",
+      "notes": "expanded pending batch; manually transcribed from source screenshot; arithmetic and crown rule validated"
     },
     {
       "filename": "IMG_0337.png",
@@ -1096,5 +1096,11 @@
       "expectedFixture": "IMG_0802.json",
       "notes": "cluster-end representative; manually transcribed from source screenshot; arithmetic and crown rule validated"
     }
-  ]
+  ],
+  "lastUpdated": "2026-08-25",
+  "counts": {
+    "total": 84,
+    "complete": 74,
+    "pending": 10
+  }
 }
