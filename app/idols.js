@@ -1469,4 +1469,14 @@ export const idolDb = [
     "rarity": "SSR",
     "image": "/idols/147.png"
   },
+  {
+    "id": "秦谷_美鈴_ねぇ_いっちゃうよ",
+    "name": "ねぇ、いっちゃうよ 秦谷美鈴",
+    "short": "ねぇ、いっ…美鈴",
+    "character": "秦谷美鈴",
+    "title": "ねぇ、いっちゃうよ",
+    "plan": "センス",
+    "rarity": "SSR",
+    "image": "/idols/148.png"
+  },
 ];
