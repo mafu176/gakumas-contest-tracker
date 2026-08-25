@@ -2,9 +2,19 @@
 
 Status: fixture/data expansion only. Production OCR behavior was not changed.
 
-## Scope
+## Final Expansion Scope
 
-This batch adds 10 previously pending readable iPad screenshots from the `ipad-01` layout family. All 10 source screenshots are 1668x2420 portrait images from:
+This pass completed the remaining 10 readable pending iPad screenshots from the `ipad-01` layout family. The readable iPad fixture inventory is now fully fixture-backed:
+
+| metric | count |
+| --- | ---: |
+| readable source screenshots | 84 |
+| complete expected fixtures | 84 |
+| pending readable screenshots | 0 |
+| `ipad-01` complete | 64 |
+| `ipad-02` complete | 20 |
+
+All 10 final-pass screenshots are 1668x2420 portrait images from:
 
 ```text
 C:\Users\gkhay\Pictures\DMMGamePlayer\ipad
@@ -12,11 +22,34 @@ C:\Users\gkhay\Pictures\DMMGamePlayer\ipad
 
 The source screenshots were copied into `regression-test/ipad/`, and manually verified expected fixtures were added under `regression-test/expected-ipad/`.
 
-The remaining pending iPad screenshots after this batch are 21. They were left pending because this task was kept to a confidently verified 10-image batch.
+## Pending Inventory Before This Pass
+
+| image | dimensions | cluster | prior status | reason |
+| --- | --- | --- | --- | --- |
+| IMG_0321.png | 1668x2420 | ipad-01 | pending | manual transcription pending; content-near-duplicate review required |
+| IMG_0350.png | 1668x2420 | ipad-01 | pending | manual transcription pending |
+| IMG_0351.png | 1668x2420 | ipad-01 | pending | manual transcription pending |
+| IMG_0353.png | 1668x2420 | ipad-01 | pending | manual transcription pending |
+| IMG_0354.png | 1668x2420 | ipad-01 | pending | manual transcription pending |
+| IMG_0355.png | 1668x2420 | ipad-01 | pending | manual transcription pending |
+| IMG_0356.png | 1668x2420 | ipad-01 | pending | manual transcription pending |
+| IMG_0357.png | 1668x2420 | ipad-01 | pending | manual transcription pending |
+| IMG_0358.png | 1668x2420 | ipad-01 | pending | manual transcription pending |
+| IMG_0359.png | 1668x2420 | ipad-01 | pending | manual transcription pending |
+
+Exact duplicate check found 0 exact duplicate groups. `IMG_0321.png` is not an exact file duplicate, but it is a content-near-duplicate of `IMG_0320.png`: the numerical result screen is the same while incidental visual/card presentation differs. It is included as a fixture, but it should not be counted as independent structural evidence in future generalization analysis.
+
+Generated audit artifacts were saved under:
+
+```text
+tmp/ipad-fixture-expansion-final/
+```
+
+These artifacts are generated diagnostics and were not committed.
 
 ## Expected Fixtures Added
 
-All expected values below were read from the source screenshots and then checked by arithmetic and the confirmed crown-bonus rule:
+All expected values were read from the source screenshots, then checked by arithmetic and the confirmed crown-bonus rule:
 
 ```text
 crownBonus = floor(max(all six raw member scores in the stage) * 0.20)
@@ -24,38 +57,38 @@ crownBonus = floor(max(all six raw member scores in the stage) * 0.20)
 
 | image | stage | self members | self bonus | self total | enemy members | enemy bonus | enemy total |
 | --- | ---: | --- | ---: | ---: | --- | ---: | ---: |
-| IMG_0299.png | 1 | 203521 / 105719 / 177325 | 40704 | 527269 | 118956 / 83521 / 128284 | 0 | 330761 |
-| IMG_0299.png | 2 | 267642 / 112152 / 179940 | 53528 | 613262 | 96342 / 46044 / 52994 | 0 | 195380 |
-| IMG_0299.png | 3 | 973243 / 855723 / 311385 | 194648 | 2334999 | 797280 / 218307 / 661544 | 0 | 1677131 |
-| IMG_0301.png | 1 | 406378 / 80579 / 163726 | 81275 | 731958 | 333995 / 245881 / 213242 | 0 | 793118 |
-| IMG_0301.png | 2 | 154367 / 86076 / 116705 | 30873 | 388021 | 76162 / 60673 / 49173 | 0 | 186008 |
-| IMG_0301.png | 3 | 835404 / 835996 / 648980 | 0 | 2320380 | 410671 / 349464 / 1221547 | 244309 | 2225991 |
-| IMG_0303.png | 1 | 317169 / 137568 / 172836 | 63433 | 691006 | 228630 / 203609 / 256328 | 0 | 688567 |
-| IMG_0303.png | 2 | 174534 / 54349 / 104337 | 34906 | 368126 | 115080 / 130100 / 103068 | 0 | 348248 |
-| IMG_0303.png | 3 | 1035782 / 1182459 / 1015625 | 236491 | 3470357 | 267764 / 697425 / 71189 | 0 | 1036378 |
-| IMG_0304.png | 1 | 388543 / 62845 / 122827 | 77708 | 651923 | 269675 / 240372 / 183137 | 0 | 693184 |
-| IMG_0304.png | 2 | 204978 / 98167 / 137756 | 0 | 440901 | 251194 / 66761 / 62517 | 50238 | 430710 |
-| IMG_0304.png | 3 | 713048 / 1176566 / 759156 | 235313 | 2884083 | 898281 / 712378 / 463340 | 0 | 2073999 |
-| IMG_0305.png | 1 | 322660 / 198361 / 153346 | 64532 | 738899 | 99187 / 74052 / 88480 | 0 | 261719 |
-| IMG_0305.png | 2 | 203712 / 141269 / 151188 | 40742 | 536911 | 66102 / 129559 / 57325 | 0 | 252986 |
-| IMG_0305.png | 3 | 1147085 / 1065321 / 932605 | 229417 | 3374428 | 481456 / 761170 / 758593 | 0 | 2001219 |
-| IMG_0307.png | 1 | 340401 / 408931 / 124176 | 81786 | 955294 | 227112 / 122059 / 204605 | 0 | 553776 |
-| IMG_0307.png | 2 | 249565 / 253334 / 42767 | 50666 | 596332 | 187674 / 71835 / 135494 | 0 | 395003 |
-| IMG_0307.png | 3 | 721210 / 1162325 / 933236 | 232465 | 3049236 | 31446 / 597385 / 293948 | 0 | 922779 |
-| IMG_0308.png | 1 | 911800 / 437754 / 145468 | 182360 | 1677382 | 175569 / 164050 / 331032 | 0 | 670651 |
-| IMG_0308.png | 2 | 264349 / 203324 / 154143 | 52869 | 674685 | 162930 / 40697 / 62356 | 0 | 265983 |
-| IMG_0308.png | 3 | 890501 / 869851 / 894265 | 178853 | 2833470 | 378443 / 697055 / 463041 | 0 | 1538539 |
-| IMG_0316.png | 1 | 191705 / 74138 / 394370 | 78874 | 739087 | 23655 / 49468 / 32956 | 0 | 106079 |
-| IMG_0316.png | 2 | 149828 / 190741 / 43313 | 38148 | 422030 | 20992 / 11390 / 17306 | 0 | 49688 |
-| IMG_0316.png | 3 | 442099 / 490814 / 404152 | 98162 | 1435227 | 23666 / 11401 / 25182 | 0 | 60249 |
-| IMG_0318.png | 1 | 346646 / 192554 / 262438 | 69329 | 870967 | 17761 / 37149 / 13131 | 0 | 68041 |
-| IMG_0318.png | 2 | 136596 / 243077 / 55080 | 48615 | 483368 | 36647 / 70140 / 23340 | 0 | 130127 |
-| IMG_0318.png | 3 | 64669 / 722393 / 512387 | 144478 | 1443927 | 51901 / 95565 / 31646 | 0 | 179112 |
-| IMG_0319.png | 1 | 205090 / 95671 / 101087 | 41018 | 442866 | 156626 / 91455 / 61079 | 0 | 309160 |
-| IMG_0319.png | 2 | 201771 / 78093 / 17998 | 40354 | 338216 | 57926 / 10309 / 11909 | 0 | 80144 |
-| IMG_0319.png | 3 | 224538 / 756109 / 215971 | 151221 | 1347839 | 104744 / 27857 / 29512 | 0 | 162113 |
+| IMG_0321.png | 1 | 298058 / 88866 / 122217 | 59611 | 568752 | 67329 / 41829 / 19985 | 0 | 129143 |
+| IMG_0321.png | 2 | 109120 / 175972 / 79382 | 35194 | 399668 | 45722 / 15870 / 20211 | 0 | 81803 |
+| IMG_0321.png | 3 | 711990 / 594103 / 481896 | 142398 | 1930387 | 19494 / 18841 / 7785 | 0 | 46120 |
+| IMG_0350.png | 1 | 307636 / 50410 / 122991 | 61527 | 542564 | 251604 / 163989 / 265495 | 0 | 681088 |
+| IMG_0350.png | 2 | 191028 / 44394 / 69947 | 38205 | 343574 | 62586 / 17783 / 29798 | 0 | 110167 |
+| IMG_0350.png | 3 | 516288 / 597959 / 440176 | 119591 | 1674014 | 366040 / 327321 / 514380 | 0 | 1207741 |
+| IMG_0351.png | 1 | 281234 / 231850 / 164227 | 56246 | 733557 | 81601 / 198533 / 68982 | 0 | 349116 |
+| IMG_0351.png | 2 | 151272 / 97706 / 40911 | 30254 | 320143 | 38528 / 36429 / 41774 | 0 | 116731 |
+| IMG_0351.png | 3 | 707063 / 560380 / 622292 | 141412 | 2031147 | 45673 / 42782 / 25186 | 0 | 113641 |
+| IMG_0353.png | 1 | 240310 / 47753 / 108089 | 48062 | 444214 | 216688 / 179711 / 220230 | 0 | 616629 |
+| IMG_0353.png | 2 | 55345 / 288033 / 60241 | 57606 | 461225 | 132914 / 161080 / 99665 | 0 | 393659 |
+| IMG_0353.png | 3 | 833451 / 672718 / 150951 | 166690 | 1823810 | 167082 / 26071 / 5938 | 0 | 199091 |
+| IMG_0354.png | 1 | 256851 / 96354 / 154906 | 51370 | 559481 | 82993 / 51397 / 203327 | 0 | 337717 |
+| IMG_0354.png | 2 | 114498 / 262503 / 65499 | 52500 | 495000 | 94505 / 116953 / 100764 | 0 | 312222 |
+| IMG_0354.png | 3 | 685267 / 738284 / 719036 | 147656 | 2290243 | 450523 / 37828 / 55359 | 0 | 543710 |
+| IMG_0355.png | 1 | 95850 / 261366 / 169529 | 52273 | 579018 | 165002 / 57665 / 97951 | 0 | 320618 |
+| IMG_0355.png | 2 | 184270 / 89281 / 16085 | 36854 | 326490 | 16457 / 50880 / 145093 | 0 | 212430 |
+| IMG_0355.png | 3 | 619705 / 661238 / 418631 | 132247 | 1831821 | 205446 / 348870 / 417186 | 0 | 971502 |
+| IMG_0356.png | 1 | 96589 / 99732 / 216398 | 43279 | 455998 | 57402 / 42815 / 117253 | 0 | 217470 |
+| IMG_0356.png | 2 | 153418 / 161613 / 36555 | 32322 | 383908 | 39945 / 57005 / 19960 | 0 | 116910 |
+| IMG_0356.png | 3 | 425869 / 787379 / 104976 | 157475 | 1475699 | 41315 / 51630 / 14889 | 0 | 107834 |
+| IMG_0357.png | 1 | 310569 / 72196 / 136309 | 62113 | 581187 | 45178 / 36849 / 24795 | 0 | 106822 |
+| IMG_0357.png | 2 | 220565 / 190363 / 45636 | 44113 | 500677 | 40871 / 92325 / 8572 | 0 | 141768 |
+| IMG_0357.png | 3 | 185117 / 547189 / 235622 | 109437 | 1077365 | 324068 / 39997 / 69806 | 0 | 433871 |
+| IMG_0358.png | 1 | 196455 / 159387 / 123364 | 0 | 479206 | 94271 / 53804 / 294168 | 58833 | 501076 |
+| IMG_0358.png | 2 | 170075 / 80555 / 48845 | 0 | 299475 | 205569 / 176374 / 112077 | 41113 | 535133 |
+| IMG_0358.png | 3 | 379358 / 720559 / 265018 | 144111 | 1509046 | 119967 / 296362 / 628167 | 0 | 1044496 |
+| IMG_0359.png | 1 | 199523 / 44064 / 90303 | 39904 | 373794 | 59495 / 99480 / 179340 | 0 | 338315 |
+| IMG_0359.png | 2 | 148314 / 105288 / 76336 | 0 | 329938 | 109453 / 149972 / 136120 | 29994 | 425539 |
+| IMG_0359.png | 3 | 954656 / 624148 / 360853 | 190931 | 2130588 | 163290 / 405531 / 318593 | 0 | 887414 |
 
-## Fixture Validation
+## Expected Validation
 
 Command:
 
@@ -67,282 +100,167 @@ Result:
 
 | metric | result |
 | --- | ---: |
-| complete fixtures | 63 |
-| incomplete fixtures | 21 |
-| stages checked | 189 |
-| stage/sides checked | 378 |
+| complete fixtures | 84 |
+| incomplete fixtures | 0 |
+| stages checked | 252 |
+| stage/sides checked | 504 |
 | arithmetic | PASS |
 | crown rule | PASS |
 
-## Browser Production Baseline
+## Final 10-Image Browser Production Baseline
 
-The new 10-image batch was run through the real browser production path:
+Command:
 
 ```powershell
 $env:PLAYWRIGHT_NODE_MODULES='C:\Users\gkhay\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\node_modules'
-node scripts/ipad-browser-expanded-baseline.mjs --runs 1 --only IMG_0299,IMG_0301,IMG_0303,IMG_0304,IMG_0305,IMG_0307,IMG_0308,IMG_0316,IMG_0318,IMG_0319
+node scripts/ipad-browser-expanded-baseline.mjs --runs 1 --only IMG_0321,IMG_0350,IMG_0351,IMG_0353,IMG_0354,IMG_0355,IMG_0356,IMG_0357,IMG_0358,IMG_0359
 ```
 
-Artifacts:
+Result:
 
-```text
-tmp/ipad-expanded-baseline/
-```
-
-New 10-image result:
-
-| metric | result |
+| metric | count |
 | --- | ---: |
-| images | 0 / 10 PASS |
-| stages | 9 / 30 PASS |
-| stage/sides | 28 / 60 PASS |
-| production recovery applications | 8 |
-| production recovery TP / FP | 8 / 0 |
-| Tier C | 3 / 0 |
-| strict-total | 2 / 0 |
-| strict-member2 | 3 / 0 |
+| images PASS / FAIL | 0 / 10 |
+| stages PASS / FAIL | 12 / 18 |
+| stage/sides PASS / FAIL | 29 / 31 |
+| recovery applications | 15 |
+| recovery TP / FP | 15 / 0 |
+| Tier C TP / FP | 10 / 0 |
+| strict-total TP / FP | 1 / 0 |
+| strict-member2 TP / FP | 4 / 0 |
 
-The baseline script's comparison section labels two new strict-total applications as `unexpectedApplications` because the persisted expected-application registry still describes older fixtures. Against the newly added expected fixtures, all 8 actual applications are true positives and there are 0 false positives.
-
-Combined with the previous stable 53-fixture two-run baseline from `tmp/ipad-production-fp-investigation/after-fix-53-two-run-summary.json`:
-
-| metric | previous 53 | new 10 | combined 63 |
-| --- | ---: | ---: | ---: |
-| image PASS | 0 / 53 | 0 / 10 | 0 / 63 |
-| stage PASS | 58 / 159 | 9 / 30 | 67 / 189 |
-| stage/side PASS | 162 / 318 | 28 / 60 | 190 / 378 |
-| production recovery TP / FP | 119 / 0 | 8 / 0 | 127 / 0 |
-| Tier C TP / FP | 72 / 0 | 3 / 0 | 75 / 0 |
-| strict-total TP / FP | 15 / 0 | 2 / 0 | 17 / 0 |
-| strict-member2 TP / FP | 32 / 0 | 3 / 0 | 35 / 0 |
-
-The combined numbers are a conservative aggregation of the prior completed 53-fixture stable run plus the targeted browser run for the 10 newly labeled fixtures. A full 63-fixture browser rerun was not performed because the real-browser OCR path is slow and the task requested no production behavior changes.
+The script's `unexpectedApplications` field listed `IMG_0357.png` S2 enemy because the historical expected-application registry did not know the new final-pass fixture yet. Direct comparison against the newly added expected fixture confirms it is an exact TP: total `141768`.
 
 ## Per-Image Result
 
-| image | image | stages | stage/sides | production recoveries applied | dominant remaining failures |
-| --- | --- | ---: | ---: | --- | --- |
-| IMG_0299.png | FAIL | 1 / 3 | 3 / 6 | strict-total S2 enemy; strict-member2 S1 self | S2 self member2/total; Stage3 both sides member/bonus/total recognition |
-| IMG_0301.png | FAIL | 1 / 3 | 3 / 6 | Tier C S2 self; strict-total S2 enemy | S1 enemy bonus false positive; Stage3 both sides severe recognition |
-| IMG_0303.png | FAIL | 1 / 3 | 3 / 6 | strict-member2 S1 self | S2 self member2/total; Stage3 both sides severe recognition |
-| IMG_0304.png | FAIL | 0 / 3 | 2 / 6 | none | S1/S2 member2+total; Stage3 both sides severe recognition |
-| IMG_0305.png | FAIL | 2 / 3 | 4 / 6 | Tier C S2 self | Stage3 both sides severe recognition |
-| IMG_0307.png | FAIL | 1 / 3 | 3 / 6 | Tier C S1 self | S2 enemy bonus false positive; Stage3 both sides severe recognition |
-| IMG_0308.png | FAIL | 1 / 3 | 3 / 6 | strict-member2 S1 enemy | S1 self member3 inflated; Stage3 both sides severe recognition |
-| IMG_0316.png | FAIL | 1 / 3 | 2 / 6 | none | S1 bonus selection errors; Stage3 both sides severe recognition |
-| IMG_0318.png | FAIL | 1 / 3 | 3 / 6 | none | S1 member2/bonus; Stage3 both sides severe recognition |
-| IMG_0319.png | FAIL | 0 / 3 | 2 / 6 | none | S1 bonus false positive; S2 self member2/total; Stage3 both sides severe recognition |
+| image | image result | stage pass | stage/side pass | existing production recoveries applied |
+| --- | --- | ---: | ---: | --- |
+| IMG_0321.png | FAIL | 1 / 3 | 2 / 6 | Tier C S2 self |
+| IMG_0350.png | FAIL | 1 / 3 | 2 / 6 | strict-member2 S1 self |
+| IMG_0351.png | FAIL | 2 / 3 | 4 / 6 | Tier C S1 self, Tier C S2 self, strict-member2 S2 enemy |
+| IMG_0353.png | FAIL | 2 / 3 | 4 / 6 | Tier C S1 self, strict-member2 S2 enemy |
+| IMG_0354.png | FAIL | 1 / 3 | 3 / 6 | none |
+| IMG_0355.png | FAIL | 1 / 3 | 3 / 6 | none |
+| IMG_0356.png | FAIL | 1 / 3 | 2 / 6 | strict-member2 S2 enemy |
+| IMG_0357.png | FAIL | 2 / 3 | 4 / 6 | Tier C S1 self, Tier C S2 self, strict-total S2 enemy |
+| IMG_0358.png | FAIL | 1 / 3 | 3 / 6 | Tier C S1 self, Tier C S1 enemy, Tier C S2 enemy |
+| IMG_0359.png | FAIL | 0 / 3 | 2 / 6 | Tier C S1 self |
 
-## Failure Reassessment
+## Field And Position Summary
 
-The new batch reinforces the already documented iPad failure landscape rather than opening a new safe production target.
+Final 10-image field exactness:
 
-New 10-image failing stage/side rows:
-
-| category | count / note |
+| field | pass / total |
 | --- | ---: |
-| total failing stage/side rows | 32 |
-| Stage1/Stage2 failing rows | 12 |
-| Stage3 failing rows | 20 / 20 |
-| rows with any member mismatch | 30 |
-| rows with bonus mismatch | 17 |
-| rows with total mismatch | 25 |
-| rows with bonus or total mismatch | 31 |
-| Stage3 rows with seven-digit expected members involved | 5 |
+| member1 | 38 / 60 |
+| member2 | 37 / 60 |
+| member3 | 40 / 60 |
+| bonus | 43 / 60 |
+| total | 36 / 60 |
 
-Recurring shapes:
+Stage/side position summary:
 
-- Stage3 remains the largest blocker: every new Stage3 side fails, usually with multiple member fields reduced to fragments or small noisy values, and total recognition also failing.
-- Stage1/Stage2 still show smaller selection/capture problems: false positive bonus values such as `3`, `4`, or `1`; member2 inflated by adjacent rank/text digits; and truncated totals.
-- Existing production recoveries continue to generalize safely. The 8 new applications are all correct and add no false positives.
-- No new recovery should be productionized from this batch. The apparent opportunities are either already covered by existing Tier C / strict-total / strict-member2 recoveries or remain blocked by missing/noisy Stage3 candidate capture.
+| position | PASS | FAIL |
+| --- | ---: | ---: |
+| Stage1 self | 6 | 4 |
+| Stage1 enemy | 7 | 3 |
+| Stage2 self | 7 | 3 |
+| Stage2 enemy | 9 | 1 |
+| Stage3 self | 0 | 10 |
+| Stage3 enemy | 0 | 10 |
 
-## Decision
+Wrong-field histogram across failing stage/sides:
 
-This task added 10 new fixture-backed iPad screenshots and produced a true browser-production baseline for that batch.
+| wrong fields in row | rows |
+| ---: | ---: |
+| 1 | 7 |
+| 2 | 1 |
+| 3 | 3 |
+| 4 | 12 |
+| 5 | 8 |
 
-No OCR code, ROI, preprocessing, ranking, Tier C, strict-total, strict-member2, smartphone, current-PC, or legacy desktop behavior was changed.
+One-field-away rows:
 
-Recommended next step: continue fixture intake for the remaining 21 readable pending iPad screenshots, then rerun the same targeted browser baseline. New recovery work should remain deferred until the expanded labeled set shows at least two zero-FP, exact-evidence cases for the same narrow pattern.
+| image | stage | side | field | expected | actual |
+| --- | ---: | --- | --- | ---: | ---: |
+| IMG_0321.png | 1 | self | bonus | 59611 | 1 |
+| IMG_0321.png | 1 | enemy | bonus | 0 | 3 |
+| IMG_0350.png | 2 | self | total | 343574 | 343 |
+| IMG_0350.png | 2 | enemy | bonus | 0 | 4 |
+| IMG_0355.png | 1 | self | bonus | 52273 | 0 |
+| IMG_0356.png | 1 | self | bonus | 43279 | 0 |
+| IMG_0359.png | 1 | enemy | member1 | 59495 | 99495 |
 
-## Batch 2 Scope
+Candidate-level evidence for these one-field-away failures was not re-audited in this fixture-intake task. The next reassessment should decide whether any of these rows have exact observed evidence before proposing a new recovery.
 
-Batch 2 continued the fixture/data expansion from the 21 remaining readable `ipad-01` screenshots. It added 11 confidently verified fixtures and left 10 images pending.
+## Stage3 Summary
 
-All 11 added screenshots are 1668x2420 portrait `ipad-01` images from:
+Stage3 remains the dominant failure surface in this final batch:
 
-```text
-C:\Users\gkhay\Pictures\DMMGamePlayer\ipad
-```
+| metric | count |
+| --- | ---: |
+| Stage3 stage/sides | 20 |
+| Stage3 stage/side PASS | 0 |
+| Stage3 stage/side FAIL | 20 |
+| Stage3 one-field-away rows | 0 |
 
-Exact file-hash duplicate detection across tracked iPad fixtures and pending source images found no duplicate groups. `IMG_0321.png` was left pending because it is visually duplicate-like with `IMG_0320.png` but not an exact file-hash duplicate, so it needs separate review rather than duplicate fixture creation.
+The observed Stage3 failures mostly match existing known iPad recognition/candidate-capture shapes: severe member truncation, collapsed 6-digit values into rank/noise fragments, missing totals, and occasional bonus/total confusion. No new production-safe structural recovery shape is established by this fixture-only pass.
 
-Pending after Batch 2:
+## Combined 84-Fixture Baseline
 
-| image | dimensions | cluster | status | reason |
-| --- | --- | --- | --- | --- |
-| IMG_0321.png | 1668x2420 | ipad-01 | pending | visually duplicate-like with IMG_0320 but not exact hash duplicate; needs separate review |
-| IMG_0350.png | 1668x2420 | ipad-01 | pending | pending manual transcription |
-| IMG_0351.png | 1668x2420 | ipad-01 | pending | pending manual transcription |
-| IMG_0353.png | 1668x2420 | ipad-01 | pending | pending manual transcription |
-| IMG_0354.png | 1668x2420 | ipad-01 | pending | pending manual transcription |
-| IMG_0355.png | 1668x2420 | ipad-01 | pending | pending manual transcription |
-| IMG_0356.png | 1668x2420 | ipad-01 | pending | pending manual transcription |
-| IMG_0357.png | 1668x2420 | ipad-01 | pending | pending manual transcription |
-| IMG_0358.png | 1668x2420 | ipad-01 | pending | pending manual transcription |
-| IMG_0359.png | 1668x2420 | ipad-01 | pending | pending manual transcription |
-
-## Batch 2 Expected Fixtures Added
-
-All values were manually read from the source screenshots, then validated by arithmetic and the confirmed iPad crown-bonus rule:
-
-```text
-crownBonus = floor(max(all six raw member scores in the stage) * 0.20)
-```
-
-| image | stage | self members | self bonus | self total | enemy members | enemy bonus | enemy total |
-| --- | ---: | --- | ---: | ---: | --- | ---: | ---: |
-| IMG_0320.png | 1 | 298058 / 88866 / 122217 | 59611 | 568752 | 67329 / 41829 / 19985 | 0 | 129143 |
-| IMG_0320.png | 2 | 109120 / 175972 / 79382 | 35194 | 399668 | 45722 / 15870 / 20211 | 0 | 81803 |
-| IMG_0320.png | 3 | 711990 / 594103 / 481896 | 142398 | 1930387 | 19494 / 18841 / 7785 | 0 | 46120 |
-| IMG_0323.png | 1 | 248445 / 30666 / 106895 | 0 | 386006 | 308142 / 162417 / 152146 | 61628 | 684333 |
-| IMG_0323.png | 2 | 128445 / 80390 / 42381 | 25689 | 276905 | 121318 / 33342 / 28943 | 0 | 183603 |
-| IMG_0323.png | 3 | 535268 / 314623 / 375891 | 107053 | 1332835 | 75648 / 55206 / 57633 | 0 | 188487 |
-| IMG_0324.png | 1 | 179410 / 185878 / 270927 | 54185 | 690400 | 72463 / 17019 / 30253 | 0 | 119735 |
-| IMG_0324.png | 2 | 199593 / 115392 / 49703 | 39918 | 404606 | 40031 / 16560 / 51344 | 0 | 107935 |
-| IMG_0324.png | 3 | 684886 / 593020 / 501536 | 136977 | 1916419 | 63945 / 65414 / 35628 | 0 | 164987 |
-| IMG_0325.png | 1 | 262339 / 71504 / 339493 | 67898 | 741234 | 30275 / 13155 / 10237 | 0 | 53667 |
-| IMG_0325.png | 2 | 257997 / 114303 / 40500 | 51599 | 464399 | 19526 / 17771 / 8974 | 0 | 46271 |
-| IMG_0325.png | 3 | 629633 / 469056 / 473673 | 125926 | 1698288 | 21031 / 13026 / 5628 | 0 | 39685 |
-| IMG_0327.png | 1 | 233921 / 82110 / 365474 | 73094 | 754599 | 273155 / 60931 / 164549 | 0 | 498635 |
-| IMG_0327.png | 2 | 82322 / 40315 / 38532 | 0 | 161169 | 129648 / 133046 / 237083 | 47416 | 547193 |
-| IMG_0327.png | 3 | 712837 / 562843 / 411636 | 142567 | 1829883 | 140569 / 364955 / 389169 | 0 | 894693 |
-| IMG_0328.png | 1 | 173270 / 34401 / 102989 | 34654 | 345314 | 16330 / 12665 / 42795 | 0 | 71790 |
-| IMG_0328.png | 2 | 109807 / 96496 / 63988 | 21961 | 292252 | 9114 / 36351 / 55678 | 0 | 101143 |
-| IMG_0328.png | 3 | 671773 / 616826 / 174313 | 134354 | 1597266 | 24139 / 54203 / 30677 | 0 | 109019 |
-| IMG_0329.png | 1 | 231173 / 103920 / 96227 | 46234 | 477554 | 158827 / 15873 / 37963 | 0 | 212663 |
-| IMG_0329.png | 2 | 167809 / 10470 / 37420 | 33561 | 249260 | 105919 / 31951 / 13490 | 0 | 151360 |
-| IMG_0329.png | 3 | 826023 / 719118 / 524011 | 165204 | 2234356 | 98916 / 76242 / 256331 | 0 | 431489 |
-| IMG_0330.png | 1 | 255093 / 88280 / 133709 | 51018 | 528100 | 13275 / 164949 / 173365 | 0 | 351589 |
-| IMG_0330.png | 2 | 96358 / 154130 / 47902 | 30826 | 329216 | 98961 / 24446 / 30545 | 0 | 153952 |
-| IMG_0330.png | 3 | 372813 / 507782 / 527885 | 105577 | 1514057 | 34667 / 37174 / 42022 | 0 | 113863 |
-| IMG_0333.png | 1 | 165927 / 25327 / 135692 | 33185 | 360131 | 46702 / 112259 / 90362 | 0 | 249323 |
-| IMG_0333.png | 2 | 129064 / 110441 / 27603 | 25812 | 292920 | 55465 / 20232 / 57739 | 0 | 133436 |
-| IMG_0333.png | 3 | 403714 / 217697 / 245976 | 80742 | 948129 | 100866 / 64403 / 50334 | 0 | 215603 |
-| IMG_0334.png | 1 | 116149 / 311464 / 228837 | 62292 | 718742 | 196715 / 150873 / 87353 | 0 | 434941 |
-| IMG_0334.png | 2 | 75470 / 47606 / 70404 | 0 | 193480 | 117159 / 23494 / 49575 | 23431 | 213659 |
-| IMG_0334.png | 3 | 696601 / 499999 / 222648 | 139320 | 1558568 | 64286 / 26972 / 5943 | 0 | 97201 |
-| IMG_0335.png | 1 | 163451 / 99406 / 63614 | 32690 | 359161 | 131288 / 95310 / 106829 | 0 | 333427 |
-| IMG_0335.png | 2 | 133753 / 258475 / 46780 | 51695 | 490703 | 118781 / 84424 / 185441 | 0 | 388646 |
-| IMG_0335.png | 3 | 941390 / 626776 / 541794 | 188278 | 2298238 | 590739 / 527597 / 589734 | 0 | 1708070 |
-
-## Batch 2 Fixture Validation
-
-Command:
-
-```powershell
-node scripts/ocr-test-images.mjs --validate-ipad-expected
-```
-
-Result:
+Conservative combined baseline after this final pass, using the prior 74-fixture browser baseline plus the final 10-image browser run:
 
 | metric | result |
 | --- | ---: |
-| complete fixtures | 74 |
-| incomplete fixtures | 10 |
-| stages checked | 222 |
-| stage/sides checked | 444 |
-| arithmetic | PASS |
-| crown rule | PASS |
+| images PASS / total | 0 / 84 |
+| stages PASS / total | 88 / 252 |
+| stage/sides PASS / total | 248 / 504 |
+| production recovery TP / FP | 155 / 0 |
+| Tier C TP / FP | 97 / 0 |
+| strict-total TP / FP | 18 / 0 |
+| strict-member2 TP / FP | 40 / 0 |
 
-## Batch 2 Browser Production Baseline
+Recovery generalization by fixture generation:
 
-The new 11-image batch was run through the real browser production path:
+| fixture generation | fixtures | recovery TP / FP | Tier C | strict-total | strict-member2 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| original selected set | 53 | 119 / 0 | 72 | 15 | 32 |
+| expansion batch 1 | 10 | 8 / 0 | 3 | 2 | 3 |
+| expansion batch 2 | 11 | 13 / 0 | 12 | 0 | 1 |
+| final expansion pass | 10 | 15 / 0 | 10 | 1 | 4 |
+| combined | 84 | 155 / 0 | 97 | 18 | 40 |
 
-```powershell
-$env:PLAYWRIGHT_NODE_MODULES='C:\Users\gkhay\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\node_modules'
-node scripts/ipad-browser-expanded-baseline.mjs --runs 1 --only IMG_0320,IMG_0323,IMG_0324,IMG_0325,IMG_0327,IMG_0328,IMG_0329,IMG_0330,IMG_0333,IMG_0334,IMG_0335
-```
+The existing production recoveries continue to generalize without observed false positives in the final batch.
 
-Artifacts:
+## Structural Assessment
+
+Confirmed recurring clusters in the final batch:
+
+- Stage1/Stage2 member2 correction remains useful, especially where grouped-number token evidence is present.
+- Strict-total selection still has occasional value when the selected members are already correct and the displayed total candidate is exact.
+- Bonus capture remains uneven: one-field-away rows include missing positive bonus and false tiny bonus values.
+- Stage3 remains broad recognition/candidate-capture failure rather than a clean selection-only problem.
+
+No genuinely new safe structural shape was found. This pass primarily reinforces the prior conclusion: the next high-leverage work should reassess the expanded 84-fixture dataset globally, then prioritize Stage3 recognition/candidate capture rather than adding another narrow rule immediately.
+
+## Safety Validation
+
+| check | result |
+| --- | --- |
+| smartphone PASS controls: `IMG_9311 IMG_9321 IMG_9329` | PASS, 3 / 3 |
+| smartphone known failures: `IMG_9308 IMG_9310 IMG_9319` | unchanged expected failures, 3 / 3 failed |
+| current-PC representative: `--current-pc-baseline 144932916` | PASS |
+| legacy desktop representative: `pc-rehearsal-bonus-member-shift.png` | PASS |
+| `npm run build` | PASS |
+
+Generated tracked OCR reports were restored before commit.
+
+## Recommendation
+
+Fixture expansion is complete for the 84 readable iPad screenshots. The recommended next task is a final expanded-dataset reassessment:
 
 ```text
-tmp/ipad-expanded-baseline/
-tmp/ipad-fixture-expansion-batch2/
+FINAL IPAD OCR EXPANDED-DATASET REASSESSMENT
 ```
 
-New 11-image result:
-
-| metric | result |
-| --- | ---: |
-| images | 0 / 11 PASS |
-| stages | 9 / 33 PASS |
-| stage/sides | 29 / 66 PASS |
-| production recovery applications | 13 |
-| production recovery TP / FP | 13 / 0 |
-| Tier C | 12 / 0 |
-| strict-total | 0 / 0 |
-| strict-member2 | 1 / 0 |
-| stable application rows | 13 / 13 |
-
-Combined with the prior conservative 63-fixture aggregation:
-
-| metric | previous 63 | new 11 | combined 74 |
-| --- | ---: | ---: | ---: |
-| image PASS | 0 / 63 | 0 / 11 | 0 / 74 |
-| stage PASS | 67 / 189 | 9 / 33 | 76 / 222 |
-| stage/side PASS | 190 / 378 | 29 / 66 | 219 / 444 |
-| production recovery TP / FP | 127 / 0 | 13 / 0 | 140 / 0 |
-| Tier C TP / FP | 75 / 0 | 12 / 0 | 87 / 0 |
-| strict-total TP / FP | 17 / 0 | 0 / 0 | 17 / 0 |
-| strict-member2 TP / FP | 35 / 0 | 1 / 0 | 36 / 0 |
-
-The combined numbers are a conservative aggregation of the prior completed 63-fixture data plus the targeted browser run for the 11 newly labeled fixtures. A full 74-fixture browser rerun was not performed because the browser-native OCR path is slow and this task was data-only.
-
-## Batch 2 Per-Image Result
-
-| image | image | stages | stage/sides | production recoveries applied | dominant remaining failures |
-| --- | --- | ---: | ---: | --- | --- |
-| IMG_0320.png | FAIL | 1 / 3 | 2 / 6 | Tier C S2 self | S1 tiny bonus false positives; Stage3 both sides severe member/bonus/total recognition |
-| IMG_0323.png | FAIL | 2 / 3 | 4 / 6 | Tier C S1 self, S2 self | Stage3 both sides member/total recognition |
-| IMG_0324.png | FAIL | 0 / 3 | 2 / 6 | none | S1/S2 bonus/member2 capture; Stage3 both sides severe recognition |
-| IMG_0325.png | FAIL | 0 / 3 | 2 / 6 | Tier C S2 self | S1 member2/bonus; S2 enemy total truncation; Stage3 both sides severe recognition |
-| IMG_0327.png | FAIL | 1 / 3 | 3 / 6 | Tier C S1 self; strict-member2 S1 enemy | S2 self bonus/total truncation; Stage3 both sides severe recognition |
-| IMG_0328.png | FAIL | 0 / 3 | 2 / 6 | none | S1/S2 member2 and bonus capture; Stage3 both sides severe recognition |
-| IMG_0329.png | FAIL | 1 / 3 | 3 / 6 | Tier C S2 self | S1 self member2/bonus/total; Stage3 both sides severe recognition |
-| IMG_0330.png | FAIL | 1 / 3 | 3 / 6 | Tier C S1 self, S2 self | S1 enemy tiny bonus false positive; Stage3 both sides severe recognition |
-| IMG_0333.png | FAIL | 2 / 3 | 4 / 6 | Tier C S1 self, S2 self | Stage3 both sides severe recognition |
-| IMG_0334.png | FAIL | 0 / 3 | 1 / 6 | none | S1/S2 member2/bonus; Stage3 both sides severe recognition |
-| IMG_0335.png | FAIL | 1 / 3 | 3 / 6 | Tier C S1 enemy, S2 self | S1 self member2/bonus; Stage3 both sides recognition |
-
-## Batch 2 Failure Reassessment
-
-New 11-image failing stage/side rows:
-
-| category | count / note |
-| --- | ---: |
-| total failing stage/side rows | 37 |
-| Stage1/Stage2 failing rows | 15 |
-| Stage3 failing rows | 22 / 22 |
-| rows with any member mismatch | 30 |
-| member1 mismatches | 22 |
-| member2 mismatches | 30 |
-| member3 mismatches | 22 |
-| rows with bonus mismatch | 26 |
-| rows with total mismatch | 25 |
-| one-field-away rows | 6 |
-
-Recurring shapes:
-
-- Stage3 is still the dominant blocker. Every new Stage3 side fails, usually with member values reduced to fragments, single digits, or noisy merged values; totals are also often truncated to tiny values.
-- Stage1/Stage2 retains the known iPad shapes: member2 missing/inflated by adjacent text, small false-positive bonuses such as `1`/`3`, and occasional truncated totals.
-- Existing production recoveries continue to apply safely. The 13 new applications are all correct and introduce no false positives.
-- No new production recovery is recommended from Batch 2. The batch mainly reinforces the known Stage3 capture-quality problem and the already-served Stage1/Stage2 arithmetic/member2 recovery families.
-
-## Batch 2 Decision
-
-This batch added 11 new fixture-backed iPad screenshots and produced a true browser-production baseline for those new fixtures.
-
-No OCR code, ROI, preprocessing, ranking, Tier C, strict-total, strict-member2, smartphone, current-PC, or legacy desktop behavior was changed.
-
-Recommended next step: finish intake for the remaining 10 pending `ipad-01` screenshots, then run a final combined reclassification over all complete iPad fixtures. New production recovery work should remain deferred until the expanded labeled set shows a repeated zero-FP exact-evidence pattern that is not already handled by Tier C or strict-member2.
+That reassessment should use the 84-fixture set as the new source of truth for prioritizing Stage3 capture work, bonus-capture weaknesses, and any remaining selection-only opportunities. RapidOCR remains closed as a production direction unless a separate browser-deployable path is reopened with stronger parity and runtime evidence.
