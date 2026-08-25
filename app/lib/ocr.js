@@ -2123,6 +2123,146 @@ export function applyIpadStrictMember2SelectionRecovery(stageScores, evidenceByS
   };
 }
 
+export const IPAD_STAGE12_STRICT_BONUS_SELECTION_V2_DIAGNOSTIC_ID =
+  "ipad-stage12-strict-bonus-selection-v2-diagnostic";
+
+function normalizeIpadStage12BonusV2Side(currentPrimary = {}) {
+  const members = Array.isArray(currentPrimary.members)
+    ? currentPrimary.members.slice(0, 3).map(normalizeIpadArithmeticNumber)
+    : [0, 0, 0];
+  while (members.length < 3) members.push(0);
+  return {
+    members,
+    bonus: normalizeIpadArithmeticNumber(currentPrimary.bonus),
+    total: normalizeIpadArithmeticNumber(currentPrimary.total),
+  };
+}
+
+function normalizeIpadStage12BonusV2Candidate(candidate = {}) {
+  return {
+    value: normalizeIpadArithmeticNumber(candidate.value),
+    origin: candidate.origin || "observed",
+    profileIds: Array.isArray(candidate.profileIds) ? [...candidate.profileIds] : [],
+    rawText: String(candidate.rawText || ""),
+    normalizedText: String(candidate.normalizedText || ""),
+    sourceRank: Number.isFinite(Number(candidate.sourceRank))
+      ? Number(candidate.sourceRank)
+      : 999,
+    contributions: Array.isArray(candidate.contributions)
+      ? candidate.contributions.map((contribution) => ({
+          profileId: contribution.profileId,
+          rawCandidate: contribution.rawCandidate,
+          normalizedText: contribution.normalizedText,
+          ocrConfidence: contribution.ocrConfidence,
+          plusLike: Boolean(contribution.plusLike),
+        }))
+      : [],
+  };
+}
+
+function ipadStage12BonusV2CandidateValues(pool = {}) {
+  return [
+    ...new Set(
+      (pool.candidates || [])
+        .map((candidate) => normalizeIpadArithmeticNumber(candidate.value))
+        .filter((value) => Number.isInteger(value))
+    ),
+  ].sort((a, b) => a - b);
+}
+
+function isIpadStage12BonusV2FragmentHazard(value, fieldCandidatePools = {}) {
+  if (value === 0) return false;
+  const text = String(value);
+  if (text.length < 4) return true;
+  const values = [];
+  for (const pool of Object.values(fieldCandidatePools || {})) {
+    for (const candidate of pool?.candidates || []) {
+      values.push(normalizeIpadArithmeticNumber(candidate.value));
+    }
+  }
+  return [...new Set(values)].some((other) => {
+    if (other === value || other === 0) return false;
+    const otherText = String(other);
+    return otherText.length > text.length && (otherText.startsWith(text) || otherText.endsWith(text));
+  });
+}
+
+export function evaluateIpadStage12StrictBonusSelectionV2({
+  deviceMode = "ipad",
+  layout = {},
+  stage = 0,
+  side = "",
+  fieldCandidatePools = {},
+  currentPrimary = {},
+} = {}) {
+  const current = normalizeIpadStage12BonusV2Side(currentPrimary);
+  const bonusPool = fieldCandidatePools.bonus || {};
+  const bonusCandidates = (bonusPool.candidates || []).map(normalizeIpadStage12BonusV2Candidate);
+  const bonusValues = ipadStage12BonusV2CandidateValues(bonusPool);
+  const memberSum = current.members.reduce((sum, value) => sum + value, 0);
+  const requiredBonus = current.total - memberSum;
+  const matchingCandidates = bonusCandidates.filter((candidate) => candidate.value === requiredBonus);
+  const validBonusValues = bonusValues.filter((candidate) => memberSum + candidate === current.total);
+  const blockReasons = [];
+
+  if (deviceMode !== "ipad") blockReasons.push(`non-ipad-mode:${deviceMode || "unknown"}`);
+  if (layout.detected === false) blockReasons.push("ipad-layout-not-detected");
+  if (![1, 2].includes(Number(stage))) blockReasons.push("not-stage1-or-stage2");
+  if (!["self", "enemy"].includes(side)) blockReasons.push("invalid-side");
+  if (current.members.some((value) => !Number.isInteger(value) || value < 0)) {
+    blockReasons.push("invalid-member-value");
+  }
+  if (!Number.isInteger(current.total) || current.total <= 0) blockReasons.push("invalid-total-value");
+  if (!Number.isInteger(requiredBonus) || requiredBonus < 0) blockReasons.push("required-bonus-negative-or-invalid");
+  if (requiredBonus === current.bonus) blockReasons.push("current-bonus-already-arithmetic-valid");
+  if (!matchingCandidates.length) blockReasons.push("required-bonus-not-observed");
+  if (matchingCandidates.some((candidate) => candidate.origin === "schema-default-bonus-zero")) {
+    blockReasons.push("schema-default-zero-not-allowed");
+  }
+  if (requiredBonus === 0 && !matchingCandidates.some((candidate) => candidate.value === 0)) {
+    blockReasons.push("explicit-zero-not-observed");
+  }
+  if (requiredBonus !== 0 && requiredBonus < 1000) blockReasons.push("nonzero-bonus-too-small");
+  if ([...new Set(validBonusValues)].length !== 1) blockReasons.push("valid-bonus-candidate-not-unique");
+  if (isIpadStage12BonusV2FragmentHazard(requiredBonus, fieldCandidatePools)) {
+    blockReasons.push("fragment-hazard");
+  }
+
+  const wouldApply = blockReasons.length === 0;
+  return {
+    schema: "ipad-stage12-strict-bonus-selection-v2-evaluation",
+    diagnosticOnly: true,
+    recoveryId: IPAD_STAGE12_STRICT_BONUS_SELECTION_V2_DIAGNOSTIC_ID,
+    deviceMode,
+    stage,
+    side,
+    wouldApply,
+    blockReason: blockReasons.join(";") || "",
+    blockReasons,
+    current,
+    proposed: wouldApply
+      ? {
+          members: current.members,
+          bonus: requiredBonus,
+          total: current.total,
+        }
+      : null,
+    memberSum,
+    requiredBonus,
+    validBonusValues,
+    matchingCandidateCount: matchingCandidates.length,
+    matchingCandidates,
+    provenance: {
+      matchingProfileIds: [
+        ...new Set(matchingCandidates.flatMap((candidate) => candidate.profileIds || [])),
+      ].sort(),
+      matchingOrigins: [
+        ...new Set(matchingCandidates.map((candidate) => candidate.origin || "observed")),
+      ].sort(),
+    },
+  };
+}
+
 export function getFixedOcrZones(image, stage, mode) {
   mode = normalizeOcrMode(mode);
   const layout = getDeviceOcrLayout(mode);
