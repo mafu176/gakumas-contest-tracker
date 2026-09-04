@@ -1479,4 +1479,34 @@ export const idolDb = [
     "rarity": "SSR",
     "image": "/idols/148.png"
   },
+  {
+    "id": "紫雲_清夏_標",
+    "name": "標 紫雲清夏",
+    "short": "標清夏",
+    "character": "紫雲清夏",
+    "title": "標",
+    "plan": "センス",
+    "rarity": "SSR",
+    "image": "/idols/149.png"
+  },
+  {
+    "id": "倉本_千奈_標",
+    "name": "標 倉本千奈",
+    "short": "標千奈",
+    "character": "倉本千奈",
+    "title": "標",
+    "plan": "ロジック",
+    "rarity": "SSR",
+    "image": "/idols/150.png"
+  },
+  {
+    "id": "有村_麻央_標",
+    "name": "標 有村麻央",
+    "short": "標麻央",
+    "character": "有村麻央",
+    "title": "標",
+    "plan": "センス",
+    "rarity": "SSR",
+    "image": "/idols/151.png"
+  },
 ];
