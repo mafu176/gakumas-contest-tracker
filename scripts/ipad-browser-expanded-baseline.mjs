@@ -29,6 +29,58 @@ const sides = ["self", "enemy"];
 const tierCRecoveryId = "ipad-tier-c-exactly-one-arithmetic";
 const strictTotalRecoveryId = "ipad-strict-total-selection";
 const strictMember2RecoveryId = "ipad-strict-member2-selection";
+const stage12StrictBonusV2RecoveryId = "ipad-stage12-strict-bonus-selection-v2";
+const expectedStage12StrictBonusV2Applications = [
+  {
+    image: "IMG_0282.png",
+    stage: 1,
+    side: "enemy",
+    oldValues: { members: [333995, 245881, 213242], bonus: 3, total: 793118 },
+    newValues: { members: [333995, 245881, 213242], bonus: 0, total: 793118 },
+  },
+  {
+    image: "IMG_0301.png",
+    stage: 1,
+    side: "enemy",
+    oldValues: { members: [333995, 245881, 213242], bonus: 3, total: 793118 },
+    newValues: { members: [333995, 245881, 213242], bonus: 0, total: 793118 },
+  },
+  {
+    image: "IMG_0320.png",
+    stage: 1,
+    side: "self",
+    oldValues: { members: [298058, 88866, 122217], bonus: 1, total: 568752 },
+    newValues: { members: [298058, 88866, 122217], bonus: 59611, total: 568752 },
+  },
+  {
+    image: "IMG_0321.png",
+    stage: 1,
+    side: "self",
+    oldValues: { members: [298058, 88866, 122217], bonus: 1, total: 568752 },
+    newValues: { members: [298058, 88866, 122217], bonus: 59611, total: 568752 },
+  },
+  {
+    image: "IMG_0355.png",
+    stage: 1,
+    side: "self",
+    oldValues: { members: [95850, 261366, 169529], bonus: 0, total: 579018 },
+    newValues: { members: [95850, 261366, 169529], bonus: 52273, total: 579018 },
+  },
+  {
+    image: "IMG_0356.png",
+    stage: 1,
+    side: "self",
+    oldValues: { members: [96589, 99732, 216398], bonus: 0, total: 455998 },
+    newValues: { members: [96589, 99732, 216398], bonus: 43279, total: 455998 },
+  },
+  {
+    image: "IMG_0491.png",
+    stage: 1,
+    side: "enemy",
+    oldValues: { members: [201, 0, 0], bonus: 1, total: 201 },
+    newValues: { members: [201, 0, 0], bonus: 0, total: 201 },
+  },
+];
 
 function parseArgs() {
   const runsIndex = process.argv.indexOf("--runs");
@@ -375,6 +427,14 @@ function compactApplication(application = {}) {
     uniqueMatchingMember2: Number(application.uniqueMatchingMember2 || 0),
     previousMember2: Number(application.previousMember2 || 0),
     correctedMember2: Number(application.correctedMember2 || 0),
+    previousBonus: Number(application.previousBonus || 0),
+    correctedBonus: Number(application.correctedBonus || 0),
+    memberSum: Number(application.memberSum || 0),
+    requiredBonus: Number(application.requiredBonus || 0),
+    validBonusValues: Array.isArray(application.validBonusValues)
+      ? application.validBonusValues.map(Number)
+      : [],
+    matchingCandidateCount: Number(application.matchingCandidateCount || 0),
     equation: application.equation || "",
   };
 }
@@ -515,6 +575,9 @@ async function runOnce({ runIndex, browser, baseUrl, rows, expectedApplications,
   const tierCApplications = applications.filter((entry) => entry.recoveryId === tierCRecoveryId);
   const strictTotalApplications = applications.filter((entry) => entry.recoveryId === strictTotalRecoveryId);
   const strictMember2Applications = applications.filter((entry) => entry.recoveryId === strictMember2RecoveryId);
+  const stage12StrictBonusV2Applications = applications.filter(
+    (entry) => entry.recoveryId === stage12StrictBonusV2RecoveryId
+  );
   const applicationComparisons = expectedApplications.length
     ? strictTotalApplications.map((application) => {
         const expected = expectedByKey.get(`${application.image}|${application.stage}|${application.side}`);
@@ -581,6 +644,48 @@ async function runOnce({ runIndex, browser, baseUrl, rows, expectedApplications,
   const tierCTp = tierCApplications.filter(isApplicationTp).length;
   const strictTotalTp = strictTotalApplications.filter(isApplicationTp).length;
   const strictMember2Tp = strictMember2Applications.filter(isApplicationTp).length;
+  const stage12StrictBonusV2Tp = stage12StrictBonusV2Applications.filter(isApplicationTp).length;
+  const expectedBonusV2ByKey = new Map(
+    expectedStage12StrictBonusV2Applications.map((entry) => [
+      `${entry.image}|${entry.stage}|${entry.side}`,
+      entry,
+    ])
+  );
+  const stage12StrictBonusV2Agreement = stage12StrictBonusV2Applications.map((application) => {
+    const expected = expectedBonusV2ByKey.get(
+      `${application.image}|${application.stage}|${application.side}`
+    );
+    return {
+      image: application.image,
+      stage: application.stage,
+      side: application.side,
+      expectedKnown: Boolean(expected),
+      oldValuesExact:
+        Boolean(expected) && stableJson(application.oldValues) === stableJson(expected.oldValues),
+      newValuesExact:
+        Boolean(expected) && stableJson(application.newValues) === stableJson(expected.newValues),
+      bonusOnly:
+        stableJson(application.oldValues?.members || []) ===
+          stableJson(application.newValues?.members || []) &&
+        Number(application.oldValues?.total || 0) === Number(application.newValues?.total || 0) &&
+        Number(application.oldValues?.bonus || 0) !== Number(application.newValues?.bonus || 0),
+      actual: application,
+      expected,
+    };
+  });
+  const stage12StrictBonusV2MissingExpected = expectedStage12StrictBonusV2Applications.filter(
+    (expected) =>
+      !stage12StrictBonusV2Applications.some(
+        (application) =>
+          application.image === expected.image &&
+          application.stage === expected.stage &&
+          application.side === expected.side
+      )
+  );
+  const stage12StrictBonusV2Unexpected = stage12StrictBonusV2Applications.filter(
+    (application) =>
+      !expectedBonusV2ByKey.has(`${application.image}|${application.stage}|${application.side}`)
+  );
   const expectedStrictByKey = new Map(
     expectedApplications.map((entry) => [`${entry.image}|${entry.stage}|${entry.side}`, entry])
   );
@@ -656,6 +761,17 @@ async function runOnce({ runIndex, browser, baseUrl, rows, expectedApplications,
     strictMember2Applications: strictMember2Applications.length,
     strictMember2Tp,
     strictMember2Fp: strictMember2Applications.length - strictMember2Tp,
+    stage12StrictBonusV2Applications: stage12StrictBonusV2Applications.length,
+    stage12StrictBonusV2Tp,
+    stage12StrictBonusV2Fp: stage12StrictBonusV2Applications.length - stage12StrictBonusV2Tp,
+    stage12StrictBonusV2AgreementExact: stage12StrictBonusV2Agreement.filter(
+      (entry) => entry.expectedKnown && entry.oldValuesExact && entry.newValuesExact && entry.bonusOnly
+    ).length,
+    stage12StrictBonusV2AgreementMismatches: stage12StrictBonusV2Agreement.filter(
+      (entry) => !(entry.expectedKnown && entry.oldValuesExact && entry.newValuesExact && entry.bonusOnly)
+    ),
+    stage12StrictBonusV2Unexpected,
+    stage12StrictBonusV2MissingExpected,
     expectedApplicationCount: expectedApplications.length,
     strictTotalAgreementExact: strictTotalAgreement.filter(
       (entry) => entry.oldValuesExact && entry.newValuesExact && entry.observedTotalExact
@@ -793,9 +909,15 @@ async function main() {
             run.summary.tierCFp === 0 &&
             run.summary.strictTotalFp === 0 &&
             run.summary.strictMember2Fp === 0 &&
+            run.summary.stage12StrictBonusV2Fp === 0 &&
             run.summary.fp === 0 &&
             run.summary.strictTotalAgreementMismatches.length === 0 &&
-            run.summary.strictMember2AgreementMismatches.length === 0
+            run.summary.strictMember2AgreementMismatches.length === 0 &&
+            run.summary.stage12StrictBonusV2AgreementMismatches.length === 0 &&
+            run.summary.stage12StrictBonusV2Unexpected.length === 0 &&
+            run.summary.stage12StrictBonusV2MissingExpected.every(
+              (entry) => args.only && !rows.some((row) => row.filename === entry.image)
+            )
         ) && stability.unstableApplicationRows.length === 0,
     };
     await fs.writeFile(path.join(artifactDir, "combined-summary.json"), JSON.stringify(summary, null, 2));

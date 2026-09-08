@@ -2125,6 +2125,9 @@ export function applyIpadStrictMember2SelectionRecovery(stageScores, evidenceByS
 
 export const IPAD_STAGE12_STRICT_BONUS_SELECTION_V2_DIAGNOSTIC_ID =
   "ipad-stage12-strict-bonus-selection-v2-diagnostic";
+export const ENABLE_IPAD_STAGE12_STRICT_BONUS_SELECTION_V2 = true;
+export const IPAD_STAGE12_STRICT_BONUS_SELECTION_V2_RECOVERY_ID =
+  "ipad-stage12-strict-bonus-selection-v2";
 
 function normalizeIpadStage12BonusV2Side(currentPrimary = {}) {
   const members = Array.isArray(currentPrimary.members)
@@ -2260,6 +2263,274 @@ export function evaluateIpadStage12StrictBonusSelectionV2({
         ...new Set(matchingCandidates.map((candidate) => candidate.origin || "observed")),
       ].sort(),
     },
+  };
+}
+
+function buildIpadStage12StrictBonusSelectionV2Counters() {
+  return {
+    evaluated: 0,
+    eligible: 0,
+    applied: 0,
+    blockedOverlap: 0,
+    blockedNotWouldApply: 0,
+    blockedStageScope: 0,
+    blockedDisplayedMismatch: 0,
+    blockedNonBonusMutation: 0,
+    blockedAssertionFailure: 0,
+    blockedMalformedEvidence: 0,
+    blockedEvaluatorInconsistency: 0,
+    blockedAlreadyIdentical: 0,
+    blockedOther: 0,
+  };
+}
+
+function summarizeIpadStage12StrictBonusSelectionV2BlockReason(reasons = []) {
+  if (!Array.isArray(reasons) || reasons.length === 0) return "blockedOther";
+  if (reasons.includes("not-stage1-or-stage2")) return "blockedStageScope";
+  if (reasons.includes("current-bonus-already-arithmetic-valid")) {
+    return "blockedAlreadyIdentical";
+  }
+  return "blockedNotWouldApply";
+}
+
+function buildIpadStage12StrictBonusSelectionV2Application({
+  stage,
+  side,
+  oldValues,
+  proposal,
+  evidence,
+  evaluation,
+}) {
+  const proposedMembers = normalizeIpadStrictTotalMembers(proposal.members);
+  const proposedBonus = normalizeIpadArithmeticNumber(proposal.bonus);
+  const proposedTotal = normalizeIpadArithmeticNumber(proposal.total);
+  return {
+    recoveryId: IPAD_STAGE12_STRICT_BONUS_SELECTION_V2_RECOVERY_ID,
+    stage,
+    side,
+    oldValues,
+    newValues: {
+      members: proposedMembers,
+      bonus: proposedBonus,
+      total: proposedTotal,
+    },
+    changedFields: ["bonus"],
+    previousBonus: normalizeIpadArithmeticNumber(oldValues.bonus),
+    correctedBonus: proposedBonus,
+    memberSum: normalizeIpadArithmeticNumber(evaluation.memberSum),
+    requiredBonus: normalizeIpadArithmeticNumber(evaluation.requiredBonus),
+    validBonusValues: Array.isArray(evaluation.validBonusValues)
+      ? evaluation.validBonusValues.map(normalizeIpadArithmeticNumber)
+      : [],
+    matchingCandidateCount: Number(evaluation.matchingCandidateCount || 0),
+    provenance: {
+      matchingProfileIds: evaluation.provenance?.matchingProfileIds || [],
+      matchingOrigins: evaluation.provenance?.matchingOrigins || [],
+      matchingCandidates: Array.isArray(evaluation.matchingCandidates)
+        ? evaluation.matchingCandidates.map((candidate) => ({
+            ...normalizeIpadStage12BonusV2Candidate(candidate),
+          }))
+        : [],
+      candidatePoolKey: evidence.fieldCandidatePools?.bonus?.key || "",
+      rawDistinctCandidateCount: Number(
+        evidence.fieldCandidatePools?.bonus?.rawDistinctCandidateCount || 0
+      ),
+    },
+    equation: `${proposedMembers.join("+")}+${proposedBonus}=${proposedTotal}`,
+  };
+}
+
+export function applyIpadStage12StrictBonusSelectionV2Recovery(
+  stageScores,
+  evidenceByStageSide = {},
+  { enabled = ENABLE_IPAD_STAGE12_STRICT_BONUS_SELECTION_V2 } = {}
+) {
+  const productionRecovery = {
+    recoveryId: IPAD_STAGE12_STRICT_BONUS_SELECTION_V2_RECOVERY_ID,
+    enabled,
+    appliedCases: [],
+    rejectedCases: [],
+    counters: buildIpadStage12StrictBonusSelectionV2Counters(),
+    note:
+      "Applies only the verified iPad Stage1/Stage2 strict bonus selector. Members and total are never changed.",
+  };
+
+  if (!enabled) {
+    productionRecovery.blockReason = "feature-disabled";
+    return { stageScores, productionRecovery };
+  }
+
+  const priorAppliedKeys = new Set(
+    (
+      evidenceByStageSide?.priorAppliedCases ||
+      evidenceByStageSide?.priorProductionRecovery?.appliedCases ||
+      []
+    ).map((entry) => `${entry.stage}|${entry.side}`)
+  );
+  const nextStageScores = JSON.parse(JSON.stringify(stageScores || {}));
+  const stagesEvidence = evidenceByStageSide?.stages || evidenceByStageSide || {};
+
+  for (const stage of [1, 2]) {
+    const stageKey = `stage${stage}`;
+    const stageEvidence = stagesEvidence[stageKey] || stagesEvidence[stage] || {};
+    for (const side of ["self", "enemy"]) {
+      const row = stageEvidence?.[side] || null;
+      const evidence = row?.evidence || row?.stage12StrictBonusSelectionV2Evidence || row || null;
+      if (!evidence) continue;
+
+      productionRecovery.counters.evaluated += 1;
+      const rawMembers = evidence.currentPrimary?.members;
+      const rawTotal = Number(evidence.currentPrimary?.total);
+      const malformedEvidenceReasons = [];
+      if (
+        !Array.isArray(rawMembers) ||
+        rawMembers.length !== 3 ||
+        rawMembers.some((value) => !Number.isInteger(Number(value)) || Number(value) < 0)
+      ) {
+        malformedEvidenceReasons.push("malformed-or-incomplete-current-members");
+      }
+      if (!Number.isInteger(rawTotal) || rawTotal <= 0) {
+        malformedEvidenceReasons.push("malformed-or-missing-current-total");
+      }
+      if (malformedEvidenceReasons.length) {
+        productionRecovery.counters.blockedMalformedEvidence += 1;
+        productionRecovery.rejectedCases.push({
+          stage,
+          side,
+          reason: malformedEvidenceReasons.join(","),
+        });
+        continue;
+      }
+
+      const evaluation =
+        row?.evaluation ||
+        row?.stage12StrictBonusSelectionV2 ||
+        evaluateIpadStage12StrictBonusSelectionV2(evidence);
+      if (evaluation.eligible || evaluation.wouldApply) productionRecovery.counters.eligible += 1;
+
+      if (priorAppliedKeys.has(`${stage}|${side}`)) {
+        productionRecovery.counters.blockedOverlap += 1;
+        productionRecovery.rejectedCases.push({
+          stage,
+          side,
+          reason: "prior-production-recovery-overlap",
+        });
+        continue;
+      }
+
+      if (!evaluation.wouldApply || !evaluation.proposed) {
+        const counter = summarizeIpadStage12StrictBonusSelectionV2BlockReason(
+          evaluation.blockReasons
+        );
+        productionRecovery.counters[counter] = (productionRecovery.counters[counter] || 0) + 1;
+        productionRecovery.rejectedCases.push({
+          stage,
+          side,
+          reason: evaluation.blockReasons?.join(",") || evaluation.blockReason || "would-not-apply",
+        });
+        continue;
+      }
+
+      const selected = normalizeIpadStage12BonusV2Side(evidence.currentPrimary);
+      const oldValues = getIpadStrictTotalDisplayedSide(
+        nextStageScores,
+        stage,
+        side,
+        selected.bonus
+      );
+      const proposal = evaluation.proposed;
+      const proposedMembers = normalizeIpadStrictTotalMembers(proposal.members);
+      const proposedBonus = normalizeIpadArithmeticNumber(proposal.bonus);
+      const proposedTotal = normalizeIpadArithmeticNumber(proposal.total);
+      const uniqueValidBonusValues = [
+        ...new Set(
+          (evaluation.validBonusValues || [])
+            .map((value) => Number(value))
+            .filter(Number.isInteger)
+        ),
+      ];
+      const exactObservedBonusCandidate = (
+        evidence.fieldCandidatePools?.bonus?.candidates || []
+      ).some(
+        (candidate) =>
+          candidate?.origin !== "schema-default-bonus-zero" &&
+          candidate?.value !== null &&
+          candidate?.value !== "" &&
+          Number.isInteger(Number(candidate?.value)) &&
+          Number(candidate.value) === proposedBonus
+      );
+      const assertionPass =
+        proposedMembers.reduce((sum, value) => sum + value, 0) + proposedBonus === proposedTotal;
+      const rejectionReasons = [];
+
+      if (!arraysEqualWithinTolerance(oldValues.members, selected.members, 0)) {
+        rejectionReasons.push("displayed-members-do-not-match-evidence");
+      }
+      if (oldValues.total !== selected.total) {
+        rejectionReasons.push("displayed-total-does-not-match-evidence");
+      }
+      if (!arraysEqualWithinTolerance(proposedMembers, selected.members, 0)) {
+        rejectionReasons.push("proposal-would-change-members");
+      }
+      if (proposedTotal !== selected.total) {
+        rejectionReasons.push("proposal-would-change-total");
+      }
+      if (proposedBonus === selected.bonus) {
+        rejectionReasons.push("displayed-bonus-already-identical");
+      }
+      if (
+        uniqueValidBonusValues.length !== 1 ||
+        uniqueValidBonusValues[0] !== proposedBonus ||
+        Number(evaluation.matchingCandidateCount || 0) < 1
+      ) {
+        rejectionReasons.push("evaluator-uniqueness-assertion-failed");
+      }
+      if (!exactObservedBonusCandidate) {
+        rejectionReasons.push("proposal-bonus-not-backed-by-integer-candidate");
+      }
+      if (!assertionPass) rejectionReasons.push("proposal-equation-assertion-failed");
+
+      if (rejectionReasons.length) {
+        if (rejectionReasons.some((reason) => reason.includes("displayed"))) {
+          productionRecovery.counters.blockedDisplayedMismatch += 1;
+        } else if (rejectionReasons.some((reason) => reason.includes("assertion"))) {
+          if (rejectionReasons.some((reason) => reason.includes("evaluator"))) {
+            productionRecovery.counters.blockedEvaluatorInconsistency += 1;
+          } else {
+            productionRecovery.counters.blockedAssertionFailure += 1;
+          }
+        } else if (rejectionReasons.some((reason) => reason.includes("integer-candidate"))) {
+          productionRecovery.counters.blockedMalformedEvidence += 1;
+        } else if (rejectionReasons.some((reason) => reason.includes("already"))) {
+          productionRecovery.counters.blockedAlreadyIdentical += 1;
+        } else {
+          productionRecovery.counters.blockedNonBonusMutation += 1;
+        }
+        productionRecovery.rejectedCases.push({
+          stage,
+          side,
+          reason: rejectionReasons.join(","),
+        });
+        continue;
+      }
+
+      productionRecovery.appliedCases.push(
+        buildIpadStage12StrictBonusSelectionV2Application({
+          stage,
+          side,
+          oldValues,
+          proposal,
+          evidence,
+          evaluation,
+        })
+      );
+      productionRecovery.counters.applied += 1;
+    }
+  }
+
+  return {
+    stageScores: nextStageScores,
+    productionRecovery,
   };
 }
 
