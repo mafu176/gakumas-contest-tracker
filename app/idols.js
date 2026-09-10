@@ -1509,4 +1509,14 @@ export const idolDb = [
     "rarity": "SSR",
     "image": "/idols/151.png"
   },
+  {
+    "id": "十王_星南_ガラクタロード",
+    "name": "ガラクタロード 十王星南",
+    "short": "ガラクタロード星南",
+    "character": "十王星南",
+    "title": "ガラクタロード",
+    "plan": "ロジック",
+    "rarity": "SSR",
+    "image": "/idols/152.png"
+  },
 ];
