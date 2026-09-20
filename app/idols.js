@@ -1519,4 +1519,14 @@ export const idolDb = [
     "rarity": "SSR",
     "image": "/idols/152.png"
   },
+  {
+    "id": "篠澤_広_め",
+    "name": "め 篠澤広",
+    "short": "め",
+    "character": "篠澤広",
+    "title": "め",
+    "plan": "アノマリー",
+    "rarity": "SSR",
+    "image": "/idols/153.png"
+  },
 ];
