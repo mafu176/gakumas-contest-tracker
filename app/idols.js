@@ -1529,4 +1529,24 @@ export const idolDb = [
     "rarity": "SSR",
     "image": "/idols/153.png"
   },
+  {
+    "id": "葛城_リーリヤ_Agitato",
+    "name": "Agitato 葛城リーリヤ",
+    "short": "Agitatoリヤ",
+    "character": "葛城リーリヤ",
+    "title": "Agitato",
+    "plan": "センス",
+    "rarity": "SSR",
+    "image": "/idols/154.png"
+  },
+  {
+    "id": "花海_佑芽_Agitato",
+    "name": "Agitato 花海佑芽",
+    "short": "Agitato佑芽",
+    "character": "花海佑芽",
+    "title": "Agitato",
+    "plan": "アノマリー",
+    "rarity": "SSR",
+    "image": "/idols/155.png"
+  },
 ];
