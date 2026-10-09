@@ -1549,4 +1549,14 @@ export const idolDb = [
     "rarity": "SSR",
     "image": "/idols/155.png"
   },
+  {
+    "id": "花海_咲季_Agitato",
+    "name": "Agitato 花海咲季",
+    "short": "Agitato咲季",
+    "character": "花海咲季",
+    "title": "Agitato",
+    "plan": "ロジック",
+    "rarity": "SSR",
+    "image": "/idols/156.png"
+  },
 ];
