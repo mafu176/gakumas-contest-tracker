@@ -1559,4 +1559,14 @@ export const idolDb = [
     "rarity": "SSR",
     "image": "/idols/156.png"
   },
+  {
+    "id": "十王_星南_Roar",
+    "name": "Roar 十王星南",
+    "short": "Roar",
+    "character": "十王星南",
+    "title": "Roar",
+    "plan": "センス",
+    "rarity": "SSR",
+    "image": "/idols/157.png"
+  },
 ];
