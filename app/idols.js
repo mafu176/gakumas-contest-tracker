@@ -1569,4 +1569,14 @@ export const idolDb = [
     "rarity": "SSR",
     "image": "/idols/157.png"
   },
+  {
+    "id": "雨夜_燕_ガラクタロード",
+    "name": "ガラクタロード 雨夜燕",
+    "short": "ガラクタロード夜燕",
+    "character": "雨夜燕",
+    "title": "ガラクタロード",
+    "plan": "アノマリー",
+    "rarity": "SSR",
+    "image": "/idols/158.png"
+  },
 ];
