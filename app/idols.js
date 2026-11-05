@@ -1579,4 +1579,24 @@ export const idolDb = [
     "rarity": "SSR",
     "image": "/idols/158.png"
   },
+  {
+    "id": "秦谷_美鈴_ガラクタロード",
+    "name": "ガラクタロード 秦谷美鈴",
+    "short": "ガラクタロード美鈴",
+    "character": "秦谷美鈴",
+    "title": "ガラクタロード",
+    "plan": "ロジック",
+    "rarity": "SSR",
+    "image": "/idols/159.png"
+  },
+  {
+    "id": "倉本_千奈_ガラクタロード",
+    "name": "ガラクタロード 倉本千奈",
+    "short": "ガラクタロード千奈",
+    "character": "倉本千奈",
+    "title": "ガラクタロード",
+    "plan": "アノマリー",
+    "rarity": "SSR",
+    "image": "/idols/160.png"
+  },
 ];
