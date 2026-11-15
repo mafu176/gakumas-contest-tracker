@@ -32,6 +32,7 @@ export const idolCharacterOrder = [
   "花海佑芽",
   "十王星南",
   "秦谷美鈴",
+  "氷渡香名江",
 ];
 
 export function getIdolCharacterOrder(idol) {

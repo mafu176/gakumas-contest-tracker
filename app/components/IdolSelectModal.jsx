@@ -21,6 +21,7 @@ const characterFilters = [
   "星南",
   "美鈴",
   "燕",
+  "香名江",
 ];
 
 function getCardName(idol) {

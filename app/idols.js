@@ -1599,4 +1599,24 @@ export const idolDb = [
     "rarity": "SSR",
     "image": "/idols/160.png"
   },
+  {
+    "id": "氷渡_香名江_憧れを抱いて一歩づつ",
+    "name": "憧れを抱いて一歩づつ 氷渡香名江",
+    "short": "憧れを抱いて一歩づつ",
+    "character": "氷渡香名江",
+    "title": "憧れを抱いて一歩づつ",
+    "plan": "センス",
+    "rarity": "SSR",
+    "image": "/idols/161.png"
+  },
+  {
+    "id": "氷渡_香名江_メタモルフォーゼ",
+    "name": "メタモルフォーゼ 氷渡香名江",
+    "short": "メタモルフォーゼ",
+    "character": "氷渡香名江",
+    "title": "メタモルフォーゼ",
+    "plan": "センス",
+    "rarity": "SSR",
+    "image": "/idols/162.png"
+  },
 ];
