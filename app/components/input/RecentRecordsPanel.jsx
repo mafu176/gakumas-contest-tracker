@@ -72,6 +72,7 @@ export default function RecentRecordsPanel({
             </div>
 
             <button
+              hidden
               onClick={loadRecords}
               className="rounded-xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-white"
             >
